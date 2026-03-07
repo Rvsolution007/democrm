@@ -1,0 +1,12 @@
+.git
+node_modules
+.env
+vendor
+*.zip
+*.sql
+test_*.php
+cacert.pem
+mobile_app_flutter
+.vscode
+.idea
+.agent
