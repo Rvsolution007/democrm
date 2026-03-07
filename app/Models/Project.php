@@ -1,0 +1,119 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\Traits\BelongsToCompany;
+
+class Project extends Model
+{
+    use SoftDeletes, BelongsToCompany;
+
+    public const STATUSES = ['pending', 'in_progress', 'completed', 'on_hold', 'cancelled'];
+
+    protected $fillable = [
+        'company_id',
+        'client_id',
+        'quote_id',
+        'lead_id',
+        'created_by_user_id',
+        'assigned_to_user_id',
+        'name',
+        'description',
+        'status',
+        'start_date',
+        'due_date',
+        'budget',
+    ];
+
+    protected $casts = [
+        'start_date' => 'date',
+        'due_date' => 'date',
+        'budget' => 'integer',
+    ];
+
+    // Relationships
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    public function quote(): BelongsTo
+    {
+        return $this->belongsTo(Quote::class);
+    }
+
+    public function lead(): BelongsTo
+    {
+        return $this->belongsTo(Lead::class);
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    public function assignedTo(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to_user_id');
+    }
+
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(Task::class);
+    }
+
+    // Status helpers
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
+    }
+
+    public function isInProgress(): bool
+    {
+        return $this->status === 'in_progress';
+    }
+
+    public function isCompleted(): bool
+    {
+        return $this->status === 'completed';
+    }
+
+    public function isOnHold(): bool
+    {
+        return $this->status === 'on_hold';
+    }
+
+    // Budget helper (paise to rupees)
+    public function getBudgetInRupeesAttribute(): float
+    {
+        return ($this->budget ?? 0) / 100;
+    }
+
+    // Task progress
+    public function getCompletedTasksCountAttribute(): int
+    {
+        return $this->tasks()->where('status', 'done')->count();
+    }
+
+    public function getTotalTasksCountAttribute(): int
+    {
+        return $this->tasks()->count();
+    }
+
+    public function getProgressPercentAttribute(): int
+    {
+        $total = $this->total_tasks_count;
+        if ($total === 0)
+            return 0;
+        return (int) round(($this->completed_tasks_count / $total) * 100);
+    }
+}
