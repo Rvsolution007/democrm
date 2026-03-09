@@ -223,7 +223,7 @@
         }
 
         .modern-table td {
-            padding: 1.25rem 1.5rem;
+            padding: 1rem 1.5rem;
             vertical-align: middle;
             border-bottom: 1px solid #f1f5f9;
             font-size: 0.95rem;
@@ -366,57 +366,23 @@
                                     @endif
                                 </td>
                                 <td>
-                                    <div class="d-flex flex-column gap-1">
-                                        <div class="d-flex align-items-center" style="font-size: 0.85rem; color: #475569;">
-                                            <i data-lucide="git-merge"
-                                                style="width: 12px; height: 12px; margin-right: 6px; opacity: 0.6;"></i>
-                                            <span
-                                                style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-                                                title="{{ $campaign->target_stage ? ucfirst($campaign->target_stage) : 'Global Pipeline (All Stages)' }}">
-                                                {{ $campaign->target_stage ? ucfirst($campaign->target_stage) : 'Global Pipeline (All Stages)' }}
-                                            </span>
-                                        </div>
-                                        <div class="d-flex align-items-center" style="font-size: 0.85rem; color: #475569;">
-                                            <i data-lucide="box"
-                                                style="width: 12px; height: 12px; margin-right: 6px; opacity: 0.6;"></i>
-                                            <span
-                                                style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-                                                title="{{ $campaign->product->name ?? 'Global Inventory (All Products)' }}">
-                                                {{ $campaign->product->name ?? 'Global Inventory (All Products)' }}
-                                            </span>
-                                        </div>
-                                        <div class="d-flex align-items-center mt-2 pt-2" style="font-size: 0.85rem; color: #3b82f6; font-weight: 600; border-top: 1px dashed #e2e8f0;">
-                                            <i data-lucide="users"
-                                                style="width: 14px; height: 14px; margin-right: 6px;"></i>
-                                            <span>{{ $campaign->total_recipients }} Total Recipients</span>
-                                        </div>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <span style="font-size: 0.8rem; background: #f8fafc; border: 1px solid #e2e8f0; padding: 4px 8px; border-radius: 6px; color: #475569; font-weight: 500; display: inline-flex; align-items: center; gap: 4px;">
+                                            <i data-lucide="git-merge" style="width: 12px; height: 12px; opacity: 0.7;"></i> {{ $campaign->target_stage ? ucfirst($campaign->target_stage) : 'All Stages' }}
+                                        </span>
+                                        <span style="font-size: 0.8rem; background: #f8fafc; border: 1px solid #e2e8f0; padding: 4px 8px; border-radius: 6px; color: #475569; font-weight: 500; display: inline-flex; align-items: center; gap: 4px;">
+                                            <i data-lucide="box" style="width: 12px; height: 12px; opacity: 0.7;"></i> {{ $campaign->product->name ?? 'All Products' }}
+                                        </span>
+                                        <span style="font-size: 0.8rem; background: #eff6ff; border: 1px solid #bfdbfe; padding: 4px 8px; border-radius: 6px; color: #1e40af; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+                                            <i data-lucide="users" style="width: 12px; height: 12px;"></i> {{ $campaign->total_recipients }} Recipients
+                                        </span>
                                     </div>
                                 </td>
                                 <td>
-                                    <div class="d-flex gap-3 align-items-center">
-                                        <div class="text-center">
-                                            <div
-                                                style="font-size: 0.75rem; font-weight: 600; color: #94a3b8; text-transform: uppercase;">
-                                                Total</div>
-                                            <div style="font-weight: 700; color: #3b82f6; font-size: 0.95rem;">
-                                                {{ $campaign->total_recipients }}</div>
-                                        </div>
-                                        <div style="width: 1px; height: 24px; background: #e2e8f0;"></div>
-                                        <div class="text-center">
-                                            <div
-                                                style="font-size: 0.75rem; font-weight: 600; color: #94a3b8; text-transform: uppercase;">
-                                                Sent</div>
-                                            <div style="font-weight: 700; color: #10b981; font-size: 0.95rem;">
-                                                {{ $campaign->total_sent }}</div>
-                                        </div>
-                                        <div style="width: 1px; height: 24px; background: #e2e8f0;"></div>
-                                        <div class="text-center">
-                                            <div
-                                                style="font-size: 0.75rem; font-weight: 600; color: #94a3b8; text-transform: uppercase;">
-                                                Fail</div>
-                                            <div style="font-weight: 700; color: #ef4444; font-size: 0.95rem;">
-                                                {{ $campaign->total_failed }}</div>
-                                        </div>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <span style="font-size: 0.8rem; background: #f1f5f9; padding: 4px 8px; border-radius: 6px; color: #475569; font-weight: 600;">Total: <span style="color:#3b82f6">{{$campaign->total_recipients}}</span></span>
+                                        <span style="font-size: 0.8rem; background: #f1f5f9; padding: 4px 8px; border-radius: 6px; color: #475569; font-weight: 600;">Sent: <span style="color:#10b981">{{$campaign->total_sent}}</span></span>
+                                        <span style="font-size: 0.8rem; background: #f1f5f9; padding: 4px 8px; border-radius: 6px; color: #475569; font-weight: 600;">Fail: <span style="color:#ef4444">{{$campaign->total_failed}}</span></span>
                                     </div>
                                 </td>
                                 <td>
@@ -445,6 +411,17 @@
                                         <i data-lucide="calendar"
                                             style="width:14px;height:14px; margin-right: 6px; opacity: 0.7;"></i>
                                         <span>{{ $campaign->created_at->format('d M Y, H:i') }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="d-flex justify-content-end">
+                                        <form action="{{ route('admin.whatsapp-campaigns.destroy', $campaign->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this campaign permanently? This action cannot be undone.');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm text-danger" style="background:#fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.4rem 0.6rem; transition: all 0.2s;" title="Delete Campaign">
+                                                <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
