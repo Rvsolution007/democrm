@@ -53,7 +53,7 @@ class ServiceTemplatesController extends Controller
         }
 
         ServiceTemplate::create([
-            'company_id' => 1,
+            'company_id' => auth()->user()->company_id,
             'product_id' => $validated['product_id'] ?? null,
             'name' => $validated['name'],
             'tasks_json' => $tasksJson,

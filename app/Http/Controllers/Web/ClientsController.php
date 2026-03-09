@@ -77,7 +77,7 @@ class ClientsController extends Controller
             'shipping_address' => 'nullable|array',
         ]);
 
-        $validated['company_id'] = 1;
+        $validated['company_id'] = auth()->user()->company_id;
         $validated['created_by_user_id'] = auth()->id();
 
         // Non-global users: auto-assign to self

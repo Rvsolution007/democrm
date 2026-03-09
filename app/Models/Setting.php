@@ -20,8 +20,9 @@ class Setting extends Model
     /**
      * Get a setting value by group and key
      */
-    public static function getValue(string $group, string $key, $default = null, int $companyId = 1)
+    public static function getValue(string $group, string $key, $default = null, ?int $companyId = null)
     {
+        $companyId = $companyId ?? (auth()->check() ? auth()->user()->company_id : 1);
         $setting = static::where('company_id', $companyId)
             ->where('group', $group)
             ->where('key', $key)
@@ -33,8 +34,9 @@ class Setting extends Model
     /**
      * Set a setting value by group and key
      */
-    public static function setValue(string $group, string $key, $value, int $companyId = 1)
+    public static function setValue(string $group, string $key, $value, ?int $companyId = null)
     {
+        $companyId = $companyId ?? (auth()->check() ? auth()->user()->company_id : 1);
         return static::updateOrCreate(
             ['company_id' => $companyId, 'group' => $group, 'key' => $key],
             ['value' => $value]

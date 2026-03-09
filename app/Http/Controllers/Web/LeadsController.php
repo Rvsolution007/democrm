@@ -82,7 +82,7 @@ class LeadsController extends Controller
             ? User::where('status', 'active')->withModulePermission('leads')->where('id', '!=', 1)->where('id', '!=', auth()->id())->get()
             : collect();
         $products = Product::where('status', 'active')->orderBy('name')->get();
-        $columnVisibility = Setting::getValue('column_visibility', 'leads', [], 1);
+        $columnVisibility = Setting::getValue('column_visibility', 'leads', []);
 
         return view('admin.leads.index', compact('leads', 'allLeads', 'users', 'products', 'columnVisibility', 'totalAmount'));
     }
@@ -93,7 +93,7 @@ class LeadsController extends Controller
      */
     private function getValidationRules(): array
     {
-        $vis = Setting::getValue('column_visibility', 'leads', [], 1);
+        $vis = Setting::getValue('column_visibility', 'leads', []);
 
         $r = function (string $col, string $default) use ($vis) {
             return (isset($vis[$col]) && $vis[$col] === false) ? 'nullable' : $default;
@@ -120,7 +120,7 @@ class LeadsController extends Controller
 
         $validated = $request->validate($this->getValidationRules());
 
-        $validated['company_id'] = 1;
+        $validated['company_id'] = auth()->user()->company_id;
         $validated['created_by_user_id'] = auth()->id();
 
         // Non-global users: auto-assign to self
@@ -330,7 +330,7 @@ class LeadsController extends Controller
             ], 409);
         }
 
-        $company = Company::find(1);
+        $company = auth()->user()->company;
         $quoteNumber = Quote::generateQuoteNumber($company);
 
         // Calculate totals from lead products
@@ -344,7 +344,7 @@ class LeadsController extends Controller
         }
 
         $quote = Quote::create([
-            'company_id' => 1,
+            'company_id' => auth()->user()->company_id,
             'lead_id' => $lead->id,
             'client_id' => $lead->client ? $lead->client->id : null,
             'created_by_user_id' => auth()->id(),
@@ -452,7 +452,7 @@ class LeadsController extends Controller
         }
 
         $client = Client::create([
-            'company_id' => $lead->company_id ?? 1,
+            'company_id' => $lead->company_id ?? auth()->user()->company_id,
             'lead_id' => $lead->id,
             'created_by_user_id' => auth()->id(),
             'assigned_to_user_id' => $lead->assigned_to_user_id ?? auth()->id(),
@@ -515,7 +515,7 @@ class LeadsController extends Controller
         } else {
             // Create ONE project for this lead
             $project = Project::create([
-                'company_id' => $client->company_id ?? 1,
+                'company_id' => $client->company_id ?? auth()->user()->company_id,
                 'client_id' => $client->id,
                 'quote_id' => $quotes->first()->id,
                 'lead_id' => $lead->id,
@@ -559,7 +559,7 @@ class LeadsController extends Controller
                 if ($item->product_id && !in_array($item->product_id, $existingPurchaseProductIds)) {
                     $product = clone \App\Models\Product::find($item->product_id);
                     if ($product && $product->is_purchase_enabled) {
-                        $company = clone \App\Models\Company::find($client->company_id ?? 1);
+                        $company = clone \App\Models\Company::find($client->company_id ?? auth()->user()->company_id);
                         \App\Models\Purchase::create([
                             'company_id' => $company->id,
                             'client_id' => $client->id,
@@ -583,7 +583,7 @@ class LeadsController extends Controller
 
                 $sortOrder++;
                 $task = Task::create([
-                    'company_id' => $client->company_id ?? 1,
+                    'company_id' => $client->company_id ?? auth()->user()->company_id,
                     'project_id' => $project->id,
                     'assigned_to_user_id' => $lead->assigned_to_user_id ?? auth()->id(),
                     'created_by_user_id' => auth()->id(),

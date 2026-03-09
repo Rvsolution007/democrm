@@ -36,7 +36,7 @@ class RolesController extends Controller
             'permissions.*' => 'string',
         ]);
 
-        $validated['company_id'] = 1;
+        $validated['company_id'] = auth()->user()->company_id;
         $validated['slug'] = Str::slug($validated['name']);
         $validated['permissions'] = $validated['permissions'] ?? [];
 

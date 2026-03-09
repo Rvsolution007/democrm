@@ -97,8 +97,8 @@ class QuotesController extends Controller
             ? User::where('status', 'active')->withModulePermission('quotes')->where('id', '!=', 1)->where('id', '!=', auth()->id())->orderBy('name')->get()
             : collect();
 
-        $quoteTaxes = Setting::getValue('quotes', 'taxes', [], 1);
-        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer'], 1);
+        $quoteTaxes = Setting::getValue('quotes', 'taxes', []);
+        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
 
         return view('admin.quotes.index', compact('leadQuotes', 'clientQuotes', 'clients', 'products', 'leads', 'users', 'quoteTaxes', 'paymentTypes', 'leadTotalAmount', 'leadDueAmount', 'clientTotalAmount', 'clientDueAmount'));
     }
@@ -123,7 +123,7 @@ class QuotesController extends Controller
         ]);
 
         // Auto-generate quote number
-        $company = Company::find(1);
+        $company = auth()->user()->company;
         $quoteNumber = Quote::generateQuoteNumber($company);
 
         // Convert rupees to paise (model stores in paise)
@@ -142,7 +142,7 @@ class QuotesController extends Controller
         $leadId = $validated['client_type'] === 'lead' ? $validated['lead_id'] : null;
 
         Quote::create([
-            'company_id' => 1,
+            'company_id' => auth()->user()->company_id,
             'client_id' => $clientId,
             'lead_id' => $leadId,
             'created_by_user_id' => auth()->id(),

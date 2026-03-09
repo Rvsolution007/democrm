@@ -50,7 +50,7 @@ class PurchasePaymentController extends Controller
         $totalPaid = (clone $query)->sum('amount') / 100;
         $payments = $query->latest('payment_date')->paginate(20)->withQueryString();
 
-        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer'], 1);
+        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
 
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
@@ -90,7 +90,7 @@ class PurchasePaymentController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer'], 1);
+        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
 
         $validated = $request->validate([
             'amount' => 'required|numeric|min:0.01',

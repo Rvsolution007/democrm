@@ -48,7 +48,7 @@ class PurchaseController extends Controller
 
         $vendors = Vendor::where('status', 'active')->get();
         $clients = \App\Models\Client::where('status', 'active')->get();
-        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer'], 1);
+        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
 
         return view('admin.purchases.index', compact(
             'allPurchases',
@@ -217,7 +217,7 @@ class PurchaseController extends Controller
         }
 
         $purchase = Purchase::findOrFail($id);
-        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer'], 1);
+        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
 
         $validated = $request->validate([
             'amount' => 'required|numeric|min:1',

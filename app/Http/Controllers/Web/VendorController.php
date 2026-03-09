@@ -41,7 +41,7 @@ class VendorController extends Controller
             'status' => 'required|in:active,inactive',
         ]);
 
-        $validated['company_id'] = 1;
+        $validated['company_id'] = auth()->user()->company_id;
         $validated['has_purchase_section'] = $request->has('has_purchase_section') ? true : false;
         Vendor::create($validated);
 

@@ -24,7 +24,7 @@ class CategoriesController extends Controller
         }
 
         $categories = $query->get();
-        $columnVisibility = Setting::getValue('column_visibility', 'categories', [], 1);
+        $columnVisibility = Setting::getValue('column_visibility', 'categories', []);
         return view('admin.categories.index', compact('categories', 'columnVisibility'));
     }
 
@@ -34,7 +34,7 @@ class CategoriesController extends Controller
      */
     private function getValidationRules(): array
     {
-        $vis = Setting::getValue('column_visibility', 'categories', [], 1);
+        $vis = Setting::getValue('column_visibility', 'categories', []);
 
         $r = function (string $col, string $default) use ($vis) {
             return (isset($vis[$col]) && $vis[$col] === false) ? 'nullable' : $default;
@@ -57,7 +57,7 @@ class CategoriesController extends Controller
 
         $validated = $request->validate($this->getValidationRules());
 
-        $validated['company_id'] = 1;
+        $validated['company_id'] = auth()->user()->company_id;
         $validated['created_by_user_id'] = auth()->id();
         $validated['slug'] = Str::slug($validated['name']);
         $validated['sort_order'] = $validated['sort_order'] ?? 0;

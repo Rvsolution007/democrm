@@ -39,7 +39,7 @@ class UsersController extends Controller
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
-        $validated['company_id'] = 1;
+        $validated['company_id'] = auth()->user()->company_id;
         $validated['status'] = $validated['status'] ?? 'active';
 
         User::create($validated);

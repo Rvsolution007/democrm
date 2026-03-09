@@ -17,11 +17,11 @@ class SettingsController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $company = Company::first();
+        $company = auth()->user()->company;
 
         // Load all column_visibility settings from DB
         $columnVisibility = [];
-        $settings = Setting::where('company_id', 1)
+        $settings = Setting::where('company_id', auth()->user()->company_id)
             ->where('group', 'column_visibility')
             ->get();
 
@@ -29,11 +29,11 @@ class SettingsController extends Controller
             $columnVisibility[$setting->key] = $setting->value;
         }
 
-        $quoteTaxes = Setting::getValue('quotes', 'taxes', [], 1);
-        $leadStages = Setting::getValue('leads', 'stages', Lead::STAGES, 1);
-        $taskStatuses = Setting::getValue('tasks', 'statuses', Task::STATUSES, 1);
-        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer'], 1);
-        $whatsappApiConfig = Setting::getValue('whatsapp', 'api_config', ['api_url' => '', 'api_key' => ''], 1);
+        $quoteTaxes = Setting::getValue('quotes', 'taxes', []);
+        $leadStages = Setting::getValue('leads', 'stages', Lead::STAGES);
+        $taskStatuses = Setting::getValue('tasks', 'statuses', Task::STATUSES);
+        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
+        $whatsappApiConfig = Setting::getValue('whatsapp', 'api_config', ['api_url' => '', 'api_key' => '']);
 
         return view('admin.settings.index', compact('company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'taskStatuses', 'paymentTypes', 'whatsappApiConfig'));
     }
@@ -51,8 +51,7 @@ class SettingsController extends Controller
         Setting::setValue(
             'column_visibility',
             $request->module,
-            $request->columns,
-            1 // company_id
+            $request->columns
         );
 
         return response()->json(['success' => true, 'message' => 'Settings saved']);
@@ -67,7 +66,7 @@ class SettingsController extends Controller
             'taxes' => 'present|array',
         ]);
 
-        Setting::setValue('quotes', 'taxes', $request->taxes, 1);
+        Setting::setValue('quotes', 'taxes', $request->taxes);
 
         return response()->json(['success' => true, 'message' => 'Taxes saved']);
     }
@@ -77,7 +76,7 @@ class SettingsController extends Controller
      */
     public function getColumnVisibility($module)
     {
-        $value = Setting::getValue('column_visibility', $module, null, 1);
+        $value = Setting::getValue('column_visibility', $module, null);
         return response()->json(['module' => $module, 'columns' => $value ?? new \stdClass()]);
     }
 
@@ -91,7 +90,7 @@ class SettingsController extends Controller
             'stages.*' => 'required|string|distinct'
         ]);
 
-        Setting::setValue('leads', 'stages', $request->stages, 1);
+        Setting::setValue('leads', 'stages', $request->stages);
 
         return response()->json(['success' => true, 'message' => 'Lead stages saved']);
     }
@@ -106,7 +105,7 @@ class SettingsController extends Controller
             'statuses.*' => 'required|string|distinct'
         ]);
 
-        Setting::setValue('tasks', 'statuses', $request->statuses, 1);
+        Setting::setValue('tasks', 'statuses', $request->statuses);
 
         return response()->json(['success' => true, 'message' => 'Task statuses saved']);
     }
@@ -121,7 +120,7 @@ class SettingsController extends Controller
             'types.*' => 'required|string|distinct'
         ]);
 
-        Setting::setValue('payments', 'types', $request->types, 1);
+        Setting::setValue('payments', 'types', $request->types);
 
         return response()->json(['success' => true, 'message' => 'Payment types saved']);
     }
@@ -139,7 +138,7 @@ class SettingsController extends Controller
         Setting::setValue('whatsapp', 'api_config', [
             'api_url' => rtrim($request->api_url, '/'),
             'api_key' => $request->api_key,
-        ], 1);
+        ], auth()->user()->company_id);
 
         return response()->json(['success' => true, 'message' => 'WhatsApp API configuration saved']);
     }

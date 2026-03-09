@@ -18,7 +18,7 @@ class WhatsappConnectController extends Controller
         return Setting::getValue('whatsapp', 'api_config', [
             'api_url' => '',
             'api_key' => '',
-        ], 1);
+        ], auth()->user()->company_id);
     }
 
     /**

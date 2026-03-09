@@ -25,7 +25,7 @@ class ProductsController extends Controller
 
         $products = $query->latest()->paginate(20);
         $categories = Category::all();
-        $columnVisibility = Setting::getValue('column_visibility', 'products', [], 1);
+        $columnVisibility = Setting::getValue('column_visibility', 'products', []);
         return view('admin.products.index', compact('products', 'categories', 'columnVisibility'));
     }
 
@@ -35,7 +35,7 @@ class ProductsController extends Controller
      */
     private function getValidationRules(): array
     {
-        $vis = Setting::getValue('column_visibility', 'products', [], 1);
+        $vis = Setting::getValue('column_visibility', 'products', []);
 
         // Helper: returns 'nullable' if column is hidden, otherwise the given rule
         $r = function (string $col, string $default) use ($vis) {
@@ -70,7 +70,7 @@ class ProductsController extends Controller
         if (isset($validated['sale_price'])) {
             $validated['sale_price'] = $validated['sale_price'] * 100;
         }
-        $validated['company_id'] = 1;
+        $validated['company_id'] = auth()->user()->company_id;
         $validated['created_by_user_id'] = auth()->id();
         $validated['is_purchase_enabled'] = $request->has('is_purchase_enabled');
 

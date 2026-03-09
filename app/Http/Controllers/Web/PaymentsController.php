@@ -80,7 +80,7 @@ class PaymentsController extends Controller
             ? User::where('status', 'active')->withModulePermission('quotes')->where('id', '!=', 1)->where('id', '!=', auth()->id())->orderBy('name')->get()
             : collect();
 
-        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer'], 1);
+        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
 
         return view('admin.payments.index', compact('payments', 'totalReceived', 'users', 'paymentTypes'));
     }
@@ -91,7 +91,7 @@ class PaymentsController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer'], 1);
+        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
 
         $validated = $request->validate([
             'quote_id' => 'required|exists:quotes,id',
@@ -136,7 +136,7 @@ class PaymentsController extends Controller
         }
 
         $payment = QuotePayment::findOrFail($id);
-        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer'], 1);
+        $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
 
         $validated = $request->validate([
             'amount' => 'required|numeric|min:0.01',
