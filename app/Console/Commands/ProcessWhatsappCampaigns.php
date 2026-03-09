@@ -32,7 +32,7 @@ class ProcessWhatsappCampaigns extends Command
 
             // Get Evolution API Config from DB settings (server-level: URL + API Key)
             $apiConfig = Setting::getValue('whatsapp', 'api_config', [], $companyId);
-            $apiUrl = $apiConfig['api_url'] ?? '';
+            $apiUrl = rtrim($apiConfig['api_url'] ?? '', '/');
             $apiKey = $apiConfig['api_key'] ?? '';
 
             if (empty($apiUrl) || empty($apiKey)) {
@@ -173,12 +173,14 @@ class ProcessWhatsappCampaigns extends Command
 
                 // Find the first rvcrm_ instance that is connected
                 foreach ($instances as $inst) {
+                    // Evolution API structure varies: it might be inside 'instance' object or top-level
                     $name = $inst['instance']['instanceName'] ?? $inst['instanceName'] ?? '';
-                    $state = $inst['instance']['state'] ?? $inst['state'] ?? '';
+                    $state = $inst['instance']['state'] ?? $inst['state'] ?? $inst['instance']['status'] ?? $inst['status'] ?? '';
 
                     Log::info("WhatsApp Bulk: Checking instance '{$name}' with state '{$state}'");
 
-                    if (str_starts_with($name, 'rvcrm_') && in_array(strtolower($state), ['open', 'connected'])) {
+                    $validStates = ['open', 'connected', 'connecting']; // Allow connecting as a temporary state
+                    if (str_starts_with($name, 'rvcrm_') && in_array(strtolower($state), $validStates)) {
                         Log::info("WhatsApp Bulk: Found match! Using '{$name}'");
                         return $name;
                     }
