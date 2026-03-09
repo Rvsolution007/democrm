@@ -23,27 +23,37 @@ class ProcessWhatsappCampaigns extends Command
             return; // Nothing to do
         }
 
-        // Get Evolution API Config from DB settings (server-level: URL + API Key)
-        $apiConfig = Setting::getValue('whatsapp', 'api_config', [], 1);
-        $apiUrl = $apiConfig['api_url'] ?? '';
-        $apiKey = $apiConfig['api_key'] ?? '';
-
-        if (empty($apiUrl) || empty($apiKey)) {
-            Log::warning('WhatsApp Bulk: Evolution API not configured in settings. Skipping.');
-            return;
-        }
-
-        // Find the first connected instance (any user's instance that starts with rvcrm_)
-        $instanceName = $this->findConnectedInstance($apiUrl, $apiKey);
-
-        if (!$instanceName) {
-            Log::warning('WhatsApp Bulk: No connected WhatsApp instance found. Ask a user to scan QR.');
-            return;
-        }
-
-        Log::info("WhatsApp Bulk: Using connected instance '{$instanceName}'");
-
         foreach ($campaigns as $campaign) {
+            $companyId = $campaign->company_id ?? 1;
+
+            // Get Evolution API Config from DB settings (server-level: URL + API Key)
+            $apiConfig = Setting::getValue('whatsapp', 'api_config', [], $companyId);
+            $apiUrl = $apiConfig['api_url'] ?? '';
+            $apiKey = $apiConfig['api_key'] ?? '';
+
+            if (empty($apiUrl) || empty($apiKey)) {
+                $campaign->update([
+                    'status' => 'failed',
+                    'error_message' => 'WhatsApp Bulk: Evolution API not configured in settings.'
+                ]);
+                Log::warning('WhatsApp Bulk: Evolution API not configured in settings for company ' . $companyId);
+                continue;
+            }
+
+            // Find the first connected instance (any user's instance that starts with rvcrm_)
+            $instanceName = $this->findConnectedInstance($apiUrl, $apiKey);
+
+            if (!$instanceName) {
+                $campaign->update([
+                    'status' => 'failed',
+                    'error_message' => 'WhatsApp Bulk: No connected WhatsApp instance found. Ask a user to scan QR.'
+                ]);
+                Log::warning('WhatsApp Bulk: No connected WhatsApp instance found. Ask a user to scan QR.');
+                continue;
+            }
+
+            Log::info("WhatsApp Bulk: Using connected instance '{$instanceName}'");
+
             // Mark as processing if pending
             if ($campaign->status === 'pending') {
                 $campaign->update(['status' => 'processing']);

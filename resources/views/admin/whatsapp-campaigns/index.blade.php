@@ -555,6 +555,11 @@
                                     @elseif($campaign->status === 'failed')
                                         <span class="val-badge bg-soft-danger"><i data-lucide="x-circle"
                                                 style="width: 12px; height: 12px;"></i> Failed</span>
+                                        @if($campaign->error_message)
+                                            <div style="font-size: 0.75rem; color: #ef4444; margin-top: 6px; max-width: 200px; line-height: 1.2;">
+                                                <strong>Reason:</strong> {{ $campaign->error_message }}
+                                            </div>
+                                        @endif
                                     @else
                                         <span class="val-badge bg-soft-secondary"><i data-lucide="clock"
                                                 style="width: 12px; height: 12px;"></i> Pending</span>

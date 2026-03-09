@@ -4,9 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+use App\Traits\BelongsToCompany;
+
 class WhatsappCampaign extends Model
 {
+    use BelongsToCompany;
+
     protected $fillable = [
+        'company_id',
         'template_id',
         'target_stage',
         'target_product_id',
@@ -14,6 +19,7 @@ class WhatsappCampaign extends Model
         'total_sent',
         'total_failed',
         'status',
+        'error_message',
     ];
 
     public function template()
