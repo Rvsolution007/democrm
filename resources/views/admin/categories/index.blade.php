@@ -8,7 +8,7 @@
         <div class="page-header-content">
             <div>
                 <h1 class="page-title">Categories</h1>
-                <p class="page-description">Manage product categories</p>
+                <p class="page-description">Manage product categories & subcategories</p>
             </div>
             <div class="page-actions">
                 @if(can('categories.write'))
@@ -37,52 +37,143 @@
         </div>
     @endif
 
-    <div class="grid grid-cols-3 gap-4">
-        @forelse($categories as $category)
-            <div class="card">
-                <div class="card-content">
-                    <div class="flex items-center gap-3 mb-3">
-                        <div class="stats-card-icon"><i data-lucide="folder" style="width:20px;height:20px"></i></div>
-                        <div>
-                            <h3 class="font-semibold" data-col="name">{{ $category->name }}</h3>
-                            <p class="text-xs text-muted" data-col="products_count">{{ $category->products_count }} products</p>
-                        </div>
-                    </div>
-                    <p class="text-sm text-muted" data-col="description">{{ $category->description ?? 'No description' }}</p>
-                    <div style="margin-top:8px" data-col="status">
-                        <span class="badge {{ $category->status === 'active' ? 'badge-success' : 'badge-secondary' }}">
-                            {{ ucfirst($category->status ?? 'active') }}
-                        </span>
-                    </div>
-                    <div class="flex gap-2 mt-4" data-col="actions">
-                        @if(can('categories.write'))
-                            <button class="btn btn-outline btn-sm"
-                                onclick="editCategory({{ $category->id }}, '{{ addslashes($category->name) }}', '{{ addslashes($category->description ?? '') }}', '{{ $category->status ?? 'active' }}', {{ $category->sort_order ?? 0 }}, {{ $category->parent_category_id ?? 'null' }})">
-                                <i data-lucide="edit" style="width:14px;height:14px"></i> Edit
-                            </button>
-                        @endif
-                        @if(can('categories.delete'))
-                            <form action="{{ route('admin.categories.destroy', $category->id) }}" method="POST"
-                                style="display:inline;margin:0"
-                                onsubmit="return confirm('Are you sure you want to delete this category?')">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--destructive)">
-                                    <i data-lucide="trash-2" style="width:14px;height:14px"></i> Delete
-                                </button>
-                            </form>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        @empty
-            <div class="card" style="grid-column: span 3">
-                <div class="card-content" style="text-align:center;padding:40px">
-                    <i data-lucide="folder-plus" style="width:48px;height:48px;color:#ccc;margin:0 auto 16px;display:block"></i>
-                    <p class="text-muted">No categories found. Click "Add Category" to create one.</p>
-                </div>
-            </div>
-        @endforelse
+    <div class="card">
+        <div class="card-content" style="padding:0">
+            <table class="data-table" style="width:100%;border-collapse:collapse">
+                <thead>
+                    <tr>
+                        <th style="padding:12px 16px;text-align:left;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px"
+                            data-col="name">Category</th>
+                        <th style="padding:12px 16px;text-align:left;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px"
+                            data-col="description">Description</th>
+                        <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px"
+                            data-col="products_count">Products</th>
+                        <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px"
+                            data-col="status">Status</th>
+                        <th style="padding:12px 16px;text-align:right;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px"
+                            data-col="actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($categories as $category)
+                        {{-- Parent Category Row --}}
+                        <tr style="border-bottom:1px solid var(--border);background:var(--card-bg)">
+                            <td style="padding:14px 16px" data-col="name">
+                                <div style="display:flex;align-items:center;gap:10px">
+                                    <div
+                                        style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#4f46e5,#7c3aed);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                                        <i data-lucide="folder" style="width:18px;height:18px;color:#fff"></i>
+                                    </div>
+                                    <div>
+                                        <span
+                                            style="font-weight:600;font-size:14px;color:var(--text-primary)">{{ $category->name }}</span>
+                                        @if($category->children->count() > 0)
+                                            <span
+                                                style="font-size:11px;color:var(--text-muted);margin-left:6px">({{ $category->children->count() }}
+                                                sub)</span>
+                                        @endif
+                                    </div>
+                                </div>
+                            </td>
+                            <td style="padding:14px 16px;color:var(--text-muted);font-size:13px" data-col="description">
+                                {{ Str::limit($category->description, 50) ?? '—' }}</td>
+                            <td style="padding:14px 16px;text-align:center" data-col="products_count">
+                                <span
+                                    style="background:var(--bg-muted);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">{{ $category->products_count }}</span>
+                            </td>
+                            <td style="padding:14px 16px;text-align:center" data-col="status">
+                                <span class="badge {{ $category->status === 'active' ? 'badge-success' : 'badge-secondary' }}">
+                                    {{ ucfirst($category->status ?? 'active') }}
+                                </span>
+                            </td>
+                            <td style="padding:14px 16px;text-align:right" data-col="actions">
+                                <div style="display:flex;gap:4px;justify-content:flex-end">
+                                    @if(can('categories.write'))
+                                        <button class="btn btn-outline btn-sm"
+                                            onclick="editCategory({{ $category->id }}, '{{ addslashes($category->name) }}', '{{ addslashes($category->description ?? '') }}', '{{ $category->status ?? 'active' }}', {{ $category->sort_order ?? 0 }}, {{ $category->parent_category_id ?? 'null' }})"
+                                            style="padding:4px 10px;font-size:12px">
+                                            <i data-lucide="edit" style="width:13px;height:13px"></i>
+                                        </button>
+                                    @endif
+                                    @if(can('categories.delete'))
+                                        <form action="{{ route('admin.categories.destroy', $category->id) }}" method="POST"
+                                            style="display:inline;margin:0"
+                                            onsubmit="return confirm('Delete this category and all its subcategories?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-ghost btn-sm"
+                                                style="color:var(--destructive);padding:4px 10px;font-size:12px">
+                                                <i data-lucide="trash-2" style="width:13px;height:13px"></i>
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+
+                        {{-- Subcategory Rows --}}
+                        @foreach($category->children as $child)
+                            <tr style="border-bottom:1px solid var(--border);background:var(--bg-muted)">
+                                <td style="padding:10px 16px 10px 40px" data-col="name">
+                                    <div style="display:flex;align-items:center;gap:10px">
+                                        <div
+                                            style="width:6px;height:6px;border-radius:50%;background:var(--text-muted);flex-shrink:0">
+                                        </div>
+                                        <div
+                                            style="width:28px;height:28px;border-radius:6px;background:linear-gradient(135deg,#f59e0b,#f97316);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                                            <i data-lucide="folder-open" style="width:14px;height:14px;color:#fff"></i>
+                                        </div>
+                                        <span
+                                            style="font-weight:500;font-size:13px;color:var(--text-secondary)">{{ $child->name }}</span>
+                                    </div>
+                                </td>
+                                <td style="padding:10px 16px;color:var(--text-muted);font-size:13px" data-col="description">
+                                    {{ Str::limit($child->description, 50) ?? '—' }}</td>
+                                <td style="padding:10px 16px;text-align:center" data-col="products_count">
+                                    <span
+                                        style="background:var(--card-bg);padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600">{{ $child->products_count }}</span>
+                                </td>
+                                <td style="padding:10px 16px;text-align:center" data-col="status">
+                                    <span class="badge {{ $child->status === 'active' ? 'badge-success' : 'badge-secondary' }}">
+                                        {{ ucfirst($child->status ?? 'active') }}
+                                    </span>
+                                </td>
+                                <td style="padding:10px 16px;text-align:right" data-col="actions">
+                                    <div style="display:flex;gap:4px;justify-content:flex-end">
+                                        @if(can('categories.write'))
+                                            <button class="btn btn-outline btn-sm"
+                                                onclick="editCategory({{ $child->id }}, '{{ addslashes($child->name) }}', '{{ addslashes($child->description ?? '') }}', '{{ $child->status ?? 'active' }}', {{ $child->sort_order ?? 0 }}, {{ $child->parent_category_id ?? 'null' }})"
+                                                style="padding:4px 10px;font-size:12px">
+                                                <i data-lucide="edit" style="width:13px;height:13px"></i>
+                                            </button>
+                                        @endif
+                                        @if(can('categories.delete'))
+                                            <form action="{{ route('admin.categories.destroy', $child->id) }}" method="POST"
+                                                style="display:inline;margin:0" onsubmit="return confirm('Delete this subcategory?')">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-ghost btn-sm"
+                                                    style="color:var(--destructive);padding:4px 10px;font-size:12px">
+                                                    <i data-lucide="trash-2" style="width:13px;height:13px"></i>
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforeach
+                    @empty
+                        <tr>
+                            <td colspan="5" style="text-align:center;padding:40px">
+                                <i data-lucide="folder-plus"
+                                    style="width:48px;height:48px;color:#ccc;margin:0 auto 16px;display:block"></i>
+                                <p class="text-muted">No categories found. Click "Add Category" to create one.</p>
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <!-- Add/Edit Category Modal -->
@@ -124,18 +215,16 @@
                         <input type="number" class="form-input" name="sort_order" id="cat-sort-order" value="0" min="0"
                             style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
                     </div>
-                    @if($categories->count() > 0)
-                        <div style="margin-bottom:16px">
-                            <label style="display:block;margin-bottom:4px;font-weight:500">Parent Category</label>
-                            <select class="form-select" name="parent_category_id" id="cat-parent"
-                                style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
-                                <option value="">None (Root Category)</option>
-                                @foreach($categories as $cat)
-                                    <option value="{{ $cat->id }}">{{ $cat->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    @endif
+                    <div style="margin-bottom:16px">
+                        <label style="display:block;margin-bottom:4px;font-weight:500">Parent Category</label>
+                        <select class="form-select" name="parent_category_id" id="cat-parent"
+                            style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
+                            <option value="">None (Root Category)</option>
+                            @foreach($allCategories->whereNull('parent_category_id') as $cat)
+                                <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                 </div>
                 <div style="padding:20px;border-top:1px solid #eee;display:flex;justify-content:flex-end;gap:10px">
                     <button type="button" class="btn btn-outline" onclick="closeModal()"

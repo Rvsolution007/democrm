@@ -16,16 +16,25 @@ class CategoriesController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $query = Category::withCount('products');
+        $query = Category::withCount('products')->with([
+            'children' => function ($q) {
+                $q->withCount('products')->orderBy('sort_order');
+            }
+        ]);
 
         // Global permission filter
         if (!can('categories.global')) {
             $query->where('created_by_user_id', auth()->id());
         }
 
-        $categories = $query->get();
+        // Get root categories (no parent) for hierarchical display
+        $categories = $query->whereNull('parent_category_id')->orderBy('sort_order')->get();
+
+        // Get all categories flat list for parent dropdown
+        $allCategories = Category::orderBy('name')->get();
+
         $columnVisibility = Setting::getValue('column_visibility', 'categories', []);
-        return view('admin.categories.index', compact('categories', 'columnVisibility'));
+        return view('admin.categories.index', compact('categories', 'allCategories', 'columnVisibility'));
     }
 
     /**
