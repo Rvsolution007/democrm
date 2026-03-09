@@ -169,16 +169,22 @@ class ProcessWhatsappCampaigns extends Command
 
             if ($response->successful()) {
                 $instances = $response->json();
+                Log::info('WhatsApp Bulk: Fetched ' . count($instances) . ' instances from API.');
 
                 // Find the first rvcrm_ instance that is connected
                 foreach ($instances as $inst) {
                     $name = $inst['instance']['instanceName'] ?? $inst['instanceName'] ?? '';
                     $state = $inst['instance']['state'] ?? $inst['state'] ?? '';
 
+                    Log::info("WhatsApp Bulk: Checking instance '{$name}' with state '{$state}'");
+
                     if (str_starts_with($name, 'rvcrm_') && in_array(strtolower($state), ['open', 'connected'])) {
+                        Log::info("WhatsApp Bulk: Found match! Using '{$name}'");
                         return $name;
                     }
                 }
+            } else {
+                Log::error('WhatsApp Bulk: API returned error status ' . $response->status() . ' while fetching instances: ' . $response->body());
             }
         } catch (\Exception $e) {
             Log::error('WhatsApp: Failed to fetch instances - ' . $e->getMessage());
