@@ -25,6 +25,11 @@
             letter-spacing: -0.5px;
         }
 
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
         .modern-card {
             background: #ffffff;
             border-radius: 20px;
@@ -288,12 +293,15 @@
         <!-- Modern Header -->
         <div class="page-header-modern">
             <div>
-                <h2 class="page-title-modern">WhatsApp Bulk Sender</h2>
-                <p class="text-muted mt-1 mb-0" style="font-size: 0.9rem;">Broadcast rich interactive messages to your
-                    targeted leads at scale</p>
+                <h2 class="page-title-modern">Historical Campaign Manifest</h2>
+                <p class="text-muted mt-1 mb-0" style="font-size: 0.9rem;">Review and monitor all your past and current WhatsApp broadcasts</p>
+            </div>
+            <div class="header-actions">
+                <a href="{{ route('admin.whatsapp-campaigns.create') }}" class="btn-start-modern" style="text-decoration: none; width: auto;">
+                    <i data-lucide="plus-circle" style="width: 18px; height: 18px;"></i> Start New Campaign
+                </a>
             </div>
         </div>
-
         @if(session('success'))
             <div class="alert alert-success alert-dismissible fade show" role="alert"
                 style="border-radius: 12px; border: none; background: #ecfdf5; color: #047857; box-shadow: 0 4px 15px -5px rgba(0,0,0,0.05); padding: 1rem 1.5rem;">
@@ -317,147 +325,7 @@
             </div>
         @endif
 
-        <div class="row">
-            <!-- New Campaign Form -->
-            <div class="col-lg-5">
-                <div class="modern-card">
-                    <div class="modern-card-header">
-                        <div style="background: #eff6ff; padding: 8px; border-radius: 10px; color: #3b82f6;">
-                            <i data-lucide="send" style="width: 18px; height: 18px;"></i>
-                        </div>
-                        <h6>Start New Campaign</h6>
-                    </div>
-                    <div class="modern-card-body">
-                        <form action="{{ route('admin.whatsapp-campaigns.store') }}" method="POST" id="campaignForm">
-                            @csrf
 
-                            <div class="mb-4">
-                                <label class="modern-form-label">Select Template <span class="text-danger">*</span></label>
-                                <select name="template_id" id="template_id" class="modern-form-select select2" required>
-                                    <option value="">-- Choose a template --</option>
-                                    @foreach($templates as $template)
-                                        <option value="{{ $template->id }}">{{ $template->name }}
-                                            ({{ ucfirst($template->type) }})</option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            <div class="mb-4">
-                                <label class="modern-form-label">Target Lead Stage</label>
-                                <select name="target_stage" id="target_stage" class="modern-form-select">
-                                    <option value="">All Stages</option>
-                                    @foreach($stages as $stage)
-                                        @if($stage)
-                                            <option value="{{ $stage }}">{{ ucfirst($stage) }}</option>
-                                        @endif
-                                    @endforeach
-                                </select>
-                                <span class="modern-help-text">Leave empty to broadcast to everyone in all pipelines</span>
-                            </div>
-
-                            <div class="mb-4">
-                                <label class="modern-form-label">Target Product Interest</label>
-                                <select name="target_product_id" id="target_product_id" class="modern-form-select select2">
-                                    <option value="">All Products</option>
-                                    @foreach($products as $product)
-                                        <option value="{{ $product->id }}">{{ $product->name }}</option>
-                                    @endforeach
-                                </select>
-                                <span class="modern-help-text">Filter audience by product interest</span>
-                            </div>
-
-                            <hr style="border-color: #f1f5f9; margin: 1.5rem 0;">
-
-                            <div class="d-flex flex-column gap-3">
-                                <button type="button" class="btn-preview-modern" onclick="previewCampaign()">
-                                    <i data-lucide="search" style="width: 18px; height: 18px;"></i>
-                                    Calculate Audience Size
-                                </button>
-
-                                <button type="submit" class="btn-start-modern" id="btnStart" disabled>
-                                    <i data-lucide="rocket" style="width: 18px; height: 18px;"></i>
-                                    Deploy Campaign
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Preview Results -->
-            <div class="col-lg-7">
-                <div class="modern-card" id="previewCard" style="opacity: 0.6; transition: all 0.4s ease;">
-                    <div class="modern-card-header">
-                        <div style="background: #fef2f2; padding: 8px; border-radius: 10px; color: #ef4444;">
-                            <i data-lucide="bar-chart-2" style="width: 18px; height: 18px;"></i>
-                        </div>
-                        <h6>Audience Preview & Metrics</h6>
-                    </div>
-
-                    <div class="modern-card-body">
-                        <div id="previewEmpty" class="text-center py-5">
-                            <div class="empty-preview-icon">
-                                <i data-lucide="users" style="width: 28px; height: 28px;"></i>
-                            </div>
-                            <h5 style="color: #334155; font-weight: 600; font-size: 1.1rem; margin-bottom: 0.5rem;">
-                                Real-time Campaign Analysis</h5>
-                            <p style="color: #64748b; font-size: 0.95rem; max-width: 350px; margin: 0 auto;">Select your
-                                filters and deploy 'Calculate Audience Size' to securely preview total recipients and ETA
-                                metrics.</p>
-                        </div>
-
-                        <div id="previewResults" style="display:none;">
-                            <div class="row mb-4 g-3">
-                                <div class="col-md-6">
-                                    <div class="stat-box stat-box-blue">
-                                        <div class="stat-value text-primary" id="resCount">0</div>
-                                        <div class="stat-label">Total Verified Recipients</div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="stat-box stat-box-amber">
-                                        <div class="stat-value text-warning" id="resEta">0 Mins</div>
-                                        <div class="stat-label">Max Completion Time (ETA)</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <h6 class="font-weight-bold mb-3" style="color: #334155; font-size: 1rem;">Sample Audience
-                                Segment <span style="font-size:0.8rem;color:#94a3b8;font-weight:400;">(Top 10)</span></h6>
-                            <div class="border rounded-4 overflow-hidden mb-4" style="border-color: #e2e8f0 !important;">
-                                <table class="table modern-table mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th>Contact Name</th>
-                                            <th>WhatsApp Number</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="resTableBody">
-                                        <!-- Populated via JS -->
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <div
-                                style="background: #fff8f1; border: 1px dashed #fdba74; border-radius: 12px; padding: 1rem; display: flex; gap: 1rem; align-items: flex-start;">
-                                <div style="color: #f97316; margin-top: 2px;">
-                                    <i data-lucide="shield-alert" style="width: 20px; height: 20px;"></i>
-                                </div>
-                                <div>
-                                    <h6
-                                        style="color: #9a3412; font-weight: 700; font-size: 0.9rem; margin-bottom: 0.25rem;">
-                                        Meta Compliance Security</h6>
-                                    <p style="color: #c2410c; font-size: 0.85rem; margin: 0; line-height: 1.5;">Campaign
-                                        processing operates within an isolated background chron engine utilizing a dynamic
-                                        <b>20-second dispersal delay</b> per message to explicitly prevent algorithmic
-                                        ban-flags by the Meta ecosystem. Safe to navigate away post-deployment.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <!-- Past Campaigns Table -->
         <div class="modern-card mt-2">
@@ -478,6 +346,7 @@
                             <th>Delivery Metrics</th>
                             <th>Status Vector</th>
                             <th class="text-end">Timestamp</th>
+                            <th class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -515,6 +384,11 @@
                                                 title="{{ $campaign->product->name ?? 'Global Inventory (All Products)' }}">
                                                 {{ $campaign->product->name ?? 'Global Inventory (All Products)' }}
                                             </span>
+                                        </div>
+                                        <div class="d-flex align-items-center mt-2 pt-2" style="font-size: 0.85rem; color: #3b82f6; font-weight: 600; border-top: 1px dashed #e2e8f0;">
+                                            <i data-lucide="users"
+                                                style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                                            <span>{{ $campaign->total_recipients }} Total Recipients</span>
                                         </div>
                                     </div>
                                 </td>
@@ -576,7 +450,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     <div class="text-center py-5">
                                         <div class="empty-preview-icon"
                                             style="background: transparent; border: 1px dashed #cbd5e1;">
@@ -610,85 +484,5 @@
             }
         });
 
-        function previewCampaign() {
-            const stage = document.getElementById('target_stage').value;
-            const productId = document.getElementById('target_product_id').value;
-            const btnStart = document.getElementById('btnStart');
-
-            // Disable start button during preview fetch
-            btnStart.disabled = true;
-            btnStart.style.cursor = 'not-allowed';
-            btnStart.style.opacity = '0.6';
-
-            const previewCard = document.getElementById('previewCard');
-            previewCard.style.opacity = '1';
-
-            // Add loading state
-            document.getElementById('previewEmpty').innerHTML = '<p>Loading preview...</p>';
-            document.getElementById('previewEmpty').style.display = 'block';
-            document.getElementById('previewResults').style.display = 'none';
-
-            fetch("{{ route('admin.whatsapp-campaigns.preview') }}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({
-                    stage: stage,
-                    product_id: productId
-                })
-            })
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('previewEmpty').style.display = 'none';
-                    document.getElementById('previewResults').style.display = 'block';
-
-                    document.getElementById('resCount').textContent = data.count;
-                    document.getElementById('resEta').textContent = data.eta_readable;
-
-                    const tbody = document.getElementById('resTableBody');
-                    tbody.innerHTML = '';
-
-                    if (data.leads.length > 0) {
-                        data.leads.forEach(lead => {
-                            tbody.innerHTML += `
-                                        <tr>
-                                            <td>${lead.name || 'N/A'}</td>
-                                            <td>${lead.phone}</td>
-                                        </tr>
-                                    `;
-                        });
-
-                        // Enable Start button if fields selected
-                        if (document.getElementById('template_id').value !== '') {
-                            btnStart.disabled = false;
-                            btnStart.style.cursor = 'pointer';
-                            btnStart.style.opacity = '1';
-                        }
-                    } else {
-                        tbody.innerHTML = '<tr><td colspan="2" class="text-center text-danger">No leads found matching criteria.</td></tr>';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    document.getElementById('previewEmpty').innerHTML = '<p class="text-danger">Failed to load preview.</p>';
-                });
-        }
-
-        // Also re-enable button if template changes after successful preview > 0
-        document.getElementById('template_id').addEventListener('change', function () {
-            const count = parseInt(document.getElementById('resCount').textContent || 0);
-            const btnStart = document.getElementById('btnStart');
-            if (this.value !== '' && count > 0) {
-                btnStart.disabled = false;
-                btnStart.style.cursor = 'pointer';
-                btnStart.style.opacity = '1';
-            } else {
-                btnStart.disabled = true;
-                btnStart.style.cursor = 'not-allowed';
-                btnStart.style.opacity = '0.6';
-            }
-        });
     </script>
 @endpush

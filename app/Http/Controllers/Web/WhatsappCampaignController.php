@@ -16,16 +16,21 @@ class WhatsappCampaignController extends Controller
 {
     public function index()
     {
+        $campaigns = WhatsappCampaign::with('template', 'product')
+            ->latest()
+            ->paginate(15);
+
+        return view('admin.whatsapp-campaigns.index', compact('campaigns'));
+    }
+
+    public function create()
+    {
         $templates = WhatsappTemplate::latest()->get();
         // Pluck unique stages from leads to use in the dropdown
         $stages = Lead::select('stage')->distinct()->pluck('stage');
         $products = Product::where('status', 'active')->get();
 
-        $campaigns = WhatsappCampaign::with('template', 'product')
-            ->latest()
-            ->paginate(15);
-
-        return view('admin.whatsapp-campaigns.index', compact('templates', 'stages', 'products', 'campaigns'));
+        return view('admin.whatsapp-campaigns.create', compact('templates', 'stages', 'products'));
     }
 
     public function preview(Request $request)
@@ -100,6 +105,7 @@ class WhatsappCampaignController extends Controller
         DB::beginTransaction();
         try {
             $campaign = WhatsappCampaign::create([
+                'company_id' => auth()->user()->company_id ?? 1,
                 'template_id' => $request->template_id,
                 'target_stage' => $request->target_stage,
                 'target_product_id' => $request->target_product_id,
@@ -110,6 +116,7 @@ class WhatsappCampaignController extends Controller
             $recipients = [];
             foreach ($leads as $lead) {
                 $recipients[] = [
+                    'company_id' => auth()->user()->company_id ?? 1,
                     'campaign_id' => $campaign->id,
                     'lead_id' => $lead->id,
                     'phone_number' => $lead->phone,
@@ -131,5 +138,14 @@ class WhatsappCampaignController extends Controller
             DB::rollBack();
             return redirect()->back()->with('error', 'Failed to create campaign: ' . $e->getMessage());
         }
+    }
+
+    public function destroy(WhatsappCampaign $campaign)
+    {
+        // Delete recipients manually if no cascade on db level
+        $campaign->recipients()->delete();
+        $campaign->delete();
+
+        return redirect()->back()->with('success', 'Campaign deleted successfully.');
     }
 }

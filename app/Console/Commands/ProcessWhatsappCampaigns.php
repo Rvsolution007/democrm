@@ -16,12 +16,16 @@ class ProcessWhatsappCampaigns extends Command
 
     public function handle()
     {
+        Log::info('--- WhatsApp Bulk Processor Started ---');
         // Find processing or pending campaigns
         $campaigns = WhatsappCampaign::whereIn('status', ['pending', 'processing'])->get();
 
         if ($campaigns->isEmpty()) {
+            Log::info('No pending or processing campaigns found.');
             return; // Nothing to do
         }
+
+        Log::info('Found ' . $campaigns->count() . ' campaigns to process.');
 
         foreach ($campaigns as $campaign) {
             $companyId = $campaign->company_id ?? 1;
@@ -83,7 +87,7 @@ class ProcessWhatsappCampaigns extends Command
                 $endpoint = '';
 
                 // Prepare payload based on template type
-                if ($template->type === 'text') {
+                if (strtolower($template->type) === 'text') {
                     $endpoint = "{$apiUrl}/message/sendText/{$instanceName}";
                     $payload = [
                         'number' => $phone,
@@ -92,7 +96,8 @@ class ProcessWhatsappCampaigns extends Command
                             'text' => $template->message_text
                         ]
                     ];
-                } else if (in_array($template->type, ['image', 'video', 'pdf'])) {
+                } else if (in_array(strtolower($template->type), ['image', 'video', 'pdf'])) {
+                    $mediaEndpointType = strtolower($template->type);
                     $endpoint = "{$apiUrl}/message/sendMedia/{$instanceName}";
 
                     // Convert local path to absolute URL for Evolution API to download
@@ -102,11 +107,16 @@ class ProcessWhatsappCampaigns extends Command
                         'number' => $phone,
                         'options' => ['delay' => 1200],
                         'mediaMessage' => [
-                            'mediatype' => $template->type === 'pdf' ? 'document' : $template->type,
+                            'mediatype' => strtolower($template->type) === 'pdf' ? 'document' : strtolower($template->type),
                             'caption' => $template->message_text ?? '',
                             'media' => $mediaUrl,
                         ]
                     ];
+                } else {
+                    Log::error("WhatsApp Bulk Error: Unknown template type {$template->type}");
+                    $recipient->update(['status' => 'failed', 'error_message' => "Unknown template type: {$template->type}"]);
+                    $campaign->increment('total_failed');
+                    continue;
                 }
 
                 try {
@@ -143,6 +153,7 @@ class ProcessWhatsappCampaigns extends Command
                 sleep(20);
             }
         }
+        Log::info('--- WhatsApp Bulk Processor Finished ---');
     }
 
     /**
