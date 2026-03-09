@@ -221,7 +221,14 @@
                             style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
                             <option value="">None (Root Category)</option>
                             @foreach($allCategories->whereNull('parent_category_id') as $cat)
-                                <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                @php $subcats = $allCategories->where('parent_category_id', $cat->id); @endphp
+                                @if($subcats->count() > 0)
+                                    <optgroup label="{{ $cat->name }}">
+                                        <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                    </optgroup>
+                                @else
+                                    <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                @endif
                             @endforeach
                         </select>
                     </div>

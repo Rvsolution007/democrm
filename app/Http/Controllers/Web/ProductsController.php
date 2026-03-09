@@ -24,7 +24,7 @@ class ProductsController extends Controller
         }
 
         $products = $query->latest()->paginate(20);
-        $categories = Category::all();
+        $categories = Category::orderBy('name')->get();
         $columnVisibility = Setting::getValue('column_visibility', 'products', []);
         return view('admin.products.index', compact('products', 'categories', 'columnVisibility'));
     }

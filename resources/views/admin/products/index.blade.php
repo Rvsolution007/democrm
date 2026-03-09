@@ -156,8 +156,18 @@
                         <select class="form-select" name="category_id" id="prod-category" required
                             style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
                             <option value="">Select Category</option>
-                            @foreach($categories as $cat)
-                                <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                            @foreach($categories->whereNull('parent_category_id') as $cat)
+                                @php $subcats = $categories->where('parent_category_id', $cat->id); @endphp
+                                @if($subcats->count() > 0)
+                                    <optgroup label="{{ $cat->name }}">
+                                        <option value="{{ $cat->id }}">{{ $cat->name }} (Main)</option>
+                                        @foreach($subcats as $sub)
+                                            <option value="{{ $sub->id }}">{{ $sub->name }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                @else
+                                    <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                @endif
                             @endforeach
                         </select>
                     </div>
