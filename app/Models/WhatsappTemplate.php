@@ -3,13 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-
-use App\Traits\BelongsToCompany;
+use App\Models\Company;
 
 class WhatsappTemplate extends Model
 {
-    use BelongsToCompany;
-
     protected $fillable = [
         'company_id',
         'name',
@@ -17,4 +14,9 @@ class WhatsappTemplate extends Model
         'message_text',
         'media_path',
     ];
+
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
 }

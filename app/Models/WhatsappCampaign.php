@@ -3,13 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-
-use App\Traits\BelongsToCompany;
+use App\Models\Company;
 
 class WhatsappCampaign extends Model
 {
-    use BelongsToCompany;
-
     protected $fillable = [
         'company_id',
         'template_id',
