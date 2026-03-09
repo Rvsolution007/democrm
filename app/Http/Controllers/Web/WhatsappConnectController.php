@@ -201,13 +201,15 @@ class WhatsappConnectController extends Controller
         $instanceName = $this->getInstanceName();
 
         try {
+            // First, try to remove the instance completely to ensure a fresh start next time
             $response = Http::withHeaders([
                 'apikey' => $config['api_key'],
                 'Content-Type' => 'application/json',
-            ])->delete("{$config['api_url']}/instance/logout/{$instanceName}");
+            ])->delete("{$config['api_url']}/instance/delete/{$instanceName}");
 
-            if ($response->successful()) {
-                return response()->json(['success' => true, 'message' => 'WhatsApp disconnected successfully.']);
+            // If it was successful OR it failed because it doesn't exist/isn't connected, consider it a success locally
+            if ($response->successful() || in_array($response->status(), [400, 404])) {
+                return response()->json(['success' => true, 'message' => 'WhatsApp disconnected and cleared successfully.']);
             }
 
             return response()->json([
