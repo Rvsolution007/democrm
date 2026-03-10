@@ -167,7 +167,14 @@ class QuotesController extends Controller
                 if ($product) {
                     $qty = (int) (($request->product_quantities[$index] ?? 1) ?: 1);
                     $discountPerUnit = (float) ($request->product_discounts[$index] ?? 0);
-                    $unitPrice = (($product->mrp ?: $product->sale_price) / 100) - $discountPerUnit;
+
+                    // Respect user provided price or fallback to product price
+                    if (isset($request->product_prices[$index])) {
+                        $unitPrice = ((float) $request->product_prices[$index]) - $discountPerUnit;
+                    } else {
+                        $unitPrice = (($product->mrp ?: $product->sale_price) / 100) - $discountPerUnit;
+                    }
+
                     $unitPricePaise = (int) ($unitPrice * 100);
 
                     QuoteItem::create([
@@ -305,7 +312,14 @@ class QuotesController extends Controller
                 if ($product) {
                     $qty = (int) (($request->product_quantities[$index] ?? 1) ?: 1);
                     $discountPerUnit = (float) ($request->product_discounts[$index] ?? 0);
-                    $unitPrice = (($product->mrp ?: $product->sale_price) / 100) - $discountPerUnit;
+
+                    // Respect user provided price or fallback to product price
+                    if (isset($request->product_prices[$index])) {
+                        $unitPrice = ((float) $request->product_prices[$index]) - $discountPerUnit;
+                    } else {
+                        $unitPrice = (($product->mrp ?: $product->sale_price) / 100) - $discountPerUnit;
+                    }
+
                     $unitPricePaise = (int) ($unitPrice * 100);
 
                     QuoteItem::create([
