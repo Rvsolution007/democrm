@@ -187,7 +187,8 @@ class Quote extends Model
         }
 
         // Get next sequence number
-        $lastQuote = static::where('company_id', $company->id)
+        $lastQuote = static::withTrashed()
+            ->where('company_id', $company->id)
             ->where('quote_no', 'like', $company->quote_prefix . '-' . $fy . '-%')
             ->orderBy('id', 'desc')
             ->first();
