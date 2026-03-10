@@ -296,6 +296,10 @@ class QuotesController extends Controller
         $clientId = $validated['client_type'] === 'client' ? $validated['client_id'] : null;
         $leadId = $validated['client_type'] === 'lead' ? $validated['lead_id'] : null;
 
+        // Capture original product IDs to check if they changed
+        $originalProductIds = $quote->items->pluck('product_id')->toArray();
+        $productsChanged = false;
+
         $quote->update([
             'client_id' => $clientId,
             'lead_id' => $leadId,
@@ -312,6 +316,14 @@ class QuotesController extends Controller
 
         // Sync products: Delete old items and recreate new ones
         if ($request->has('product_ids')) {
+            // Check if product IDs differ from original
+            $newProductIds = array_map('intval', $request->product_ids);
+            sort($originalProductIds);
+            sort($newProductIds);
+            if ($originalProductIds !== $newProductIds) {
+                $productsChanged = true;
+            }
+
             $quote->items()->delete();
 
             foreach ($request->product_ids as $index => $productId) {
@@ -348,6 +360,11 @@ class QuotesController extends Controller
         } elseif ($request->has('clear_products')) {
             $quote->items()->delete();
             $quote->recalculateTotals();
+        }
+
+        // If products changed and the quote was previously accepted, revert it to draft
+        if ($productsChanged && $quote->status === 'accepted') {
+            $quote->update(['status' => 'draft']);
         }
 
         // Auto-project/purchase creation is handled during explicit quote conversion
