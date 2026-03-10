@@ -325,8 +325,9 @@
                                 <select name="template_id" id="template_id" class="modern-form-select select2" required>
                                     <option value="">-- Choose a template --</option>
                                     @foreach($templates as $template)
-                                        <option value="{{ $template->id }}">{{ $template->name }}
-                                            ({{ ucfirst($template->type) }})</option>
+                                        <option value="{{ $template->id }}" data-code="{{ $template->template_code }}">
+                                            {{ $template->name }}
+                                            ({{ ucfirst($template->type) }}) — {{ $template->template_code }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -397,16 +398,22 @@
 
                         <div id="previewResults" style="display:none;">
                             <div class="row mb-4 g-3">
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <div class="stat-box stat-box-blue">
                                         <div class="stat-value text-primary" id="resCount">0</div>
-                                        <div class="stat-label">Total Verified Recipients</div>
+                                        <div class="stat-label">New Recipients</div>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-4">
+                                    <div class="stat-box" style="border-left: 4px solid #10b981; background: #ecfdf5;">
+                                        <div class="stat-value" style="color: #10b981;" id="resAlreadySent">0</div>
+                                        <div class="stat-label">Already Sent (Skipped)</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
                                     <div class="stat-box stat-box-amber">
                                         <div class="stat-value text-warning" id="resEta">0 Mins</div>
-                                        <div class="stat-label">Max Completion Time (ETA)</div>
+                                        <div class="stat-label">ETA (New Only)</div>
                                     </div>
                                 </div>
                             </div>
@@ -485,7 +492,8 @@
                 },
                 body: JSON.stringify({
                     stage: stage,
-                    product_id: productId
+                    product_id: productId,
+                    template_id: document.getElementById('template_id').value
                 })
             })
                 .then(response => response.json())
@@ -494,6 +502,7 @@
                     document.getElementById('previewResults').style.display = 'block';
 
                     document.getElementById('resCount').textContent = data.count;
+                    document.getElementById('resAlreadySent').textContent = data.already_sent_count || 0;
                     document.getElementById('resEta').textContent = data.eta_readable;
 
                     const tbody = document.getElementById('resTableBody');
@@ -502,11 +511,11 @@
                     if (data.leads.length > 0) {
                         data.leads.forEach(lead => {
                             tbody.innerHTML += `
-                                            <tr>
-                                                <td>${lead.name || 'N/A'}</td>
-                                                <td>${lead.phone}</td>
-                                            </tr>
-                                        `;
+                                                    <tr>
+                                                        <td>${lead.name || 'N/A'}</td>
+                                                        <td>${lead.phone}</td>
+                                                    </tr>
+                                                `;
                         });
 
                         // Enable Start button if fields selected

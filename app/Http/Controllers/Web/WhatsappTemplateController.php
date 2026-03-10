@@ -22,7 +22,7 @@ class WhatsappTemplateController extends Controller
             'media_file' => 'nullable|file|mimes:jpeg,png,jpg,webp,mp4,3gp,pdf|max:10240', // 10MB max
         ]);
 
-        $data = $request->only(['name', 'type', 'message_text']);
+        $data = $request->only(['name', 'template_code', 'type', 'message_text']);
 
         if ($request->hasFile('media_file')) {
             $path = $request->file('media_file')->store('whatsapp_media', 'public');
@@ -45,7 +45,7 @@ class WhatsappTemplateController extends Controller
             'media_file' => 'nullable|file|mimes:jpeg,png,jpg,webp,mp4,3gp,pdf|max:10240',
         ]);
 
-        $data = $request->only(['name', 'type', 'message_text']);
+        $data = $request->only(['name', 'template_code', 'type', 'message_text']);
 
         if ($request->hasFile('media_file')) {
             if ($template->media_path) {

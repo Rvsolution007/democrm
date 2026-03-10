@@ -51,8 +51,57 @@ class WhatsappCampaignController extends Controller
         // Must have phone number
         $query->whereNotNull('phone')->where('phone', '!=', '');
 
-        $count = $query->count();
-        $leads = $query->select('id', 'name', 'phone')->limit(10)->get();
+        // Deduplication: exclude phone numbers already sent with same template_code
+        $alreadySentPhones = [];
+        $alreadySentCount = 0;
+
+        if ($request->template_id) {
+            $template = WhatsappTemplate::find($request->template_id);
+            if ($template && $template->template_code) {
+                // Find all template IDs that share the same template_code
+                $sameCodeTemplateIds = WhatsappTemplate::where('template_code', $template->template_code)
+                    ->pluck('id');
+
+                // Find all campaign IDs that used any of these templates
+                $campaignIds = WhatsappCampaign::whereIn('template_id', $sameCodeTemplateIds)->pluck('id');
+
+                // Get all phone numbers successfully sent in those campaigns
+                $alreadySentPhones = WhatsappCampaignRecipient::whereIn('campaign_id', $campaignIds)
+                    ->where('status', 'sent')
+                    ->pluck('phone_number')
+                    ->map(function ($phone) {
+                        // Normalize phone: strip non-digits, remove leading 91 if 12 digits
+                        $clean = preg_replace('/\D/', '', $phone);
+                        if (strlen($clean) == 12 && str_starts_with($clean, '91')) {
+                            $clean = substr($clean, 2);
+                        }
+                        return $clean;
+                    })
+                    ->unique()
+                    ->toArray();
+            }
+        }
+
+        // Get all matching leads
+        $allLeads = $query->get();
+
+        // Filter out already-sent leads
+        $filteredLeads = $allLeads->filter(function ($lead) use ($alreadySentPhones) {
+            if (empty($alreadySentPhones))
+                return true;
+            $cleanPhone = preg_replace('/\D/', '', $lead->phone);
+            if (strlen($cleanPhone) == 12 && str_starts_with($cleanPhone, '91')) {
+                $cleanPhone = substr($cleanPhone, 2);
+            }
+            return !in_array($cleanPhone, $alreadySentPhones);
+        });
+
+        $totalBeforeDedup = $allLeads->count();
+        $alreadySentCount = $totalBeforeDedup - $filteredLeads->count();
+        $count = $filteredLeads->count();
+        $leads = $filteredLeads->take(10)->map(function ($lead) {
+            return ['id' => $lead->id, 'name' => $lead->name, 'phone' => $lead->phone];
+        })->values();
 
         // Calculate ETA: 20 seconds per message
         $etaSeconds = $count * 20;
@@ -69,6 +118,8 @@ class WhatsappCampaignController extends Controller
 
         return response()->json([
             'count' => $count,
+            'already_sent_count' => $alreadySentCount,
+            'total_before_dedup' => $totalBeforeDedup,
             'leads' => $leads,
             'eta_seconds' => $etaSeconds,
             'eta_readable' => $etaReadable
@@ -83,6 +134,8 @@ class WhatsappCampaignController extends Controller
             'target_product_id' => 'nullable|exists:products,id'
         ]);
 
+        $template = WhatsappTemplate::findOrFail($request->template_id);
+
         // Get Leads
         $query = Lead::query()->whereNotNull('phone')->where('phone', '!=', '');
 
@@ -96,10 +149,40 @@ class WhatsappCampaignController extends Controller
             });
         }
 
-        $leads = $query->get();
+        $allLeads = $query->get();
+
+        // Deduplication: exclude phone numbers already sent with same template_code
+        $alreadySentPhones = [];
+        if ($template->template_code) {
+            $sameCodeTemplateIds = WhatsappTemplate::where('template_code', $template->template_code)
+                ->pluck('id');
+            $campaignIds = WhatsappCampaign::whereIn('template_id', $sameCodeTemplateIds)->pluck('id');
+            $alreadySentPhones = WhatsappCampaignRecipient::whereIn('campaign_id', $campaignIds)
+                ->where('status', 'sent')
+                ->pluck('phone_number')
+                ->map(function ($phone) {
+                    $clean = preg_replace('/\D/', '', $phone);
+                    if (strlen($clean) == 12 && str_starts_with($clean, '91')) {
+                        $clean = substr($clean, 2);
+                    }
+                    return $clean;
+                })
+                ->unique()
+                ->toArray();
+        }
+
+        $leads = $allLeads->filter(function ($lead) use ($alreadySentPhones) {
+            if (empty($alreadySentPhones))
+                return true;
+            $cleanPhone = preg_replace('/\D/', '', $lead->phone);
+            if (strlen($cleanPhone) == 12 && str_starts_with($cleanPhone, '91')) {
+                $cleanPhone = substr($cleanPhone, 2);
+            }
+            return !in_array($cleanPhone, $alreadySentPhones);
+        });
 
         if ($leads->isEmpty()) {
-            return redirect()->back()->with('error', 'No leads found matching the selected criteria.');
+            return redirect()->back()->with('error', 'No new leads found. All matching leads have already received this template code.');
         }
 
         DB::beginTransaction();
@@ -134,7 +217,13 @@ class WhatsappCampaignController extends Controller
 
             DB::commit();
 
-            return redirect()->back()->with('success', 'Campaign created successfully! The background job will start sending messages shortly based on the security interval.');
+            $skippedCount = $allLeads->count() - $leads->count();
+            $msg = "Campaign created! {$leads->count()} recipients will receive messages.";
+            if ($skippedCount > 0) {
+                $msg .= " ({$skippedCount} already sent with same template code were skipped)";
+            }
+
+            return redirect()->back()->with('success', $msg);
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->with('error', 'Failed to create campaign: ' . $e->getMessage());

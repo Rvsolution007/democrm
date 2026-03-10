@@ -228,6 +228,7 @@
                     <thead>
                         <tr>
                             <th>Template Name</th>
+                            <th>Template Code</th>
                             <th>Format</th>
                             <th>Content Preview</th>
                             <th>Attachment</th>
@@ -240,6 +241,9 @@
                             <tr>
                                 <td>
                                     <div style="font-weight: 600; color: #1e293b;">{{ $template->name }}</div>
+                                </td>
+                                <td>
+                                    <code style="background: #f1f5f9; padding: 3px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; color: #6366f1; letter-spacing: 1px;">{{ $template->template_code }}</code>
                                 </td>
                                 <td>
                                     <span class="type-badge type-{{ $template->type }}">
@@ -287,7 +291,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6">
+                                <td colspan="7">
                                     <div class="empty-state">
                                         <div class="empty-state-icon">
                                             <i data-lucide="layout-template" style="width: 40px; height: 40px; stroke-width: 1.5;"></i>
@@ -326,6 +330,13 @@
                     <label class="form-label fw-bold">Template Name</label>
                     <input type="text" name="name" id="templateName" class="form-control form-input"
                         placeholder="e.g. Diwali Offer PDF" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Template Code</label>
+                    <input type="text" name="template_code" id="templateCode" class="form-control form-input"
+                        placeholder="Auto-generated" style="letter-spacing: 2px; font-weight: 600; text-transform: uppercase;">
+                    <small class="text-muted" style="font-size: 11px;">Unique code for deduplication. Auto-generated if left empty. Same code = skip already sent recipients.</small>
                 </div>
 
                 <div class="mb-3" style="margin-top:15px;">
@@ -408,6 +419,7 @@
             document.getElementById('formMethod').value = 'PUT';
 
             document.getElementById('templateName').value = template.name;
+            document.getElementById('templateCode').value = template.template_code || '';
             document.getElementById('templateType').value = template.type;
             document.getElementById('messageText').value = template.message_text;
             
