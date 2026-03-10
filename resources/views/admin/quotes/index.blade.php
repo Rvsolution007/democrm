@@ -168,8 +168,9 @@
                                     <button class="btn btn-ghost btn-icon btn-sm" onclick="downloadQuote({{ $quote->id }})"
                                         title="Download"><i data-lucide="download" style="width:16px;height:16px"></i></button>
                                     @if(can('quotes.write') && $quote->client_id)
-                                        <button class="btn btn-ghost btn-icon btn-sm" style="color:#16a34a" onclick="convertQuote({{ $quote->id }})"
-                                            title="Convert Quote"><i data-lucide="check-circle" style="width:16px;height:16px"></i></button>
+                                        <button class="btn btn-ghost btn-icon btn-sm" style="color:#16a34a"
+                                            onclick="convertQuote({{ $quote->id }})" title="Convert Quote"><i
+                                                data-lucide="check-circle" style="width:16px;height:16px"></i></button>
                                     @endif
                                     @if(can('quotes.write'))
                                         <button class="btn btn-ghost btn-icon btn-sm" onclick="editQuote({{ $quote->id }})"
@@ -1097,6 +1098,9 @@
             var el = form ? form.querySelector(`[name="${name}"]`) : document.querySelector(`[name="${name}"]`);
             if (el) {
                 el.value = value;
+                if (el.tagName.toLowerCase() === 'select') {
+                    $(el).trigger('change');
+                }
             }
         }
 
@@ -1134,15 +1138,15 @@
                     'Accept': 'application/json'
                 }
             })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message || 'Quote converted successfully.');
-                window.location.reload();
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while converting the quote.');
-            });
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message || 'Quote converted successfully.');
+                    window.location.reload();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while converting the quote.');
+                });
         }
 
         function submitQuoteForm() {
@@ -1389,4 +1393,46 @@
     <!-- Include Flatpickr for Date Range Selection -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+    <!-- Include Select2 for searchable dropdowns -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <style>
+        .select2-container .select2-selection--single {
+            height: 38px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+        }
+
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 36px;
+        }
+
+        .select2-dropdown {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+            background-color: #3b82f6;
+        }
+    </style>
+    <script>
+        $(document).ready(function () {
+            $('#quote-client-id').select2({
+                placeholder: "Select client",
+                allowClear: true,
+                dropdownParent: $('#quote-drawer')
+            });
+            $('#quote-lead-id').select2({
+                placeholder: "Select lead",
+                allowClear: true,
+                dropdownParent: $('#quote-drawer')
+            });
+        });
+    </script>
 @endpush
