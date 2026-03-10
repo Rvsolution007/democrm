@@ -481,7 +481,7 @@ class QuotesController extends Controller
                         'product_id' => $product->id,
                         'purchase_no' => Purchase::generatePurchaseNumber($company),
                         'date' => now()->toDateString(),
-                        'total_amount' => 0,
+                        'total_amount' => $item->unit_price * max(1, $item->qty),
                         'paid_amount' => 0,
                         'status' => 'draft',
                         'notes' => 'Auto-generated from quote ' . $quote->quote_no . ' for product: ' . $product->name,

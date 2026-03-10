@@ -145,6 +145,7 @@
                         <th>Date</th>
                         <th>Vendor</th>
                         <th>Client</th>
+                        <th>Product</th>
                         <th>Amount</th>
                         <th>Paid</th>
                         <th>Status</th>
@@ -177,6 +178,7 @@
                             @foreach($section['customFields'] as $cf)
                                 <th>{{ $cf->field_name }}</th>
                             @endforeach
+                            <th>Product</th>
                             <th>Amount</th>
                             <th>Paid</th>
                             <th>Status</th>
@@ -233,6 +235,11 @@
                                 <option value="{{ $client->id }}">{{ $client->business_name ?? $client->contact_name }}</option>
                             @endforeach
                         </select>
+                    </div>
+                    <div style="margin-bottom:16px; display:none;" id="product-container">
+                        <label style="display:block;margin-bottom:4px;font-weight:500">Product</label>
+                        <input type="text" class="form-input" id="purchase-product-name" disabled
+                            style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;background-color:#f3f4f6;cursor:not-allowed;">
                     </div>
                     <div style="margin-bottom:16px">
                         <label style="display:block;margin-bottom:4px;font-weight:500">Purchase Date *</label>
@@ -374,18 +381,18 @@
             @foreach($vendorSections as $section)
                 'vendor_{{ $section['vendor']->id }}': { total: {{ $section['total_amount'] }}, due: {{ $section['due_amount'] }} },
             @endforeach
-                                        };
+                                            };
 
         // Vendor custom fields config from server (for initial load)
         var vendorCustomFieldsMap = {
             @foreach($vendorSections as $section)
-                                            '{{ $section['vendor']->id }}': [
+                                                '{{ $section['vendor']->id }}': [
                 @foreach($section['customFields'] as $cf)
                     { id: {{ $cf->id }}, name: {!! json_encode($cf->field_name) !!}, type: '{{ $cf->field_type }}', options: {!! json_encode($cf->field_options ?? []) !!} },
                 @endforeach
-                                            ],
+                                                ],
             @endforeach
-                                        };
+                                            };
 
         // ====== Tab Switching ======
         function switchPurchaseTab(tab, vendorId) {
@@ -660,8 +667,10 @@
             document.getElementById('modal-title').textContent = 'Add New Purchase';
             document.getElementById('purchase-form').action = '{{ route("admin.purchases.store") }}';
             document.getElementById('form-method').value = '';
-            document.getElementById('purchase-form').reset();
             document.getElementById('purchase-date').value = '{{ date("Y-m-d") }}';
+            document.getElementById('purchase-amount').readOnly = false;
+            document.getElementById('product-container').style.display = 'none';
+            document.getElementById('purchase-product-name').value = '';
             document.getElementById('purchase-status').value = 'draft';
             document.getElementById('custom-fields-container').innerHTML = '';
             document.getElementById('purchase-modal').style.display = 'flex';
@@ -682,6 +691,17 @@
             document.getElementById('purchase-client').value = btn.dataset.client || '';
             document.getElementById('purchase-date').value = btn.dataset.date;
             document.getElementById('purchase-amount').value = btn.dataset.amount;
+
+            if (btn.dataset.product) {
+                document.getElementById('product-container').style.display = 'block';
+                document.getElementById('purchase-product-name').value = btn.dataset.product;
+                document.getElementById('purchase-amount').readOnly = true;
+            } else {
+                document.getElementById('product-container').style.display = 'none';
+                document.getElementById('purchase-product-name').value = '';
+                document.getElementById('purchase-amount').readOnly = false;
+            }
+
             document.getElementById('purchase-notes').value = btn.dataset.notes;
             document.getElementById('purchase-status').value = btn.dataset.status;
             document.getElementById('purchase-modal').style.display = 'flex';

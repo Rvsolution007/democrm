@@ -561,7 +561,7 @@ class LeadsController extends Controller
                             'product_id' => $product->id,
                             'purchase_no' => \App\Models\Purchase::generatePurchaseNumber($company),
                             'date' => now()->toDateString(),
-                            'total_amount' => 0,
+                            'total_amount' => $item->unit_price * max(1, $item->qty),
                             'paid_amount' => 0,
                             'status' => 'draft',
                             'notes' => 'Auto-generated during quote conversion from product/service: ' . $product->name,

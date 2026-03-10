@@ -12,6 +12,7 @@
         @endphp
         <td>{{ $cfValue ? $cfValue->value : '—' }}</td>
     @endforeach
+    <td>{{ $purchase->product->name ?? 'N/A' }}</td>
     <td>₹{{ number_format($purchase->total_amount / 100, 2) }}</td>
     <td>₹{{ number_format($purchase->paid_amount / 100, 2) }}</td>
     <td>
@@ -33,7 +34,7 @@
             </button>
             @if(can('projects.write'))
                 <button class="edit-purchase-btn" data-id="{{ $purchase->id }}" data-vendor="{{ $purchase->vendor_id }}"
-                    data-client="{{ $purchase->client_id }}"
+                    data-client="{{ $purchase->client_id }}" data-product="{{ $purchase->product->name ?? '' }}"
                     data-date="{{ \Carbon\Carbon::parse($purchase->date)->format('Y-m-d') }}"
                     data-amount="{{ $purchase->total_amount / 100 }}" data-notes="{{ $purchase->notes }}"
                     data-status="{{ $purchase->status }}" data-cf-values="{{ json_encode($cfValuesMap) }}"
