@@ -524,7 +524,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Notes</label>
-                    <textarea name="notes" class="form-textarea" rows="3"></textarea>
+                    <textarea name="notes" id="quote-notes-input" class="form-textarea" rows="3"></textarea>
                 </div>
             </form>
         </div>
@@ -955,7 +955,7 @@
                     document.getElementById('q-tax').value = taxAmount.toFixed(2);
                     document.getElementById('q-tax-display').textContent = '₹' + taxAmount.toFixed(2);
 
-                    document.querySelector('textarea[name="notes"]').value = quote.notes || '';
+                    document.getElementById('quote-notes-input').value = quote.notes || '';
 
                     // Show and populate status
                     document.getElementById('quote-status-group').style.display = '';
@@ -1027,7 +1027,7 @@
                     document.getElementById('q-tax').value = taxAmount.toFixed(2);
                     document.getElementById('q-tax-display').textContent = '₹' + taxAmount.toFixed(2);
 
-                    document.querySelector('textarea[name="notes"]').value = quote.notes || '';
+                    document.getElementById('quote-notes-input').value = quote.notes || '';
                     document.getElementById('quote-status-group').style.display = '';
                     setInputValue('status', quote.status);
 
