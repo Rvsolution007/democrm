@@ -4,7 +4,8 @@
 @section('breadcrumb', 'Leads')
 
 @section('content')
-    <div class="page-header" style="margin-bottom:24px">
+    <div class="page-header sticky-header"
+        style="margin-bottom:24px; position: sticky; top: 60px; z-index: 40; background: #f8fafc; padding-top: 20px; margin-top:-20px; padding-bottom:10px;">
         <div class="page-header-content"
             style="display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap">
             <div style="flex:1;min-width:200px;display:flex;align-items:center;gap:16px;">
@@ -75,7 +76,8 @@
     @endif
 
     <!-- Search and Filters -->
-    <div style="background:white;padding:20px;border-radius:8px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.1)">
+    <div
+        style="background:white;padding:20px;border-radius:8px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.1); position: sticky; top: 180px; z-index: 39;">
         <form method="GET" action="{{ route('admin.leads.index') }}" id="filter-form">
             <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:end">
                 <div style="flex:2;min-width:200px;">
@@ -654,741 +656,741 @@
 
 @push('scripts')
     <script>
-        let editingLeadId = null;
-        let currentLeadQuoteId = null;
-        let initialFormSnapshot = null;
+            let editingLeadId = null      ;
+            let currentLeadQuoteId = null;
+            let initialFormSnapshot = null;
 
-        function openAddLeadModal() {
-            editingLeadId = null;
-            currentLeadQuoteId = null;
-            initialFormSnapshot = null;
-            document.getElementById('modal-title').textContent = 'Add New Lead';
-            document.getElementById('lead-form').action = '{{ route('admin.leads.store') }}';
-            document.getElementById('form-method').value = '';
-            document.getElementById('lead-form').reset();
-            clearProductTable();
-            // Hide quote action buttons for new leads
-            document.getElementById('quote-action-container').style.display = 'none';
-            // Hide followup section for new leads
-            document.getElementById('followup-section').style.display = 'none';
-            document.getElementById('lead-modal').style.display = 'flex';
-        }
+            function openAddLeadModal() {
+                editingLeadId = null;
+                currentLeadQuoteId = null;
+                initialFormSnapshot = null;
+                document.getElementById('modal-title').textContent = 'Add New Lead';
+                document.getElementById('lead-form').action = '{{ route('admin.leads.store') }}';
+                document.getElementById('form-method').value = '';
+                document.getElementById('lead-form').reset();
+                clearProductTable();
+                // Hide quote action buttons for new leads
+                document.getElementById('quote-action-container').style.display = 'none';
+                // Hide followup section for new leads
+                document.getElementById('followup-section').style.display = 'none';
+                document.getElementById('lead-modal').style.display = 'flex';
+            }
 
-        function viewLead(id) {
-            fetch('{{ url("admin/leads") }}/' + id)
-                .then(response => response.json())
-                .then(lead => {
-                    // Products section
-                    let productsHtml = '';
-                    if (lead.products && lead.products.length > 0) {
-                        let productRows = '';
-                        lead.products.forEach(p => {
-                            let price = p.pivot.price || p.sale_price || p.mrp || 0;
-                            let discount = p.pivot.discount || 0;
-                            let finalPrice = ((price - discount) / 100).toFixed(2);
-                            productRows += `<tr>
-                                                                                                                                                    <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155">${escapeHtml(p.name)}</td>
-                                                                                                                                                    <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;text-align:center">${p.pivot.quantity}</td>
-                                                                                                                                                    <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:600;color:#059669">₹${finalPrice}</td>
-                                                                                                                                                                                                    </tr>`;
-                        });
-                        productsHtml = `<div style="margin-top:20px">
-                                                                                                                                                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-                                                                                                                                                    <div style="width:28px;height:28px;border-radius:8px;background:#fdf4ff;display:flex;align-items:center;justify-content:center">
-                                                                                                                                                        <i data-lucide="package" style="width:14px;height:14px;color:#a855f7"></i>
+            function viewLead(id) {
+                fetch('{{ url("admin/leads") }}/' + id)
+                    .then(response => response.json())
+                    .then(lead => {
+                        // Products section
+                        let productsHtml = '';
+                        if (lead.products && lead.products.length > 0) {
+                            let productRows = '';
+                            lead.products.forEach(p => {
+                                let price = p.pivot.price || p.sale_price || p.mrp || 0;
+                                let discount = p.pivot.discount || 0;
+                                let finalPrice = ((price - discount) / 100).toFixed(2);
+                                productRows += `<tr>
+                                                                                                                                                        <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155">${escapeHtml(p.name)}</td>
+                                                                                                                                                        <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;text-align:center">${p.pivot.quantity}</td>
+                                                                                                                                                        <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:600;color:#059669">₹${finalPrice}</td>
+                                                                                                                                                                                                        </tr>`;
+                            });
+                            productsHtml = `<div style="margin-top:20px">
+                                                                                                                                                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                                                                                                                                                        <div style="width:28px;height:28px;border-radius:8px;background:#fdf4ff;display:flex;align-items:center;justify-content:center">
+                                                                                                                                                            <i data-lucide="package" style="width:14px;height:14px;color:#a855f7"></i>
+                                                                                                                                                        </div>
+                                                                                                                                                        <h4 style="margin:0;font-size:14px;font-weight:600;color:#1e293b">Products</h4>
                                                                                                                                                     </div>
-                                                                                                                                                    <h4 style="margin:0;font-size:14px;font-weight:600;color:#1e293b">Products</h4>
-                                                                                                                                                </div>
-                                                                                                                                                <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;border:1px solid #f1f5f9">
-                                                                                                                                                    <thead><tr style="background:linear-gradient(135deg,#f8fafc,#f1f5f9)">
-                                                                                                                                                        <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Product</th>
-                                                                                                                                                        <th style="padding:10px 14px;text-align:center;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Qty</th>
-                                                                                                                                                        <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Price</th>
-                                                                                                                                                    </tr></thead>
-                                                                                                                                                    <tbody>${productRows}</tbody>
-                                                                                                                                                </table>
-                                                                                                                                            </div>`;
-                    }
+                                                                                                                                                    <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;border:1px solid #f1f5f9">
+                                                                                                                                                        <thead><tr style="background:linear-gradient(135deg,#f8fafc,#f1f5f9)">
+                                                                                                                                                            <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Product</th>
+                                                                                                                                                            <th style="padding:10px 14px;text-align:center;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Qty</th>
+                                                                                                                                                            <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Price</th>
+                                                                                                                                                        </tr></thead>
+                                                                                                                                                        <tbody>${productRows}</tbody>
+                                                                                                                                                    </table>
+                                                                                                                                                </div>`;
+                        }
 
-                    // Stage color mapping
-                    let stageColors = {
-                        'new': { bg: '#eff6ff', color: '#2563eb' },
-                        'contacted': { bg: '#fdf4ff', color: '#a855f7' },
-                        'qualified': { bg: '#f0fdf4', color: '#16a34a' },
-                        'proposal': { bg: '#fffbeb', color: '#d97706' },
-                        'negotiation': { bg: '#fef2f2', color: '#dc2626' },
-                        'won': { bg: '#f0fdf4', color: '#16a34a' },
-                        'lost': { bg: '#fef2f2', color: '#dc2626' }
-                    };
-                    let sc = stageColors[lead.stage] || { bg: '#f1f5f9', color: '#64748b' };
-
-                    let content = `
-                                                                                                                                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
-                                                                                                                                                <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
-                                                                                                                                                    <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Lead Name</div>
-                                                                                                                                                    <div style="font-size:15px;font-weight:600;color:#1e293b">${escapeHtml(lead.name || '-')}</div>
-                                                                                                                                                </div>
-                                                                                                                                                <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
-                                                                                                                                                    <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Phone</div>
-                                                                                                                                                    <div style="font-size:15px;font-weight:600;color:#1e293b"><a href="tel:${lead.phone}" style="color:#3b82f6;text-decoration:none">${lead.phone || '-'}</a></div>
-                                                                                                                                                </div>
-                                                                                                                                                <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
-                                                                                                                                                    <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Email</div>
-                                                                                                                                                    <div style="font-size:14px;font-weight:500;color:#334155">${escapeHtml(lead.email || '-')}</div>
-                                                                                                                                                </div>
-                                                                                                                                                <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
-                                                                                                                                                    <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Source</div>
-                                                                                                                                                    <div><span style="background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${escapeHtml(lead.source || '-')}</span></div>
-                                                                                                                                                </div>
-                                                                                                                                                <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
-                                                                                                                                                    <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Stage</div>
-                                                                                                                                                    <div><span style="background:${sc.bg};color:${sc.color};padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${escapeHtml(lead.stage || '-')}</span></div>
-                                                                                                                                                </div>
-                                                                                                                                                <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
-                                                                                                                                                    <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Assigned To</div>
-                                                                                                                                                    <div style="font-size:14px;font-weight:500;color:#334155;display:flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#8b5cf6);display:inline-flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:700">${(lead.assigned_to?.name || 'U').charAt(0).toUpperCase()}</span> ${escapeHtml(lead.assigned_to?.name || 'Unassigned')}</div>
-                                                                                                                                                </div>
-                                                                                                                                            </div>
-                                                                                                                                            <div style="display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:20px">
-                                                                                                                                                <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
-                                                                                                                                                    <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Location</div>
-                                                                                                                                                    <div style="font-size:14px;font-weight:500;color:#334155;display:flex;align-items:center;gap:4px">${escapeHtml(lead.city || '')} ${escapeHtml(lead.state || '') || '-'}</div>
-                                                                                                                                                </div>
-                                                                                                                                            </div>
-                                                                                                                                            <div style="margin-bottom:16px">
-                                                                                                                                                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-                                                                                                                                                    <div style="width:28px;height:28px;border-radius:8px;background:#fffbeb;display:flex;align-items:center;justify-content:center">
-                                                                                                                                                        <i data-lucide="file-text" style="width:14px;height:14px;color:#f59e0b"></i>
-                                                                                                                                                    </div>
-                                                                                                                                                    <span style="font-size:14px;font-weight:600;color:#1e293b">Notes</span>
-                                                                                                                                                </div>
-                                                                                                                                                <div style="background:#f8fafc;padding:14px 16px;border-radius:10px;border:1px solid #f1f5f9;font-size:13px;color:#475569;white-space:pre-wrap;line-height:1.6">${escapeHtml(lead.notes || 'No notes')}</div>
-                                                                                                                                            </div>
-                                                                                                                                            ${productsHtml}
-                                                                                                                                        `;
-                    document.getElementById('view-lead-content').innerHTML = content;
-
-                    // Reinitialize lucide icons for dynamic content
-                    if (typeof lucide !== 'undefined') lucide.createIcons();
-
-                    // Render follow-up history in view modal
-                    if (lead.followups && lead.followups.length > 0) {
-                        document.getElementById('view-followup-history').style.display = 'block';
-                        document.getElementById('view-followup-list').innerHTML = renderFollowupHistoryHtml(lead.followups);
-                    } else {
-                        document.getElementById('view-followup-history').style.display = 'none';
-                    }
-
-                    let editBtn = document.getElementById('btn-view-edit');
-                    if (editBtn) {
-                        editBtn.onclick = function () {
-                            closeViewLeadModal();
-                            editLead(id);
+                        // Stage color mapping
+                        let stageColors = {
+                            'new': { bg: '#eff6ff', color: '#2563eb' },
+                            'contacted': { bg: '#fdf4ff', color: '#a855f7' },
+                            'qualified': { bg: '#f0fdf4', color: '#16a34a' },
+                            'proposal': { bg: '#fffbeb', color: '#d97706' },
+                            'negotiation': { bg: '#fef2f2', color: '#dc2626' },
+                            'won': { bg: '#f0fdf4', color: '#16a34a' },
+                            'lost': { bg: '#fef2f2', color: '#dc2626' }
                         };
-                    }
+                        let sc = stageColors[lead.stage] || { bg: '#f1f5f9', color: '#64748b' };
 
-                    document.getElementById('view-lead-modal').style.display = 'flex';
-                    if (typeof lucide !== 'undefined') lucide.createIcons();
-                })
-                .catch(err => {
-                    console.error(err);
-                    alert("Error loading lead details");
-                });
-        }
+                        let content = `
+                                                                                                                                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
+                                                                                                                                                    <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
+                                                                                                                                                        <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Lead Name</div>
+                                                                                                                                                        <div style="font-size:15px;font-weight:600;color:#1e293b">${escapeHtml(lead.name || '-')}</div>
+                                                                                                                                                    </div>
+                                                                                                                                                    <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
+                                                                                                                                                        <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Phone</div>
+                                                                                                                                                        <div style="font-size:15px;font-weight:600;color:#1e293b"><a href="tel:${lead.phone}" style="color:#3b82f6;text-decoration:none">${lead.phone || '-'}</a></div>
+                                                                                                                                                    </div>
+                                                                                                                                                    <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
+                                                                                                                                                        <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Email</div>
+                                                                                                                                                        <div style="font-size:14px;font-weight:500;color:#334155">${escapeHtml(lead.email || '-')}</div>
+                                                                                                                                                    </div>
+                                                                                                                                                    <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
+                                                                                                                                                        <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Source</div>
+                                                                                                                                                        <div><span style="background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${escapeHtml(lead.source || '-')}</span></div>
+                                                                                                                                                    </div>
+                                                                                                                                                    <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
+                                                                                                                                                        <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Stage</div>
+                                                                                                                                                        <div><span style="background:${sc.bg};color:${sc.color};padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${escapeHtml(lead.stage || '-')}</span></div>
+                                                                                                                                                    </div>
+                                                                                                                                                    <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
+                                                                                                                                                        <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Assigned To</div>
+                                                                                                                                                        <div style="font-size:14px;font-weight:500;color:#334155;display:flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#8b5cf6);display:inline-flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:700">${(lead.assigned_to?.name || 'U').charAt(0).toUpperCase()}</span> ${escapeHtml(lead.assigned_to?.name || 'Unassigned')}</div>
+                                                                                                                                                    </div>
+                                                                                                                                                </div>
+                                                                                                                                                <div style="display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:20px">
+                                                                                                                                                    <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
+                                                                                                                                                        <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Location</div>
+                                                                                                                                                        <div style="font-size:14px;font-weight:500;color:#334155;display:flex;align-items:center;gap:4px">${escapeHtml(lead.city || '')} ${escapeHtml(lead.state || '') || '-'}</div>
+                                                                                                                                                    </div>
+                                                                                                                                                </div>
+                                                                                                                                                <div style="margin-bottom:16px">
+                                                                                                                                                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                                                                                                                                                        <div style="width:28px;height:28px;border-radius:8px;background:#fffbeb;display:flex;align-items:center;justify-content:center">
+                                                                                                                                                            <i data-lucide="file-text" style="width:14px;height:14px;color:#f59e0b"></i>
+                                                                                                                                                        </div>
+                                                                                                                                                        <span style="font-size:14px;font-weight:600;color:#1e293b">Notes</span>
+                                                                                                                                                    </div>
+                                                                                                                                                    <div style="background:#f8fafc;padding:14px 16px;border-radius:10px;border:1px solid #f1f5f9;font-size:13px;color:#475569;white-space:pre-wrap;line-height:1.6">${escapeHtml(lead.notes || 'No notes')}</div>
+                                                                                                                                                </div>
+                                                                                                                                                ${productsHtml}
+                                                                                                                                            `;
+                        document.getElementById('view-lead-content').innerHTML = content;
 
-        function closeViewLeadModal() {
-            document.getElementById('view-lead-modal').style.display = 'none';
-        }
+                        // Reinitialize lucide icons for dynamic content
+                        if (typeof lucide !== 'undefined') lucide.createIcons();
 
-        function editLead(id) {
-            editingLeadId = id;
-            currentLeadQuoteId = null;
-            document.getElementById('modal-title').textContent = 'Edit Lead';
-            document.getElementById('lead-form').action = '{{ url("admin/leads") }}/' + id;
-            document.getElementById('form-method').value = 'PUT';
-            document.getElementById('lead-form').reset();
-            clearProductTable();
+                        // Render follow-up history in view modal
+                        if (lead.followups && lead.followups.length > 0) {
+                            document.getElementById('view-followup-history').style.display = 'block';
+                            document.getElementById('view-followup-list').innerHTML = renderFollowupHistoryHtml(lead.followups);
+                        } else {
+                            document.getElementById('view-followup-history').style.display = 'none';
+                        }
 
-            // Fetch lead data via AJAX to get quote_id and products
-            fetch('{{ url("admin/leads") }}/' + id + '/edit')
-                .then(function (response) { return response.json(); })
-                .then(function (lead) {
-                    document.getElementById('lead-name').value = lead.name || '';
-                    document.getElementById('lead-source').value = lead.source || 'walk-in';
-                    document.getElementById('lead-phone').value = lead.phone || '';
-                    document.getElementById('lead-email').value = lead.email || '';
-                    document.getElementById('lead-city').value = lead.city || '';
-                    document.getElementById('lead-state').value = lead.state || '';
-                    document.getElementById('lead-stage').value = lead.stage || 'new';
-                    var assignedEl = document.getElementById('lead-assigned');
-                    if (assignedEl) assignedEl.value = lead.assigned_to_user_id || '';
-                    document.getElementById('lead-notes').value = lead.notes || '';
+                        let editBtn = document.getElementById('btn-view-edit');
+                        if (editBtn) {
+                            editBtn.onclick = function () {
+                                closeViewLeadModal();
+                                editLead(id);
+                            };
+                        }
 
-                    // Load products
-                    if (lead.products && lead.products.length > 0) {
-                        loadLeadProducts(lead.products);
-                    }
+                        document.getElementById('view-lead-modal').style.display = 'flex';
+                        if (typeof lucide !== 'undefined') lucide.createIcons();
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        alert("Error loading lead details");
+                    });
+            }
 
-                    // Handle quote action buttons
-                    currentLeadQuoteId = lead.quote_id || null;
-                    updateQuoteButtons();
+            function closeViewLeadModal() {
+                document.getElementById('view-lead-modal').style.display = 'none';
+            }
 
-                    // Show followup section and load history
-                    document.getElementById('followup-section').style.display = 'block';
-                    if (lead.followups && lead.followups.length > 0) {
-                        renderFollowupHistory(lead.followups);
-                    } else {
-                        document.getElementById('followup-history').innerHTML = '<p style="color:#999;font-size:13px;text-align:center;padding:12px 0">No follow-ups yet</p>';
-                    }
-                    document.getElementById('followup-date').value = '';
-                    document.getElementById('followup-message').value = '';
+            function editLead(id) {
+                editingLeadId = id;
+                currentLeadQuoteId = null;
+                document.getElementById('modal-title').textContent = 'Edit Lead';
+                document.getElementById('lead-form').action = '{{ url("admin/leads") }}/' + id;
+                document.getElementById('form-method').value = 'PUT';
+                document.getElementById('lead-form').reset();
+                clearProductTable();
 
-                    // Take snapshot for dirty checking (after a short delay for DOM to settle)
-                    setTimeout(function () {
-                        initialFormSnapshot = getFormSnapshot();
-                    }, 100);
+                // Fetch lead data via AJAX to get quote_id and products
+                fetch('{{ url("admin/leads") }}/' + id + '/edit')
+                    .then(function (response) { return response.json(); })
+                    .then(function (lead) {
+                        document.getElementById('lead-name').value = lead.name || '';
+                        document.getElementById('lead-source').value = lead.source || 'walk-in';
+                        document.getElementById('lead-phone').value = lead.phone || '';
+                        document.getElementById('lead-email').value = lead.email || '';
+                        document.getElementById('lead-city').value = lead.city || '';
+                        document.getElementById('lead-state').value = lead.state || '';
+                        document.getElementById('lead-stage').value = lead.stage || 'new';
+                        var assignedEl = document.getElementById('lead-assigned');
+                        if (assignedEl) assignedEl.value = lead.assigned_to_user_id || '';
+                        document.getElementById('lead-notes').value = lead.notes || '';
 
-                    // Reinitialize lucide icons for new buttons
-                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                        // Load products
+                        if (lead.products && lead.products.length > 0) {
+                            loadLeadProducts(lead.products);
+                        }
 
-                    document.getElementById('lead-modal').style.display = 'flex';
-                })
-                .catch(function (err) {
-                    console.error('Error fetching lead:', err);
-                    alert('Error loading lead data.');
-                });
-        }
+                        // Handle quote action buttons
+                        currentLeadQuoteId = lead.quote_id || null;
+                        updateQuoteButtons();
 
-        function closeLeadModal() {
-            document.getElementById('lead-modal').style.display = 'none';
-            document.getElementById('lead-form').reset();
-            clearProductTable();
-            editingLeadId = null;
-            currentLeadQuoteId = null;
-            initialFormSnapshot = null;
-        }
-
-        // ====== Follow-up Functions ======
-        function addFollowup() {
-            if (!editingLeadId) return;
-            var message = document.getElementById('followup-message').value.trim();
-            var date = document.getElementById('followup-date').value;
-            if (!message) { alert('Please enter a follow-up message.'); return; }
-
-            fetch('{{ url("admin/leads") }}/' + editingLeadId + '/followups', {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ message: message, next_follow_up_date: date || null })
-            })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        document.getElementById('followup-message').value = '';
+                        // Show followup section and load history
+                        document.getElementById('followup-section').style.display = 'block';
+                        if (lead.followups && lead.followups.length > 0) {
+                            renderFollowupHistory(lead.followups);
+                        } else {
+                            document.getElementById('followup-history').innerHTML = '<p style="color:#999;font-size:13px;text-align:center;padding:12px 0">No follow-ups yet</p>';
+                        }
                         document.getElementById('followup-date').value = '';
-                        // Prepend to history
-                        var container = document.getElementById('followup-history');
-                        var noMsg = container.querySelector('p');
-                        if (noMsg) noMsg.remove();
-                        container.insertAdjacentHTML('afterbegin', renderFollowupItemHtml(data.followup));
-                    } else {
-                        alert('Error adding follow-up');
-                    }
+                        document.getElementById('followup-message').value = '';
+
+                        // Take snapshot for dirty checking (after a short delay for DOM to settle)
+                        setTimeout(function () {
+                            initialFormSnapshot = getFormSnapshot();
+                        }, 100);
+
+                        // Reinitialize lucide icons for new buttons
+                        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                        document.getElementById('lead-modal').style.display = 'flex';
+                    })
+                    .catch(function (err) {
+                        console.error('Error fetching lead:', err);
+                        alert('Error loading lead data.');
+                    });
+            }
+
+            function closeLeadModal() {
+                document.getElementById('lead-modal').style.display = 'none';
+                document.getElementById('lead-form').reset();
+                clearProductTable();
+                editingLeadId = null;
+                currentLeadQuoteId = null;
+                initialFormSnapshot = null;
+            }
+
+            // ====== Follow-up Functions ======
+            function addFollowup() {
+                if (!editingLeadId) return;
+                var message = document.getElementById('followup-message').value.trim();
+                var date = document.getElementById('followup-date').value;
+                if (!message) { alert('Please enter a follow-up message.'); return; }
+
+                fetch('{{ url("admin/leads") }}/' + editingLeadId + '/followups', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message, next_follow_up_date: date || null })
                 })
-                .catch(err => { console.error(err); alert('Error adding follow-up'); });
-        }
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('followup-message').value = '';
+                            document.getElementById('followup-date').value = '';
+                            // Prepend to history
+                            var container = document.getElementById('followup-history');
+                            var noMsg = container.querySelector('p');
+                            if (noMsg) noMsg.remove();
+                            container.insertAdjacentHTML('afterbegin', renderFollowupItemHtml(data.followup));
+                        } else {
+                            alert('Error adding follow-up');
+                        }
+                    })
+                    .catch(err => { console.error(err); alert('Error adding follow-up'); });
+            }
 
-        function renderFollowupHistory(followups) {
-            var container = document.getElementById('followup-history');
-            container.innerHTML = followups.map(f => renderFollowupItemHtml(f)).join('');
-        }
+            function renderFollowupHistory(followups) {
+                var container = document.getElementById('followup-history');
+                container.innerHTML = followups.map(f => renderFollowupItemHtml(f)).join('');
+            }
 
-        function renderFollowupHistoryHtml(followups) {
-            if (!followups || followups.length === 0) return '<p style="color:#999;font-size:13px;text-align:center;padding:12px 0">No follow-ups yet</p>';
-            return followups.map(f => renderFollowupItemHtml(f)).join('');
-        }
+            function renderFollowupHistoryHtml(followups) {
+                if (!followups || followups.length === 0) return '<p style="color:#999;font-size:13px;text-align:center;padding:12px 0">No follow-ups yet</p>';
+                return followups.map(f => renderFollowupItemHtml(f)).join('');
+            }
 
-        function renderFollowupItemHtml(f) {
-            var userName = f.user ? f.user.name : 'Unknown';
-            var date = formatFollowupDate(f.created_at);
-            var nextDate = f.next_follow_up_date ? '<span style="background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Next: ' + formatFollowupDate(f.next_follow_up_date) + '</span>' : '';
-            return '<div style="padding:10px 12px;background:#f8f9fa;border-left:3px solid #10b981;border-radius:4px;margin-bottom:8px;position:relative">' +
-                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
-                '<span style="font-size:12px;font-weight:600;color:#333">' + escapeHtml(userName) + nextDate + '</span>' +
-                '<span style="font-size:11px;color:#999">' + date + '</span>' +
-                '</div>' +
-                '<div style="font-size:13px;color:#555">' + escapeHtml(f.message) + '</div>' +
-                '</div>';
-        }
+            function renderFollowupItemHtml(f) {
+                var userName = f.user ? f.user.name : 'Unknown';
+                var date = formatFollowupDate(f.created_at);
+                var nextDate = f.next_follow_up_date ? '<span style="background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Next: ' + formatFollowupDate(f.next_follow_up_date) + '</span>' : '';
+                return '<div style="padding:10px 12px;background:#f8f9fa;border-left:3px solid #10b981;border-radius:4px;margin-bottom:8px;position:relative">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+                    '<span style="font-size:12px;font-weight:600;color:#333">' + escapeHtml(userName) + nextDate + '</span>' +
+                    '<span style="font-size:11px;color:#999">' + date + '</span>' +
+                    '</div>' +
+                    '<div style="font-size:13px;color:#555">' + escapeHtml(f.message) + '</div>' +
+                    '</div>';
+            }
 
-        function deleteFollowup(followupId) {
-            if (!editingLeadId || !confirm('Delete this follow-up?')) return;
-            fetch('{{ url("admin/leads") }}/' + editingLeadId + '/followups/' + followupId, {
-                method: 'DELETE',
-                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }
-            })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        var el = document.getElementById('followup-item-' + followupId);
-                        if (el) el.remove();
+            function deleteFollowup(followupId) {
+                if (!editingLeadId || !confirm('Delete this follow-up?')) return;
+                fetch('{{ url("admin/leads") }}/' + editingLeadId + '/followups/' + followupId, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }
+                })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            var el = document.getElementById('followup-item-' + followupId);
+                            if (el) el.remove();
+                        }
+                    });
+            }
+
+            function formatFollowupDate(dateStr) {
+                if (!dateStr) return '';
+                var d = new Date(dateStr);
+                var day = d.getDate().toString().padStart(2, '0');
+                var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                var month = months[d.getMonth()];
+                var year = d.getFullYear();
+                var hours = d.getHours();
+                var mins = d.getMinutes().toString().padStart(2, '0');
+                var ampm = hours >= 12 ? 'PM' : 'AM';
+                hours = hours % 12 || 12;
+                return day + ' ' + month + ' ' + year + ', ' + hours + ':' + mins + ' ' + ampm;
+            }
+
+            function updateQuoteButtons() {
+                var container = document.getElementById('quote-action-container');
+                var convertBtn = document.getElementById('btn-convert-to-quote');
+                var viewBtn = document.getElementById('btn-view-quote');
+
+                if (!editingLeadId) {
+                    container.style.display = 'none';
+                    return;
+                }
+
+                container.style.display = 'block';
+                if (currentLeadQuoteId) {
+                    convertBtn.style.display = 'none';
+                    viewBtn.style.display = 'flex';
+                } else {
+                    convertBtn.style.display = 'flex';
+                    viewBtn.style.display = 'none';
+                }
+            }
+
+            // ====== Dirty Checking Functions ======
+            function getFormSnapshot() {
+                var form = document.getElementById('lead-form');
+                var data = {};
+                var inputs = form.querySelectorAll('input, select, textarea');
+                inputs.forEach(function (el) {
+                    if (el.name && el.type !== 'hidden') {
+                        data[el.name + '_' + (el.dataset.productId || '')] = el.value;
                     }
                 });
-        }
-
-        function formatFollowupDate(dateStr) {
-            if (!dateStr) return '';
-            var d = new Date(dateStr);
-            var day = d.getDate().toString().padStart(2, '0');
-            var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            var month = months[d.getMonth()];
-            var year = d.getFullYear();
-            var hours = d.getHours();
-            var mins = d.getMinutes().toString().padStart(2, '0');
-            var ampm = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12 || 12;
-            return day + ' ' + month + ' ' + year + ', ' + hours + ':' + mins + ' ' + ampm;
-        }
-
-        function updateQuoteButtons() {
-            var container = document.getElementById('quote-action-container');
-            var convertBtn = document.getElementById('btn-convert-to-quote');
-            var viewBtn = document.getElementById('btn-view-quote');
-
-            if (!editingLeadId) {
-                container.style.display = 'none';
-                return;
+                return JSON.stringify(data);
             }
 
-            container.style.display = 'block';
-            if (currentLeadQuoteId) {
-                convertBtn.style.display = 'none';
-                viewBtn.style.display = 'flex';
-            } else {
-                convertBtn.style.display = 'flex';
-                viewBtn.style.display = 'none';
+            function isFormDirty() {
+                if (!initialFormSnapshot) return false;
+                return getFormSnapshot() !== initialFormSnapshot;
             }
-        }
 
-        // ====== Dirty Checking Functions ======
-        function getFormSnapshot() {
-            var form = document.getElementById('lead-form');
-            var data = {};
-            var inputs = form.querySelectorAll('input, select, textarea');
-            inputs.forEach(function (el) {
-                if (el.name && el.type !== 'hidden') {
-                    data[el.name + '_' + (el.dataset.productId || '')] = el.value;
+            function convertLeadToQuote() {
+                if (isFormDirty()) {
+                    alert('You have unsaved changes. Please save the lead first before converting to a quote.');
+                    return;
                 }
-            });
-            return JSON.stringify(data);
-        }
 
-        function isFormDirty() {
-            if (!initialFormSnapshot) return false;
-            return getFormSnapshot() !== initialFormSnapshot;
-        }
+                if (!confirm('Are you sure you want to create a quote from this lead?')) return;
 
-        function convertLeadToQuote() {
-            if (isFormDirty()) {
-                alert('You have unsaved changes. Please save the lead first before converting to a quote.');
-                return;
-            }
-
-            if (!confirm('Are you sure you want to create a quote from this lead?')) return;
-
-            fetch('{{ url("admin/leads") }}/' + editingLeadId + '/convert-to-quote', {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                }
-            })
-                .then(function (response) { return response.json().then(function (data) { return { ok: response.ok, data: data }; }); })
-                .then(function (result) {
-                    if (result.ok) {
-                        window.location.href = result.data.redirect;
-                    } else {
-                        alert(result.data.message || 'An error occurred.');
+                fetch('{{ url("admin/leads") }}/' + editingLeadId + '/convert-to-quote', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
                     }
                 })
-                .catch(function (err) {
-                    console.error('Error converting lead to quote:', err);
-                    alert('An error occurred while converting the lead to a quote.');
-                });
-        }
-
-        function viewLeadQuote() {
-            if (isFormDirty()) {
-                alert('You have unsaved changes. Please save the lead first before viewing the quote.');
-                return;
-            }
-            window.location.href = '{{ route('admin.quotes.index') }}';
-        }
-
-        // ====== Product Selection Functions ======
-        var productRowIndex = 0;
-
-        function addSelectedProduct() {
-            var sel = document.getElementById('product-selector');
-            if (!sel.value) return;
-            var opt = sel.options[sel.selectedIndex];
-            var pid = sel.value;
-            var name = opt.getAttribute('data-name');
-            var price = opt.getAttribute('data-price');
-            var desc = opt.getAttribute('data-desc');
-            addProductRow(pid, name, price, desc, 1);
-            sel.value = '';
-        }
-
-        function addProductRow(pid, name, price, desc, qty, discount) {
-            // Check if product already added
-            var existing = document.querySelectorAll('#selected-products-body input[data-product-id="' + pid + '"]');
-            if (existing.length > 0) {
-                alert('This product is already added!');
-                return;
+                    .then(function (response) { return response.json().then(function (data) { return { ok: response.ok, data: data }; }); })
+                    .then(function (result) {
+                        if (result.ok) {
+                            window.location.href = result.data.redirect;
+                        } else {
+                            alert(result.data.message || 'An error occurred.');
+                        }
+                    })
+                    .catch(function (err) {
+                        console.error('Error converting lead to quote:', err);
+                        alert('An error occurred while converting the lead to a quote.');
+                    });
             }
 
-            var tbody = document.getElementById('selected-products-body');
-            var table = document.getElementById('selected-products-table');
-            var idx = productRowIndex++;
-            discount = discount || 0;
+            function viewLeadQuote() {
+                if (isFormDirty()) {
+                    alert('You have unsaved changes. Please save the lead first before viewing the quote.');
+                    return;
+                }
+                window.location.href = '{{ route('admin.quotes.index') }}';
+            }
 
-            var tr = document.createElement('tr');
-            tr.id = 'product-row-' + idx;
-            tr.innerHTML = '<td style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px">' + escapeHtml(name) + '</td>' +
-                '<td style="padding:8px 10px;border:1px solid #e0e0e0"><input type="number" name="product_prices[]" value="' + parseFloat(price).toFixed(2) + '" min="0" step="0.01" data-idx="' + idx + '" oninput="updateDiscountedPrice(this.closest(\'tr\').querySelector(\'input[name=\\\'product_discounts[]\\\']\'))" style="width:100px;padding:4px;border:1px solid #ddd;border-radius:4px;text-align:center;font-weight:600"></td>' +
-                '<td style="padding:8px 10px;border:1px solid #e0e0e0">' +
-                '<textarea name="product_descriptions[]" id="desc-store-' + idx + '" style="display:none">' + escapeHtml(desc || '') + '</textarea>' +
-                '<div style="display:flex;align-items:center;gap:4px">' +
-                '<span id="desc-preview-' + idx + '" style="flex:1;padding:4px;font-size:13px;color:#666;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:200px;display:inline-block">' + escapeHtml((desc || '').replace(/\n/g, ' ')) + '</span>' +
-                '<button type="button" onclick="openDescPopup(' + idx + ')" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;cursor:pointer;padding:4px 6px;display:flex;align-items:center;justify-content:center;color:#3b82f6;flex-shrink:0" title="Edit Description"><i data-lucide="pencil" style="width:12px;height:12px"></i></button>' +
-                '</div>' +
-                '</td>' +
-                '<td style="padding:8px 10px;border:1px solid #e0e0e0"><input type="number" name="product_quantities[]" value="' + qty + '" min="1" style="width:60px;padding:4px;border:1px solid #ddd;border-radius:4px;text-align:center"></td>' +
-                '<td style="padding:8px 10px;border:1px solid #e0e0e0"><input type="number" name="product_discounts[]" value="' + discount + '" min="0" data-idx="' + idx + '" oninput="updateDiscountedPrice(this)" style="width:90px;padding:4px;border:1px solid #ddd;border-radius:4px;text-align:center" placeholder="0"></td>' +
-                '<td style="padding:8px 10px;border:1px solid #e0e0e0;text-align:center">' +
-                '<button type="button" onclick="removeProductRow(' + idx + ')" style="background:none;border:none;color:#dc3545;cursor:pointer;font-size:16px" title="Remove">&times;</button>' +
-                '<input type="hidden" name="product_ids[]" value="' + pid + '" data-product-id="' + pid + '">' +
-                '</td>';
-            tbody.appendChild(tr);
-            table.style.display = 'table';
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-        }
+            // ====== Product Selection Functions ======
+            var productRowIndex = 0;
 
-        function updateDiscountedPrice(input) {
-            // Price is now editable directly, no visual update needed
-        }
+            function addSelectedProduct() {
+                var sel = document.getElementById('product-selector');
+                if (!sel.value) return;
+                var opt = sel.options[sel.selectedIndex];
+                var pid = sel.value;
+                var name = opt.getAttribute('data-name');
+                var price = opt.getAttribute('data-price');
+                var desc = opt.getAttribute('data-desc');
+                addProductRow(pid, name, price, desc, 1);
+                sel.value = '';
+            }
 
-        function removeProductRow(idx) {
-            var row = document.getElementById('product-row-' + idx);
-            if (row) row.remove();
-            var tbody = document.getElementById('selected-products-body');
-            if (tbody.children.length === 0) {
+            function addProductRow(pid, name, price, desc, qty, discount) {
+                // Check if product already added
+                var existing = document.querySelectorAll('#selected-products-body input[data-product-id="' + pid + '"]');
+                if (existing.length > 0) {
+                    alert('This product is already added!');
+                    return;
+                }
+
+                var tbody = document.getElementById('selected-products-body');
+                var table = document.getElementById('selected-products-table');
+                var idx = productRowIndex++;
+                discount = discount || 0;
+
+                var tr = document.createElement('tr');
+                tr.id = 'product-row-' + idx;
+                tr.innerHTML = '<td style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px">' + escapeHtml(name) + '</td>' +
+                    '<td style="padding:8px 10px;border:1px solid #e0e0e0"><input type="number" name="product_prices[]" value="' + parseFloat(price).toFixed(2) + '" min="0" step="0.01" data-idx="' + idx + '" oninput="updateDiscountedPrice(this.closest(\'tr\').querySelector(\'input[name=\\\'product_discounts[]\\\']\'))" style="width:100px;padding:4px;border:1px solid #ddd;border-radius:4px;text-align:center;font-weight:600"></td>' +
+                    '<td style="padding:8px 10px;border:1px solid #e0e0e0">' +
+                    '<textarea name="product_descriptions[]" id="desc-store-' + idx + '" style="display:none">' + escapeHtml(desc || '') + '</textarea>' +
+                    '<div style="display:flex;align-items:center;gap:4px">' +
+                    '<span id="desc-preview-' + idx + '" style="flex:1;padding:4px;font-size:13px;color:#666;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:200px;display:inline-block">' + escapeHtml((desc || '').replace(/\n/g, ' ')) + '</span>' +
+                    '<button type="button" onclick="openDescPopup(' + idx + ')" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;cursor:pointer;padding:4px 6px;display:flex;align-items:center;justify-content:center;color:#3b82f6;flex-shrink:0" title="Edit Description"><i data-lucide="pencil" style="width:12px;height:12px"></i></button>' +
+                    '</div>' +
+                    '</td>' +
+                    '<td style="padding:8px 10px;border:1px solid #e0e0e0"><input type="number" name="product_quantities[]" value="' + qty + '" min="1" style="width:60px;padding:4px;border:1px solid #ddd;border-radius:4px;text-align:center"></td>' +
+                    '<td style="padding:8px 10px;border:1px solid #e0e0e0"><input type="number" name="product_discounts[]" value="' + discount + '" min="0" data-idx="' + idx + '" oninput="updateDiscountedPrice(this)" style="width:90px;padding:4px;border:1px solid #ddd;border-radius:4px;text-align:center" placeholder="0"></td>' +
+                    '<td style="padding:8px 10px;border:1px solid #e0e0e0;text-align:center">' +
+                    '<button type="button" onclick="removeProductRow(' + idx + ')" style="background:none;border:none;color:#dc3545;cursor:pointer;font-size:16px" title="Remove">&times;</button>' +
+                    '<input type="hidden" name="product_ids[]" value="' + pid + '" data-product-id="' + pid + '">' +
+                    '</td>';
+                tbody.appendChild(tr);
+                table.style.display = 'table';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+
+            function updateDiscountedPrice(input) {
+                // Price is now editable directly, no visual update needed
+            }
+
+            function removeProductRow(idx) {
+                var row = document.getElementById('product-row-' + idx);
+                if (row) row.remove();
+                var tbody = document.getElementById('selected-products-body');
+                if (tbody.children.length === 0) {
+                    document.getElementById('selected-products-table').style.display = 'none';
+                }
+            }
+
+            function clearProductTable() {
+                document.getElementById('selected-products-body').innerHTML = '';
                 document.getElementById('selected-products-table').style.display = 'none';
+                productRowIndex = 0;
             }
-        }
 
-        function clearProductTable() {
-            document.getElementById('selected-products-body').innerHTML = '';
-            document.getElementById('selected-products-table').style.display = 'none';
-            productRowIndex = 0;
-        }
-
-        function loadLeadProducts(products) {
-            products.forEach(function (p) {
-                var price = p.pivot && typeof p.pivot.price !== 'undefined'
-                    ? (p.pivot.price / 100)
-                    : ((p.mrp || p.sale_price || 0) / 100);
-                var discount = p.pivot ? (p.pivot.discount / 100) : 0;
-                addProductRow(p.id, p.name, price, p.description || p.pivot?.description || '', p.pivot ? p.pivot.quantity : 1, discount);
-            });
-        }
-
-        function escapeHtml(str) {
-            var div = document.createElement('div');
-            div.textContent = str;
-            return div.innerHTML;
-        }
-
-        // ====== Description Edit Popup ======
-        var activeDescIdx = null;
-
-        function openDescPopup(idx) {
-            activeDescIdx = idx;
-            var textarea = document.getElementById('desc-store-' + idx);
-            if (textarea) {
-                document.getElementById('desc-edit-textarea').value = textarea.value;
+            function loadLeadProducts(products) {
+                products.forEach(function (p) {
+                    var price = p.pivot && typeof p.pivot.price !== 'undefined'
+                        ? (p.pivot.price / 100)
+                        : ((p.mrp || p.sale_price || 0) / 100);
+                    var discount = p.pivot ? (p.pivot.discount / 100) : 0;
+                    addProductRow(p.id, p.name, price, p.description || p.pivot?.description || '', p.pivot ? p.pivot.quantity : 1, discount);
+                });
             }
-            document.getElementById('desc-edit-popup').style.display = 'flex';
-            document.getElementById('desc-edit-textarea').focus();
-        }
 
-        function closeDescPopup() {
-            document.getElementById('desc-edit-popup').style.display = 'none';
-            activeDescIdx = null;
-        }
+            function escapeHtml(str) {
+                var div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            }
 
-        function saveDescPopup() {
-            if (activeDescIdx !== null) {
-                var val = document.getElementById('desc-edit-textarea').value;
-                var textarea = document.getElementById('desc-store-' + activeDescIdx);
+            // ====== Description Edit Popup ======
+            var activeDescIdx = null;
+
+            function openDescPopup(idx) {
+                activeDescIdx = idx;
+                var textarea = document.getElementById('desc-store-' + idx);
                 if (textarea) {
-                    textarea.value = val;
+                    document.getElementById('desc-edit-textarea').value = textarea.value;
                 }
-                var preview = document.getElementById('desc-preview-' + activeDescIdx);
-                if (preview) {
-                    preview.textContent = val.replace(/\n/g, ' ');
+                document.getElementById('desc-edit-popup').style.display = 'flex';
+                document.getElementById('desc-edit-textarea').focus();
+            }
+
+            function closeDescPopup() {
+                document.getElementById('desc-edit-popup').style.display = 'none';
+                activeDescIdx = null;
+            }
+
+            function saveDescPopup() {
+                if (activeDescIdx !== null) {
+                    var val = document.getElementById('desc-edit-textarea').value;
+                    var textarea = document.getElementById('desc-store-' + activeDescIdx);
+                    if (textarea) {
+                        textarea.value = val;
+                    }
+                    var preview = document.getElementById('desc-preview-' + activeDescIdx);
+                    if (preview) {
+                        preview.textContent = val.replace(/\n/g, ' ');
+                    }
+                }
+                closeDescPopup();
+            }
+
+            function switchView(view) {
+                localStorage.setItem('leads_view_mode', view);
+                if (view === 'list') {
+                    document.getElementById('list-view').style.display = 'block';
+                    document.getElementById('kanban-view').style.display = 'none';
+                    document.getElementById('list-view-btn').style.background = 'white';
+                    document.getElementById('kanban-view-btn').style.background = 'transparent';
+                } else {
+                    document.getElementById('list-view').style.display = 'none';
+                    document.getElementById('kanban-view').style.display = 'block';
+                    document.getElementById('list-view-btn').style.background = 'transparent';
+                    document.getElementById('kanban-view-btn').style.background = 'white';
+                    // Reinitialize icons for kanban cards
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
                 }
             }
-            closeDescPopup();
-        }
 
-        function switchView(view) {
-            localStorage.setItem('leads_view_mode', view);
-            if (view === 'list') {
-                document.getElementById('list-view').style.display = 'block';
-                document.getElementById('kanban-view').style.display = 'none';
-                document.getElementById('list-view-btn').style.background = 'white';
-                document.getElementById('kanban-view-btn').style.background = 'transparent';
-            } else {
-                document.getElementById('list-view').style.display = 'none';
-                document.getElementById('kanban-view').style.display = 'block';
-                document.getElementById('list-view-btn').style.background = 'transparent';
-                document.getElementById('kanban-view-btn').style.background = 'white';
-                // Reinitialize icons for kanban cards
+            function viewLeadQuote() {
+                if (currentLeadQuoteId) {
+                    window.location.href = '{{ route("admin.quotes.index") }}?open_quote=' + currentLeadQuoteId;
+                }
+            }
+
+            // Initialize Lucide icons and View Mode
+            document.addEventListener('DOMContentLoaded', () => {
                 if (typeof lucide !== 'undefined') {
                     lucide.createIcons();
                 }
+
+                // Restore preferred view mode
+                var preferredView = localStorage.getItem('leads_view_mode') || 'list';
+                switchView(preferredView);
+            });
+
+            // Apply column visibility from database Settings
+            (function () {
+                var leadSettings = @json($columnVisibility ?? []);
+                Object.keys(leadSettings).forEach(function (col) {
+                    if (leadSettings[col] === false) {
+                        document.querySelectorAll('[data-col="' + col + '"]').forEach(function (el) {
+                            el.style.display = 'none';
+                        });
+                        document.querySelectorAll('[data-field="' + col + '"]').forEach(function (el) {
+                            el.style.display = 'none';
+                            var inputs = el.querySelectorAll('[required]');
+                            inputs.forEach(function (inp) { inp.removeAttribute('required'); });
+                        });
+                    }
+                });
+            })();
+
+            // ========== Kanban Drag & Drop ==========
+            let draggedCard = null;
+            let draggedLeadId = null;
+            let sourceColumn = null;
+
+            function kanbanDragStart(e) {
+                draggedCard = e.target.closest('.kanban-card');
+                draggedLeadId = draggedCard.getAttribute('data-lead-id');
+                sourceColumn = draggedCard.closest('.kanban-cards');
+
+                // Visual feedback
+                setTimeout(function () {
+                    draggedCard.style.opacity = '0.4';
+                    draggedCard.style.transform = 'rotate(2deg) scale(0.95)';
+                }, 0);
+
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', draggedLeadId);
             }
-        }
 
-        function viewLeadQuote() {
-            if (currentLeadQuoteId) {
-                window.location.href = '{{ route("admin.quotes.index") }}?open_quote=' + currentLeadQuoteId;
-            }
-        }
-
-        // Initialize Lucide icons and View Mode
-        document.addEventListener('DOMContentLoaded', () => {
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
-
-            // Restore preferred view mode
-            var preferredView = localStorage.getItem('leads_view_mode') || 'list';
-            switchView(preferredView);
-        });
-
-        // Apply column visibility from database Settings
-        (function () {
-            var leadSettings = @json($columnVisibility ?? []);
-            Object.keys(leadSettings).forEach(function (col) {
-                if (leadSettings[col] === false) {
-                    document.querySelectorAll('[data-col="' + col + '"]').forEach(function (el) {
-                        el.style.display = 'none';
-                    });
-                    document.querySelectorAll('[data-field="' + col + '"]').forEach(function (el) {
-                        el.style.display = 'none';
-                        var inputs = el.querySelectorAll('[required]');
-                        inputs.forEach(function (inp) { inp.removeAttribute('required'); });
-                    });
+            function kanbanDragEnd(e) {
+                if (draggedCard) {
+                    draggedCard.style.opacity = '1';
+                    draggedCard.style.transform = 'none';
                 }
-            });
-        })();
-
-        // ========== Kanban Drag & Drop ==========
-        let draggedCard = null;
-        let draggedLeadId = null;
-        let sourceColumn = null;
-
-        function kanbanDragStart(e) {
-            draggedCard = e.target.closest('.kanban-card');
-            draggedLeadId = draggedCard.getAttribute('data-lead-id');
-            sourceColumn = draggedCard.closest('.kanban-cards');
-
-            // Visual feedback
-            setTimeout(function () {
-                draggedCard.style.opacity = '0.4';
-                draggedCard.style.transform = 'rotate(2deg) scale(0.95)';
-            }, 0);
-
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', draggedLeadId);
-        }
-
-        function kanbanDragEnd(e) {
-            if (draggedCard) {
-                draggedCard.style.opacity = '1';
-                draggedCard.style.transform = 'none';
+                // Remove all highlights
+                document.querySelectorAll('.kanban-column').forEach(function (col) {
+                    col.style.background = 'white';
+                    col.style.outline = 'none';
+                });
+                draggedCard = null;
+                draggedLeadId = null;
+                sourceColumn = null;
             }
-            // Remove all highlights
-            document.querySelectorAll('.kanban-column').forEach(function (col) {
-                col.style.background = 'white';
-                col.style.outline = 'none';
-            });
-            draggedCard = null;
-            draggedLeadId = null;
-            sourceColumn = null;
-        }
 
-        function kanbanDragOver(e) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
+            function kanbanDragOver(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
 
-            var column = e.target.closest('.kanban-column');
-            if (column) {
-                column.style.background = '#f0f7ff';
-                column.style.outline = '2px dashed #3b82f6';
-                column.style.outlineOffset = '-2px';
+                var column = e.target.closest('.kanban-column');
+                if (column) {
+                    column.style.background = '#f0f7ff';
+                    column.style.outline = '2px dashed #3b82f6';
+                    column.style.outlineOffset = '-2px';
+                }
             }
-        }
 
-        function kanbanDragLeave(e) {
-            var column = e.target.closest('.kanban-column');
-            if (column && !column.contains(e.relatedTarget)) {
-                column.style.background = 'white';
-                column.style.outline = 'none';
+            function kanbanDragLeave(e) {
+                var column = e.target.closest('.kanban-column');
+                if (column && !column.contains(e.relatedTarget)) {
+                    column.style.background = 'white';
+                    column.style.outline = 'none';
+                }
             }
-        }
 
-        function kanbanDrop(e) {
-            e.preventDefault();
+            function kanbanDrop(e) {
+                e.preventDefault();
 
-            var targetColumn = e.target.closest('.kanban-column');
-            if (!targetColumn || !draggedCard) return;
+                var targetColumn = e.target.closest('.kanban-column');
+                if (!targetColumn || !draggedCard) return;
 
-            var newStage = targetColumn.getAttribute('data-stage');
-            var oldStage = sourceColumn ? sourceColumn.getAttribute('data-stage') : null;
+                var newStage = targetColumn.getAttribute('data-stage');
+                var oldStage = sourceColumn ? sourceColumn.getAttribute('data-stage') : null;
 
-            // Don't do anything if same column
-            if (newStage === oldStage) {
+                // Don't do anything if same column
+                if (newStage === oldStage) {
+                    targetColumn.style.background = 'white';
+                    targetColumn.style.outline = 'none';
+                    return;
+                }
+
+                // Move card in DOM
+                var targetCards = targetColumn.querySelector('.kanban-cards');
+                var emptyMsg = targetCards.querySelector('.kanban-empty');
+                if (emptyMsg) emptyMsg.remove();
+
+                // Animate insertion
+                draggedCard.style.opacity = '0';
+                draggedCard.style.transform = 'translateY(-10px)';
+                targetCards.appendChild(draggedCard);
+
+                // Smooth appear
+                requestAnimationFrame(function () {
+                    draggedCard.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                    draggedCard.style.opacity = '1';
+                    draggedCard.style.transform = 'none';
+                    setTimeout(function () {
+                        draggedCard.style.transition = 'all 0.2s';
+                    }, 300);
+                });
+
+                // Check if source column is now empty
+                if (sourceColumn && sourceColumn.querySelectorAll('.kanban-card').length === 0) {
+                    sourceColumn.innerHTML = '<p class="kanban-empty" style="text-align:center;color:#999;font-size:13px;padding:20px 0">No leads</p>';
+                }
+
+                // Update column counts
+                updateKanbanCounts();
+
+                // Reset column styles
                 targetColumn.style.background = 'white';
                 targetColumn.style.outline = 'none';
-                return;
+
+                // AJAX update stage
+                fetch('{{ url("admin/leads") }}/' + draggedLeadId + '/stage', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ stage: newStage })
+                })
+                    .then(function (response) {
+                        if (!response.ok) throw new Error('Failed to update');
+                        return response.json();
+                    })
+                    .then(function () {
+                        showKanbanToast('Lead moved to ' + newStage.charAt(0).toUpperCase() + newStage.slice(1));
+                    })
+                    .catch(function (err) {
+                        console.error('Stage update failed:', err);
+                        // Revert on failure
+                        if (sourceColumn) {
+                            var emptyInSource = sourceColumn.querySelector('.kanban-empty');
+                            if (emptyInSource) emptyInSource.remove();
+                            sourceColumn.appendChild(draggedCard);
+                            updateKanbanCounts();
+                        }
+                        showKanbanToast('Failed to update stage', true);
+                    });
             }
 
-            // Move card in DOM
-            var targetCards = targetColumn.querySelector('.kanban-cards');
-            var emptyMsg = targetCards.querySelector('.kanban-empty');
-            if (emptyMsg) emptyMsg.remove();
-
-            // Animate insertion
-            draggedCard.style.opacity = '0';
-            draggedCard.style.transform = 'translateY(-10px)';
-            targetCards.appendChild(draggedCard);
-
-            // Smooth appear
-            requestAnimationFrame(function () {
-                draggedCard.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-                draggedCard.style.opacity = '1';
-                draggedCard.style.transform = 'none';
-                setTimeout(function () {
-                    draggedCard.style.transition = 'all 0.2s';
-                }, 300);
-            });
-
-            // Check if source column is now empty
-            if (sourceColumn && sourceColumn.querySelectorAll('.kanban-card').length === 0) {
-                sourceColumn.innerHTML = '<p class="kanban-empty" style="text-align:center;color:#999;font-size:13px;padding:20px 0">No leads</p>';
-            }
-
-            // Update column counts
-            updateKanbanCounts();
-
-            // Reset column styles
-            targetColumn.style.background = 'white';
-            targetColumn.style.outline = 'none';
-
-            // AJAX update stage
-            fetch('{{ url("admin/leads") }}/' + draggedLeadId + '/stage', {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ stage: newStage })
-            })
-                .then(function (response) {
-                    if (!response.ok) throw new Error('Failed to update');
-                    return response.json();
-                })
-                .then(function () {
-                    showKanbanToast('Lead moved to ' + newStage.charAt(0).toUpperCase() + newStage.slice(1));
-                })
-                .catch(function (err) {
-                    console.error('Stage update failed:', err);
-                    // Revert on failure
-                    if (sourceColumn) {
-                        var emptyInSource = sourceColumn.querySelector('.kanban-empty');
-                        if (emptyInSource) emptyInSource.remove();
-                        sourceColumn.appendChild(draggedCard);
-                        updateKanbanCounts();
-                    }
-                    showKanbanToast('Failed to update stage', true);
+            function updateKanbanCounts() {
+                document.querySelectorAll('.kanban-column').forEach(function (col) {
+                    var stage = col.getAttribute('data-stage');
+                    var count = col.querySelectorAll('.kanban-card').length;
+                    var countEl = col.querySelector('.kanban-count-' + stage);
+                    if (countEl) countEl.textContent = count;
                 });
-        }
+            }
 
-        function updateKanbanCounts() {
-            document.querySelectorAll('.kanban-column').forEach(function (col) {
-                var stage = col.getAttribute('data-stage');
-                var count = col.querySelectorAll('.kanban-card').length;
-                var countEl = col.querySelector('.kanban-count-' + stage);
-                if (countEl) countEl.textContent = count;
-            });
-        }
+            function showKanbanToast(message, isError) {
+                var existing = document.getElementById('kanban-toast');
+                if (existing) existing.remove();
 
-        function showKanbanToast(message, isError) {
-            var existing = document.getElementById('kanban-toast');
-            if (existing) existing.remove();
+                var toast = document.createElement('div');
+                toast.id = 'kanban-toast';
+                toast.textContent = message;
+                toast.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.15);transition:all 0.4s cubic-bezier(0.4,0,0.2,1);transform:translateY(20px);opacity:0;' +
+                    (isError ? 'background:#fef2f2;color:#dc2626;border:1px solid #fecaca' : 'background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0');
+                document.body.appendChild(toast);
 
-            var toast = document.createElement('div');
-            toast.id = 'kanban-toast';
-            toast.textContent = message;
-            toast.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.15);transition:all 0.4s cubic-bezier(0.4,0,0.2,1);transform:translateY(20px);opacity:0;' +
-                (isError ? 'background:#fef2f2;color:#dc2626;border:1px solid #fecaca' : 'background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0');
-            document.body.appendChild(toast);
+                requestAnimationFrame(function () {
+                    toast.style.transform = 'translateY(0)';
+                    toast.style.opacity = '1';
+                });
 
-            requestAnimationFrame(function () {
-                toast.style.transform = 'translateY(0)';
-                toast.style.opacity = '1';
-            });
+                setTimeout(function () {
+                    toast.style.transform = 'translateY(20px)';
+                    toast.style.opacity = '0';
+                    setTimeout(function () { toast.remove(); }, 400);
+                }, 2500);
+            }
+            document.addEventListener('DOMContentLoaded', function () {
+                let df = document.getElementById('created-from').value;
+                let dt = document.getElementById('created-to').value;
+                let defDates = [];
+                if (df && dt) defDates = [df, dt];
 
-            setTimeout(function () {
-                toast.style.transform = 'translateY(20px)';
-                toast.style.opacity = '0';
-                setTimeout(function () { toast.remove(); }, 400);
-            }, 2500);
-        }
-        document.addEventListener('DOMContentLoaded', function () {
-            let df = document.getElementById('created-from').value;
-            let dt = document.getElementById('created-to').value;
-            let defDates = [];
-            if (df && dt) defDates = [df, dt];
-
-            flatpickr("#lead-date-range-picker", {
-                mode: "range",
-                dateFormat: "Y-m-d",
-                defaultDate: defDates,
-                onChange: function (selectedDates, dateStr, instance) {
-                    if (selectedDates.length === 2) {
-                        document.getElementById('created-from').value = instance.formatDate(selectedDates[0], "Y-m-d");
-                        document.getElementById('created-to').value = instance.formatDate(selectedDates[1], "Y-m-d");
-                        document.getElementById('filter-form').submit();
-                    } else if (selectedDates.length === 0) {
-                        document.getElementById('created-from').value = '';
-                        document.getElementById('created-to').value = '';
-                        document.getElementById('filter-form').submit();
+                flatpickr("#lead-date-range-picker", {
+                    mode: "range",
+                    dateFormat: "Y-m-d",
+                    defaultDate: defDates,
+                    onChange: function (selectedDates, dateStr, instance) {
+                        if (selectedDates.length === 2) {
+                            document.getElementById('created-from').value = instance.formatDate(selectedDates[0], "Y-m-d");
+                            document.getElementById('created-to').value = instance.formatDate(selectedDates[1], "Y-m-d");
+                            document.getElementById('filter-form').submit();
+                        } else if (selectedDates.length === 0) {
+                            document.getElementById('created-from').value = '';
+                            document.getElementById('created-to').value = '';
+                            document.getElementById('filter-form').submit();
+                        }
                     }
-                }
+                });
             });
-        });
-    </script>
-    <!-- Include Flatpickr for Date Range Selection -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+        </script>
+        <!-- Include Flatpickr for Date Range Selection -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+        <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 @endpush
