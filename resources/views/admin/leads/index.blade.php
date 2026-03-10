@@ -7,24 +7,10 @@
     <div class="page-header" style="margin-bottom:24px">
         <div class="page-header-content"
             style="display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap">
-            <div style="flex:1;min-width:200px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:200px;display:flex;align-items:center;gap:16px;">
                 <div>
-                    <h1 class="page-title">Leads</h1>
-                    <p class="page-description">Manage your sales leads and track their progress</p>
-                </div>
-                <!-- View Toggles moved to left side here -->
-                <div
-                    style="display:flex;gap:4px;background:#f1f1f1;padding:4px;border-radius:6px;align-self:flex-start;margin-top:6px;">
-                    <button id="list-view-btn" onclick="switchView('list')"
-                        style="padding:6px 12px;background:white;border:none;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:4px">
-                        <i data-lucide="list" style="width:16px;height:16px"></i>
-                        List
-                    </button>
-                    <button id="kanban-view-btn" onclick="switchView('kanban')"
-                        style="padding:6px 12px;background:transparent;border:none;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:4px">
-                        <i data-lucide="layout-grid" style="width:16px;height:16px"></i>
-                        Kanban
-                    </button>
+                    <h1 class="page-title" style="margin:0;">Leads</h1>
+                    <p class="page-description" style="margin:0;">Manage your sales leads and track their progress</p>
                 </div>
             </div>
 
@@ -46,6 +32,19 @@
                     </div>
                 </div>
                 <div class="page-actions" style="display:flex;gap:12px;align-items:center">
+                    <!-- View Toggles moved to right side aligned before Add Lead -->
+                    <div style="display:flex;gap:4px;background:#f1f1f1;padding:4px;border-radius:6px;align-self:stretch;">
+                        <button id="list-view-btn" onclick="switchView('list')"
+                            style="padding:6px 12px;background:white;border:none;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:4px">
+                            <i data-lucide="list" style="width:16px;height:16px"></i>
+                            List
+                        </button>
+                        <button id="kanban-view-btn" onclick="switchView('kanban')"
+                            style="padding:6px 12px;background:transparent;border:none;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:4px">
+                            <i data-lucide="layout-grid" style="width:16px;height:16px"></i>
+                            Kanban
+                        </button>
+                    </div>
                     @if(can('leads.write'))
                         <button class="btn btn-primary" onclick="openAddLeadModal()">
                             <i data-lucide="plus" style="width:16px;height:16px"></i> Add Lead
