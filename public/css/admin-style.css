@@ -304,6 +304,7 @@ textarea {
 .page-content {
     flex: 1;
     padding: 1.5rem;
+    overflow-x: hidden;
 }
 
 .page-header {
