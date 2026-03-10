@@ -1,433 +1,459 @@
 <style>
-        /* ============ Modern 2026 Notification Bell & Dropdown ============ */
-        .notification-wrapper {
-            position: relative;
-            overflow: visible;
+    /* ============ Modern 2026 Notification Bell & Dropdown ============ */
+    .notification-wrapper {
+        position: relative;
+        overflow: visible;
+    }
+
+    .notification-bell {
+        position: relative;
+    }
+
+    .notification-bell .noti-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        min-width: 18px;
+        height: 18px;
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 5px;
+        border: 2px solid #fff;
+        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+        animation: notiBounce 2s ease-in-out infinite;
+        pointer-events: none;
+    }
+
+    .notification-bell .noti-badge.hidden {
+        display: none;
+    }
+
+    @keyframes notiBounce {
+
+        0%,
+        100% {
+            transform: scale(1);
         }
 
-        .notification-bell {
-            position: relative;
+        50% {
+            transform: scale(1.15);
+        }
+    }
+
+    /* Dropdown Panel */
+    .notification-dropdown {
+        display: none;
+        position: absolute;
+        top: calc(100% + 12px);
+        right: -16px;
+        width: 380px;
+        background: #fff;
+        backdrop-filter: blur(24px) saturate(180%);
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.05);
+        z-index: 1000;
+        overflow: hidden;
+    }
+
+    .notification-wrapper.active .notification-dropdown {
+        display: block;
+    }
+
+    /* Arrow pointer */
+    .notification-dropdown::before {
+        content: '';
+        position: absolute;
+        top: -6px;
+        right: 22px;
+        width: 12px;
+        height: 12px;
+        background: rgba(255, 255, 255, 0.92);
+        border-left: 1px solid rgba(255, 255, 255, 0.6);
+        border-top: 1px solid rgba(255, 255, 255, 0.6);
+        transform: rotate(45deg);
+        z-index: 1;
+    }
+
+    /* Header */
+    .noti-header {
+        padding: 16px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.5) 100%);
+    }
+
+    .noti-header-title {
+        font-weight: 700;
+        font-size: 15px;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .noti-count-badge {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: white;
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-weight: 700;
+    }
+
+    .noti-mark-all {
+        font-size: 12px;
+        font-weight: 600;
+        color: #4f46e5;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px 10px;
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+
+    .noti-mark-all:hover {
+        background: rgba(79, 70, 229, 0.08);
+    }
+
+    /* Body / List */
+    .noti-body {
+        max-height: 380px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0, 0, 0, 0.08) transparent;
+    }
+
+    .noti-body::-webkit-scrollbar {
+        width: 5px;
+    }
+
+    .noti-body::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .noti-body::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.08);
+        border-radius: 10px;
+    }
+
+    /* Empty state */
+    .noti-empty {
+        padding: 40px 20px;
+        text-align: center;
+        color: #94a3b8;
+        font-size: 13px;
+    }
+
+    .noti-empty i {
+        margin-bottom: 8px;
+        display: block;
+        opacity: 0.5;
+    }
+
+    /* Notification Item */
+    .noti-item {
+        padding: 14px 20px;
+        display: flex;
+        gap: 12px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+        transition: all 0.2s ease;
+        cursor: pointer;
+        text-decoration: none;
+        color: inherit;
+        position: relative;
+        background: transparent;
+    }
+
+    .noti-item:last-child {
+        border-bottom: none;
+    }
+
+    .noti-item:hover {
+        background: rgba(79, 70, 229, 0.04);
+    }
+
+    .noti-item.unread {
+        background: rgba(79, 70, 229, 0.025);
+    }
+
+    .noti-item.unread::after {
+        content: '';
+        position: absolute;
+        right: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 7px;
+        height: 7px;
+        background: linear-gradient(135deg, #4f46e5, #6366f1);
+        border-radius: 50%;
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+
+    /* Icon */
+    .noti-icon-box {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .noti-icon-box.project {
+        background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+        color: #4f46e5;
+    }
+
+    .noti-icon-box.task {
+        background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+        color: #16a34a;
+    }
+
+    .noti-icon-box.lead {
+        background: linear-gradient(135deg, #fef3c7, #fde68a);
+        color: #d97706;
+    }
+
+    .noti-icon-box.overdue {
+        background: linear-gradient(135deg, #fee2e2, #fecaca);
+        color: #dc2626;
+    }
+
+    .noti-icon-box.micro_task {
+        background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+        color: #0284c7;
+    }
+
+    /* Content */
+    .noti-text-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .noti-msg {
+        font-size: 13px;
+        color: #334155;
+        margin: 0 0 3px 0;
+        line-height: 1.45;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .noti-msg strong {
+        color: #0f172a;
+        font-weight: 600;
+    }
+
+    .noti-time-label {
+        font-size: 11px;
+        color: #94a3b8;
+        font-weight: 500;
+    }
+
+    /* Footer */
+    .noti-footer {
+        padding: 10px;
+        text-align: center;
+        border-top: 1px solid rgba(0, 0, 0, 0.04);
+        background: rgba(248, 250, 252, 0.5);
+    }
+
+    .noti-footer a {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: #4f46e5;
+        text-decoration: none;
+        padding: 4px 16px;
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+
+    .noti-footer a:hover {
+        background: rgba(79, 70, 229, 0.08);
+    }
+
+    /* Loading skeleton */
+    .noti-skeleton {
+        padding: 14px 20px;
+        display: flex;
+        gap: 12px;
+    }
+
+    .noti-skeleton .skel-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+        background-size: 200% 100%;
+        animation: skelShimmer 1.5s infinite;
+        flex-shrink: 0;
+    }
+
+    .noti-skeleton .skel-lines {
+        flex: 1;
+    }
+
+    .noti-skeleton .skel-line {
+        height: 10px;
+        border-radius: 4px;
+        background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+        background-size: 200% 100%;
+        animation: skelShimmer 1.5s infinite;
+        margin-bottom: 6px;
+    }
+
+    .noti-skeleton .skel-line:last-child {
+        width: 50%;
+        margin-bottom: 0;
+    }
+
+    @keyframes skelShimmer {
+        0% {
+            background-position: 200% 0;
         }
 
-        .notification-bell .noti-badge {
-            position: absolute;
-            top: -4px;
-            right: -4px;
-            min-width: 18px;
-            height: 18px;
-            background: linear-gradient(135deg, #ef4444, #dc2626);
-            color: #fff;
-            font-size: 10px;
-            font-weight: 700;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 5px;
-            border: 2px solid #fff;
-            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
-            animation: notiBounce 2s ease-in-out infinite;
-            pointer-events: none;
+        100% {
+            background-position: -200% 0;
         }
+    }
 
-        .notification-bell .noti-badge.hidden {
-            display: none;
-        }
+    /* ============ Header User Dropdown ============ */
+    .header-user-dropdown-wrapper {
+        position: relative;
+    }
 
-        @keyframes notiBounce {
+    .header-user-trigger {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 10px;
+        transition: background 0.2s;
+    }
 
-            0%,
-            100% {
-                transform: scale(1);
-            }
+    .header-user-trigger:hover {
+        background: var(--muted, #f1f5f9);
+    }
 
-            50% {
-                transform: scale(1.15);
-            }
-        }
+    .header-user-info {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.2;
+    }
 
-        /* Dropdown Panel */
-        .notification-dropdown {
-            display: none;
-            position: absolute;
-            top: calc(100% + 12px);
-            right: -16px;
-            width: 380px;
-            background: #fff;
-            backdrop-filter: blur(24px) saturate(180%);
-            -webkit-backdrop-filter: blur(24px) saturate(180%);
-            border: 1px solid #e2e8f0;
-            border-radius: 16px;
-            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.05);
-            z-index: 1000;
-            overflow: hidden;
-        }
+    .header-user-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--foreground, #0f172a);
+    }
 
-        .notification-wrapper.active .notification-dropdown {
-            display: block;
-        }
+    .header-user-role {
+        font-size: 11px;
+        color: var(--muted-foreground, #64748b);
+    }
 
-        /* Arrow pointer */
-        .notification-dropdown::before {
-            content: '';
-            position: absolute;
-            top: -6px;
-            right: 22px;
-            width: 12px;
-            height: 12px;
-            background: rgba(255, 255, 255, 0.92);
-            border-left: 1px solid rgba(255, 255, 255, 0.6);
-            border-top: 1px solid rgba(255, 255, 255, 0.6);
-            transform: rotate(45deg);
-            z-index: 1;
-        }
+    .header-user-arrow {
+        width: 16px;
+        height: 16px;
+        color: var(--muted-foreground, #64748b);
+        transition: transform 0.2s;
+    }
 
-        /* Header */
-        .noti-header {
-            padding: 16px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-            background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.5) 100%);
-        }
+    .header-dropdown-menu {
+        display: none;
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        width: 220px;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        box-shadow: 0 16px 48px -12px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        overflow: hidden;
+    }
 
-        .noti-header-title {
-            font-weight: 700;
-            font-size: 15px;
-            color: #0f172a;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+    .header-user-dropdown-wrapper.active .header-dropdown-menu {
+        display: block;
+    }
 
-        .noti-count-badge {
-            background: linear-gradient(135deg, #ef4444, #dc2626);
-            color: white;
-            font-size: 11px;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-weight: 700;
-        }
+    .dropdown-header {
+        padding: 14px 16px;
+        border-bottom: 1px solid #f1f5f9;
+    }
 
-        .noti-mark-all {
-            font-size: 12px;
-            font-weight: 600;
-            color: #4f46e5;
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 4px 10px;
-            border-radius: 8px;
-            transition: all 0.2s;
-        }
+    .dropdown-user-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: #0f172a;
+    }
 
-        .noti-mark-all:hover {
-            background: rgba(79, 70, 229, 0.08);
-        }
+    .dropdown-user-email {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 2px;
+        word-break: break-all;
+    }
 
-        /* Body / List */
-        .noti-body {
-            max-height: 380px;
-            overflow-y: auto;
-            scrollbar-width: thin;
-            scrollbar-color: rgba(0, 0, 0, 0.08) transparent;
-        }
+    .dropdown-divider {
+        height: 1px;
+        background: #f1f5f9;
+    }
 
-        .noti-body::-webkit-scrollbar {
-            width: 5px;
-        }
+    .dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        font-size: 13px;
+        color: #334155;
+        cursor: pointer;
+        transition: background 0.15s;
+        border: none;
+        background: none;
+        width: 100%;
+        text-align: left;
+    }
 
-        .noti-body::-webkit-scrollbar-track {
-            background: transparent;
-        }
+    .dropdown-item:hover {
+        background: #f8fafc;
+    }
 
-        .noti-body::-webkit-scrollbar-thumb {
-            background: rgba(0, 0, 0, 0.08);
-            border-radius: 10px;
-        }
+    .dropdown-item i {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+    }
 
-        /* Empty state */
-        .noti-empty {
-            padding: 40px 20px;
-            text-align: center;
-            color: #94a3b8;
-            font-size: 13px;
-        }
+    .dropdown-item-danger {
+        color: #ef4444;
+    }
 
-        .noti-empty i {
-            margin-bottom: 8px;
-            display: block;
-            opacity: 0.5;
-        }
+    .dropdown-item-danger:hover {
+        background: #fef2f2;
+    }
 
-        /* Notification Item */
-        .noti-item {
-            padding: 14px 20px;
-            display: flex;
-            gap: 12px;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.03);
-            transition: all 0.2s ease;
-            cursor: pointer;
-            text-decoration: none;
-            color: inherit;
-            position: relative;
-            background: transparent;
+    @media (max-width: 768px) {
+        .hidden-mobile {
+            display: none !important;
         }
-
-        .noti-item:last-child {
-            border-bottom: none;
-        }
-
-        .noti-item:hover {
-            background: rgba(79, 70, 229, 0.04);
-        }
-
-        .noti-item.unread {
-            background: rgba(79, 70, 229, 0.025);
-        }
-
-        .noti-item.unread::after {
-            content: '';
-            position: absolute;
-            right: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 7px;
-            height: 7px;
-            background: linear-gradient(135deg, #4f46e5, #6366f1);
-            border-radius: 50%;
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-        }
-
-        /* Icon */
-        .noti-icon-box {
-            width: 38px;
-            height: 38px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-
-        .noti-icon-box.project {
-            background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
-            color: #4f46e5;
-        }
-
-        .noti-icon-box.task {
-            background: linear-gradient(135deg, #dcfce7, #bbf7d0);
-            color: #16a34a;
-        }
-
-        .noti-icon-box.lead {
-            background: linear-gradient(135deg, #fef3c7, #fde68a);
-            color: #d97706;
-        }
-
-        .noti-icon-box.overdue {
-            background: linear-gradient(135deg, #fee2e2, #fecaca);
-            color: #dc2626;
-        }
-
-        /* Content */
-        .noti-text-content {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .noti-msg {
-            font-size: 13px;
-            color: #334155;
-            margin: 0 0 3px 0;
-            line-height: 1.45;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-
-        .noti-msg strong {
-            color: #0f172a;
-            font-weight: 600;
-        }
-
-        .noti-time-label {
-            font-size: 11px;
-            color: #94a3b8;
-            font-weight: 500;
-        }
-
-        /* Footer */
-        .noti-footer {
-            padding: 10px;
-            text-align: center;
-            border-top: 1px solid rgba(0, 0, 0, 0.04);
-            background: rgba(248, 250, 252, 0.5);
-        }
-
-        .noti-footer a {
-            font-size: 12.5px;
-            font-weight: 600;
-            color: #4f46e5;
-            text-decoration: none;
-            padding: 4px 16px;
-            border-radius: 8px;
-            transition: all 0.2s;
-        }
-
-        .noti-footer a:hover {
-            background: rgba(79, 70, 229, 0.08);
-        }
-
-        /* Loading skeleton */
-        .noti-skeleton {
-            padding: 14px 20px;
-            display: flex;
-            gap: 12px;
-        }
-
-        .noti-skeleton .skel-icon {
-            width: 38px;
-            height: 38px;
-            border-radius: 12px;
-            background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
-            background-size: 200% 100%;
-            animation: skelShimmer 1.5s infinite;
-            flex-shrink: 0;
-        }
-
-        .noti-skeleton .skel-lines {
-            flex: 1;
-        }
-
-        .noti-skeleton .skel-line {
-            height: 10px;
-            border-radius: 4px;
-            background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
-            background-size: 200% 100%;
-            animation: skelShimmer 1.5s infinite;
-            margin-bottom: 6px;
-        }
-
-        .noti-skeleton .skel-line:last-child {
-            width: 50%;
-            margin-bottom: 0;
-        }
-
-        @keyframes skelShimmer {
-            0% {
-                background-position: 200% 0;
-            }
-
-            100% {
-                background-position: -200% 0;
-            }
-        }
-        /* ============ Header User Dropdown ============ */
-        .header-user-dropdown-wrapper {
-            position: relative;
-        }
-        .header-user-trigger {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 10px;
-            transition: background 0.2s;
-        }
-        .header-user-trigger:hover {
-            background: var(--muted, #f1f5f9);
-        }
-        .header-user-info {
-            display: flex;
-            flex-direction: column;
-            line-height: 1.2;
-        }
-        .header-user-name {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--foreground, #0f172a);
-        }
-        .header-user-role {
-            font-size: 11px;
-            color: var(--muted-foreground, #64748b);
-        }
-        .header-user-arrow {
-            width: 16px;
-            height: 16px;
-            color: var(--muted-foreground, #64748b);
-            transition: transform 0.2s;
-        }
-        .header-dropdown-menu {
-            display: none;
-            position: absolute;
-            top: calc(100% + 8px);
-            right: 0;
-            width: 220px;
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            box-shadow: 0 16px 48px -12px rgba(0,0,0,0.15);
-            z-index: 1000;
-            overflow: hidden;
-        }
-        .header-user-dropdown-wrapper.active .header-dropdown-menu {
-            display: block;
-        }
-        .dropdown-header {
-            padding: 14px 16px;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        .dropdown-user-name {
-            font-size: 14px;
-            font-weight: 600;
-            color: #0f172a;
-        }
-        .dropdown-user-email {
-            font-size: 12px;
-            color: #64748b;
-            margin-top: 2px;
-            word-break: break-all;
-        }
-        .dropdown-divider {
-            height: 1px;
-            background: #f1f5f9;
-        }
-        .dropdown-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 16px;
-            font-size: 13px;
-            color: #334155;
-            cursor: pointer;
-            transition: background 0.15s;
-            border: none;
-            background: none;
-            width: 100%;
-            text-align: left;
-        }
-        .dropdown-item:hover {
-            background: #f8fafc;
-        }
-        .dropdown-item i {
-            width: 16px;
-            height: 16px;
-            flex-shrink: 0;
-        }
-        .dropdown-item-danger {
-            color: #ef4444;
-        }
-        .dropdown-item-danger:hover {
-            background: #fef2f2;
-        }
-        @media (max-width: 768px) {
-            .hidden-mobile { display: none !important; }
-        }
-    </style>
+    }
+</style>
 
 <header class="header">
     <div class="header-left">
@@ -538,7 +564,8 @@
             const iconMap = {
                 project: 'folder',
                 task: 'check-square',
-                lead: 'users'
+                lead: 'users',
+                micro_task: 'list-checks'
             };
 
             function getIconClass(data) {
@@ -585,14 +612,14 @@
                             item.className = 'noti-item' + (isUnread ? ' unread' : '');
                             item.dataset.id = n.id;
                             item.innerHTML = `
-                            <div class="noti-icon-box ${iconClass}">
-                                <i data-lucide="${lucideIcon}" style="width:16px;height:16px;"></i>
-                            </div>
-                            <div class="noti-text-content">
-                                <p class="noti-msg">${d.message || ''}</p>
-                                <span class="noti-time-label">${n.created_at}</span>
-                            </div>
-                        `;
+                                <div class="noti-icon-box ${iconClass}">
+                                    <i data-lucide="${lucideIcon}" style="width:16px;height:16px;"></i>
+                                </div>
+                                <div class="noti-text-content">
+                                    <p class="noti-msg">${d.message || ''}</p>
+                                    <span class="noti-time-label">${n.created_at}</span>
+                                </div>
+                            `;
                             item.addEventListener('click', () => markReadAndRedirect(n.id));
                             body.appendChild(item);
                         });
@@ -657,18 +684,18 @@
         })();
 
         // ===== User Dropdown Toggle =====
-        (function() {
+        (function () {
             const userWrapper = document.getElementById('user-dropdown-wrapper');
             const userTrigger = document.getElementById('user-dropdown-trigger');
             if (userTrigger && userWrapper) {
-                userTrigger.addEventListener('click', function(e) {
+                userTrigger.addEventListener('click', function (e) {
                     e.stopPropagation();
                     userWrapper.classList.toggle('active');
                     // Close notification dropdown if open
                     const notiWrapper = document.getElementById('notification-wrapper');
                     if (notiWrapper) notiWrapper.classList.remove('active');
                 });
-                document.addEventListener('click', function(e) {
+                document.addEventListener('click', function (e) {
                     if (userWrapper.classList.contains('active') && !userWrapper.contains(e.target)) {
                         userWrapper.classList.remove('active');
                     }

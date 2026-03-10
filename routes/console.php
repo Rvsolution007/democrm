@@ -31,7 +31,7 @@ Schedule::command('whatsapp:process-campaigns')
 
 // Daily Notification Commands
 Schedule::command('notifications:followups')
-    ->dailyAt('08:00')
+    ->everyMinute()
     ->name('notifications-followups')
     ->withoutOverlapping();
 

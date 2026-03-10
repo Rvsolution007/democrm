@@ -12,7 +12,8 @@ class FollowupTodayNotification extends Notification
     public function __construct(
         public string $entityType,
         public int $entityId,
-        public string $entityName
+        public string $entityName,
+        public ?string $followUpTime = null
     ) {
     }
 
@@ -23,13 +24,24 @@ class FollowupTodayNotification extends Notification
 
     public function toArray(object $notifiable): array
     {
-        $typeLabel = ucfirst($this->entityType);
+        $typeLabel = match ($this->entityType) {
+            'lead' => 'Lead',
+            'micro_task' => 'Micro Task',
+            'task' => 'Task',
+            default => ucfirst($this->entityType),
+        };
+
+        $message = "Follow-up due for {$typeLabel}: {$this->entityName}";
+        if ($this->followUpTime) {
+            $message = "Follow-up at {$this->followUpTime} for {$typeLabel}: {$this->entityName}";
+        }
+
         return [
             'type' => 'followup_today',
             'entity_type' => $this->entityType,
             'entity_id' => $this->entityId,
             'entity_name' => $this->entityName,
-            'message' => "Follow-up due today for {$typeLabel}: {$this->entityName}",
+            'message' => $message,
             'url' => $this->buildUrl(),
             'icon' => $this->getIcon(),
         ];
@@ -38,7 +50,8 @@ class FollowupTodayNotification extends Notification
     private function buildUrl(): string
     {
         return match ($this->entityType) {
-            'lead' => route('admin.leads.index'),
+            'lead' => url("admin/leads/{$this->entityId}"),
+            'micro_task' => route('admin.micro-tasks.index'),
             'task' => route('admin.tasks.index'),
             'project' => route('admin.projects.show', $this->entityId),
             default => route('admin.dashboard'),
@@ -49,6 +62,7 @@ class FollowupTodayNotification extends Notification
     {
         return match ($this->entityType) {
             'lead' => 'lead',
+            'micro_task' => 'micro_task',
             'task' => 'task',
             'project' => 'project',
             default => 'task',
