@@ -167,6 +167,10 @@
                                         title="View"><i data-lucide="eye" style="width:16px;height:16px"></i></button>
                                     <button class="btn btn-ghost btn-icon btn-sm" onclick="downloadQuote({{ $quote->id }})"
                                         title="Download"><i data-lucide="download" style="width:16px;height:16px"></i></button>
+                                    @if(can('quotes.write') && $quote->client_id)
+                                        <button class="btn btn-ghost btn-icon btn-sm" style="color:#16a34a" onclick="convertQuote({{ $quote->id }})"
+                                            title="Convert Quote"><i data-lucide="check-circle" style="width:16px;height:16px"></i></button>
+                                    @endif
                                     @if(can('quotes.write'))
                                         <button class="btn btn-ghost btn-icon btn-sm" onclick="editQuote({{ $quote->id }})"
                                             title="Edit"><i data-lucide="edit" style="width:16px;height:16px"></i></button>
@@ -1117,6 +1121,28 @@
                 document.body.appendChild(form);
                 form.submit();
             }
+        }
+
+        function convertQuote(id) {
+            if (!confirm('Are you sure you want to convert this quote? This will create a project and auto-purchase entries.')) return;
+
+            fetch(`{{ url('admin/quotes') }}/${id}/convert`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message || 'Quote converted successfully.');
+                window.location.reload();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while converting the quote.');
+            });
         }
 
         function submitQuoteForm() {

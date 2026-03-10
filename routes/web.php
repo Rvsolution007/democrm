@@ -190,6 +190,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::get('/quotes/{id}/download', [QuotesController::class, 'download'])->name('quotes.download');
     Route::put('/quotes/{id}', [QuotesController::class, 'update'])->name('quotes.update');
     Route::delete('/quotes/{id}', [QuotesController::class, 'destroy'])->name('quotes.destroy');
+    Route::post('/quotes/{id}/convert', [QuotesController::class, 'convert'])->name('quotes.convert');
 
     // Payments
     Route::get('/payments', [PaymentsController::class, 'index'])->name('payments.index');

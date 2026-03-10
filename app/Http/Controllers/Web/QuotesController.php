@@ -67,25 +67,25 @@ class QuotesController extends Controller
             $query->whereDate('valid_until', '<=', $request->due_date);
         }
 
-        // Leads summary queries (Quotes tab)
+        // Quotes tab: all non-accepted quotes (regular quotes)
         $leadSummaryQuery = clone $query;
-        $leadTotalAmount = $leadSummaryQuery->whereNull('client_id')->sum('grand_total') / 100;
+        $leadTotalAmount = $leadSummaryQuery->where('status', '!=', 'accepted')->sum('grand_total') / 100;
 
         $leadDueQuery = clone $query;
-        $leadDueAmount = $leadDueQuery->whereNull('client_id')->where('status', '!=', 'accepted')->sum('grand_total') / 100;
+        $leadDueAmount = $leadDueQuery->where('status', '!=', 'accepted')->sum('grand_total') / 100;
 
-        // Clients summary queries (Converted Quotes tab)
+        // Converted Quotes tab: accepted/converted quotes
         $clientSummaryQuery = clone $query;
-        $clientTotalAmount = $clientSummaryQuery->whereNotNull('client_id')->sum('grand_total') / 100;
+        $clientTotalAmount = $clientSummaryQuery->where('status', 'accepted')->sum('grand_total') / 100;
 
         $clientDueQuery = clone $query;
-        $clientDueAmount = $clientDueQuery->whereNotNull('client_id')->where('status', '!=', 'accepted')->sum('grand_total') / 100;
+        $clientDueAmount = $clientDueQuery->where('status', 'accepted')->sum('grand_total') / 100;
 
         $leadQuery = clone $query;
         $clientQuery = clone $query;
 
-        $leadQuotes = $leadQuery->whereNull('client_id')->latest()->paginate(20, ['*'], 'lead_page')->withQueryString();
-        $clientQuotes = $clientQuery->whereNotNull('client_id')->with('payments')->latest()->paginate(20, ['*'], 'client_page')->withQueryString();
+        $leadQuotes = $leadQuery->where('status', '!=', 'accepted')->latest()->paginate(20, ['*'], 'lead_page')->withQueryString();
+        $clientQuotes = $clientQuery->where('status', 'accepted')->with('payments')->latest()->paginate(20, ['*'], 'client_page')->withQueryString();
         $clients = Client::all();
         $products = Product::all();
 
@@ -200,10 +200,7 @@ class QuotesController extends Controller
             $quote->recalculateTotals();
         }
 
-        // Auto-create project and purchases for client quotes
-        if ($quote->client_id) {
-            $this->autoCreateProjectAndPurchases($quote);
-        }
+        // Auto-project/purchase creation is handled during explicit quote conversion
 
         if ($request->wantsJson()) {
             return response()->json(['message' => 'Quote created successfully', 'redirect' => route('admin.quotes.index')]);
@@ -353,10 +350,7 @@ class QuotesController extends Controller
             $quote->recalculateTotals();
         }
 
-        // Auto-create project and purchases for client quotes
-        if ($quote->client_id) {
-            $this->autoCreateProjectAndPurchases($quote);
-        }
+        // Auto-project/purchase creation is handled during explicit quote conversion
 
         if ($request->wantsJson()) {
             return response()->json(['message' => 'Quote updated successfully', 'redirect' => route('admin.quotes.index')]);
@@ -364,6 +358,35 @@ class QuotesController extends Controller
 
         return redirect()->route('admin.quotes.index')
             ->with('success', 'Quote updated successfully');
+    }
+
+    /**
+     * Convert a quote to accepted status, auto-create project and purchases.
+     */
+    public function convert(Request $request, $id)
+    {
+        if (!can('quotes.write')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $quote = Quote::findOrFail($id);
+
+        if ($quote->status === 'accepted') {
+            return response()->json(['message' => 'Quote is already converted.'], 409);
+        }
+
+        // Mark as accepted
+        $quote->update(['status' => 'accepted']);
+
+        // Auto-create project and purchases
+        if ($quote->client_id) {
+            $this->autoCreateProjectAndPurchases($quote);
+        }
+
+        return response()->json([
+            'message' => 'Quote converted successfully. Project and purchases have been auto-created.',
+            'redirect' => route('admin.quotes.index'),
+        ]);
     }
 
     /**
