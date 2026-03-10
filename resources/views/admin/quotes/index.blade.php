@@ -134,6 +134,7 @@
                 <thead>
                     <tr>
                         <th class="sortable">Quote Number</th>
+                        <th>Quote For</th>
                         <th>Assigned To</th>
                         <th class="sortable">Status</th>
                         <th class="sortable">Total</th>
@@ -150,6 +151,21 @@
                                     <span
                                         style="margin-left:6px;font-size:11px;color:#6366f1;background:#eef2ff;padding:2px 6px;border-radius:4px">Lead
                                         #{{ $quote->lead_id }}</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($quote->client_id)
+                                    <div style="display:flex;align-items:center;gap:4px">
+                                        <i data-lucide="building" style="width:12px;height:12px;color:#64748b;"></i>
+                                        <span>{{ $quote->client->display_name ?? $quote->client->name ?? '—' }}</span>
+                                    </div>
+                                @elseif($quote->lead_id)
+                                    <div style="display:flex;align-items:center;gap:4px">
+                                        <i data-lucide="user" style="width:12px;height:12px;color:#64748b;"></i>
+                                        <span>{{ $quote->lead->name ?? '—' }}</span>
+                                    </div>
+                                @else
+                                    —
                                 @endif
                             </td>
                             <td>{{ $quote->assignedTo->name ?? '—' }}</td>
@@ -186,7 +202,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" style="text-align:center;padding:40px 0;color:#999">
+                            <td colspan="7" style="text-align:center;padding:40px 0;color:#999">
                                 <i data-lucide="file-text" style="width:40px;height:40px;color:#ddd;margin-bottom:12px"></i>
                                 <p style="margin:0;font-size:14px">No Quotes found.</p>
                             </td>

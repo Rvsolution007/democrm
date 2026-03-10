@@ -43,6 +43,9 @@ class QuotesController extends Controller
                 $q->where('quote_no', 'like', "%{$search}%")
                     ->orWhereHas('client', function ($cq) use ($search) {
                         $cq->where('name', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('lead', function ($lq) use ($search) {
+                        $lq->where('name', 'like', "%{$search}%");
                     });
             });
         }
