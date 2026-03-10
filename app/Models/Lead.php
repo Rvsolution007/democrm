@@ -105,6 +105,11 @@ class Lead extends Model
         return Setting::getValue('leads', 'stages', self::STAGES);
     }
 
+    public static function getDynamicSources(): array
+    {
+        return Setting::getValue('leads', 'sources', self::SOURCES);
+    }
+
     public function isOpen(): bool
     {
         return !in_array($this->stage, ['won', 'lost']);

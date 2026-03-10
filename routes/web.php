@@ -832,6 +832,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::get('/settings/column-visibility/{module}', [SettingsController::class, 'getColumnVisibility'])->name('settings.column-visibility.get');
     Route::post('/settings/taxes', [SettingsController::class, 'saveTaxes'])->name('settings.taxes.save');
     Route::post('/settings/lead-stages', [SettingsController::class, 'saveLeadStages'])->name('settings.lead-stages.save');
+    Route::post('/settings/lead-sources', [SettingsController::class, 'saveLeadSources'])->name('settings.lead-sources.save');
     Route::post('/settings/task-statuses', [SettingsController::class, 'saveTaskStatuses'])->name('settings.task-statuses.save');
     Route::post('/settings/payment-types', [SettingsController::class, 'savePaymentTypes'])->name('settings.payment-types.save');
     Route::post('/settings/whatsapp-api', [SettingsController::class, 'saveWhatsappApi'])->name('settings.whatsapp-api.save');

@@ -20,7 +20,7 @@ class StoreLeadRequest extends FormRequest
             'email' => 'nullable|email|max:255',
             'city' => 'nullable|string|max:100',
             'state' => 'nullable|string|max:100',
-            'source' => 'nullable|in:' . implode(',', Lead::SOURCES),
+            'source' => 'nullable|in:' . implode(',', \App\Models\Lead::getDynamicSources()),
             'stage' => 'nullable|in:' . implode(',', Lead::STAGES),
             'assigned_to_user_id' => 'nullable|exists:users,id',
             'expected_value' => 'nullable|numeric|min:0',

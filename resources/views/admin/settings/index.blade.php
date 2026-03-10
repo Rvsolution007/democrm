@@ -203,6 +203,25 @@
                         <button class="btn btn-primary" onclick="saveLeadStages(event)">Save Stages</button>
                     </div>
                 </div>
+
+                <!-- Lead Sources UI -->
+                <div class="card" style="margin-top:24px">
+                    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+                        <div>
+                            <h3 class="card-title">Leads — Sources</h3>
+                            <p class="text-sm text-muted" style="margin-top:4px">Manage custom sources for your leads (e.g.
+                                Walk-in, Facebook)</p>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="addStageRow('source')">+ Add Source</button>
+                    </div>
+                    <div class="card-content">
+                        <div id="source-stages-container"
+                            style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <button class="btn btn-primary" onclick="saveLeadSources(event)">Save Sources</button>
+                    </div>
+                </div>
             </div>
 
             <!-- Clients Column Visibility Tab -->
@@ -722,6 +741,7 @@
         const dbSettings = @json($columnVisibility ?? new \stdClass());
         let quoteTaxes = @json($quoteTaxes ?? []);
         let leadStages = @json($leadStages ?? []);
+        let leadSources = @json($leadSources ?? []);
         let taskStatuses = @json($taskStatuses ?? []);
         let paymentTypes = {!! json_encode($paymentTypes ?? ['cash', 'online', 'cheque', 'upi', 'bank_transfer']) !!};
         const CSRF_TOKEN = '{{ csrf_token() }}';
@@ -733,12 +753,15 @@
             btn.classList.add('active');
         }
 
-        // --- Lead Stages, Task Statuses, Payment Types ---
+        // --- Lead Stages, Lead Sources, Task Statuses, Payment Types ---
         function renderStages(type) {
             let containerId, items;
             if (type === 'lead') {
                 containerId = 'lead-stages-container';
                 items = leadStages;
+            } else if (type === 'source') {
+                containerId = 'source-stages-container';
+                items = leadSources;
             } else if (type === 'task') {
                 containerId = 'task-statuses-container';
                 items = taskStatuses;
@@ -750,7 +773,7 @@
             if (!container) return;
             container.innerHTML = '';
 
-            const itemName = type === 'payment' ? 'types' : (type === 'lead' ? 'stages' : 'statuses');
+            const itemName = type === 'payment' ? 'types' : (type === 'lead' ? 'stages' : (type === 'source' ? 'sources' : 'statuses'));
 
             if (items.length === 0) {
                 container.innerHTML = `<div style="text-align:center;padding:24px;color:#999;font-size:13px">No ${itemName} added yet. Click &quot;+ Add&quot; to create one.</div>`;
@@ -758,26 +781,27 @@
             }
 
             items.forEach((item, idx) => {
-                const placeholder = type === 'payment' ? 'e.g. PayPal' : (type === 'lead' ? 'e.g. New' : 'e.g. Pending');
+                const placeholder = type === 'payment' ? 'e.g. PayPal' : (type === 'lead' ? 'e.g. New' : (type === 'source' ? 'e.g. Facebook' : 'e.g. Pending'));
                 container.innerHTML += `
-                                                    <div style="display:flex;align-items:center;gap:12px">
-                                                        <i data-lucide="grip-vertical" style="color:#ccc;cursor:grab;width:16px;height:16px"></i>
-                                                        <input type="text" class="form-input ${type}-stage-input" value="${escapeHtml(item)}" placeholder="${placeholder}" style="flex:1">
-                                                        <button type="button" class="btn btn-icon btn-ghost btn-sm" style="color:var(--destructive)" onclick="removeStageRow('${type}', ${idx})" title="Remove">
-                                                            <i data-lucide="trash-2" style="width:16px;height:16px"></i>
-                                                        </button>
-                                                    </div>
-                                                `;
+                                                        <div style="display:flex;align-items:center;gap:12px">
+                                                            <i data-lucide="grip-vertical" style="color:#ccc;cursor:grab;width:16px;height:16px"></i>
+                                                            <input type="text" class="form-input ${type}-stage-input" value="${escapeHtml(item)}" placeholder="${placeholder}" style="flex:1">
+                                                            <button type="button" class="btn btn-icon btn-ghost btn-sm" style="color:var(--destructive)" onclick="removeStageRow('${type}', ${idx})" title="Remove">
+                                                                <i data-lucide="trash-2" style="width:16px;height:16px"></i>
+                                                            </button>
+                                                        </div>
+                                                    `;
             });
             lucide.createIcons();
         }
 
         function syncInputsToArray(type) {
-            let containerId = type === 'lead' ? 'lead-stages-container' : (type === 'task' ? 'task-statuses-container' : 'payment-types-container');
+            let containerId = type === 'lead' ? 'lead-stages-container' : (type === 'source' ? 'source-stages-container' : (type === 'task' ? 'task-statuses-container' : 'payment-types-container'));
             const inputs = document.querySelectorAll(`#${containerId} .${type}-stage-input`);
             let arr = [];
             inputs.forEach(input => arr.push(input.value));
             if (type === 'lead') leadStages = arr;
+            else if (type === 'source') leadSources = arr;
             else if (type === 'task') taskStatuses = arr;
             else if (type === 'payment') paymentTypes = arr;
         }
@@ -786,6 +810,8 @@
             syncInputsToArray(type);
             if (type === 'lead') {
                 leadStages.push('');
+            } else if (type === 'source') {
+                leadSources.push('');
             } else if (type === 'task') {
                 taskStatuses.push('');
             } else if (type === 'payment') {
@@ -798,6 +824,8 @@
             syncInputsToArray(type);
             if (type === 'lead') {
                 leadStages.splice(idx, 1);
+            } else if (type === 'source') {
+                leadSources.splice(idx, 1);
             } else if (type === 'task') {
                 taskStatuses.splice(idx, 1);
             } else if (type === 'payment') {
@@ -808,6 +836,10 @@
 
         function saveLeadStages(event) {
             saveStagesData('lead', event.target);
+        }
+
+        function saveLeadSources(event) {
+            saveStagesData('source', event.target);
         }
 
         function saveTaskStatuses(event) {
@@ -821,6 +853,7 @@
         function saveStagesData(type, btn) {
             let containerId;
             if (type === 'lead') containerId = 'lead-stages-container';
+            else if (type === 'source') containerId = 'source-stages-container';
             else if (type === 'task') containerId = 'task-statuses-container';
             else if (type === 'payment') containerId = 'payment-types-container';
 
@@ -835,7 +868,7 @@
             });
 
             // Prevent empty list
-            const itemName = type === 'payment' ? 'type' : (type === 'lead' ? 'stage' : 'status');
+            const itemName = type === 'payment' ? 'type' : (type === 'lead' ? 'stage' : (type === 'source' ? 'source' : 'status'));
             if (newItems.length === 0) {
                 alert(`You must have at least one ${itemName}.`);
                 return;
@@ -849,6 +882,10 @@
                 leadStages = newItems;
                 url = '{{ route("admin.settings.lead-stages.save") }}';
                 payload = { stages: leadStages };
+            } else if (type === 'source') {
+                leadSources = newItems;
+                url = '{{ route("admin.settings.lead-sources.save") }}';
+                payload = { sources: leadSources };
             } else if (type === 'task') {
                 taskStatuses = newItems;
                 url = '{{ route("admin.settings.task-statuses.save") }}';
@@ -902,12 +939,12 @@
 
             quoteTaxes.forEach(function (tax, idx) {
                 tbody.innerHTML += `
-                                                                <tr>
-                                                                    <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0"><input type="text" class="form-input tax-name" value="${escapeHtml(tax.name)}" placeholder="e.g. GST 18%"></td>
-                                                                    <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0"><input type="number" step="0.01" min="0" class="form-input tax-rate" value="${tax.rate}" placeholder="18"></td>
-                                                                    <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right"><button type="button" class="btn btn-icon btn-ghost btn-sm" style="color:var(--destructive)" onclick="removeTaxRow(${idx})" title="Remove"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button></td>
-                                                                </tr>
-                                                            `;
+                                                                    <tr>
+                                                                        <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0"><input type="text" class="form-input tax-name" value="${escapeHtml(tax.name)}" placeholder="e.g. GST 18%"></td>
+                                                                        <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0"><input type="number" step="0.01" min="0" class="form-input tax-rate" value="${tax.rate}" placeholder="18"></td>
+                                                                        <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right"><button type="button" class="btn btn-icon btn-ghost btn-sm" style="color:var(--destructive)" onclick="removeTaxRow(${idx})" title="Remove"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button></td>
+                                                                    </tr>
+                                                                `;
             });
             lucide.createIcons();
         }
@@ -1036,6 +1073,7 @@
 
             renderTaxes(); // Initialize quotes taxes
             renderStages('lead'); // Initialize lead stages
+            renderStages('source'); // Initialize lead sources
             renderStages('task'); // Initialize task statuses
             renderStages('payment'); // Initialize payment types
 

@@ -31,11 +31,12 @@ class SettingsController extends Controller
 
         $quoteTaxes = Setting::getValue('quotes', 'taxes', []);
         $leadStages = Setting::getValue('leads', 'stages', Lead::STAGES);
+        $leadSources = Setting::getValue('leads', 'sources', Lead::SOURCES);
         $taskStatuses = Setting::getValue('tasks', 'statuses', Task::STATUSES);
         $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
         $whatsappApiConfig = Setting::getValue('whatsapp', 'api_config', ['api_url' => '', 'api_key' => '']);
 
-        return view('admin.settings.index', compact('company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'taskStatuses', 'paymentTypes', 'whatsappApiConfig'));
+        return view('admin.settings.index', compact('company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources', 'taskStatuses', 'paymentTypes', 'whatsappApiConfig'));
     }
 
     /**
@@ -93,6 +94,21 @@ class SettingsController extends Controller
         Setting::setValue('leads', 'stages', $request->stages);
 
         return response()->json(['success' => true, 'message' => 'Lead stages saved']);
+    }
+
+    /**
+     * Save lead sources via AJAX
+     */
+    public function saveLeadSources(Request $request)
+    {
+        $request->validate([
+            'sources' => 'required|array',
+            'sources.*' => 'required|string|distinct'
+        ]);
+
+        Setting::setValue('leads', 'sources', $request->sources);
+
+        return response()->json(['success' => true, 'message' => 'Lead sources saved']);
     }
 
     /**
