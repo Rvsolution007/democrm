@@ -42,6 +42,25 @@ class Task extends Model
 
     protected $appends = ['contact_phone'];
 
+    protected static function booted()
+    {
+        static::saved(function ($task) {
+            if ($task->project_id) {
+                if ($project = \App\Models\Project::find($task->project_id)) {
+                    $project->checkAndUpdateStatus();
+                }
+            }
+        });
+
+        static::deleted(function ($task) {
+            if ($task->project_id) {
+                if ($project = \App\Models\Project::find($task->project_id)) {
+                    $project->checkAndUpdateStatus();
+                }
+            }
+        });
+    }
+
     // Relationships
     public function company(): BelongsTo
     {

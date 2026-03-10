@@ -20,6 +20,25 @@ class MicroTask extends Model
         'follow_up_date' => 'date',
     ];
 
+    protected static function booted()
+    {
+        static::saved(function ($microTask) {
+            if ($microTask->task && $microTask->task->project_id) {
+                if ($project = \App\Models\Project::find($microTask->task->project_id)) {
+                    $project->checkAndUpdateStatus();
+                }
+            }
+        });
+
+        static::deleted(function ($microTask) {
+            if ($microTask->task && $microTask->task->project_id) {
+                if ($project = \App\Models\Project::find($microTask->task->project_id)) {
+                    $project->checkAndUpdateStatus();
+                }
+            }
+        });
+    }
+
     public function task(): BelongsTo
     {
         return $this->belongsTo(Task::class);

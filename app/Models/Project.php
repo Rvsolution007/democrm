@@ -116,4 +116,44 @@ class Project extends Model
             return 0;
         return (int) round(($this->completed_tasks_count / $total) * 100);
     }
+
+    /**
+     * Auto-updates the project status based on tasks and microtasks.
+     */
+    public function checkAndUpdateStatus()
+    {
+        $tasks = $this->tasks()->with('microTasks')->get();
+
+        if ($tasks->isEmpty()) {
+            return;
+        }
+
+        $allTasksDone = true;
+        $anyTaskStarted = false;
+
+        foreach ($tasks as $task) {
+            if ($task->status !== 'done') {
+                $allTasksDone = false;
+            }
+            if (in_array($task->status, ['doing', 'done'])) {
+                $anyTaskStarted = true;
+            }
+
+            foreach ($task->microTasks as $microTask) {
+                if (in_array($microTask->status, ['doing', 'done'])) {
+                    $anyTaskStarted = true;
+                }
+            }
+        }
+
+        if ($allTasksDone) {
+            if ($this->status !== 'completed') {
+                $this->update(['status' => 'completed']);
+            }
+        } elseif ($anyTaskStarted) {
+            if ($this->status === 'pending') {
+                $this->update(['status' => 'in_progress']);
+            }
+        }
+    }
 }
