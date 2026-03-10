@@ -279,13 +279,6 @@
                                         <button type="button" class="action-btn btn-edit-modern" onclick='editTemplate({{ json_encode($template) }})' title="Edit Template">
                                             <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
                                         </button>
-                                        <form action="{{ route('admin.whatsapp-templates.destroy', $template->id) }}" method="POST" onsubmit="return confirm('Delete this template permanently?');" class="m-0 p-0" style="display: inline-flex;">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="action-btn btn-delete-modern" title="Delete Template">
-                                                <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
-                                            </button>
-                                        </form>
                                     </div>
                                 </td>
                             </tr>
