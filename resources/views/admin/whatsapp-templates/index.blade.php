@@ -342,6 +342,19 @@
 
                 <div class="mb-3" id="mediaInputContainer" style="display:none; margin-top:15px;">
                     <label class="form-label fw-bold">Upload Media File</label>
+                    
+                    <!-- Current Media Preview (only visible when editing) -->
+                    <div id="currentMediaPreview" style="display:none; margin-bottom: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 15px; align-items: center; justify-content: space-between;">
+                        <div style="display:flex; align-items:center; gap: 10px;">
+                            <i data-lucide="paperclip" style="width:16px; height:16px; color:#64748b;"></i>
+                            <div style="font-size: 0.85rem;">
+                                <span style="color:#64748b; font-weight:500;">Current file:</span>
+                                <span id="currentMediaName" style="color:#0f172a; font-weight:600; margin-left: 5px;"></span>
+                            </div>
+                        </div>
+                        <a id="currentMediaLink" href="#" target="_blank" class="media-preview-btn" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">View File</a>
+                    </div>
+                    
                     <input type="file" name="media_file" id="mediaFile" class="form-control form-input" accept="">
                     <small id="mediaHelpText" class="text-muted" style="font-size:12px; display:block; margin-top:4px;"></small>
                 </div>
@@ -369,6 +382,9 @@
             document.getElementById('templateForm').action = "{{ route('admin.whatsapp-templates.store') }}";
             document.getElementById('formMethod').value = 'POST';
             document.getElementById('templateForm').reset();
+            
+            // Hide current media preview on new template creation
+            document.getElementById('currentMediaPreview').style.display = 'none';
 
             // Remove simulated required asterisk
             document.getElementById('templateType').value = 'text';
@@ -389,6 +405,20 @@
             document.getElementById('templateName').value = template.name;
             document.getElementById('templateType').value = template.type;
             document.getElementById('messageText').value = template.message_text;
+            
+            // Handle current media preview
+            const currentMediaPreview = document.getElementById('currentMediaPreview');
+            if (template.media_path) {
+                currentMediaPreview.style.display = 'flex';
+                // Extract filename from path
+                const fileName = template.media_path.split('/').pop();
+                document.getElementById('currentMediaName').textContent = fileName;
+                // Get the current APP_URL and format the link
+                const baseUrl = window.location.origin;
+                document.getElementById('currentMediaLink').href = baseUrl + '/storage/' + template.media_path;
+            } else {
+                currentMediaPreview.style.display = 'none';
+            }
 
             toggleMediaInput();
 
