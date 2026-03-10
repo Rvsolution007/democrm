@@ -123,10 +123,12 @@ class ProcessWhatsappCampaigns extends Command
 
                     $fileContent = file_get_contents($filePath);
                     $mimeType = mime_content_type($filePath);
-                    $base64Media = 'data:' . $mimeType . ';base64,' . base64_encode($fileContent);
+                    // Evolution API requires PLAIN base64, NOT data URI format
+                    $base64Media = base64_encode($fileContent);
 
                     $templateType = strtolower($template->type);
                     $mediaType = $templateType === 'pdf' ? 'document' : $templateType;
+                    $originalFileName = basename($template->media_path);
 
                     $payload = [
                         'number' => $phone,
@@ -134,13 +136,11 @@ class ProcessWhatsappCampaigns extends Command
                         'mimetype' => $mimeType,
                         'caption' => $template->message_text ?? '',
                         'media' => $base64Media,
+                        'fileName' => $originalFileName,
                         'delay' => 1200,
                     ];
 
-                    // Add fileName for PDF/document type
-                    if ($mediaType === 'document') {
-                        $payload['fileName'] = basename($template->media_path);
-                    }
+                    Log::info("WhatsApp Bulk: Sending {$mediaType} to {$phone}, mime={$mimeType}, file={$originalFileName}, base64_length=" . strlen($base64Media));
                 } else {
                     Log::error("WhatsApp Bulk Error: Unknown template type {$template->type}");
                     $recipient->update(['status' => 'failed', 'error_message' => "Unknown template type: {$template->type}"]);
@@ -149,11 +149,12 @@ class ProcessWhatsappCampaigns extends Command
                 }
 
                 try {
+                    Log::info("WhatsApp Bulk: Sending to endpoint: {$endpoint}");
                     // Send to Evolution API
                     $response = Http::withHeaders([
                         'apikey' => $apiKey,
                         'Content-Type' => 'application/json'
-                    ])->post($endpoint, $payload);
+                    ])->timeout(60)->post($endpoint, $payload);
 
                     if ($response->successful()) {
                         $recipient->update([
@@ -161,10 +162,13 @@ class ProcessWhatsappCampaigns extends Command
                             'sent_at' => now()
                         ]);
                         $campaign->increment('total_sent');
+                        Log::info("WhatsApp Bulk: Successfully sent to {$phone}");
                     } else {
+                        $errorBody = $response->body();
+                        Log::error("WhatsApp Bulk: API Error for {$phone}: Status={$response->status()}, Body={$errorBody}");
                         $recipient->update([
                             'status' => 'failed',
-                            'error_message' => $response->body()
+                            'error_message' => $errorBody
                         ]);
                         $campaign->increment('total_failed');
                     }

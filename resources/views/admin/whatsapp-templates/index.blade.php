@@ -272,7 +272,7 @@
                                 </td>
                                 <td class="text-end">
                                     <div class="d-flex justify-content-end align-items-center gap-2">
-                                        <button type="button" class="action-btn btn-edit-modern" onclick='editTemplate({{ json_encode($template) }}, "{{ $template->media_path ? Storage::url($template->media_path) : '' }}")' title="Edit Template">
+                                        <button type="button" class="action-btn btn-edit-modern" onclick='editTemplate({{ json_encode($template) }})' title="Edit Template">
                                             <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
                                         </button>
                                         <form action="{{ route('admin.whatsapp-templates.destroy', $template->id) }}" method="POST" onsubmit="return confirm('Delete this template permanently?');" class="m-0 p-0" style="display: inline-flex;">
@@ -344,8 +344,8 @@
                     <label class="form-label fw-bold">Upload Media File</label>
                     
                     <!-- Current Media Preview (only visible when editing) -->
-                    <div id="currentMediaPreview" style="display:none; margin-bottom: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 15px; flex-direction: column; gap: 12px;">
-                        <div style="display:flex; align-items:center; justify-content: space-between;">
+                    <div id="currentMediaPreview" style="display:none; margin-bottom: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 15px; flex-direction: column; gap: 10px;">
+                        <div style="display:flex; align-items:center; justify-content: space-between; width: 100%;">
                             <div style="display:flex; align-items:center; gap: 10px;">
                                 <i data-lucide="paperclip" style="width:16px; height:16px; color:#64748b;"></i>
                                 <div style="font-size: 0.85rem;">
@@ -355,7 +355,9 @@
                             </div>
                             <a id="currentMediaLink" href="#" target="_blank" class="media-preview-btn" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">View File</a>
                         </div>
-                        <img id="currentMediaImage" src="" style="display:none; max-width: 100%; max-height: 200px; border-radius: 6px; border: 1px solid #e2e8f0; align-self: center;" alt="Media Preview">
+                        <div id="visualMediaContainer" style="display:none; text-align:center; padding-top: 10px; border-top: 1px dashed #e2e8f0;">
+                            <!-- Dynamic preview content -->
+                        </div>
                     </div>
                     
                     <input type="file" name="media_file" id="mediaFile" class="form-control form-input" accept="">
@@ -400,7 +402,7 @@
             closeModal('templateModal');
         }
 
-        function editTemplate(template, mediaUrl) {
+        function editTemplate(template) {
             document.getElementById('modalTitle').textContent = 'Edit Template';
             document.getElementById('templateForm').action = "{{ route('admin.whatsapp-templates.index') }}/" + template.id;
             document.getElementById('formMethod').value = 'PUT';
@@ -411,27 +413,30 @@
             
             // Handle current media preview
             const currentMediaPreview = document.getElementById('currentMediaPreview');
-            const previewImage = document.getElementById('currentMediaImage');
-            
-            if (template.media_path && mediaUrl) {
+            const visualMediaContainer = document.getElementById('visualMediaContainer');
+            if (template.media_path) {
                 currentMediaPreview.style.display = 'flex';
                 // Extract filename from path
                 const fileName = template.media_path.split('/').pop();
                 document.getElementById('currentMediaName').textContent = fileName;
+                // Get the current APP_URL and format the link
+                const baseUrl = window.location.origin;
+                const fileUrl = baseUrl + '/storage/' + template.media_path;
+                document.getElementById('currentMediaLink').href = fileUrl;
                 
-                // Use the mediaUrl passed from the server instead of generating locally
-                document.getElementById('currentMediaLink').href = mediaUrl;
-                
-                // Show actual image preview if type is image
+                // Show visual preview based on type
+                visualMediaContainer.style.display = 'block';
                 if (template.type === 'image') {
-                    previewImage.src = mediaUrl;
-                    previewImage.style.display = 'block';
+                    visualMediaContainer.innerHTML = `<img src="${fileUrl}" style="max-width: 100%; max-height: 250px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" alt="Image Preview">`;
+                } else if (template.type === 'video') {
+                    visualMediaContainer.innerHTML = `<video src="${fileUrl}" controls style="max-width: 100%; max-height: 250px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></video>`;
+                } else if (template.type === 'pdf') {
+                    visualMediaContainer.innerHTML = `<iframe src="${fileUrl}" style="width: 100%; height: 250px; border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>`;
                 } else {
-                    previewImage.style.display = 'none';
+                    visualMediaContainer.style.display = 'none';
                 }
             } else {
                 currentMediaPreview.style.display = 'none';
-                previewImage.style.display = 'none';
             }
 
             toggleMediaInput();
@@ -507,6 +512,34 @@
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
             }
+
+            // Client-side media preview
+            document.getElementById('mediaFile').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                const currentMediaPreview = document.getElementById('currentMediaPreview');
+                const visualMediaContainer = document.getElementById('visualMediaContainer');
+                
+                if (file) {
+                    const fileUrl = URL.createObjectURL(file);
+                    const type = document.getElementById('templateType').value;
+                    
+                    document.getElementById('currentMediaName').textContent = file.name;
+                    document.getElementById('currentMediaLink').href = fileUrl;
+                    
+                    currentMediaPreview.style.display = 'flex';
+                    visualMediaContainer.style.display = 'block';
+                    
+                    if (type === 'image' && file.type.startsWith('image/')) {
+                        visualMediaContainer.innerHTML = `<img src="${fileUrl}" style="max-width: 100%; max-height: 250px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" alt="Image Preview">`;
+                    } else if (type === 'video' && file.type.startsWith('video/')) {
+                        visualMediaContainer.innerHTML = `<video src="${fileUrl}" controls style="max-width: 100%; max-height: 250px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></video>`;
+                    } else if (type === 'pdf' && file.type === 'application/pdf') {
+                        visualMediaContainer.innerHTML = `<iframe src="${fileUrl}" style="width: 100%; height: 250px; border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>`;
+                    } else {
+                        visualMediaContainer.style.display = 'none';
+                    }
+                }
+            });
         });
     </script>
 @endpush
