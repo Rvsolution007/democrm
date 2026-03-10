@@ -90,7 +90,7 @@ class Lead extends Model
     public function products()
     {
         return $this->belongsToMany(Product::class, 'lead_product')
-            ->withPivot('quantity', 'price', 'discount')
+            ->withPivot('quantity', 'price', 'discount', 'description')
             ->withTimestamps();
     }
 

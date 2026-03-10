@@ -228,10 +228,12 @@ class LeadsController extends Controller
                     $price = isset($request->product_prices[$index])
                         ? $request->product_prices[$index] * 100
                         : ($product->mrp ?: $product->sale_price);
+                    $description = $request->product_descriptions[$index] ?? null;
                     $productData[$productId] = [
                         'quantity' => $qty,
                         'price' => $price,
                         'discount' => $disc,
+                        'description' => $description,
                     ];
                 }
             }
