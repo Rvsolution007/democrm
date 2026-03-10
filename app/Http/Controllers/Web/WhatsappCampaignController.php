@@ -141,6 +141,17 @@ class WhatsappCampaignController extends Controller
         }
     }
 
+    public function show(WhatsappCampaign $campaign)
+    {
+        $campaign->load(['template', 'product', 'user']);
+        $recipients = WhatsappCampaignRecipient::where('campaign_id', $campaign->id)
+            ->with('lead')
+            ->orderByRaw("FIELD(status, 'failed', 'pending', 'sent')")
+            ->get();
+
+        return view('admin.whatsapp-campaigns.show', compact('campaign', 'recipients'));
+    }
+
     public function destroy(WhatsappCampaign $campaign)
     {
         // Delete recipients manually if no cascade on db level

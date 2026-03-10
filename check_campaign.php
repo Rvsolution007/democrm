@@ -15,7 +15,7 @@ if ($campaign) {
 
     // Total recipients logs
     echo "\n=== Message Logs ===\n";
-    $logs = \App\Models\WhatsappLog::where('campaign_id', $campaign->id)->get();
+    $logs = \App\Models\WhatsappCampaignRecipient::where('campaign_id', $campaign->id)->get();
     foreach ($logs as $log) {
         echo "Log ID: {$log->id} | Phone: {$log->phone_number} | Status: {$log->status} | Error: {$log->error_message}\n";
     }

@@ -159,6 +159,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::get('whatsapp-campaigns/create', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'create'])->name('whatsapp-campaigns.create');
     Route::post('whatsapp-campaigns', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'store'])->name('whatsapp-campaigns.store');
     Route::post('whatsapp-campaigns/preview', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'preview'])->name('whatsapp-campaigns.preview');
+    Route::get('whatsapp-campaigns/{campaign}', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'show'])->name('whatsapp-campaigns.show');
     Route::delete('whatsapp-campaigns/{campaign}', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'destroy'])->name('whatsapp-campaigns.destroy');
 
     // Leads
