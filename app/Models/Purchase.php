@@ -75,7 +75,8 @@ class Purchase extends Model
         $dateFormat = "{$currentYear}-{$nextYear}-";
         $prefix = $prefix . $dateFormat;
 
-        $lastPurchase = self::where('company_id', $company->id)
+        $lastPurchase = self::withTrashed()
+            ->where('company_id', $company->id)
             ->where('purchase_no', 'like', $prefix . '%')
             ->orderBy('id', 'desc')
             ->first();
