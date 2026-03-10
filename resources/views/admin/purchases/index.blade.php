@@ -349,409 +349,413 @@
     </div>
 @endsection
 
-<!-- Include Flatpickr for Date Range Selection -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+@push('styles')
+    <!-- Include Flatpickr for Date Range Selection -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+@endpush
 
-<script>
-    // ====== State ======
-    var currentTab = '{{ session('active_tab', 'all') }}';
-    var currentVendorId = currentTab.startsWith('vendor_') ? currentTab.replace('vendor_', '') : '';
-    var searchTimer = null;
-    var canWrite = {{ can('projects.write') ? 'true' : 'false' }};
-    var canDelete = {{ can('projects.delete') ? 'true' : 'false' }};
-    var csrfToken = '{{ csrf_token() }}';
-    var editingPurchaseId = null;
-    var editingPurchaseCfValues = {}; // { fieldId: value }
+@push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
-    // Default summary values from server
-    var defaultSummary = {
-        'all': { total: {{ $allTotalAmount }}, due: {{ $allDueAmount }} },
-        @foreach($vendorSections as $section)
-            'vendor_{{ $section['vendor']->id }}': { total: {{ $section['total_amount'] }}, due: {{ $section['due_amount'] }} },
-        @endforeach
-                                    };
+    <script>
+        // ====== State ======
+        var currentTab = '{{ session('active_tab', 'all') }}';
+        var currentVendorId = currentTab.startsWith('vendor_') ? currentTab.replace('vendor_', '') : '';
+        var searchTimer = null;
+        var canWrite = {{ can('projects.write') ? 'true' : 'false' }};
+        var canDelete = {{ can('projects.delete') ? 'true' : 'false' }};
+        var csrfToken = '{{ csrf_token() }}';
+        var editingPurchaseId = null;
+        var editingPurchaseCfValues = {}; // { fieldId: value }
 
-    // Vendor custom fields config from server (for initial load)
-    var vendorCustomFieldsMap = {
-        @foreach($vendorSections as $section)
-                                        '{{ $section['vendor']->id }}': [
-            @foreach($section['customFields'] as $cf)
-                { id: {{ $cf->id }}, name: {!! json_encode($cf->field_name) !!}, type: '{{ $cf->field_type }}', options: {!! json_encode($cf->field_options ?? []) !!} },
+        // Default summary values from server
+        var defaultSummary = {
+            'all': { total: {{ $allTotalAmount }}, due: {{ $allDueAmount }} },
+            @foreach($vendorSections as $section)
+                'vendor_{{ $section['vendor']->id }}': { total: {{ $section['total_amount'] }}, due: {{ $section['due_amount'] }} },
             @endforeach
-                                        ],
-        @endforeach
-                                    };
+                                        };
 
-    // ====== Tab Switching ======
-    function switchPurchaseTab(tab, vendorId) {
-        currentTab = tab;
-        currentVendorId = vendorId || '';
+        // Vendor custom fields config from server (for initial load)
+        var vendorCustomFieldsMap = {
+            @foreach($vendorSections as $section)
+                                            '{{ $section['vendor']->id }}': [
+                @foreach($section['customFields'] as $cf)
+                    { id: {{ $cf->id }}, name: {!! json_encode($cf->field_name) !!}, type: '{{ $cf->field_type }}', options: {!! json_encode($cf->field_options ?? []) !!} },
+                @endforeach
+                                            ],
+            @endforeach
+                                        };
 
-        document.querySelectorAll('.purchase-tab-btn').forEach(function (btn) {
-            btn.style.color = '#64748b';
-            btn.style.borderBottom = '2px solid transparent';
-            btn.classList.remove('active');
-        });
-        var activeBtn = document.getElementById('tab-btn-' + tab);
-        if (activeBtn) {
-            activeBtn.style.color = '#0f172a';
-            activeBtn.style.borderBottom = '2px solid #3b82f6';
-            activeBtn.classList.add('active');
-        }
+        // ====== Tab Switching ======
+        function switchPurchaseTab(tab, vendorId) {
+            currentTab = tab;
+            currentVendorId = vendorId || '';
 
-        document.querySelectorAll('.purchase-tab-content').forEach(function (el) { el.style.display = 'none'; });
-        var tabContent = document.getElementById('tab-content-' + tab);
-        if (tabContent) tabContent.style.display = '';
-
-        var hasFilters = document.getElementById('purchase-search').value.trim() ||
-            document.getElementById('filter-date-from').value ||
-            document.getElementById('filter-date-to').value ||
-            document.getElementById('filter-status').value;
-
-        if (hasFilters) {
-            fetchPurchases();
-        } else {
-            var summary = defaultSummary[tab] || defaultSummary['all'];
-            updateSummaryCards(summary.total, summary.due);
-            var tbodyId = (tab === 'all') ? 'all-purchases-tbody' : tab + '-purchases-tbody';
-            var tbody = document.getElementById(tbodyId);
-            if (tbody) {
-                var rows = tbody.querySelectorAll('tr');
-                var count = 0;
-                rows.forEach(function (r) { if (!r.querySelector('.text-muted')) count++; });
-                document.getElementById('purchase-count-badge').textContent = count + ' Found';
-            }
-        }
-    }
-
-    function updateSummaryCards(total, due) {
-        document.getElementById('summary-total').textContent = '₹' + parseFloat(total).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-        document.getElementById('summary-due').textContent = '₹' + parseFloat(due).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    }
-
-    // ====== AJAX Search & Filters ======
-    document.addEventListener('DOMContentLoaded', function () {
-        // Initialize Flatpickr for Date Range
-        let dateFrom = document.getElementById('filter-date-from').value;
-        let dateTo = document.getElementById('filter-date-to').value;
-        let defaultDates = [];
-        if (dateFrom && dateTo) defaultDates = [dateFrom, dateTo];
-
-        flatpickr("#purchase-date-range-picker", {
-            mode: "range",
-            dateFormat: "Y-m-d",
-            defaultDate: defaultDates,
-            onChange: function (selectedDates, dateStr, instance) {
-                if (selectedDates.length === 2) {
-                    document.getElementById('filter-date-from').value = instance.formatDate(selectedDates[0], "Y-m-d");
-                    document.getElementById('filter-date-to').value = instance.formatDate(selectedDates[1], "Y-m-d");
-                    fetchPurchases();
-                } else if (selectedDates.length === 0) {
-                    document.getElementById('filter-date-from').value = '';
-                    document.getElementById('filter-date-to').value = '';
-                    fetchPurchases();
-                }
-            }
-        });
-
-        document.getElementById('purchase-search').addEventListener('input', function () {
-            clearTimeout(searchTimer);
-            searchTimer = setTimeout(fetchPurchases, 300);
-        });
-        document.getElementById('filter-status').addEventListener('change', fetchPurchases);
-
-        // Restore active tab from session
-        if (currentTab !== 'all') {
-            switchPurchaseTab(currentTab, currentVendorId);
-        }
-    });
-
-    function fetchPurchases() {
-        var search = document.getElementById('purchase-search').value.trim();
-        var dateFrom = document.getElementById('filter-date-from').value;
-        var dateTo = document.getElementById('filter-date-to').value;
-        var status = document.getElementById('filter-status').value;
-
-        var params = new URLSearchParams();
-        if (search) params.append('search', search);
-        if (dateFrom) params.append('date_from', dateFrom);
-        if (dateTo) params.append('date_to', dateTo);
-        if (status) params.append('status', status);
-        if (currentVendorId) params.append('vendor_id', currentVendorId);
-
-        fetch('{{ route("admin.purchases.search") }}?' + params.toString(), {
-            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-        })
-            .then(function (response) { return response.json(); })
-            .then(function (data) {
-                var tbodyId = (currentTab === 'all') ? 'all-purchases-tbody' : currentTab + '-purchases-tbody';
-                var customFields = data.custom_fields || [];
-
-                if (currentVendorId && customFields.length > 0) {
-                    // Update thead for vendor tab
-                    updateVendorTableHead(currentTab, customFields);
-                    renderVendorPurchasesTable(tbodyId, data.purchases, customFields);
-                } else {
-                    renderPurchasesTable(tbodyId, data.purchases);
-                }
-                document.getElementById('purchase-count-badge').textContent = data.count + ' Found';
-                updateSummaryCards(data.total_amount, data.due_amount);
-            })
-            .catch(function (error) { console.error('Error fetching purchases:', error); });
-    }
-
-    function updateVendorTableHead(tab, customFields) {
-        var tabContent = document.getElementById('tab-content-' + tab);
-        if (!tabContent) return;
-        var thead = tabContent.querySelector('thead tr');
-        if (!thead) return;
-
-        var html = '<th>Purchase No</th><th>Date</th><th>Vendor</th><th>Client</th>';
-        customFields.forEach(function (cf) {
-            html += '<th>' + escHtml(cf.field_name) + '</th>';
-        });
-        html += '<th>Amount</th><th>Paid</th><th>Status</th><th style="width:150px">Actions</th>';
-        thead.innerHTML = html;
-    }
-
-    function renderPurchasesTable(tbodyId, purchases) {
-        var tbody = document.getElementById(tbodyId);
-        if (!tbody) return;
-        if (!purchases || purchases.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-muted">No purchases found.</td></tr>';
-            return;
-        }
-        var html = '';
-        purchases.forEach(function (p) { html += buildPurchaseRow(p, []); });
-        tbody.innerHTML = html;
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
-
-    function renderVendorPurchasesTable(tbodyId, purchases, customFields) {
-        var tbody = document.getElementById(tbodyId);
-        if (!tbody) return;
-        if (!purchases || purchases.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="' + (8 + customFields.length) + '" class="text-center py-8 text-muted">No purchases found.</td></tr>';
-            return;
-        }
-        var html = '';
-        purchases.forEach(function (p) { html += buildPurchaseRow(p, customFields); });
-        tbody.innerHTML = html;
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
-
-    function buildPurchaseRow(p, customFields) {
-        var badgeClass = p.status === 'completed' ? 'success' : (p.status === 'active' ? 'primary' : 'secondary');
-        var vendorName = p.vendor ? p.vendor.name : 'N/A';
-        var clientName = p.client ? (p.client.business_name || p.client.contact_name || 'N/A') : 'N/A';
-        var dateFormatted = new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
-        var amount = '₹' + (p.total_amount / 100).toFixed(2);
-        var paid = '₹' + (p.paid_amount / 100).toFixed(2);
-        var editDate = p.date ? p.date.substring(0, 10) : '';
-        var notes = p.notes || '';
-        notes = notes.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
-        // Build cf_values JSON for edit button
-        var cfValues = p.cf_values || {};
-        var cfValuesStr = JSON.stringify(cfValues).replace(/"/g, '&quot;');
-
-        var html = '<tr>';
-        html += '<td><p class="font-medium">' + escHtml(p.purchase_no) + '</p></td>';
-        html += '<td>' + dateFormatted + '</td>';
-        html += '<td>' + escHtml(vendorName) + '</td>';
-        html += '<td>' + escHtml(clientName) + '</td>';
-
-        // Custom field value columns
-        if (customFields && customFields.length > 0) {
-            customFields.forEach(function (cf) {
-                var val = cfValues[cf.id] || cfValues[String(cf.id)] || '—';
-                html += '<td>' + escHtml(val) + '</td>';
+            document.querySelectorAll('.purchase-tab-btn').forEach(function (btn) {
+                btn.style.color = '#64748b';
+                btn.style.borderBottom = '2px solid transparent';
+                btn.classList.remove('active');
             });
-        }
-
-        html += '<td>' + amount + '</td>';
-        html += '<td>' + paid + '</td>';
-        html += '<td><span class="badge badge-' + badgeClass + '">' + ucfirst(p.status) + '</span></td>';
-
-        html += '<td><div style="display:flex;gap:6px;align-items:center">';
-        html += '<button onclick="viewPurchase(' + p.id + ')" style="width:32px;height:32px;border-radius:8px;background:#eff6ff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#3b82f6;transition:all 0.15s" title="View" onmouseover="this.style.background=\'#dbeafe\'" onmouseout="this.style.background=\'#eff6ff\'"><i data-lucide="eye" style="width:16px;height:16px"></i></button>';
-        if (canWrite) {
-            html += '<button class="edit-purchase-btn" data-id="' + p.id + '" data-vendor="' + (p.vendor_id || '') + '" data-client="' + (p.client_id || '') + '" data-date="' + editDate + '" data-amount="' + (p.total_amount / 100) + '" data-notes="' + notes + '" data-status="' + p.status + '" data-cf-values="' + cfValuesStr + '" style="width:32px;height:32px;border-radius:8px;background:#fffbeb;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#f59e0b;transition:all 0.15s" title="Edit" onmouseover="this.style.background=\'#fef3c7\'" onmouseout="this.style.background=\'#fffbeb\'"><i data-lucide="edit" style="width:16px;height:16px"></i></button>';
-            html += '<button onclick="openPaymentModal(' + p.id + ')" style="width:32px;height:32px;border-radius:8px;background:#f0fdf4;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#16a34a;transition:all 0.15s" title="Add Payment" onmouseover="this.style.background=\'#dcfce7\'" onmouseout="this.style.background=\'#f0fdf4\'"><i data-lucide="indian-rupee" style="width:16px;height:16px"></i></button>';
-            if (canDelete) {
-                html += '<form action="{{ url("admin/purchases") }}/' + p.id + '" method="POST" style="display:inline;margin:0" onsubmit="return confirm(\'Are you sure?\')"><input type="hidden" name="_token" value="' + csrfToken + '"><input type="hidden" name="_method" value="DELETE"><button type="submit" style="width:32px;height:32px;border-radius:8px;background:#fef2f2;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#ef4444;transition:all 0.15s" title="Delete" onmouseover="this.style.background=\'#fee2e2\'" onmouseout="this.style.background=\'#fef2f2\'"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button></form>';
+            var activeBtn = document.getElementById('tab-btn-' + tab);
+            if (activeBtn) {
+                activeBtn.style.color = '#0f172a';
+                activeBtn.style.borderBottom = '2px solid #3b82f6';
+                activeBtn.classList.add('active');
             }
-        }
-        html += '</div></td></tr>';
-        return html;
-    }
 
-    function clearFilters() {
-        document.getElementById('purchase-search').value = '';
-        document.getElementById('filter-date-from').value = '';
-        document.getElementById('filter-date-to').value = '';
-        document.getElementById('filter-status').value = '';
-        window.location.href = '{{ route("admin.purchases.index") }}';
-    }
+            document.querySelectorAll('.purchase-tab-content').forEach(function (el) { el.style.display = 'none'; });
+            var tabContent = document.getElementById('tab-content-' + tab);
+            if (tabContent) tabContent.style.display = '';
 
-    function escHtml(str) {
-        if (!str) return '';
-        var div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
-    }
-    function ucfirst(str) { return str.charAt(0).toUpperCase() + str.slice(1); }
+            var hasFilters = document.getElementById('purchase-search').value.trim() ||
+                document.getElementById('filter-date-from').value ||
+                document.getElementById('filter-date-to').value ||
+                document.getElementById('filter-status').value;
 
-    // ====== Vendor Custom Fields in Modal ======
-    function onVendorChange() {
-        var vendorId = document.getElementById('purchase-vendor').value;
-        var container = document.getElementById('custom-fields-container');
-        container.innerHTML = '';
-        if (!vendorId) return;
-
-        fetch('{{ url("admin/purchases/vendor-fields") }}/' + vendorId, {
-            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-        })
-            .then(r => r.json())
-            .then(data => {
-                renderModalCustomFields(data.fields, editingPurchaseCfValues);
-            })
-            .catch(err => console.error('Error loading vendor fields:', err));
-    }
-
-    function renderModalCustomFields(fields, cfValues) {
-        var container = document.getElementById('custom-fields-container');
-        if (!fields || fields.length === 0) { container.innerHTML = ''; return; }
-
-        var html = '<div style="border-top:1px solid #e2e8f0;padding-top:16px;margin-top:8px"><p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 12px 0"><i data-lucide="settings-2" style="width:14px;height:14px;display:inline;vertical-align:middle;margin-right:4px"></i> Custom Fields</p>';
-        fields.forEach(function (f) {
-            var val = (cfValues && cfValues[f.id]) ? cfValues[f.id] : ((cfValues && cfValues[String(f.id)]) ? cfValues[String(f.id)] : '');
-            html += '<div style="margin-bottom:16px">';
-            html += '<label style="display:block;margin-bottom:4px;font-weight:500">' + escHtml(f.field_name) + '</label>';
-            if (f.field_type === 'select') {
-                html += '<select name="custom_fields[' + f.id + ']" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">';
-                html += '<option value="">Select...</option>';
-                var options = f.field_options || [];
-                options.forEach(function (opt) {
-                    html += '<option value="' + escHtml(opt) + '"' + (val === opt ? ' selected' : '') + '>' + escHtml(opt) + '</option>';
-                });
-                html += '</select>';
-            } else if (f.field_type === 'date') {
-                html += '<input type="date" name="custom_fields[' + f.id + ']" value="' + escHtml(val) + '" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">';
+            if (hasFilters) {
+                fetchPurchases();
             } else {
-                html += '<input type="text" name="custom_fields[' + f.id + ']" value="' + escHtml(val) + '" placeholder="Enter ' + escHtml(f.field_name) + '" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">';
+                var summary = defaultSummary[tab] || defaultSummary['all'];
+                updateSummaryCards(summary.total, summary.due);
+                var tbodyId = (tab === 'all') ? 'all-purchases-tbody' : tab + '-purchases-tbody';
+                var tbody = document.getElementById(tbodyId);
+                if (tbody) {
+                    var rows = tbody.querySelectorAll('tr');
+                    var count = 0;
+                    rows.forEach(function (r) { if (!r.querySelector('.text-muted')) count++; });
+                    document.getElementById('purchase-count-badge').textContent = count + ' Found';
+                }
             }
-            html += '</div>';
-        });
-        html += '</div>';
-        container.innerHTML = html;
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
+        }
 
-    // ====== Modals ======
-    function openAddModal() {
-        editingPurchaseId = null;
-        editingPurchaseCfValues = {};
-        document.getElementById('modal-title').textContent = 'Add New Purchase';
-        document.getElementById('purchase-form').action = '{{ route("admin.purchases.store") }}';
-        document.getElementById('form-method').value = '';
-        document.getElementById('purchase-form').reset();
-        document.getElementById('purchase-date').value = '{{ date("Y-m-d") }}';
-        document.getElementById('purchase-status').value = 'draft';
-        document.getElementById('custom-fields-container').innerHTML = '';
-        document.getElementById('purchase-modal').style.display = 'flex';
-    }
+        function updateSummaryCards(total, due) {
+            document.getElementById('summary-total').textContent = '₹' + parseFloat(total).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            document.getElementById('summary-due').textContent = '₹' + parseFloat(due).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
 
-    document.addEventListener('click', function (e) {
-        var btn = e.target.closest('.edit-purchase-btn');
-        if (!btn) return;
+        // ====== AJAX Search & Filters ======
+        document.addEventListener('DOMContentLoaded', function () {
+            // Initialize Flatpickr for Date Range
+            let dateFrom = document.getElementById('filter-date-from').value;
+            let dateTo = document.getElementById('filter-date-to').value;
+            let defaultDates = [];
+            if (dateFrom && dateTo) defaultDates = [dateFrom, dateTo];
 
-        editingPurchaseId = btn.dataset.id;
-        editingPurchaseCfValues = {};
-        try { editingPurchaseCfValues = JSON.parse(btn.dataset.cfValues || '{}'); } catch (e) { }
-
-        document.getElementById('modal-title').textContent = 'Edit Purchase';
-        document.getElementById('purchase-form').action = '{{ url("admin/purchases") }}/' + btn.dataset.id;
-        document.getElementById('form-method').value = 'PUT';
-        document.getElementById('purchase-vendor').value = btn.dataset.vendor;
-        document.getElementById('purchase-client').value = btn.dataset.client || '';
-        document.getElementById('purchase-date').value = btn.dataset.date;
-        document.getElementById('purchase-amount').value = btn.dataset.amount;
-        document.getElementById('purchase-notes').value = btn.dataset.notes;
-        document.getElementById('purchase-status').value = btn.dataset.status;
-        document.getElementById('purchase-modal').style.display = 'flex';
-
-        // Load custom fields for the selected vendor
-        onVendorChange();
-    });
-
-    function openPaymentModal(id) {
-        document.getElementById('payment-form').action = '{{ url("admin/purchases") }}/' + id + '/payment';
-        document.getElementById('payment-form').reset();
-        document.getElementById('payment-modal').style.display = 'flex';
-    }
-
-    function viewPurchase(id) {
-        document.getElementById('view-modal').style.display = 'flex';
-        document.getElementById('view-purchase-content').innerHTML = 'Loading...';
-        document.getElementById('view-purchase-no').textContent = '';
-
-        fetch('{{ url("admin/purchases") }}/' + id)
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('view-purchase-no').textContent = data.purchase_no;
-                var statusBadge = '<span class="badge badge-' + (data.status === 'completed' ? 'success' : (data.status === 'active' ? 'primary' : 'secondary')) + '">' + ucfirst(data.status) + '</span>';
-
-                var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">';
-                html += '<div><p style="margin:0 0 5px 0;color:#666;font-size:12px;text-transform:uppercase">Vendor</p><p style="margin:0;font-weight:500">' + (data.vendor ? data.vendor.name : 'N/A') + '</p></div>';
-                html += '<div><p style="margin:0 0 5px 0;color:#666;font-size:12px;text-transform:uppercase">Client</p><p style="margin:0;font-weight:500">' + (data.client ? (data.client.business_name || data.client.contact_name) : 'N/A') + '</p></div>';
-                html += '<div><p style="margin:0 0 5px 0;color:#666;font-size:12px;text-transform:uppercase">Date</p><p style="margin:0;font-weight:500">' + new Date(data.date).toLocaleDateString() + '</p></div>';
-                html += '<div><p style="margin:0 0 5px 0;color:#666;font-size:12px;text-transform:uppercase">Status</p><p style="margin:0;font-weight:500">' + statusBadge + '</p></div>';
-                html += '<div style="grid-column:span 2"><p style="margin:0 0 5px 0;color:#666;font-size:12px;text-transform:uppercase">Amounts</p>';
-                html += '<p style="margin:0;font-weight:500">Total: ₹' + (data.total_amount / 100).toFixed(2) + ' | Paid: ₹' + (data.paid_amount / 100).toFixed(2) + ' | <span style="color:' + (data.total_amount > data.paid_amount ? 'var(--destructive)' : 'inherit') + '">Balance: ₹' + ((data.total_amount - data.paid_amount) / 100).toFixed(2) + '</span></p></div>';
-                html += '</div>';
-
-                // Custom field values
-                if (data.custom_field_values && data.custom_field_values.length > 0) {
-                    html += '<div style="margin-bottom:20px"><p style="margin:0 0 8px 0;color:#666;font-size:12px;text-transform:uppercase;font-weight:bold">Custom Fields</p>';
-                    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
-                    data.custom_field_values.forEach(function (cfv) {
-                        var fieldName = cfv.custom_field ? cfv.custom_field.field_name : 'Field #' + cfv.vendor_custom_field_id;
-                        html += '<div style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px"><p style="margin:0 0 2px 0;color:#666;font-size:11px;text-transform:uppercase">' + escHtml(fieldName) + '</p><p style="margin:0;font-weight:500">' + escHtml(cfv.value || '—') + '</p></div>';
-                    });
-                    html += '</div></div>';
+            flatpickr("#purchase-date-range-picker", {
+                mode: "range",
+                dateFormat: "Y-m-d",
+                defaultDate: defaultDates,
+                onChange: function (selectedDates, dateStr, instance) {
+                    if (selectedDates.length === 2) {
+                        document.getElementById('filter-date-from').value = instance.formatDate(selectedDates[0], "Y-m-d");
+                        document.getElementById('filter-date-to').value = instance.formatDate(selectedDates[1], "Y-m-d");
+                        fetchPurchases();
+                    } else if (selectedDates.length === 0) {
+                        document.getElementById('filter-date-from').value = '';
+                        document.getElementById('filter-date-to').value = '';
+                        fetchPurchases();
+                    }
                 }
-
-                html += '<div style="margin-bottom:20px"><p style="margin:0 0 5px 0;color:#666;font-size:12px;text-transform:uppercase">Notes</p>';
-                html += '<div style="padding:10px;background:#f9f9f9;border:1px solid #eee;border-radius:4px">' + (data.notes || 'No notes provided.') + '</div></div>';
-
-                if (data.payments && data.payments.length > 0) {
-                    html += '<p style="margin:10px 0 5px 0;color:#666;font-size:12px;text-transform:uppercase;font-weight:bold">Payment History</p>';
-                    html += '<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="border-bottom:2px solid #eee;text-align:left"><th style="padding:8px">Date</th><th style="padding:8px">Amount</th><th style="padding:8px">Type</th><th style="padding:8px">Reference</th></tr></thead><tbody>';
-                    data.payments.forEach(function (payment) {
-                        html += '<tr style="border-bottom:1px solid #eee"><td style="padding:8px">' + new Date(payment.payment_date).toLocaleDateString() + '</td><td style="padding:8px">₹' + (payment.amount / 100).toFixed(2) + '</td><td style="padding:8px">' + (payment.payment_type || payment.payment_method || '-') + '</td><td style="padding:8px">' + (payment.reference_no || '-') + '</td></tr>';
-                    });
-                    html += '</tbody></table>';
-                } else {
-                    html += '<p style="margin:10px 0;color:#666;font-size:14px;font-style:italic">No payments recorded yet.</p>';
-                }
-                document.getElementById('view-purchase-content').innerHTML = html;
-            })
-            .catch(error => {
-                document.getElementById('view-purchase-content').innerHTML = '<p style="color:red">Failed to load details.</p>';
             });
-    }
 
-    function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
+            document.getElementById('purchase-search').addEventListener('input', function () {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(fetchPurchases, 300);
+            });
+            document.getElementById('filter-status').addEventListener('change', fetchPurchases);
 
-    window.addEventListener('click', function (e) {
-        if (e.target.id === 'purchase-modal') closeModal('purchase-modal');
-        if (e.target.id === 'payment-modal') closeModal('payment-modal');
-        if (e.target.id === 'view-modal') closeModal('view-modal');
-    });
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') { closeModal('purchase-modal'); closeModal('payment-modal'); closeModal('view-modal'); }
-    });
-</script>
+            // Restore active tab from session
+            if (currentTab !== 'all') {
+                switchPurchaseTab(currentTab, currentVendorId);
+            }
+        });
+
+        function fetchPurchases() {
+            var search = document.getElementById('purchase-search').value.trim();
+            var dateFrom = document.getElementById('filter-date-from').value;
+            var dateTo = document.getElementById('filter-date-to').value;
+            var status = document.getElementById('filter-status').value;
+
+            var params = new URLSearchParams();
+            if (search) params.append('search', search);
+            if (dateFrom) params.append('date_from', dateFrom);
+            if (dateTo) params.append('date_to', dateTo);
+            if (status) params.append('status', status);
+            if (currentVendorId) params.append('vendor_id', currentVendorId);
+
+            fetch('{{ route("admin.purchases.search") }}?' + params.toString(), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    var tbodyId = (currentTab === 'all') ? 'all-purchases-tbody' : currentTab + '-purchases-tbody';
+                    var customFields = data.custom_fields || [];
+
+                    if (currentVendorId && customFields.length > 0) {
+                        // Update thead for vendor tab
+                        updateVendorTableHead(currentTab, customFields);
+                        renderVendorPurchasesTable(tbodyId, data.purchases, customFields);
+                    } else {
+                        renderPurchasesTable(tbodyId, data.purchases);
+                    }
+                    document.getElementById('purchase-count-badge').textContent = data.count + ' Found';
+                    updateSummaryCards(data.total_amount, data.due_amount);
+                })
+                .catch(function (error) { console.error('Error fetching purchases:', error); });
+        }
+
+        function updateVendorTableHead(tab, customFields) {
+            var tabContent = document.getElementById('tab-content-' + tab);
+            if (!tabContent) return;
+            var thead = tabContent.querySelector('thead tr');
+            if (!thead) return;
+
+            var html = '<th>Purchase No</th><th>Date</th><th>Vendor</th><th>Client</th>';
+            customFields.forEach(function (cf) {
+                html += '<th>' + escHtml(cf.field_name) + '</th>';
+            });
+            html += '<th>Amount</th><th>Paid</th><th>Status</th><th style="width:150px">Actions</th>';
+            thead.innerHTML = html;
+        }
+
+        function renderPurchasesTable(tbodyId, purchases) {
+            var tbody = document.getElementById(tbodyId);
+            if (!tbody) return;
+            if (!purchases || purchases.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-muted">No purchases found.</td></tr>';
+                return;
+            }
+            var html = '';
+            purchases.forEach(function (p) { html += buildPurchaseRow(p, []); });
+            tbody.innerHTML = html;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function renderVendorPurchasesTable(tbodyId, purchases, customFields) {
+            var tbody = document.getElementById(tbodyId);
+            if (!tbody) return;
+            if (!purchases || purchases.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="' + (8 + customFields.length) + '" class="text-center py-8 text-muted">No purchases found.</td></tr>';
+                return;
+            }
+            var html = '';
+            purchases.forEach(function (p) { html += buildPurchaseRow(p, customFields); });
+            tbody.innerHTML = html;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function buildPurchaseRow(p, customFields) {
+            var badgeClass = p.status === 'completed' ? 'success' : (p.status === 'active' ? 'primary' : 'secondary');
+            var vendorName = p.vendor ? p.vendor.name : 'N/A';
+            var clientName = p.client ? (p.client.business_name || p.client.contact_name || 'N/A') : 'N/A';
+            var dateFormatted = new Date(p.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+            var amount = '₹' + (p.total_amount / 100).toFixed(2);
+            var paid = '₹' + (p.paid_amount / 100).toFixed(2);
+            var editDate = p.date ? p.date.substring(0, 10) : '';
+            var notes = p.notes || '';
+            notes = notes.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+            // Build cf_values JSON for edit button
+            var cfValues = p.cf_values || {};
+            var cfValuesStr = JSON.stringify(cfValues).replace(/"/g, '&quot;');
+
+            var html = '<tr>';
+            html += '<td><p class="font-medium">' + escHtml(p.purchase_no) + '</p></td>';
+            html += '<td>' + dateFormatted + '</td>';
+            html += '<td>' + escHtml(vendorName) + '</td>';
+            html += '<td>' + escHtml(clientName) + '</td>';
+
+            // Custom field value columns
+            if (customFields && customFields.length > 0) {
+                customFields.forEach(function (cf) {
+                    var val = cfValues[cf.id] || cfValues[String(cf.id)] || '—';
+                    html += '<td>' + escHtml(val) + '</td>';
+                });
+            }
+
+            html += '<td>' + amount + '</td>';
+            html += '<td>' + paid + '</td>';
+            html += '<td><span class="badge badge-' + badgeClass + '">' + ucfirst(p.status) + '</span></td>';
+
+            html += '<td><div style="display:flex;gap:6px;align-items:center">';
+            html += '<button onclick="viewPurchase(' + p.id + ')" style="width:32px;height:32px;border-radius:8px;background:#eff6ff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#3b82f6;transition:all 0.15s" title="View" onmouseover="this.style.background=\'#dbeafe\'" onmouseout="this.style.background=\'#eff6ff\'"><i data-lucide="eye" style="width:16px;height:16px"></i></button>';
+            if (canWrite) {
+                html += '<button class="edit-purchase-btn" data-id="' + p.id + '" data-vendor="' + (p.vendor_id || '') + '" data-client="' + (p.client_id || '') + '" data-date="' + editDate + '" data-amount="' + (p.total_amount / 100) + '" data-notes="' + notes + '" data-status="' + p.status + '" data-cf-values="' + cfValuesStr + '" style="width:32px;height:32px;border-radius:8px;background:#fffbeb;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#f59e0b;transition:all 0.15s" title="Edit" onmouseover="this.style.background=\'#fef3c7\'" onmouseout="this.style.background=\'#fffbeb\'"><i data-lucide="edit" style="width:16px;height:16px"></i></button>';
+                html += '<button onclick="openPaymentModal(' + p.id + ')" style="width:32px;height:32px;border-radius:8px;background:#f0fdf4;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#16a34a;transition:all 0.15s" title="Add Payment" onmouseover="this.style.background=\'#dcfce7\'" onmouseout="this.style.background=\'#f0fdf4\'"><i data-lucide="indian-rupee" style="width:16px;height:16px"></i></button>';
+                if (canDelete) {
+                    html += '<form action="{{ url("admin/purchases") }}/' + p.id + '" method="POST" style="display:inline;margin:0" onsubmit="return confirm(\'Are you sure?\')"><input type="hidden" name="_token" value="' + csrfToken + '"><input type="hidden" name="_method" value="DELETE"><button type="submit" style="width:32px;height:32px;border-radius:8px;background:#fef2f2;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#ef4444;transition:all 0.15s" title="Delete" onmouseover="this.style.background=\'#fee2e2\'" onmouseout="this.style.background=\'#fef2f2\'"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button></form>';
+                }
+            }
+            html += '</div></td></tr>';
+            return html;
+        }
+
+        function clearFilters() {
+            document.getElementById('purchase-search').value = '';
+            document.getElementById('filter-date-from').value = '';
+            document.getElementById('filter-date-to').value = '';
+            document.getElementById('filter-status').value = '';
+            window.location.href = '{{ route("admin.purchases.index") }}';
+        }
+
+        function escHtml(str) {
+            if (!str) return '';
+            var div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+        function ucfirst(str) { return str.charAt(0).toUpperCase() + str.slice(1); }
+
+        // ====== Vendor Custom Fields in Modal ======
+        function onVendorChange() {
+            var vendorId = document.getElementById('purchase-vendor').value;
+            var container = document.getElementById('custom-fields-container');
+            container.innerHTML = '';
+            if (!vendorId) return;
+
+            fetch('{{ url("admin/purchases/vendor-fields") }}/' + vendorId, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(r => r.json())
+                .then(data => {
+                    renderModalCustomFields(data.fields, editingPurchaseCfValues);
+                })
+                .catch(err => console.error('Error loading vendor fields:', err));
+        }
+
+        function renderModalCustomFields(fields, cfValues) {
+            var container = document.getElementById('custom-fields-container');
+            if (!fields || fields.length === 0) { container.innerHTML = ''; return; }
+
+            var html = '<div style="border-top:1px solid #e2e8f0;padding-top:16px;margin-top:8px"><p style="font-size:13px;font-weight:600;color:#475569;margin:0 0 12px 0"><i data-lucide="settings-2" style="width:14px;height:14px;display:inline;vertical-align:middle;margin-right:4px"></i> Custom Fields</p>';
+            fields.forEach(function (f) {
+                var val = (cfValues && cfValues[f.id]) ? cfValues[f.id] : ((cfValues && cfValues[String(f.id)]) ? cfValues[String(f.id)] : '');
+                html += '<div style="margin-bottom:16px">';
+                html += '<label style="display:block;margin-bottom:4px;font-weight:500">' + escHtml(f.field_name) + '</label>';
+                if (f.field_type === 'select') {
+                    html += '<select name="custom_fields[' + f.id + ']" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">';
+                    html += '<option value="">Select...</option>';
+                    var options = f.field_options || [];
+                    options.forEach(function (opt) {
+                        html += '<option value="' + escHtml(opt) + '"' + (val === opt ? ' selected' : '') + '>' + escHtml(opt) + '</option>';
+                    });
+                    html += '</select>';
+                } else if (f.field_type === 'date') {
+                    html += '<input type="date" name="custom_fields[' + f.id + ']" value="' + escHtml(val) + '" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">';
+                } else {
+                    html += '<input type="text" name="custom_fields[' + f.id + ']" value="' + escHtml(val) + '" placeholder="Enter ' + escHtml(f.field_name) + '" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">';
+                }
+                html += '</div>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        // ====== Modals ======
+        function openAddModal() {
+            editingPurchaseId = null;
+            editingPurchaseCfValues = {};
+            document.getElementById('modal-title').textContent = 'Add New Purchase';
+            document.getElementById('purchase-form').action = '{{ route("admin.purchases.store") }}';
+            document.getElementById('form-method').value = '';
+            document.getElementById('purchase-form').reset();
+            document.getElementById('purchase-date').value = '{{ date("Y-m-d") }}';
+            document.getElementById('purchase-status').value = 'draft';
+            document.getElementById('custom-fields-container').innerHTML = '';
+            document.getElementById('purchase-modal').style.display = 'flex';
+        }
+
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.edit-purchase-btn');
+            if (!btn) return;
+
+            editingPurchaseId = btn.dataset.id;
+            editingPurchaseCfValues = {};
+            try { editingPurchaseCfValues = JSON.parse(btn.dataset.cfValues || '{}'); } catch (e) { }
+
+            document.getElementById('modal-title').textContent = 'Edit Purchase';
+            document.getElementById('purchase-form').action = '{{ url("admin/purchases") }}/' + btn.dataset.id;
+            document.getElementById('form-method').value = 'PUT';
+            document.getElementById('purchase-vendor').value = btn.dataset.vendor;
+            document.getElementById('purchase-client').value = btn.dataset.client || '';
+            document.getElementById('purchase-date').value = btn.dataset.date;
+            document.getElementById('purchase-amount').value = btn.dataset.amount;
+            document.getElementById('purchase-notes').value = btn.dataset.notes;
+            document.getElementById('purchase-status').value = btn.dataset.status;
+            document.getElementById('purchase-modal').style.display = 'flex';
+
+            // Load custom fields for the selected vendor
+            onVendorChange();
+        });
+
+        function openPaymentModal(id) {
+            document.getElementById('payment-form').action = '{{ url("admin/purchases") }}/' + id + '/payment';
+            document.getElementById('payment-form').reset();
+            document.getElementById('payment-modal').style.display = 'flex';
+        }
+
+        function viewPurchase(id) {
+            document.getElementById('view-modal').style.display = 'flex';
+            document.getElementById('view-purchase-content').innerHTML = 'Loading...';
+            document.getElementById('view-purchase-no').textContent = '';
+
+            fetch('{{ url("admin/purchases") }}/' + id)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('view-purchase-no').textContent = data.purchase_no;
+                    var statusBadge = '<span class="badge badge-' + (data.status === 'completed' ? 'success' : (data.status === 'active' ? 'primary' : 'secondary')) + '">' + ucfirst(data.status) + '</span>';
+
+                    var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">';
+                    html += '<div><p style="margin:0 0 5px 0;color:#666;font-size:12px;text-transform:uppercase">Vendor</p><p style="margin:0;font-weight:500">' + (data.vendor ? data.vendor.name : 'N/A') + '</p></div>';
+                    html += '<div><p style="margin:0 0 5px 0;color:#666;font-size:12px;text-transform:uppercase">Client</p><p style="margin:0;font-weight:500">' + (data.client ? (data.client.business_name || data.client.contact_name) : 'N/A') + '</p></div>';
+                    html += '<div><p style="margin:0 0 5px 0;color:#666;font-size:12px;text-transform:uppercase">Date</p><p style="margin:0;font-weight:500">' + new Date(data.date).toLocaleDateString() + '</p></div>';
+                    html += '<div><p style="margin:0 0 5px 0;color:#666;font-size:12px;text-transform:uppercase">Status</p><p style="margin:0;font-weight:500">' + statusBadge + '</p></div>';
+                    html += '<div style="grid-column:span 2"><p style="margin:0 0 5px 0;color:#666;font-size:12px;text-transform:uppercase">Amounts</p>';
+                    html += '<p style="margin:0;font-weight:500">Total: ₹' + (data.total_amount / 100).toFixed(2) + ' | Paid: ₹' + (data.paid_amount / 100).toFixed(2) + ' | <span style="color:' + (data.total_amount > data.paid_amount ? 'var(--destructive)' : 'inherit') + '">Balance: ₹' + ((data.total_amount - data.paid_amount) / 100).toFixed(2) + '</span></p></div>';
+                    html += '</div>';
+
+                    // Custom field values
+                    if (data.custom_field_values && data.custom_field_values.length > 0) {
+                        html += '<div style="margin-bottom:20px"><p style="margin:0 0 8px 0;color:#666;font-size:12px;text-transform:uppercase;font-weight:bold">Custom Fields</p>';
+                        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+                        data.custom_field_values.forEach(function (cfv) {
+                            var fieldName = cfv.custom_field ? cfv.custom_field.field_name : 'Field #' + cfv.vendor_custom_field_id;
+                            html += '<div style="padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px"><p style="margin:0 0 2px 0;color:#666;font-size:11px;text-transform:uppercase">' + escHtml(fieldName) + '</p><p style="margin:0;font-weight:500">' + escHtml(cfv.value || '—') + '</p></div>';
+                        });
+                        html += '</div></div>';
+                    }
+
+                    html += '<div style="margin-bottom:20px"><p style="margin:0 0 5px 0;color:#666;font-size:12px;text-transform:uppercase">Notes</p>';
+                    html += '<div style="padding:10px;background:#f9f9f9;border:1px solid #eee;border-radius:4px">' + (data.notes || 'No notes provided.') + '</div></div>';
+
+                    if (data.payments && data.payments.length > 0) {
+                        html += '<p style="margin:10px 0 5px 0;color:#666;font-size:12px;text-transform:uppercase;font-weight:bold">Payment History</p>';
+                        html += '<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="border-bottom:2px solid #eee;text-align:left"><th style="padding:8px">Date</th><th style="padding:8px">Amount</th><th style="padding:8px">Type</th><th style="padding:8px">Reference</th></tr></thead><tbody>';
+                        data.payments.forEach(function (payment) {
+                            html += '<tr style="border-bottom:1px solid #eee"><td style="padding:8px">' + new Date(payment.payment_date).toLocaleDateString() + '</td><td style="padding:8px">₹' + (payment.amount / 100).toFixed(2) + '</td><td style="padding:8px">' + (payment.payment_type || payment.payment_method || '-') + '</td><td style="padding:8px">' + (payment.reference_no || '-') + '</td></tr>';
+                        });
+                        html += '</tbody></table>';
+                    } else {
+                        html += '<p style="margin:10px 0;color:#666;font-size:14px;font-style:italic">No payments recorded yet.</p>';
+                    }
+                    document.getElementById('view-purchase-content').innerHTML = html;
+                })
+                .catch(error => {
+                    document.getElementById('view-purchase-content').innerHTML = '<p style="color:red">Failed to load details.</p>';
+                });
+        }
+
+        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
+
+        window.addEventListener('click', function (e) {
+            if (e.target.id === 'purchase-modal') closeModal('purchase-modal');
+            if (e.target.id === 'payment-modal') closeModal('payment-modal');
+            if (e.target.id === 'view-modal') closeModal('view-modal');
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { closeModal('purchase-modal'); closeModal('payment-modal'); closeModal('view-modal'); }
+        });
+    </script>
 @endpush
