@@ -9,6 +9,7 @@ class WhatsappCampaign extends Model
 {
     protected $fillable = [
         'company_id',
+        'user_id',
         'template_id',
         'target_stage',
         'target_product_id',
@@ -32,5 +33,10 @@ class WhatsappCampaign extends Model
     public function recipients()
     {
         return $this->hasMany(WhatsappCampaignRecipient::class, 'campaign_id');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }

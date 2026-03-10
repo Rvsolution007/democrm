@@ -106,6 +106,7 @@ class WhatsappCampaignController extends Controller
         try {
             $campaign = WhatsappCampaign::create([
                 'company_id' => auth()->user()->company_id ?? 1,
+                'user_id' => auth()->id(),
                 'template_id' => $request->template_id,
                 'target_stage' => $request->target_stage,
                 'target_product_id' => $request->target_product_id,

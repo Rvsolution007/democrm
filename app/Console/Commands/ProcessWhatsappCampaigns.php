@@ -44,19 +44,33 @@ class ProcessWhatsappCampaigns extends Command
                 continue;
             }
 
-            // Find the first connected instance (any user's instance that starts with rvcrm_)
-            $instanceName = $this->findConnectedInstance($apiUrl, $apiKey);
-
-            if (!$instanceName) {
+            // Get the user who created the campaign
+            $user = $campaign->user;
+            if (!$user) {
                 $campaign->update([
                     'status' => 'failed',
-                    'error_message' => 'WhatsApp Bulk: No connected WhatsApp instance found. Ask a user to scan QR.'
+                    'error_message' => 'WhatsApp Bulk: User who created this campaign does not exist anymore.'
                 ]);
-                Log::warning('WhatsApp Bulk: No connected WhatsApp instance found. Ask a user to scan QR.');
+                Log::warning('WhatsApp Bulk: User missing for campaign ' . $campaign->id);
                 continue;
             }
 
-            Log::info("WhatsApp Bulk: Using connected instance '{$instanceName}'");
+            // Generate the expected instance name for this user
+            $cleanName = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $user->name));
+            $instanceName = 'rvcrm_' . $cleanName . '_' . $user->id;
+
+            $isConnected = $this->checkInstanceConnection($apiUrl, $apiKey, $instanceName);
+
+            if (!$isConnected) {
+                $campaign->update([
+                    'status' => 'failed',
+                    'error_message' => 'WhatsApp Bulk: No connected WhatsApp instance found for your account. Please scan QR in WhatsApp Connect.'
+                ]);
+                Log::warning("WhatsApp Bulk: Instance '{$instanceName}' is not connected. User needs to scan QR.");
+                continue;
+            }
+
+            Log::info("WhatsApp Bulk: Using connected instance '{$instanceName}' for user {$user->id}");
 
             // Mark as processing if pending
             if ($campaign->status === 'pending') {
@@ -157,41 +171,35 @@ class ProcessWhatsappCampaigns extends Command
     }
 
     /**
-     * Find the first connected instance from Evolution API (rvcrm_ instances)
+     * Check if a specific instance is connected
      */
-    private function findConnectedInstance($apiUrl, $apiKey)
+    private function checkInstanceConnection($apiUrl, $apiKey, $instanceName)
     {
         try {
             $response = Http::withHeaders([
                 'apikey' => $apiKey,
                 'Content-Type' => 'application/json',
-            ])->get("{$apiUrl}/instance/fetchInstances");
+            ])->get("{$apiUrl}/instance/connectionState/{$instanceName}");
 
             if ($response->successful()) {
-                $instances = $response->json();
-                Log::info('WhatsApp Bulk: Fetched ' . count($instances) . ' instances from API.');
+                $data = $response->json();
+                $state = $data['instance']['state'] ?? $data['state'] ?? 'unknown';
+                Log::info("WhatsApp Bulk: Checked instance '{$instanceName}', state is '{$state}'");
 
-                // Find the first rvcrm_ instance that is connected
-                foreach ($instances as $inst) {
-                    // Evolution API structure varies: it might be inside 'instance' object or top-level
-                    $name = $inst['instance']['instanceName'] ?? $inst['instanceName'] ?? '';
-                    $state = $inst['instance']['state'] ?? $inst['state'] ?? $inst['instance']['status'] ?? $inst['status'] ?? '';
+                $validStates = ['open', 'connected', 'connecting']; // Allow connecting as a temporary state
 
-                    Log::info("WhatsApp Bulk: Checking instance '{$name}' with state '{$state}'");
-
-                    $validStates = ['open', 'connected', 'connecting']; // Allow connecting as a temporary state
-                    if (str_starts_with($name, 'rvcrm_') && in_array(strtolower($state), $validStates)) {
-                        Log::info("WhatsApp Bulk: Found match! Using '{$name}'");
-                        return $name;
-                    }
+                if (in_array(strtolower($state), $validStates)) {
+                    return true;
                 }
+            } else if ($response->status() === 404) {
+                Log::warning("WhatsApp Bulk: Instance '{$instanceName}' not found in API.");
             } else {
-                Log::error('WhatsApp Bulk: API returned error status ' . $response->status() . ' while fetching instances: ' . $response->body());
+                Log::error('WhatsApp Bulk: API returned error status ' . $response->status() . ' while checking instance state: ' . $response->body());
             }
         } catch (\Exception $e) {
-            Log::error('WhatsApp: Failed to fetch instances - ' . $e->getMessage());
+            Log::error('WhatsApp: Failed to fetch instance state - ' . $e->getMessage());
         }
 
-        return null;
+        return false;
     }
 }
