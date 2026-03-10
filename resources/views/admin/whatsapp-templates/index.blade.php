@@ -272,7 +272,7 @@
                                 </td>
                                 <td class="text-end">
                                     <div class="d-flex justify-content-end align-items-center gap-2">
-                                        <button type="button" class="action-btn btn-edit-modern" onclick='editTemplate({{ json_encode($template) }})' title="Edit Template">
+                                        <button type="button" class="action-btn btn-edit-modern" onclick='editTemplate({{ json_encode($template) }}, "{{ $template->media_path ? Storage::url($template->media_path) : '' }}")' title="Edit Template">
                                             <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
                                         </button>
                                         <form action="{{ route('admin.whatsapp-templates.destroy', $template->id) }}" method="POST" onsubmit="return confirm('Delete this template permanently?');" class="m-0 p-0" style="display: inline-flex;">
@@ -344,15 +344,18 @@
                     <label class="form-label fw-bold">Upload Media File</label>
                     
                     <!-- Current Media Preview (only visible when editing) -->
-                    <div id="currentMediaPreview" style="display:none; margin-bottom: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 15px; align-items: center; justify-content: space-between;">
-                        <div style="display:flex; align-items:center; gap: 10px;">
-                            <i data-lucide="paperclip" style="width:16px; height:16px; color:#64748b;"></i>
-                            <div style="font-size: 0.85rem;">
-                                <span style="color:#64748b; font-weight:500;">Current file:</span>
-                                <span id="currentMediaName" style="color:#0f172a; font-weight:600; margin-left: 5px;"></span>
+                    <div id="currentMediaPreview" style="display:none; margin-bottom: 15px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 15px; flex-direction: column; gap: 12px;">
+                        <div style="display:flex; align-items:center; justify-content: space-between;">
+                            <div style="display:flex; align-items:center; gap: 10px;">
+                                <i data-lucide="paperclip" style="width:16px; height:16px; color:#64748b;"></i>
+                                <div style="font-size: 0.85rem;">
+                                    <span style="color:#64748b; font-weight:500;">Current file:</span>
+                                    <span id="currentMediaName" style="color:#0f172a; font-weight:600; margin-left: 5px;"></span>
+                                </div>
                             </div>
+                            <a id="currentMediaLink" href="#" target="_blank" class="media-preview-btn" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">View File</a>
                         </div>
-                        <a id="currentMediaLink" href="#" target="_blank" class="media-preview-btn" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">View File</a>
+                        <img id="currentMediaImage" src="" style="display:none; max-width: 100%; max-height: 200px; border-radius: 6px; border: 1px solid #e2e8f0; align-self: center;" alt="Media Preview">
                     </div>
                     
                     <input type="file" name="media_file" id="mediaFile" class="form-control form-input" accept="">
@@ -397,7 +400,7 @@
             closeModal('templateModal');
         }
 
-        function editTemplate(template) {
+        function editTemplate(template, mediaUrl) {
             document.getElementById('modalTitle').textContent = 'Edit Template';
             document.getElementById('templateForm').action = "{{ route('admin.whatsapp-templates.index') }}/" + template.id;
             document.getElementById('formMethod').value = 'PUT';
@@ -408,16 +411,27 @@
             
             // Handle current media preview
             const currentMediaPreview = document.getElementById('currentMediaPreview');
-            if (template.media_path) {
+            const previewImage = document.getElementById('currentMediaImage');
+            
+            if (template.media_path && mediaUrl) {
                 currentMediaPreview.style.display = 'flex';
                 // Extract filename from path
                 const fileName = template.media_path.split('/').pop();
                 document.getElementById('currentMediaName').textContent = fileName;
-                // Get the current APP_URL and format the link
-                const baseUrl = window.location.origin;
-                document.getElementById('currentMediaLink').href = baseUrl + '/storage/' + template.media_path;
+                
+                // Use the mediaUrl passed from the server instead of generating locally
+                document.getElementById('currentMediaLink').href = mediaUrl;
+                
+                // Show actual image preview if type is image
+                if (template.type === 'image') {
+                    previewImage.src = mediaUrl;
+                    previewImage.style.display = 'block';
+                } else {
+                    previewImage.style.display = 'none';
+                }
             } else {
                 currentMediaPreview.style.display = 'none';
+                previewImage.style.display = 'none';
             }
 
             toggleMediaInput();
