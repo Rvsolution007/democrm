@@ -173,6 +173,7 @@
                             <th data-col="name">Lead Name</th>
                             <th data-col="source">Source</th>
                             <th data-col="stage">Stage</th>
+                            <th data-col="products">Products</th>
                             <th data-col="amount">Amount</th>
                             <th data-col="assigned">Assigned To</th>
                             <th data-col="actions" style="width:200px">Actions</th>
@@ -196,6 +197,21 @@
                                 </td>
                                 <td data-col="stage"><span
                                         class="badge badge-{{ $lead->stage }}">{{ ucfirst($lead->stage) }}</span></td>
+                                <td data-col="products">
+                                    @if($lead->products->count() > 0)
+                                        <div style="display:flex;flex-wrap:wrap;gap:4px;max-width:200px">
+                                            @foreach($lead->products as $product)
+                                                <span
+                                                    style="background:#f1f5f9;color:#475569;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:500;white-space:nowrap;border:1px solid #e2e8f0"
+                                                    title="{{ $product->name }}">
+                                                    {{ Str::limit($product->name, 20) }}
+                                                </span>
+                                            @endforeach
+                                        </div>
+                                    @else
+                                        <span style="color:#94a3b8;font-size:11px">—</span>
+                                    @endif
+                                </td>
                                 <td data-col="amount">
                                     <span
                                         style="font-weight:600;color:#15803d;background:#f0fdf4;padding:4px 8px;border-radius:6px;font-size:13px">
@@ -661,27 +677,27 @@
                             let discount = p.pivot.discount || 0;
                             let finalPrice = ((price - discount) / 100).toFixed(2);
                             productRows += `<tr>
-                                                                                                                            <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155">${escapeHtml(p.name)}</td>
-                                                                                                                            <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;text-align:center">${p.pivot.quantity}</td>
-                                                                                                                            <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:600;color:#059669">₹${finalPrice}</td>
-                                                                                                                        </tr>`;
+                                                                                                                                <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155">${escapeHtml(p.name)}</td>
+                                                                                                                                <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;text-align:center">${p.pivot.quantity}</td>
+                                                                                                                                <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:600;color:#059669">₹${finalPrice}</td>
+                                                                                                                            </tr>`;
                         });
                         productsHtml = `<div style="margin-top:20px">
-                                                                                                                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-                                                                                                                            <div style="width:28px;height:28px;border-radius:8px;background:#fdf4ff;display:flex;align-items:center;justify-content:center">
-                                                                                                                                <i data-lucide="package" style="width:14px;height:14px;color:#a855f7"></i>
+                                                                                                                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                                                                                                                                <div style="width:28px;height:28px;border-radius:8px;background:#fdf4ff;display:flex;align-items:center;justify-content:center">
+                                                                                                                                    <i data-lucide="package" style="width:14px;height:14px;color:#a855f7"></i>
+                                                                                                                                </div>
+                                                                                                                                <h4 style="margin:0;font-size:14px;font-weight:600;color:#1e293b">Products</h4>
                                                                                                                             </div>
-                                                                                                                            <h4 style="margin:0;font-size:14px;font-weight:600;color:#1e293b">Products</h4>
-                                                                                                                        </div>
-                                                                                                                        <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;border:1px solid #f1f5f9">
-                                                                                                                            <thead><tr style="background:linear-gradient(135deg,#f8fafc,#f1f5f9)">
-                                                                                                                                <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Product</th>
-                                                                                                                                <th style="padding:10px 14px;text-align:center;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Qty</th>
-                                                                                                                                <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Price</th>
-                                                                                                                            </tr></thead>
-                                                                                                                            <tbody>${productRows}</tbody>
-                                                                                                                        </table>
-                                                                                                                    </div>`;
+                                                                                                                            <table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;border:1px solid #f1f5f9">
+                                                                                                                                <thead><tr style="background:linear-gradient(135deg,#f8fafc,#f1f5f9)">
+                                                                                                                                    <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Product</th>
+                                                                                                                                    <th style="padding:10px 14px;text-align:center;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Qty</th>
+                                                                                                                                    <th style="padding:10px 14px;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Price</th>
+                                                                                                                                </tr></thead>
+                                                                                                                                <tbody>${productRows}</tbody>
+                                                                                                                            </table>
+                                                                                                                        </div>`;
                     }
 
                     // Stage color mapping
@@ -697,49 +713,49 @@
                     let sc = stageColors[lead.stage] || { bg: '#f1f5f9', color: '#64748b' };
 
                     let content = `
-                                                                                                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
-                                                                                                                        <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
-                                                                                                                            <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Lead Name</div>
-                                                                                                                            <div style="font-size:15px;font-weight:600;color:#1e293b">${escapeHtml(lead.name || '-')}</div>
-                                                                                                                        </div>
-                                                                                                                        <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
-                                                                                                                            <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Phone</div>
-                                                                                                                            <div style="font-size:15px;font-weight:600;color:#1e293b"><a href="tel:${lead.phone}" style="color:#3b82f6;text-decoration:none">${lead.phone || '-'}</a></div>
-                                                                                                                        </div>
-                                                                                                                        <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
-                                                                                                                            <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Email</div>
-                                                                                                                            <div style="font-size:14px;font-weight:500;color:#334155">${escapeHtml(lead.email || '-')}</div>
-                                                                                                                        </div>
-                                                                                                                        <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
-                                                                                                                            <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Source</div>
-                                                                                                                            <div><span style="background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${escapeHtml(lead.source || '-')}</span></div>
-                                                                                                                        </div>
-                                                                                                                        <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
-                                                                                                                            <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Stage</div>
-                                                                                                                            <div><span style="background:${sc.bg};color:${sc.color};padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${escapeHtml(lead.stage || '-')}</span></div>
-                                                                                                                        </div>
-                                                                                                                        <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
-                                                                                                                            <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Assigned To</div>
-                                                                                                                            <div style="font-size:14px;font-weight:500;color:#334155;display:flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#8b5cf6);display:inline-flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:700">${(lead.assigned_to?.name || 'U').charAt(0).toUpperCase()}</span> ${escapeHtml(lead.assigned_to?.name || 'Unassigned')}</div>
-                                                                                                                        </div>
-                                                                                                                    </div>
-                                                                                                                    <div style="display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:20px">
-                                                                                                                        <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
-                                                                                                                            <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Location</div>
-                                                                                                                            <div style="font-size:14px;font-weight:500;color:#334155;display:flex;align-items:center;gap:4px">${escapeHtml(lead.city || '')} ${escapeHtml(lead.state || '') || '-'}</div>
-                                                                                                                        </div>
-                                                                                                                    </div>
-                                                                                                                    <div style="margin-bottom:16px">
-                                                                                                                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-                                                                                                                            <div style="width:28px;height:28px;border-radius:8px;background:#fffbeb;display:flex;align-items:center;justify-content:center">
-                                                                                                                                <i data-lucide="file-text" style="width:14px;height:14px;color:#f59e0b"></i>
+                                                                                                                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
+                                                                                                                            <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
+                                                                                                                                <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Lead Name</div>
+                                                                                                                                <div style="font-size:15px;font-weight:600;color:#1e293b">${escapeHtml(lead.name || '-')}</div>
                                                                                                                             </div>
-                                                                                                                            <span style="font-size:14px;font-weight:600;color:#1e293b">Notes</span>
+                                                                                                                            <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
+                                                                                                                                <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Phone</div>
+                                                                                                                                <div style="font-size:15px;font-weight:600;color:#1e293b"><a href="tel:${lead.phone}" style="color:#3b82f6;text-decoration:none">${lead.phone || '-'}</a></div>
+                                                                                                                            </div>
+                                                                                                                            <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
+                                                                                                                                <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Email</div>
+                                                                                                                                <div style="font-size:14px;font-weight:500;color:#334155">${escapeHtml(lead.email || '-')}</div>
+                                                                                                                            </div>
+                                                                                                                            <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
+                                                                                                                                <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Source</div>
+                                                                                                                                <div><span style="background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${escapeHtml(lead.source || '-')}</span></div>
+                                                                                                                            </div>
+                                                                                                                            <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
+                                                                                                                                <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Stage</div>
+                                                                                                                                <div><span style="background:${sc.bg};color:${sc.color};padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${escapeHtml(lead.stage || '-')}</span></div>
+                                                                                                                            </div>
+                                                                                                                            <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
+                                                                                                                                <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Assigned To</div>
+                                                                                                                                <div style="font-size:14px;font-weight:500;color:#334155;display:flex;align-items:center;gap:6px"><span style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#8b5cf6);display:inline-flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:700">${(lead.assigned_to?.name || 'U').charAt(0).toUpperCase()}</span> ${escapeHtml(lead.assigned_to?.name || 'Unassigned')}</div>
+                                                                                                                            </div>
                                                                                                                         </div>
-                                                                                                                        <div style="background:#f8fafc;padding:14px 16px;border-radius:10px;border:1px solid #f1f5f9;font-size:13px;color:#475569;white-space:pre-wrap;line-height:1.6">${escapeHtml(lead.notes || 'No notes')}</div>
-                                                                                                                    </div>
-                                                                                                                    ${productsHtml}
-                                                                                                                `;
+                                                                                                                        <div style="display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:20px">
+                                                                                                                            <div style="background:#f8fafc;border-radius:10px;padding:14px 16px">
+                                                                                                                                <div style="font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Location</div>
+                                                                                                                                <div style="font-size:14px;font-weight:500;color:#334155;display:flex;align-items:center;gap:4px">${escapeHtml(lead.city || '')} ${escapeHtml(lead.state || '') || '-'}</div>
+                                                                                                                            </div>
+                                                                                                                        </div>
+                                                                                                                        <div style="margin-bottom:16px">
+                                                                                                                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                                                                                                                                <div style="width:28px;height:28px;border-radius:8px;background:#fffbeb;display:flex;align-items:center;justify-content:center">
+                                                                                                                                    <i data-lucide="file-text" style="width:14px;height:14px;color:#f59e0b"></i>
+                                                                                                                                </div>
+                                                                                                                                <span style="font-size:14px;font-weight:600;color:#1e293b">Notes</span>
+                                                                                                                            </div>
+                                                                                                                            <div style="background:#f8fafc;padding:14px 16px;border-radius:10px;border:1px solid #f1f5f9;font-size:13px;color:#475569;white-space:pre-wrap;line-height:1.6">${escapeHtml(lead.notes || 'No notes')}</div>
+                                                                                                                        </div>
+                                                                                                                        ${productsHtml}
+                                                                                                                    `;
                     document.getElementById('view-lead-content').innerHTML = content;
 
                     // Reinitialize lucide icons for dynamic content
