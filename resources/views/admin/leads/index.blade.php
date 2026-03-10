@@ -279,7 +279,7 @@
             style="display:flex;gap:16px;overflow-x:auto;padding-bottom:20px;min-height:calc(100vh - 340px)">
             @foreach(\App\Models\Lead::getDynamicStages() as $stage)
                 <div class="kanban-column" data-stage="{{ $stage }}"
-                    style="min-width:300px;background:white;border-radius:12px;padding:12px 10px;box-shadow:0 1px 3px rgba(0,0,0,0.08);transition:all 0.2s;display:flex;flex-direction:column"
+                    style="min-width:300px;background:white;border-radius:12px;padding:12px 5px;box-shadow:0 1px 3px rgba(0,0,0,0.08);transition:all 0.2s;display:flex;flex-direction:column"
                     ondragover="kanbanDragOver(event)" ondragleave="kanbanDragLeave(event)" ondrop="kanbanDrop(event)">
                     <div
                         style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #eee">
