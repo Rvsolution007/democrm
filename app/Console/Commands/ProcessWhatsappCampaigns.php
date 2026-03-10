@@ -105,13 +105,10 @@ class ProcessWhatsappCampaigns extends Command
                     $endpoint = "{$apiUrl}/message/sendText/{$instanceName}";
                     $payload = [
                         'number' => $phone,
-                        'options' => ['delay' => 1200],
-                        'textMessage' => [
-                            'text' => $template->message_text
-                        ]
+                        'text' => $template->message_text,
+                        'delay' => 1200,
                     ];
                 } else if (in_array(strtolower($template->type), ['image', 'video', 'pdf'])) {
-                    $mediaEndpointType = strtolower($template->type);
                     $endpoint = "{$apiUrl}/message/sendMedia/{$instanceName}";
 
                     // Convert local path to absolute URL for Evolution API to download
@@ -119,12 +116,10 @@ class ProcessWhatsappCampaigns extends Command
 
                     $payload = [
                         'number' => $phone,
-                        'options' => ['delay' => 1200],
-                        'mediaMessage' => [
-                            'mediatype' => strtolower($template->type) === 'pdf' ? 'document' : strtolower($template->type),
-                            'caption' => $template->message_text ?? '',
-                            'media' => $mediaUrl,
-                        ]
+                        'mediatype' => strtolower($template->type) === 'pdf' ? 'document' : strtolower($template->type),
+                        'caption' => $template->message_text ?? '',
+                        'media' => $mediaUrl,
+                        'delay' => 1200,
                     ];
                 } else {
                     Log::error("WhatsApp Bulk Error: Unknown template type {$template->type}");
