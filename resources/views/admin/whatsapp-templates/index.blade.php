@@ -337,13 +337,13 @@
                         <option value="video">Video + Caption</option>
                         <option value="pdf">PDF Document</option>
                     </select>
+                    <div id="typeRulesBox" style="margin-top: 8px; padding: 10px 14px; border-radius: 8px; font-size: 0.8rem; line-height: 1.6; display: none;"></div>
                 </div>
 
                 <div class="mb-3" id="mediaInputContainer" style="display:none; margin-top:15px;">
                     <label class="form-label fw-bold">Upload Media File</label>
-                    <input type="file" name="media_file" id="mediaFile" class="form-control form-input">
-                    <small class="text-muted" style="font-size:12px; display:block; margin-top:4px;">Max size 10MB.
-                        Formats: JPG, PNG, MP4, PDF.</small>
+                    <input type="file" name="media_file" id="mediaFile" class="form-control form-input" accept="">
+                    <small id="mediaHelpText" class="text-muted" style="font-size:12px; display:block; margin-top:4px;"></small>
                 </div>
 
                 <div class="mb-3" style="margin-top:15px;">
@@ -399,18 +399,62 @@
             const type = document.getElementById('templateType').value;
             const container = document.getElementById('mediaInputContainer');
             const input = document.getElementById('mediaFile');
+            const rulesBox = document.getElementById('typeRulesBox');
+            const helpText = document.getElementById('mediaHelpText');
 
-            if (type === 'text') {
-                container.style.display = 'none';
-                input.removeAttribute('required');
-            } else {
+            const rules = {
+                text: {
+                    show: false,
+                    color: '#eff6ff',
+                    border: '#bfdbfe',
+                    text: '📝 <b>Text Only</b> — Type your message below. No media file needed. Supports emojis and multi-line text.',
+                },
+                image: {
+                    show: true,
+                    accept: '.jpg,.jpeg,.png,.webp',
+                    help: 'Formats: JPG, JPEG, PNG, WEBP — Max 5MB',
+                    color: '#fdf4ff',
+                    border: '#f0abfc',
+                    text: '🖼️ <b>Image Rules:</b><br>• Formats: <b>JPG, JPEG, PNG, WEBP</b><br>• Max size: <b>5 MB</b><br>• Recommended: Square or landscape images work best<br>• Caption text will appear below the image',
+                },
+                video: {
+                    show: true,
+                    accept: '.mp4,.3gp',
+                    help: 'Formats: MP4, 3GP — Max 10MB',
+                    color: '#fff7ed',
+                    border: '#fdba74',
+                    text: '🎬 <b>Video Rules:</b><br>• Formats: <b>MP4, 3GP</b><br>• Max size: <b>10 MB</b> (keep short for WhatsApp)<br>• Recommended: Under 30 seconds for best delivery<br>• Caption text will appear below the video',
+                },
+                pdf: {
+                    show: true,
+                    accept: '.pdf',
+                    help: 'Format: PDF only — Max 10MB',
+                    color: '#fef2f2',
+                    border: '#fca5a5',
+                    text: '📄 <b>PDF Document Rules:</b><br>• Format: <b>PDF only</b><br>• Max size: <b>10 MB</b><br>• File name will be sent as-is to recipient<br>• Caption text will appear as message with the document',
+                },
+            };
+
+            const rule = rules[type] || rules.text;
+
+            // Show rules box for all types
+            rulesBox.style.display = 'block';
+            rulesBox.style.background = rule.color;
+            rulesBox.style.border = '1px solid ' + rule.border;
+            rulesBox.innerHTML = rule.text;
+
+            if (rule.show) {
                 container.style.display = 'block';
-                // Only require file on Create, not Edit
+                input.setAttribute('accept', rule.accept);
+                helpText.textContent = rule.help;
                 if (document.getElementById('formMethod').value === 'POST') {
                     input.setAttribute('required', 'required');
                 } else {
                     input.removeAttribute('required');
                 }
+            } else {
+                container.style.display = 'none';
+                input.removeAttribute('required');
             }
         }
 

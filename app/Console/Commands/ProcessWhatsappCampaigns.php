@@ -111,16 +111,36 @@ class ProcessWhatsappCampaigns extends Command
                 } else if (in_array(strtolower($template->type), ['image', 'video', 'pdf'])) {
                     $endpoint = "{$apiUrl}/message/sendMedia/{$instanceName}";
 
-                    // Convert local path to absolute URL for Evolution API to download
-                    $mediaUrl = asset('storage/' . $template->media_path);
+                    // Read file from local storage and convert to base64 for Evolution API
+                    $filePath = storage_path('app/public/' . $template->media_path);
+
+                    if (!file_exists($filePath)) {
+                        Log::error("WhatsApp Bulk: Media file not found at {$filePath}");
+                        $recipient->update(['status' => 'failed', 'error_message' => "Media file not found on server"]);
+                        $campaign->increment('total_failed');
+                        continue;
+                    }
+
+                    $fileContent = file_get_contents($filePath);
+                    $mimeType = mime_content_type($filePath);
+                    $base64Media = 'data:' . $mimeType . ';base64,' . base64_encode($fileContent);
+
+                    $templateType = strtolower($template->type);
+                    $mediaType = $templateType === 'pdf' ? 'document' : $templateType;
 
                     $payload = [
                         'number' => $phone,
-                        'mediatype' => strtolower($template->type) === 'pdf' ? 'document' : strtolower($template->type),
+                        'mediatype' => $mediaType,
+                        'mimetype' => $mimeType,
                         'caption' => $template->message_text ?? '',
-                        'media' => $mediaUrl,
+                        'media' => $base64Media,
                         'delay' => 1200,
                     ];
+
+                    // Add fileName for PDF/document type
+                    if ($mediaType === 'document') {
+                        $payload['fileName'] = basename($template->media_path);
+                    }
                 } else {
                     Log::error("WhatsApp Bulk Error: Unknown template type {$template->type}");
                     $recipient->update(['status' => 'failed', 'error_message' => "Unknown template type: {$template->type}"]);

@@ -19,7 +19,7 @@ class WhatsappTemplateController extends Controller
             'name' => 'required|string|max:255',
             'type' => 'required|in:text,image,video,pdf',
             'message_text' => 'nullable|string',
-            'media_file' => 'nullable|file|mimes:jpeg,png,jpg,mp4,pdf|max:10240', // 10MB max
+            'media_file' => 'nullable|file|mimes:jpeg,png,jpg,webp,mp4,3gp,pdf|max:10240', // 10MB max
         ]);
 
         $data = $request->only(['name', 'type', 'message_text']);
@@ -42,7 +42,7 @@ class WhatsappTemplateController extends Controller
             'name' => 'required|string|max:255',
             'type' => 'required|in:text,image,video,pdf',
             'message_text' => 'nullable|string',
-            'media_file' => 'nullable|file|mimes:jpeg,png,jpg,mp4,pdf|max:10240',
+            'media_file' => 'nullable|file|mimes:jpeg,png,jpg,webp,mp4,3gp,pdf|max:10240',
         ]);
 
         $data = $request->only(['name', 'type', 'message_text']);
