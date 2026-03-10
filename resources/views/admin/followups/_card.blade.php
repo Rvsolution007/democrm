@@ -86,8 +86,10 @@
     @if($lastFollowup)
         <div
             style="background:#f8fafc;border:1px solid #e2e8f0;border-left:2px solid {{ $accentColor }};padding:6px 8px;border-radius:0 4px 4px 0;">
-            <div style="font-size:11.5px;color:#334155;line-height:1.3;white-space:pre-wrap;font-weight:500;">
-                {{ $lastFollowup->message }}</div>
+            <div
+                style="font-size:11.5px;color:#334155;line-height:1.3;white-space:pre-wrap;font-weight:500;text-align:left;">
+                {{ ltrim($lastFollowup->message) }}
+            </div>
             <div style="font-size:9px;color:#94a3b8;margin-top:3px;display:flex;justify-content:space-between;">
                 <span>{{ $lastFollowup->created_at->format('d M, h:i A') }}</span>
                 <span>{{ $lastFollowup->user->name ?? '' }}</span>
