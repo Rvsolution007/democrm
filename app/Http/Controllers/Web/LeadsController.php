@@ -274,7 +274,6 @@ class LeadsController extends Controller
             // Recalculate quote totals
             $quote->subtotal = $subtotal;
             $quote->grand_total = $subtotal - $quote->discount + ($quote->gst_total ?: 0);
-            $quote->total_amount = $quote->grand_total;
             $quote->save();
         }
 
@@ -350,17 +349,12 @@ class LeadsController extends Controller
             'created_by_user_id' => auth()->id(),
             'assigned_to_user_id' => $lead->assigned_to_user_id ?? auth()->id(),
             'quote_no' => $quoteNumber,
-            'quote_number' => $quoteNumber,
             'date' => now()->toDateString(),
-            'quote_date' => now()->toDateString(),
             'valid_till' => now()->addDays(30)->toDateString(),
-            'valid_until' => now()->addDays(30)->toDateString(),
             'subtotal' => $subtotal,
             'discount' => 0,
             'gst_total' => 0,
-            'tax_amount' => 0,
             'grand_total' => $subtotal,
-            'total_amount' => $subtotal,
             'status' => 'draft',
             'notes' => $lead->notes,
         ]);
