@@ -177,11 +177,13 @@ class QuotesController extends Controller
 
                     $unitPricePaise = (int) ($unitPrice * 100);
 
+                    $desc = $request->product_descriptions[$index] ?? $product->description ?? '';
+
                     QuoteItem::create([
                         'quote_id' => $quote->id,
                         'product_id' => $product->id,
                         'product_name' => $product->name,
-                        'description' => $product->description ?? '',
+                        'description' => $desc,
                         'qty' => $qty,
                         'unit_price' => $unitPricePaise,
                         'gst_percent' => 0,
@@ -322,11 +324,13 @@ class QuotesController extends Controller
 
                     $unitPricePaise = (int) ($unitPrice * 100);
 
+                    $desc = $request->product_descriptions[$index] ?? $product->description ?? '';
+
                     QuoteItem::create([
                         'quote_id' => $quote->id,
                         'product_id' => $product->id,
                         'product_name' => $product->name,
-                        'description' => $product->description ?? '',
+                        'description' => $desc,
                         'qty' => $qty,
                         'unit_price' => $unitPricePaise,
                         'gst_percent' => 0,
