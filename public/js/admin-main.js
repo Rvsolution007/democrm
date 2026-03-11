@@ -388,12 +388,211 @@ function showConfirmDialog(title, message, onConfirm, confirmText = 'Delete', va
     openModal('confirm-modal');
 }
 
+// ==================== GLOBAL CRUD OPTIMIZATION ====================
+// Automatically applies to ALL modules: leads, quotes, clients, payments,
+// products, categories, vendors, purchases, projects, tasks, micro-tasks, followups
+
+// --- Global Page Loading Overlay ---
+function showPageLoader() {
+    let loader = document.getElementById('rv-page-loader');
+    if (!loader) {
+        loader = document.createElement('div');
+        loader.id = 'rv-page-loader';
+        loader.innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+                <div style="width:36px;height:36px;border:3px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:rvSpin 0.7s linear infinite"></div>
+                <span style="font-size:13px;font-weight:500;color:#64748b">Processing...</span>
+            </div>`;
+        Object.assign(loader.style, {
+            position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
+            background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(2px)',
+            display: 'none', alignItems: 'center', justifyContent: 'center', zIndex: '99999'
+        });
+        document.body.appendChild(loader);
+    }
+    loader.style.display = 'flex';
+}
+
+function hidePageLoader() {
+    const loader = document.getElementById('rv-page-loader');
+    if (loader) loader.style.display = 'none';
+}
+
+// --- Inject global CSS animations ---
+(function injectGlobalStyles() {
+    if (document.getElementById('rv-global-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'rv-global-styles';
+    style.textContent = `
+        @keyframes rvSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .rv-btn-loading { opacity: 0.7 !important; pointer-events: none !important; cursor: not-allowed !important; }
+        .rv-btn-loading .rv-spinner { display: inline-flex !important; }
+        .rv-row-removing { transition: opacity 0.3s, transform 0.3s; opacity: 0; transform: translateX(-20px); }
+        .rv-form-saving * { pointer-events: none; }
+        .rv-form-saving button[type="submit"] { opacity: 0.7; cursor: not-allowed; }
+    `;
+    document.head.appendChild(style);
+})();
+
+// --- Button Loading State Helpers ---
+function setBtnLoading(btn, text) {
+    if (!btn || btn.classList.contains('rv-btn-loading')) return false;
+    btn.dataset.rvOriginalHtml = btn.innerHTML;
+    btn.classList.add('rv-btn-loading');
+    btn.disabled = true;
+    btn.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px">
+        <span style="width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:rvSpin 0.6s linear infinite;display:inline-block"></span>
+        ${text || 'Processing...'}
+    </span>`;
+    return true;
+}
+
+function resetBtn(btn) {
+    if (!btn) return;
+    btn.classList.remove('rv-btn-loading');
+    btn.disabled = false;
+    if (btn.dataset.rvOriginalHtml) {
+        btn.innerHTML = btn.dataset.rvOriginalHtml;
+        delete btn.dataset.rvOriginalHtml;
+    }
+}
+
+// --- Global Form Submit Interceptor (double-click prevention + AJAX) ---
+function initGlobalFormProtection() {
+    document.addEventListener('submit', function (e) {
+        const form = e.target;
+        if (!form || form.tagName !== 'FORM') return;
+
+        // Skip filter/search forms (GET method forms)
+        if (form.method.toUpperCase() === 'GET') return;
+
+        // Skip forms that explicitly opt out
+        if (form.dataset.rvNoIntercept === 'true') return;
+
+        // Skip forms that handle their own AJAX (like the lead form we already fixed)
+        if (form.id === 'lead-form') return;
+
+        // Find the submit button
+        const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+        if (!submitBtn) return;
+
+        // Prevent double submit
+        if (form.dataset.rvSubmitting === 'true') {
+            e.preventDefault();
+            return;
+        }
+
+        // Mark as submitting
+        form.dataset.rvSubmitting = 'true';
+
+        // Detect if it's a delete form
+        const isDelete = form.querySelector('input[name="_method"][value="DELETE"]') !== null;
+        const btnText = isDelete ? 'Deleting...' : 'Saving...';
+
+        // Set button to loading state
+        setBtnLoading(submitBtn, btnText);
+
+        // For delete forms, add smooth row removal after submission
+        if (isDelete) {
+            const row = form.closest('tr');
+            if (row) {
+                row.classList.add('rv-row-removing');
+            }
+        }
+
+        // Show subtle page loader for non-modal forms
+        const inModal = form.closest('[id*="modal"]') || form.closest('[style*="position:fixed"]');
+        if (!inModal) {
+            showPageLoader();
+        }
+
+        // Let the form submit naturally but with protection
+        // Reset after timeout in case of network issues
+        setTimeout(function () {
+            form.dataset.rvSubmitting = 'false';
+            resetBtn(submitBtn);
+            hidePageLoader();
+        }, 15000);
+    }, true);
+}
+
+// --- Global Delete Confirmation Enhancement ---
+function initGlobalDeleteProtection() {
+    document.addEventListener('submit', function (e) {
+        const form = e.target;
+        if (!form || form.tagName !== 'FORM') return;
+
+        const isDelete = form.querySelector('input[name="_method"][value="DELETE"]') !== null;
+        if (!isDelete) return;
+
+        // Check if form already has onsubmit confirm handler
+        const hasConfirm = form.getAttribute('onsubmit') && form.getAttribute('onsubmit').includes('confirm');
+        if (hasConfirm) return; // Already has native confirm dialog
+
+        // For forms without confirm, add one
+        if (!form.dataset.rvConfirmed) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (confirm('Are you sure you want to delete this?')) {
+                form.dataset.rvConfirmed = 'true';
+                form.submit();
+            } else {
+                form.dataset.rvSubmitting = 'false';
+                const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+                resetBtn(submitBtn);
+            }
+        }
+    }, false);
+}
+
+// --- Global Click Protection for Action Buttons ---
+function initGlobalButtonProtection() {
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('button, a.btn');
+        if (!btn) return;
+
+        // Skip if already in loading state
+        if (btn.classList.contains('rv-btn-loading')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+
+        // For buttons with onclick that trigger AJAX (like convert to quote, convert to client)
+        const onclickAttr = btn.getAttribute('onclick');
+        if (onclickAttr && (onclickAttr.includes('convert') || onclickAttr.includes('Convert'))) {
+            // These are single-action buttons - prevent rapid double clicks
+            if (btn.dataset.rvClicking === 'true') {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            btn.dataset.rvClicking = 'true';
+            setTimeout(() => { btn.dataset.rvClicking = 'false'; }, 3000);
+        }
+    }, true);
+}
+
+// --- Escape HTML helper (global) ---
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // ==================== INITIALIZE ====================
 
 document.addEventListener('DOMContentLoaded', () => {
     initSidebar();
     initDarkMode();
     initTabs();
+
+    // Global CRUD optimizations
+    initGlobalFormProtection();
+    initGlobalDeleteProtection();
+    initGlobalButtonProtection();
 
     // Initialize Lucide icons
     if (typeof lucide !== 'undefined') {
