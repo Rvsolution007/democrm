@@ -63,6 +63,25 @@ class CategoriesController extends Controller
         ];
     }
 
+    private function generateUniqueSlug(string $name, int $companyId, ?int $ignoreId = null): string
+    {
+        $slug = Str::slug($name);
+        $originalSlug = $slug;
+        $count = 1;
+
+        $query = Category::where('company_id', $companyId);
+        if ($ignoreId) {
+            $query->where('id', '!=', $ignoreId);
+        }
+
+        while ($query->clone()->where('slug', $slug)->exists()) {
+            $slug = "{$originalSlug}-{$count}";
+            $count++;
+        }
+
+        return $slug;
+    }
+
     public function store(Request $request)
     {
         if (!can('categories.write')) {
@@ -81,7 +100,7 @@ class CategoriesController extends Controller
 
         $validated['company_id'] = auth()->user()->company_id;
         $validated['created_by_user_id'] = auth()->id();
-        $validated['slug'] = Str::slug($validated['name']);
+        $validated['slug'] = $this->generateUniqueSlug($validated['name'], $validated['company_id']);
         $validated['sort_order'] = $validated['sort_order'] ?? 0;
 
         Category::create($validated);
@@ -119,7 +138,7 @@ class CategoriesController extends Controller
             }
         }
 
-        $validated['slug'] = Str::slug($validated['name']);
+        $validated['slug'] = $this->generateUniqueSlug($validated['name'], $category->company_id, $category->id);
 
         $category->update($validated);
 
