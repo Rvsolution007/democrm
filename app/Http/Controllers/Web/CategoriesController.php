@@ -41,7 +41,7 @@ class CategoriesController extends Controller
      * Build validation rules based on column visibility settings.
      * Hidden (unchecked) columns become nullable instead of required.
      */
-    private function getValidationRules(): array
+    private function getValidationRules($categoryId = null): array
     {
         $vis = Setting::getValue('column_visibility', 'categories', []);
 
@@ -49,10 +49,15 @@ class CategoriesController extends Controller
             return (isset($vis[$col]) && $vis[$col] === false) ? 'nullable' : $default;
         };
 
+        $parentRule = 'nullable|exists:categories,id';
+        if ($categoryId) {
+            $parentRule .= '|not_in:' . $categoryId;
+        }
+
         return [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'parent_category_id' => 'nullable|exists:categories,id',
+            'parent_category_id' => $parentRule,
             'status' => $r('status', 'required') . '|in:active,inactive',
             'sort_order' => 'nullable|integer|min:0',
         ];
@@ -65,6 +70,14 @@ class CategoriesController extends Controller
         }
 
         $validated = $request->validate($this->getValidationRules());
+
+        // Enforce 2-level hierarchy: The selected parent must be a root category
+        if (!empty($validated['parent_category_id'])) {
+            $parent = Category::find($validated['parent_category_id']);
+            if ($parent && !empty($parent->parent_category_id)) {
+                return back()->withErrors(['parent_category_id' => 'The selected parent category is already a subcategory.']);
+            }
+        }
 
         $validated['company_id'] = auth()->user()->company_id;
         $validated['created_by_user_id'] = auth()->id();
@@ -90,7 +103,21 @@ class CategoriesController extends Controller
             abort(403, 'You can only edit your own categories.');
         }
 
-        $validated = $request->validate($this->getValidationRules());
+        $validated = $request->validate($this->getValidationRules($category->id));
+
+        // Enforce 2-level hierarchy: 
+        // 1. If becoming a child, it cannot have children of its own
+        if (!empty($validated['parent_category_id'])) {
+            if ($category->children()->count() > 0) {
+                return back()->withErrors(['parent_category_id' => 'This category already has subcategories, so it cannot be a subcategory itself.']);
+            }
+
+            // 2. The selected parent must be a root category
+            $parent = Category::find($validated['parent_category_id']);
+            if ($parent && !empty($parent->parent_category_id)) {
+                return back()->withErrors(['parent_category_id' => 'The selected parent category is already a subcategory.']);
+            }
+        }
 
         $validated['slug'] = Str::slug($validated['name']);
 
