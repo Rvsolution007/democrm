@@ -69,7 +69,8 @@ class CategoriesController extends Controller
         $originalSlug = $slug;
         $count = 1;
 
-        $query = Category::where('company_id', $companyId);
+        // Use withTrashed() because the DB unique constraint includes soft-deleted rows
+        $query = Category::withTrashed()->where('company_id', $companyId);
         if ($ignoreId) {
             $query->where('id', '!=', $ignoreId);
         }
