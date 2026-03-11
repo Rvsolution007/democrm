@@ -1745,7 +1745,7 @@
                     actionsHtml += '<button type="button" class="kb-action-btn kb-action-edit" onclick="event.stopPropagation(); openEditTaskModal(' + t.id + ')" draggable="false" title="Edit"><i data-lucide="pencil" style="width:13px;height:13px"></i></button>';
                 }
                 if (canDelete) {
-                    actionsHtml += '<form method="POST" action="{{ url(\'admin/tasks\') }}/' + t.id + '" style="display:inline;margin:0" draggable="false" onsubmit="event.stopPropagation(); return confirm(\'Delete this task?\')"><input type="hidden" name="_token" value="' + csrfToken + '"><input type="hidden" name="_method" value="DELETE"><button type="submit" class="kb-action-btn kb-action-delete" draggable="false" onclick="event.stopPropagation()" title="Delete"><i data-lucide="trash-2" style="width:13px;height:13px"></i></button></form>';
+                    actionsHtml += '<form method="POST" action="{{ url("/admin/tasks") }}/' + t.id + '" style="display:inline;margin:0" draggable="false" onsubmit="event.stopPropagation(); return confirm(\'Delete this task?\')"><input type="hidden" name="_token" value="' + csrfToken + '"><input type="hidden" name="_method" value="DELETE"><button type="submit" class="kb-action-btn kb-action-delete" draggable="false" onclick="event.stopPropagation()" title="Delete"><i data-lucide="trash-2" style="width:13px;height:13px"></i></button></form>';
                 }
 
                 return '<div class="kanban-card kb-card" id="task-' + t.id + '" data-title="' + esc(t.title.toLowerCase()) + '" draggable="true" ondragstart="kanbanDragStart(event, ' + t.id + ')" ondragend="kanbanDragEnd(event)" onclick="openViewTaskModal(' + t.id + ')" style="cursor: pointer;">' +
