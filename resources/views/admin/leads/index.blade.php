@@ -81,7 +81,7 @@
                 <div style="flex:2;min-width:200px;">
                     <label style="display:block;margin-bottom:4px;font-weight:500;font-size:14px">Search</label>
                     <input type="text" name="search" id="search-input" value="{{ request('search') }}"
-                        placeholder="Search by name, phone, email..."
+                        placeholder="Search by name, phone, email..." oninput="autoAjaxSearch(this.form)"
                         style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:14px">
                 </div>
                 <div style="flex:1;min-width:140px;">
@@ -90,7 +90,7 @@
                         <i data-lucide="filter"
                             style="position:absolute;left:24px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:#9ca3af;z-index:10;pointer-events:none"></i>
                         <select name="stage" class="form-input" style="padding-left:36px;font-size:13px"
-                            onchange="this.form.submit()">
+                            onchange="autoAjaxSearch(this.form)">
                             <option value="">All Stages</option>
                             @foreach(\App\Models\Lead::getDynamicStages() as $stageVal)
                                 <option value="{{ $stageVal }}" {{ request('stage') === $stageVal ? 'selected' : '' }}>
@@ -114,7 +114,7 @@
                 @if(can('leads.global') || auth()->user()->isAdmin())
                     <div style="flex:1;min-width:140px;">
                         <label style="display:block;margin-bottom:4px;font-weight:500;font-size:14px">Assigned To</label>
-                        <select name="assigned" id="assigned-filter" onchange="document.getElementById('filter-form').submit()"
+                        <select name="assigned" id="assigned-filter" onchange="autoAjaxSearch(this.form)"
                             style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:14px">
                             <option value="">All Users</option>
                             <option value="unassigned" {{ request('assigned') == 'unassigned' ? 'selected' : '' }}>Unassigned
@@ -127,14 +127,7 @@
                         </select>
                     </div>
                 @endif
-                <div style="flex:0 0 100px;">
-                    <button type="submit" class="btn btn-primary"
-                        style="width:100%;padding:10px;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer;font-size:14px">
-                        <i data-lucide="search"
-                            style="width:16px;height:16px;display:inline-block;vertical-align:middle"></i>
-                        Search
-                    </button>
-                </div>
+                <!-- Removed physical Search button as requested -->
             </div>
             <div
                 style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;border-top:1px solid #f1f5f9;padding-top:16px">

@@ -42,7 +42,8 @@
                         placeholder="Title, client, number..." autocomplete="off"
                         style="width:100%;padding:7px 10px 7px 32px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;background:#f8fafc;transition:all .2s"
                         onfocus="this.style.borderColor='#3b82f6';this.style.background='#fff'"
-                        onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'">
+                        onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'"
+                        oninput="autoAjaxSearch(this.form)">
                 </div>
             </div>
 
@@ -52,7 +53,7 @@
                     style="display:block;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Priority</label>
                 <select name="priority" id="filter-priority"
                     style="width:100%;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#f8fafc"
-                    onchange="triggerTasksAjax()">
+                    onchange="autoAjaxSearch(this.form)">
                     <option value="">All</option>
                     @foreach(['low', 'medium', 'high'] as $p)
                         <option value="{{ $p }}" {{ request('priority') === $p ? 'selected' : '' }}>{{ ucfirst($p) }}</option>
@@ -66,7 +67,7 @@
                     style="display:block;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Status</label>
                 <select name="status" id="filter-status"
                     style="width:100%;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#f8fafc"
-                    onchange="triggerTasksAjax()">
+                    onchange="autoAjaxSearch(this.form)">
                     <option value="">All</option>
                     @foreach($dynamicStatuses as $s)
                         <option value="{{ $s }}" {{ request('status') === $s ? 'selected' : '' }}>
@@ -99,7 +100,7 @@
                         To</label>
                     <select name="assigned_to" id="filter-assigned"
                         style="width:100%;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#f8fafc"
-                        onchange="triggerTasksAjax()">
+                        onchange="autoAjaxSearch(this.form)">
                         <option value="">All</option>
                         @foreach($users as $u)
                             <option value="{{ $u->id }}" {{ request('assigned_to') == $u->id ? 'selected' : '' }}>{{ $u->name }}
@@ -1387,11 +1388,11 @@
                     if (selectedDates.length === 2) {
                         document.getElementById('filter-start-date').value = instance.formatDate(selectedDates[0], "Y-m-d");
                         document.getElementById('filter-due-date').value = instance.formatDate(selectedDates[1], "Y-m-d");
-                        if (typeof triggerTasksAjax === 'function') triggerTasksAjax();
+                        if (typeof autoAjaxSearch === 'function') autoAjaxSearch(document.getElementById('tasks-filter-form'));
                     } else if (selectedDates.length === 0) {
                         document.getElementById('filter-start-date').value = '';
                         document.getElementById('filter-due-date').value = '';
-                        if (typeof triggerTasksAjax === 'function') triggerTasksAjax();
+                        if (typeof autoAjaxSearch === 'function') autoAjaxSearch(document.getElementById('tasks-filter-form'));
                     }
                 }
             });
@@ -1519,255 +1520,13 @@
         }
 
         // ═══════════════════════════════════════
-        //  AJAX AUTO-SEARCH
+        //  VIEW SWITCHER RESTORE
         // ═══════════════════════════════════════
-        document.addEventListener('DOMContentLoaded', () => {
+        function initTasksView() {
             // Restore view preference
             const savedView = localStorage.getItem('tasks_view_pref');
             if (savedView === 'list') {
                 switchView('list');
-            }
-
-            const searchInput = document.getElementById('tasks-search');
-            const canWrite = {{ can('tasks.write') ? 'true' : 'false' }};
-            const canDelete = {{ can('tasks.delete') ? 'true' : 'false' }};
-            let debounceTimer = null;
-
-            if (searchInput) {
-                searchInput.addEventListener('input', function () {
-                    clearTimeout(debounceTimer);
-                    debounceTimer = setTimeout(() => doTasksAjaxSearch(this.value), 600);
-                });
-
-                // Prevent form submit on Enter — do AJAX instead
-                searchInput.addEventListener('keydown', function (e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        clearTimeout(debounceTimer);
-                        doTasksAjaxSearch(this.value);
-                    }
-                });
-            }
-
-            function triggerTasksAjax() {
-                const searchVal = document.getElementById('tasks-search') ? document.getElementById('tasks-search').value : '';
-                doTasksAjaxSearch(searchVal);
-            }
-
-            // Expose to global scope for the select onchange handlers
-            window.triggerTasksAjax = triggerTasksAjax;
-
-            function doTasksAjaxSearch(query) {
-                const form = document.getElementById('tasks-filter-form');
-                const formData = new FormData(form);
-                formData.set('search', query);
-                const params = new URLSearchParams(formData).toString();
-
-                // Show loading in both views
-                const listTbody = document.getElementById('list-view')?.querySelector('tbody');
-                if (listTbody) listTbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px 0;color:#94a3b8"><div style="display:flex;align-items:center;justify-content:center;gap:8px"><svg style="animation:spin 1s linear infinite;width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg> Searching...</div></td></tr>';
-
-                // Also show loading on kanban
-                document.querySelectorAll('.kb-column .kanban-card, .kb-column .kb-empty').forEach(el => el.style.opacity = '0.3');
-
-                fetch('/admin/tasks?' + params, {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json'
-                    }
-                })
-                    .then(r => r.json())
-                    .then(data => {
-                        // Update total count
-                        const countEl = document.getElementById('filtered-tasks-count');
-                        if (countEl) countEl.textContent = data.total;
-
-                        // Toggle Clear Filters button visibility
-                        const btnClear = document.getElementById('btn-clear-filters');
-                        const searchInput = document.getElementById('tasks-search');
-                        const prioInput = document.getElementById('filter-priority');
-                        const statusInput = document.getElementById('filter-status');
-                        const dateInput = document.getElementById('filter-due-date');
-                        const startDateInput = document.getElementById('filter-start-date');
-                        const assignInput = document.getElementById('filter-assigned');
-
-                        const hasFilters = (searchInput && searchInput.value) ||
-                            (prioInput && prioInput.value) ||
-                            (statusInput && statusInput.value) ||
-                            (dateInput && dateInput.value) ||
-                            (startDateInput && startDateInput.value) ||
-                            (assignInput && assignInput.value);
-
-                        if (btnClear) {
-                            btnClear.style.display = hasFilters ? 'flex' : 'none';
-                        }
-
-                        // Update List View
-                        if (listTbody) {
-                            if (!data.tasks || data.tasks.length === 0) {
-                                listTbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#94a3b8"><i data-lucide="inbox" style="width:36px;height:36px;margin-bottom:12px;color:#cbd5e1"></i><p style="margin:0;font-size:14px;font-weight:600;color:#64748b">No tasks found</p></td></tr>';
-                            } else {
-                                listTbody.innerHTML = data.tasks.map(t => buildListRow(t)).join('');
-                            }
-                        }
-
-                        // Update tasksData for the view/edit modals
-                        if (data.tasks) {
-                            data.tasks.forEach(function (t) {
-                                tasksData[t.id] = t;
-                            });
-                        }
-
-                        // Update Kanban View
-                        rebuildKanban(data.tasks || []);
-
-                        if (typeof lucide !== 'undefined') lucide.createIcons();
-                    })
-                    .catch(err => {
-                        console.error('Search error:', err);
-                        if (listTbody) listTbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#dc2626">Search failed.</td></tr>';
-                    });
-            }
-
-            function buildListRow(t) {
-                const prioMap = { high: ['High', 'prio-high'], medium: ['Medium', 'prio-medium'], low: ['Low', 'prio-low'] };
-                const prio = prioMap[t.priority] || prioMap['low'];
-                const statusLabel = t.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-
-                let phoneTd = '<span style="color:#94a3b8;font-size:13px">—</span>';
-                if (t.contact_number) {
-                    phoneTd = '<a href="tel:' + t.contact_number + '" style="color:#3b82f6;text-decoration:none;font-size:13px;display:flex;align-items:center;gap:4px"><i data-lucide="phone" style="width:12px;height:12px"></i> ' + esc(t.contact_number) + '</a>';
-                }
-
-                let dueTd = '<span style="color:#94a3b8;font-size:13px">—</span>';
-                if (t.due_at) {
-                    dueTd = '<span style="font-size:13px;color:' + (t.is_overdue ? '#dc2626' : '#64748b') + ';display:flex;align-items:center;gap:4px"><i data-lucide="calendar" style="width:12px;height:12px"></i> ' + t.due_at + '</span>';
-                }
-
-                let entityTag = '';
-                if (t.entity_type) {
-                    let entityText = t.entity_type.charAt(0).toUpperCase() + t.entity_type.slice(1);
-                    if (t.entity_type === 'project' && t.project) {
-                        entityText = 'Project: ' + t.project.name;
-                    }
-                    entityTag = '<span class="kb-entity-tag" style="background:transparent;border:1px solid #e2e8f0;color:#64748b;margin-top:2px;display:inline-flex"><i data-lucide="link" style="width:10px;height:10px;margin-right:3px"></i> ' + esc(entityText) + '</span>';
-                }
-
-                let actionsBtns = '';
-                actionsBtns += '<button type="button" class="kb-action-btn kb-action-edit" onclick="openViewTaskModal(' + t.id + ')" title="View"><i data-lucide="eye" style="width:14px;height:14px"></i></button>';
-                if (canWrite) {
-                    actionsBtns += '<button type="button" class="kb-action-btn kb-action-edit" onclick="openEditTaskModal(' + t.id + ')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>';
-                }
-                if (canDelete) {
-                    actionsBtns += '<form method="POST" action="{{ url("/admin/tasks") }}/' + t.id + '" style="display:inline;margin:0" onsubmit="return confirm(\'Delete this task?\')"><input type="hidden" name="_token" value="' + csrfToken + '"><input type="hidden" name="_method" value="DELETE"><button type="submit" class="kb-action-btn kb-action-delete" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button></form>';
-                }
-
-                return '<tr class="list-row" data-title="' + esc(t.title.toLowerCase()) + '">' +
-                    '<td><div style="font-weight:600;color:#1e293b;margin-bottom:4px">' + esc(t.title) + '</div>' + entityTag + '</td>' +
-                    '<td><span style="font-size:13px;color:#1e293b;font-weight:500">' + esc(t.client_name || '—') + '</span></td>' +
-                    '<td><span class="kb-prio ' + prio[1] + '"><span class="kb-prio-dot"></span> ' + prio[0] + '</span></td>' +
-                    '<td><span style="background:#f1f5f9;color:#475569;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600">' + statusLabel + '</span></td>' +
-                    '<td>' + phoneTd + '</td>' +
-                    '<td>' + dueTd + '</td>' +
-                    '<td><div class="kb-avatar-row"><span class="kb-avatar">' + esc(t.assigned_initials) + '</span><span class="kb-avatar-name">' + esc(t.assigned_to) + '</span></div></td>' +
-                    '<td><div class="list-actions">' + actionsBtns + '</div></td>' +
-                    '</tr>';
-            }
-
-            function rebuildKanban(tasks) {
-                // Clear all kanban columns
-                document.querySelectorAll('.kb-column').forEach(col => {
-                    const cards = col.querySelectorAll('.kanban-card, .kb-empty');
-                    cards.forEach(c => c.remove());
-                });
-
-                // Group tasks by status
-                const grouped = {};
-                tasks.forEach(t => {
-                    if (!grouped[t.status]) grouped[t.status] = [];
-                    grouped[t.status].push(t);
-                });
-
-                // Populate columns
-                document.querySelectorAll('.kb-column').forEach(col => {
-                    const status = col.getAttribute('data-status');
-                    const colTasks = grouped[status] || [];
-                    const countBadge = col.querySelector('.kanban-count-' + status);
-                    if (countBadge) countBadge.textContent = colTasks.length;
-
-                    const colBody = col.querySelector('.kb-col-body');
-
-                    if (colTasks.length === 0) {
-                        colBody.insertAdjacentHTML('beforeend', '<div class="kb-empty"><div class="kb-empty-icon"><i data-lucide="inbox" style="width:28px;height:28px"></i></div><p>No tasks yet</p><span>Drag a task here or create new</span></div>');
-                    } else {
-                        colTasks.forEach(t => {
-                            colBody.insertAdjacentHTML('beforeend', buildKanbanCard(t));
-                        });
-                    }
-                });
-            }
-
-            function buildKanbanCard(t) {
-                const prioMap = { high: ['High', 'prio-high'], medium: ['Medium', 'prio-medium'], low: ['Low', 'prio-low'] };
-                const prio = prioMap[t.priority] || prioMap['low'];
-
-                let clientTag = '';
-                if (t.client_name) {
-                    clientTag = '<span class="kb-entity-tag" style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(t.client_name) + '"><i data-lucide="briefcase" style="width:10px;height:10px"></i> ' + esc(t.client_name) + '</span>';
-                } else if (t.entity_type) {
-                    let entityText = t.entity_type.charAt(0).toUpperCase() + t.entity_type.slice(1);
-                    if (t.entity_type === 'project' && t.project) {
-                        entityText = 'Project: ' + t.project.name;
-                        clientTag = '<span class="kb-entity-tag" style="background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe;"><i data-lucide="link" style="width:10px;height:10px"></i> ' + esc(entityText) + '</span>';
-                    } else {
-                        clientTag = '<span class="kb-entity-tag"><i data-lucide="link" style="width:10px;height:10px"></i> ' + esc(entityText) + '</span>';
-                    }
-                }
-
-                let metaHtml = '';
-                if (t.contact_number) {
-                    metaHtml += '<a href="tel:' + t.contact_number + '" class="kb-meta-item kb-meta-phone" onclick="event.stopPropagation()"><i data-lucide="phone" style="width:12px;height:12px"></i> ' + esc(t.contact_number) + '</a>';
-                }
-                if (t.due_at) {
-                    metaHtml += '<span class="kb-meta-item ' + (t.is_overdue ? 'kb-meta-overdue' : '') + '"><i data-lucide="calendar" style="width:12px;height:12px"></i> ' + t.due_at + (t.is_overdue ? ' <span class="kb-overdue-badge">Overdue</span>' : '') + '</span>';
-                }
-
-                let descHtml = '';
-                if (t.short_description) {
-                    descHtml = '<div class="kb-card-desc-row"><p class="kb-card-desc">' + esc(t.short_description) + '</p></div>';
-                } else if (t.description) {
-                    descHtml = '<div class="kb-card-desc-row"><p class="kb-card-desc">' + esc(t.description) + '</p></div>';
-                }
-
-                let actionsHtml = '';
-                actionsHtml += '<button type="button" class="kb-action-btn kb-action-edit" onclick="event.stopPropagation(); openViewTaskModal(' + t.id + ')" draggable="false" title="View"><i data-lucide="eye" style="width:13px;height:13px"></i></button>';
-                if (canWrite) {
-                    actionsHtml += '<button type="button" class="kb-action-btn kb-action-edit" onclick="event.stopPropagation(); openEditTaskModal(' + t.id + ')" draggable="false" title="Edit"><i data-lucide="pencil" style="width:13px;height:13px"></i></button>';
-                }
-                if (canDelete) {
-                    actionsHtml += '<form method="POST" action="{{ url("/admin/tasks") }}/' + t.id + '" style="display:inline;margin:0" draggable="false" onsubmit="event.stopPropagation(); return confirm(\'Delete this task?\')"><input type="hidden" name="_token" value="' + csrfToken + '"><input type="hidden" name="_method" value="DELETE"><button type="submit" class="kb-action-btn kb-action-delete" draggable="false" onclick="event.stopPropagation()" title="Delete"><i data-lucide="trash-2" style="width:13px;height:13px"></i></button></form>';
-                }
-
-                return '<div class="kanban-card kb-card" id="task-' + t.id + '" data-title="' + esc(t.title.toLowerCase()) + '" draggable="true" ondragstart="kanbanDragStart(event, ' + t.id + ')" ondragend="kanbanDragEnd(event)" onclick="openViewTaskModal(' + t.id + ')" style="cursor: pointer;">' +
-                    '<div class="kb-card-top">' +
-                    '<span class="kb-prio ' + prio[1] + '"><span class="kb-prio-dot"></span> ' + prio[0] + '</span>' +
-                    clientTag +
-                    '</div>' +
-                    '<h4 class="kb-card-title">' + esc(t.title) + '</h4>' +
-                    descHtml +
-                    (metaHtml ? '<div class="kb-card-meta">' + metaHtml + '</div>' : '') +
-                    '<div class="kb-card-footer">' +
-                    '<div class="kb-avatar-row"><span class="kb-avatar">' + esc(t.assigned_initials) + '</span><span class="kb-avatar-name">' + esc(t.assigned_to) + '</span></div>' +
-                    '<div class="kb-card-actions" draggable="false" onmousedown="event.stopPropagation()">' + actionsHtml + '</div>' +
-                    '</div>' +
-                    '</div>';
-            }
-
-            function esc(str) {
-                if (!str) return '';
-                const d = document.createElement('div');
-                d.textContent = str;
-                return d.innerHTML;
             }
 
             // Auto-hide success toast
@@ -1780,9 +1539,10 @@
                     setTimeout(() => toast.remove(), 400);
                 }, 4000);
             }
-
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-        });
+        }
+        
+        document.addEventListener('DOMContentLoaded', initTasksView);
+        document.addEventListener('turbo:render', initTasksView);
 
         // ═══════════════════════════════════════
         //  EDIT MODAL

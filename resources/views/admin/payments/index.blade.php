@@ -59,7 +59,8 @@
                             placeholder="Quote No, Client, Lead..." value="{{ request('search') }}"
                             style="width:100%;padding-left:34px;font-size:13px;height:38px;border-color:#e2e8f0;background:#f8fafc;transition:all 0.2s"
                             onfocus="this.style.borderColor='var(--primary)';this.style.background='#fff'"
-                            onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'">
+                            onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'"
+                            oninput="autoAjaxSearch(this.form)">
                     </div>
                 </div>
 
@@ -85,7 +86,7 @@
                             style="display:block;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Recorded
                             By</label>
                         <select name="user_id" class="form-select" style="width:100%;font-size:13px;height:38px"
-                            onchange="triggerPaymentsAjax()">
+                            onchange="autoAjaxSearch(this.form)">
                             <option value="">All Users</option>
                             @foreach($users as $user)
                                 <option value="{{ $user->id }}" {{ request('user_id') == $user->id ? 'selected' : '' }}>
@@ -101,7 +102,7 @@
                         style="display:block;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Payment
                         Type</label>
                     <select name="payment_type" class="form-select" style="width:100%;font-size:13px;height:38px"
-                        onchange="triggerPaymentsAjax()">
+                        onchange="autoAjaxSearch(this.form)">
                         <option value="">All Types</option>
                         @foreach($paymentTypes as $type)
                             <option value="{{ $type }}" {{ request('payment_type') === $type ? 'selected' : '' }}>
@@ -182,96 +183,17 @@
                     if (selectedDates.length === 2) {
                         document.getElementById('start_date').value = instance.formatDate(selectedDates[0], "Y-m-d");
                         document.getElementById('end_date').value = instance.formatDate(selectedDates[1], "Y-m-d");
-                        triggerPaymentsAjax();
+                        autoAjaxSearch(document.getElementById('payments-filter-form'));
                     } else if (selectedDates.length === 0) {
                         document.getElementById('start_date').value = '';
                         document.getElementById('end_date').value = '';
-                        triggerPaymentsAjax();
+                        autoAjaxSearch(document.getElementById('payments-filter-form'));
                     }
                 }
             });
 
-            const searchInput = document.getElementById('payments-search');
-            let debounceTimer = null;
-
-            if (searchInput) {
-                searchInput.addEventListener('input', function () {
-                    clearTimeout(debounceTimer);
-                    debounceTimer = setTimeout(() => triggerPaymentsAjax(), 600);
-                });
-
-                // Prevent form submit on Enter
-                searchInput.addEventListener('keydown', function (e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        clearTimeout(debounceTimer);
-                        triggerPaymentsAjax();
-                    }
-                });
-            }
-
-            // Also hijack pagination clicks
-            document.getElementById('payments-pagination').addEventListener('click', function (e) {
-                const link = e.target.closest('a');
-                if (link) {
-                    e.preventDefault();
-                    fetchPayments(link.href);
-                }
-            });
+            // Turbo automatically handles all fetch and replacements without custom logic
         });
-
-        function triggerPaymentsAjax() {
-            const form = document.getElementById('payments-filter-form');
-            const formData = new FormData(form);
-            const params = new URLSearchParams(formData).toString();
-            const url = '{{ route("admin.payments.index") }}?' + params;
-            fetchPayments(url);
-
-            // Toggle clear filters button visibility
-            const hasFilters = Array.from(formData.entries()).some(([k, v]) => v.trim() !== '' && k !== 'month');
-            document.getElementById('btn-clear-filters').style.display = hasFilters ? 'flex' : 'none';
-        }
-
-        function fetchPayments(url) {
-            const tbody = document.getElementById('payments-tbody');
-            if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px 0;color:#94a3b8"><div style="display:flex;align-items:center;justify-content:center;gap:8px"><svg style="animation:spin 1s linear infinite;width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg> Loading Payments...</div></td></tr>';
-            }
-
-            fetch(url, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
-                }
-            })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.html !== undefined) {
-                        document.getElementById('payments-tbody').innerHTML = data.html;
-                        document.getElementById('payments-pagination').innerHTML = data.pagination;
-                        document.getElementById('total-received-amount').innerHTML = '₹' + data.total_received;
-
-                        const countEl = document.getElementById('payments-total-count');
-                        if (countEl) countEl.textContent = data.total_count;
-
-                        // Re-bind pagination clicks inside the new pagination HTML
-                        const newPagination = document.getElementById('payments-pagination');
-                        newPagination.querySelectorAll('a').forEach(a => {
-                            a.addEventListener('click', function (e) {
-                                e.preventDefault();
-                                fetchPayments(this.href);
-                            });
-                        });
-
-                        if (typeof window.lucide !== 'undefined') {
-                            window.lucide.createIcons();
-                        }
-                    }
-                })
-                .catch(err => {
-                    console.error("Failed to fetch payments:", err);
-                });
-        }
 
         function openEditPaymentModal(id, amount, paymentType, paymentDate, notes) {
             document.getElementById('edit_payment_id').value = id;

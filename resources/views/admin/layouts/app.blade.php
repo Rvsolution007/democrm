@@ -12,6 +12,13 @@
     <link rel="stylesheet" href="{{ asset('css/admin-style.css') }}">
     <link rel="stylesheet" href="{{ asset('css/responsive-overrides.css') }}">
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script type="module" src="https://cdn.skypack.dev/@hotwired/turbo"></script>
+    <style>
+        .turbo-progress-bar {
+            height: 3px;
+            background-color: #3b82f6;
+        }
+    </style>
     @hasSection('has_charts')
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     @endif

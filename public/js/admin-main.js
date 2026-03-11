@@ -326,6 +326,36 @@ function updateTableCount(tableId) {
     countEl.textContent = `Showing ${visible} of ${total} entries`;
 }
 
+// ==================== AJAX SEARCH DEBOUNCE ====================
+let _ajaxSearchTimeout = null;
+function autoAjaxSearch(formElement) {
+    if (!formElement) return;
+    
+    clearTimeout(_ajaxSearchTimeout);
+    
+    // Default GET search forms trigger a background Turbo request. 
+    // Setting a visual loading state locally helps UX without a full page reload.
+    formElement.style.opacity = '0.7';
+    formElement.style.pointerEvents = 'none';
+    
+    _ajaxSearchTimeout = setTimeout(() => {
+        if (typeof formElement.requestSubmit === 'function') {
+            formElement.requestSubmit();
+        } else {
+            formElement.submit();
+        }
+    }, 500); // 500ms debounce
+}
+
+// Listen for Turbo events to reset form states visually
+document.addEventListener('turbo:render', () => {
+    // Anything that we dimmed for loading can be reset
+    document.querySelectorAll('form').forEach(f => {
+        f.style.opacity = '1';
+        f.style.pointerEvents = 'auto';
+    });
+});
+
 // ==================== FORM HANDLING ====================
 
 function clearForm(formId) {

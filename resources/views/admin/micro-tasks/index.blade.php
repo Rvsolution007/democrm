@@ -33,7 +33,8 @@
                     <i data-lucide="search"
                         style="width:14px;height:14px;position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;"></i>
                     <input type="text" name="search" value="{{ request('search') }}" placeholder="Search micro tasks..."
-                        style="width:100%;padding:7px 10px 7px 32px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;">
+                        style="width:100%;padding:7px 10px 7px 32px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;"
+                        oninput="autoAjaxSearch(this.form)">
                 </div>
             </div>
 
@@ -42,7 +43,8 @@
                 <label
                     style="display:block;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:4px">Status</label>
                 <select name="status"
-                    style="width:100%;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;">
+                    style="width:100%;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;"
+                    onchange="autoAjaxSearch(this.form)">
                     <option value="">All</option>
                     @foreach($statuses as $s)
                         <option value="{{ $s }}" {{ request('status') === $s ? 'selected' : '' }}>
@@ -68,8 +70,6 @@
             </div>
 
             <div style="display:flex;gap:8px;">
-                <button type="submit" class="btn btn-primary"
-                    style="padding: 7px 14px; border-radius: 8px; font-size: 13px;">Filter</button>
                 @if(request()->hasAny(['search', 'status', 'date_from', 'date_to']))
                     <a href="{{ route('admin.micro-tasks.index') }}" class="btn btn-outline"
                         style="padding: 7px 14px; border-radius: 8px; font-size: 13px; display:inline-flex; align-items:center;">Clear</a>
@@ -804,28 +804,37 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            let df = document.getElementById('mt-date-from').value;
-            let dt = document.getElementById('mt-date-to').value;
+        // Re-init Flatpickr properly after Turbo swaps the DOM
+        function initMtFlatpickr() {
+            let df = document.getElementById('mt-date-from')?.value;
+            let dt = document.getElementById('mt-date-to')?.value;
             let defDates = [];
             if (df && dt) defDates = [df, dt];
 
-            flatpickr("#mt-date-range-picker", {
-                mode: "range",
-                dateFormat: "Y-m-d",
-                defaultDate: defDates,
-                onChange: function (selectedDates, dateStr, instance) {
-                    if (selectedDates.length === 2) {
-                        document.getElementById('mt-date-from').value = instance.formatDate(selectedDates[0], "Y-m-d");
-                        document.getElementById('mt-date-to').value = instance.formatDate(selectedDates[1], "Y-m-d");
-                        document.getElementById('tasks-filter-form').submit();
-                    } else if (selectedDates.length === 0) {
-                        document.getElementById('mt-date-from').value = '';
-                        document.getElementById('mt-date-to').value = '';
-                        document.getElementById('tasks-filter-form').submit();
+            const picker = document.getElementById("mt-date-range-picker");
+            if (picker && typeof flatpickr !== 'undefined') {
+                flatpickr(picker, {
+                    mode: "range",
+                    dateFormat: "Y-m-d",
+                    defaultDate: defDates,
+                    onChange: function (selectedDates, dateStr, instance) {
+                        const form = document.getElementById('tasks-filter-form');
+                        if (!form) return;
+                        
+                        if (selectedDates.length === 2) {
+                            document.getElementById('mt-date-from').value = instance.formatDate(selectedDates[0], "Y-m-d");
+                            document.getElementById('mt-date-to').value = instance.formatDate(selectedDates[1], "Y-m-d");
+                            if (typeof autoAjaxSearch === 'function') autoAjaxSearch(form);
+                        } else if (selectedDates.length === 0) {
+                            document.getElementById('mt-date-from').value = '';
+                            document.getElementById('mt-date-to').value = '';
+                            if (typeof autoAjaxSearch === 'function') autoAjaxSearch(form);
+                        }
                     }
-                }
-            });
-        });
+                });
+            }
+        }
+        document.addEventListener('DOMContentLoaded', initMtFlatpickr);
+        document.addEventListener('turbo:render', initMtFlatpickr);
     </script>
 @endpush

@@ -75,12 +75,12 @@
                 <div class="table-search" style="flex:1;min-width:250px">
                     <i data-lucide="search" class="table-search-icon" style="width:16px;height:16px"></i>
                     <input type="text" name="search" class="table-search-input" value="{{ request('search') }}"
-                        placeholder="Search quote number, client...">
+                        placeholder="Search quote number, client..." oninput="autoAjaxSearch(this.form)">
                 </div>
 
                 @if(can('quotes.global') || auth()->user()->isAdmin())
                     <select name="assigned_to_user_id" class="form-select" style="width:180px;font-size:13px"
-                        onchange="this.form.submit()">
+                        onchange="autoAjaxSearch(this.form)">
                         <option value="">All Users</option>
                         @foreach($users as $user)
                             <option value="{{ $user->id }}" {{ request('assigned_to_user_id') == $user->id ? 'selected' : '' }}>
@@ -90,7 +90,7 @@
                     </select>
                 @endif
 
-                <select name="status" class="form-select" style="width:150px;font-size:13px" onchange="this.form.submit()">
+                <select name="status" class="form-select" style="width:150px;font-size:13px" onchange="autoAjaxSearch(this.form)">
                     <option value="">All Statuses</option>
                     <option value="draft" {{ request('status') === 'draft' ? 'selected' : '' }}>Draft</option>
                     <option value="sent" {{ request('status') === 'sent' ? 'selected' : '' }}>Sent</option>
@@ -115,7 +115,7 @@
                         style="display:flex;align-items:center;padding:0 12px;height:38px"><i data-lucide="x"
                             style="width:14px;height:14px;margin-right:6px"></i> Clear</a>
                 @endif
-                <button type="submit" style="display:none"></button>
+                <!-- autoAjaxSearch removes need for physical submit button -->
             </form>
         </div>
 

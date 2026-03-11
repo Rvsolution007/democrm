@@ -68,7 +68,8 @@
                             style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:#94a3b8"></i>
                         <input type="text" id="payments-search" name="search" class="form-input"
                             placeholder="Purchase No, Vendor, Client..." value="{{ request('search') }}"
-                            style="width:100%;padding-left:38px;font-size:13px;height:40px;border-color:#e2e8f0;border-radius:8px;background:#fff;transition:all 0.2s;box-shadow:0 1px 2px rgba(0,0,0,0.02)">
+                            style="width:100%;padding-left:38px;font-size:13px;height:40px;border-color:#e2e8f0;border-radius:8px;background:#fff;transition:all 0.2s;box-shadow:0 1px 2px rgba(0,0,0,0.02)"
+                            oninput="autoAjaxSearch(this.form)">
                     </div>
                 </div>
 
@@ -94,7 +95,7 @@
                         Type</label>
                     <select name="payment_type" class="form-select"
                         style="width:100%;font-size:13px;height:40px;border-color:#e2e8f0;border-radius:8px;background:#fff"
-                        onchange="triggerPaymentsAjax()">
+                        onchange="autoAjaxSearch(this.form)">
                         <option value="">All Types</option>
                         @foreach($paymentTypes as $type)
                             <option value="{{ $type }}" {{ request('payment_type') === $type ? 'selected' : '' }}>
@@ -199,86 +200,17 @@
                     if (selectedDates.length === 2) {
                         document.getElementById('start-date').value = instance.formatDate(selectedDates[0], "Y-m-d");
                         document.getElementById('end-date').value = instance.formatDate(selectedDates[1], "Y-m-d");
-                        triggerPaymentsAjax();
+                        autoAjaxSearch(document.getElementById('payments-filter-form'));
                     } else if (selectedDates.length === 0) {
                         document.getElementById('start-date').value = '';
                         document.getElementById('end-date').value = '';
-                        triggerPaymentsAjax();
+                        autoAjaxSearch(document.getElementById('payments-filter-form'));
                     }
                 }
             });
 
-            // Search Input delay
-            document.getElementById('payments-search').addEventListener('input', function () {
-                clearTimeout(searchTimer);
-                searchTimer = setTimeout(function () {
-                    triggerPaymentsAjax();
-                }, 400); // 400ms delay for typing
-            });
-
-            // Handle pagination clicks via AJAX
-            document.addEventListener('click', function (e) {
-                var link = e.target.closest('#payments-pagination-container a.page-link');
-                if (link) {
-                    e.preventDefault();
-                    var url = new URL(link.href);
-                    fetchPaymentsData(url.toString());
-                }
-            });
+            // Turbo handles form submissions and pagination links automatically.
         });
-
-        function triggerPaymentsAjax() {
-            var search = document.getElementById('payments-search').value;
-            var paymentType = document.querySelector('select[name="payment_type"]').value;
-            var startDate = document.getElementById('start-date').value;
-            var endDate = document.getElementById('end-date').value;
-
-            var url = new URL('{{ route("admin.purchase-payments.index") }}');
-            if (search) url.searchParams.append('search', search);
-            if (paymentType) url.searchParams.append('payment_type', paymentType);
-            if (startDate) url.searchParams.append('start_date', startDate);
-            if (endDate) url.searchParams.append('end_date', endDate);
-
-            // Toggle clear filters button
-            var clearBtn = document.getElementById('btn-clear-filters');
-            if (search || paymentType || startDate || endDate) {
-                clearBtn.style.display = 'inline-flex';
-                clearBtn.style.alignItems = 'center';
-            } else {
-                clearBtn.style.display = 'none';
-            }
-
-            fetchPaymentsData(url.toString());
-        }
-
-        function fetchPaymentsData(url) {
-            // Dim table to indicate loading
-            document.getElementById('payments-tbody').style.opacity = '0.5';
-
-            fetch(url, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
-                }
-            })
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('payments-tbody').innerHTML = data.html;
-                    document.getElementById('payments-tbody').style.opacity = '1';
-
-                    var pagContainer = document.querySelector('#payments-pagination-container > div:last-child');
-                    if (pagContainer) pagContainer.innerHTML = data.pagination;
-
-                    document.getElementById('total-paid-amount').textContent = '₹' + data.total_paid;
-                    document.getElementById('payments-total-count').textContent = data.total_count;
-
-                    if (typeof lucide !== 'undefined') lucide.createIcons();
-                })
-                .catch(error => {
-                    console.error('Error fetching payments:', error);
-                    document.getElementById('payments-tbody').style.opacity = '1';
-                });
-        }
 
         function openEditPaymentModal(id, amount, paymentType, paymentDate, notes) {
             document.getElementById('edit_payment_id').value = id;

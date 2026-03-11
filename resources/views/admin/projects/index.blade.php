@@ -30,14 +30,15 @@
                         <i data-lucide="search" style="width:15px;height:15px;position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none"></i>
                         <input type="text" name="search" id="project-search-input" value="{{ request('search') }}" placeholder="Name, client, number..." autocomplete="off"
                             style="width:100%;padding:8px 10px 8px 34px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;background:#f8fafc;transition:all .2s"
-                            onfocus="this.style.borderColor='#3b82f6';this.style.background='#fff'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'">
+                            onfocus="this.style.borderColor='#3b82f6';this.style.background='#fff'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'"
+                            oninput="autoAjaxSearch(this.form)">
                     </div>
                 </div>
 
                 {{-- Status --}}
                 <div style="min-width:140px">
                     <label style="display:block;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px">Status</label>
-                    <select name="status" class="form-select" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#f8fafc" onchange="this.form.submit()">
+                    <select name="status" class="form-select" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#f8fafc" onchange="autoAjaxSearch(this.form)">
                         <option value="">All</option>
                         @foreach(['pending', 'in_progress', 'completed', 'on_hold', 'cancelled'] as $s)
                             <option value="{{ $s }}" {{ request('status') === $s ? 'selected' : '' }}>{{ ucwords(str_replace('_', ' ', $s)) }}</option>
@@ -48,7 +49,7 @@
                 {{-- Assigned To --}}
                 <div style="min-width:150px">
                     <label style="display:block;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px">Assigned To</label>
-                    <select name="assigned_to" class="form-select" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#f8fafc" onchange="this.form.submit()">
+                    <select name="assigned_to" class="form-select" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#f8fafc" onchange="autoAjaxSearch(this.form)">
                         <option value="">All</option>
                         @foreach($users as $u)
                             <option value="{{ $u->id }}" {{ request('assigned_to') == $u->id ? 'selected' : '' }}>{{ $u->name }}</option>
@@ -72,10 +73,6 @@
 
                 {{-- Buttons --}}
                 <div style="display:flex;gap:8px;align-items:center;padding-bottom:1px">
-                    <button type="submit" style="padding:8px 16px;background:#3b82f6;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .15s;box-shadow:0 1px 4px rgba(59,130,246,0.25)"
-                        onmouseover="this.style.background='#2563eb'" onmouseout="this.style.background='#3b82f6'">
-                        <i data-lucide="search" style="width:14px;height:14px"></i> Filter
-                    </button>
                     @if(request()->hasAny(['search','status','assigned_to','start_date','due_date']))
                         <a href="{{ route('admin.projects.index') }}" style="padding:8px 14px;background:#f1f5f9;color:#64748b;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;display:flex;align-items:center;gap:4px;transition:all .15s"
                             onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">

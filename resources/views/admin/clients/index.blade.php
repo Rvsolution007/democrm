@@ -25,7 +25,8 @@
                 style="display:flex;align-items:center;width:100%">
                 <i data-lucide="search" class="table-search-icon" style="width:16px;height:16px"></i>
                 <input type="text" name="search" class="table-search-input" id="clients-search"
-                    value="{{ request('search') }}" placeholder="Search by name, phone, email...">
+                    value="{{ request('search') }}" placeholder="Search by name, phone, email..."
+                    oninput="autoAjaxSearch(this.form)">
                 @if(request('search'))
                     <a href="{{ route('admin.clients.index') }}" style="margin-left:8px;color:#999;text-decoration:none"
                         title="Clear Search">
