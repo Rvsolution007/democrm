@@ -558,7 +558,7 @@
                     actionsBtns += '<button class="btn btn-ghost btn-icon btn-sm" title="Edit" onclick=\'openEditModal(' + JSON.stringify(p.raw).replace(/'/g, "\\'") + ')\'><i data-lucide="edit" style="width:16px;height:16px"></i></button>';
                 }
                 if (canDelete) {
-                    actionsBtns += '<form method="POST" action="{{ url(\'admin/projects\') }}/' + p.id + '" style="display:inline" onsubmit="return confirm(\'Delete this project?\')">' +
+                    actionsBtns += '<form method="POST" action="/admin/projects/' + p.id + '" style="display:inline" onsubmit="return confirm(\'Delete this project?\')">' +
                         '<input type="hidden" name="_token" value="' + csrfToken + '">' +
                         '<input type="hidden" name="_method" value="DELETE">' +
                         '<button type="submit" class="btn btn-ghost btn-icon btn-sm" style="color:var(--destructive)" title="Delete"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button></form>';
