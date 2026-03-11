@@ -888,7 +888,10 @@
             // ═══════════════════════════════════════
             //  DESKTOP TOAST NOTIFICATIONS
             // ═══════════════════════════════════════
-            let lastKnownCount = -1; // -1 means first load, skip toast
+            // Persist seen IDs across Turbo navigations using window-level state
+            if (!window.__toastSeenIds) window.__toastSeenIds = new Set();
+            if (!window.__toastPollTimer) window.__toastPollTimer = null;
+
             const toastContainer = document.getElementById('toast-container');
             const TOAST_DURATION = 8000;
             const MAX_TOASTS = 4;
@@ -908,6 +911,10 @@
                 const data = notification.data || {};
                 const entityType = getToastType(data);
                 const meta = toastIconMap[entityType] || { icon: 'bell', label: 'Notification' };
+
+                // Don't show duplicate toast
+                if (window.__toastSeenIds.has(notification.id)) return;
+                window.__toastSeenIds.add(notification.id);
 
                 // Limit visible toasts
                 const existing = toastContainer.querySelectorAll('.toast-card:not(.toast-exit)');
@@ -1055,42 +1062,45 @@
             }
 
             // ═══════════════════════════════════════
-            //  POLLING (enhanced with toast support)
+            //  POLLING (ID-based detection, persists across Turbo)
             // ═══════════════════════════════════════
-            function pollUnreadCount() {
-                fetch("{{ route('admin.notifications.unread-count') }}", { headers: { 'Accept': 'application/json' } })
-                    .then(r => r.json())
-                    .then(data => {
-                        const newCount = data.count || 0;
-                        updateBadge(newCount);
-
-                        // Detect NEW notifications (count went up)
-                        if (lastKnownCount >= 0 && newCount > lastKnownCount) {
-                            fetchAndShowNewToasts(newCount - lastKnownCount);
-                        }
-                        lastKnownCount = newCount;
-                    })
-                    .catch(() => { });
-            }
-
-            function fetchAndShowNewToasts(howMany) {
+            function pollForNewNotifications() {
                 fetch("{{ route('admin.notifications.index') }}", { headers: { 'Accept': 'application/json' } })
                     .then(r => r.json())
                     .then(notifications => {
-                        // Show only the newest unread ones
-                        const unread = notifications.filter(n => !n.read_at).slice(0, Math.min(howMany, MAX_TOASTS));
-                        unread.reverse().forEach((n, i) => {
-                            setTimeout(() => showToast(n), i * 300); // stagger
-                        });
-                        // Also refresh dropdown if already loaded
-                        if (loaded) loadNotifications();
+                        // Update bell badge
+                        const unreadCount = notifications.filter(n => !n.read_at).length;
+                        updateBadge(unreadCount);
+
+                        // Find notifications we haven't shown toasts for yet
+                        const unread = notifications.filter(n => !n.read_at);
+                        const newOnes = unread.filter(n => !window.__toastSeenIds.has(n.id));
+
+                        // On very first load, just record current IDs (don't spam old toasts)
+                        if (!window.__toastInitialized) {
+                            window.__toastInitialized = true;
+                            unread.forEach(n => window.__toastSeenIds.add(n.id));
+                            return;
+                        }
+
+                        // Show toasts for truly new notifications
+                        if (newOnes.length > 0) {
+                            newOnes.slice(0, MAX_TOASTS).reverse().forEach((n, i) => {
+                                setTimeout(() => showToast(n), i * 300);
+                            });
+                            // Refresh dropdown if already open
+                            if (loaded) loadNotifications();
+                        }
                     })
                     .catch(() => { });
             }
 
-            // Initial poll + interval
-            pollUnreadCount();
-            setInterval(pollUnreadCount, 30000);
+            // Clear old timer if Turbo re-ran this script
+            if (window.__toastPollTimer) clearInterval(window.__toastPollTimer);
+
+            // Initial poll + interval (every 15s for responsive detection)
+            pollForNewNotifications();
+            window.__toastPollTimer = setInterval(pollForNewNotifications, 15000);
         })();
 
         // ===== User Dropdown Toggle =====
