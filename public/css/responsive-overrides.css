@@ -15,22 +15,25 @@
     /* Sidebar collapsed by default */
     .sidebar {
         width: 64px !important;
-        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease !important;
-        overflow-x: hidden;
-        z-index: 100;
+        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        overflow-x: hidden !important;
+        z-index: 1000 !important;
+        position: fixed !important; /* Ensures it floats over main content on hover */
+        height: 100vh;
     }
 
     /* Expand sidebar on hover */
     .sidebar:hover {
         width: 260px !important;
-        box-shadow: 4px 0 15px rgba(0,0,0,0.05);
+        box-shadow: 4px 0 15px rgba(0,0,0,0.1) !important;
     }
 
     .sidebar .nav-link {
         justify-content: flex-start !important;
-        padding: 10px 22px !important; /* Keep icon centered visually when collapsed */
-        white-space: nowrap;
-        transition: padding 0.3s ease, background 0.15s;
+        padding: 10px 22px !important;
+        white-space: nowrap !important;
+        border-radius: 8px;
+        transition: background 0.2s ease, padding 0.3s ease !important;
     }
 
     .sidebar:hover .nav-link {
@@ -43,19 +46,24 @@
     .sidebar .sidebar-title,
     .sidebar .nav-divider,
     .sidebar .nav-section-title {
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.2s ease, visibility 0.2s ease;
-        display: inline-block; 
-        white-space: nowrap;
+        opacity: 0 !important;
+        width: 0 !important;
+        overflow: hidden !important;
+        visibility: hidden !important;
+        transition: opacity 0.3s ease, width 0.3s ease !important;
+        display: inline-block !important; 
+        white-space: nowrap !important;
+        vertical-align: middle;
     }
 
     /* Show when hovered */
     .sidebar:hover .nav-link span,
     .sidebar:hover .sidebar-title,
     .sidebar:hover .nav-section-title {
-        opacity: 1;
-        visibility: visible;
+        opacity: 1 !important;
+        width: auto !important;
+        visibility: visible !important;
+        margin-left: 10px; /* Space between icon and text */
     }
 
     .sidebar .sidebar-toggle {
@@ -64,7 +72,8 @@
 
     .sidebar .sidebar-header {
         justify-content: flex-start;
-        padding: 1.25rem;
+        padding: 1.25rem 22px !important;
+        white-space: nowrap;
     }
 
 
