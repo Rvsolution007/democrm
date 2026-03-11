@@ -49,7 +49,14 @@ class NotificationController extends Controller
         $notification->markAsRead();
 
         // Return the URL so the frontend can redirect
-        $url = $notification->data['url'] ?? route('admin.dashboard');
+        $url = $notification->data['url'] ?? route('admin.dashboard', [], false);
+        
+        // Fix legacy notifications that were saved with localhost URLs by stripping the host
+        if (str_contains($url, 'localhost')) {
+            $parsed = parse_url($url);
+            $url = $parsed['path'] ?? '/admin/dashboard';
+        }
+
         return response()->json(['url' => $url]);
     }
 
