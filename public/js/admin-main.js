@@ -1,5 +1,41 @@
 // RV CRM - Main JavaScript
 
+// ==================== SIDEBAR TOGGLE (Tablet/Mobile) ====================
+(function() {
+    document.addEventListener('DOMContentLoaded', function() {
+        var menuToggle = document.getElementById('menu-toggle');
+        var sidebar = document.querySelector('.sidebar');
+        var overlay = document.getElementById('sidebar-overlay');
+
+        if (menuToggle && sidebar) {
+            menuToggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                sidebar.classList.toggle('active');
+                if (overlay) overlay.classList.toggle('active');
+            });
+        }
+
+        if (overlay) {
+            overlay.addEventListener('click', function() {
+                if (sidebar) sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+            });
+        }
+
+        // Close sidebar when clicking a nav link on mobile/tablet
+        if (sidebar) {
+            sidebar.querySelectorAll('.nav-link').forEach(function(link) {
+                link.addEventListener('click', function() {
+                    if (window.innerWidth < 1024) {
+                        sidebar.classList.remove('active');
+                        if (overlay) overlay.classList.remove('active');
+                    }
+                });
+            });
+        }
+    });
+})();
+
 // ==================== UTILITY FUNCTIONS ====================
 
 // Format currency in INR
