@@ -79,7 +79,7 @@ class LeadsController extends Controller
         });
 
         $users = (can('leads.global') || auth()->user()->isAdmin())
-            ? User::where('status', 'active')->withModulePermission('leads')->where('id', '!=', 1)->where('id', '!=', auth()->id())->get()
+            ? User::where('status', 'active')->withModulePermission('leads')->get()
             : collect();
         $products = Product::where('status', 'active')->orderBy('name')->get();
         $columnVisibility = Setting::getValue('column_visibility', 'leads', []);

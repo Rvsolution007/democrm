@@ -138,7 +138,7 @@ class MicroTasksController extends Controller
 
         // Users list: global sees all users, non-global sees only self
         if (can('tasks.global') || auth()->user()->isAdmin()) {
-            $users = \App\Models\User::where('status', 'active')->withModulePermission('tasks')->where('id', '!=', 1)->orderBy('name')->get();
+            $users = \App\Models\User::where('status', 'active')->withModulePermission('tasks')->orderBy('name')->get();
         } else {
             $users = collect([auth()->user()]);
         }

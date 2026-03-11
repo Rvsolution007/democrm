@@ -37,7 +37,7 @@ class ClientsController extends Controller
 
         $clients = $query->latest()->paginate(20)->withQueryString();
         $users = (can('clients.global') || auth()->user()->isAdmin())
-            ? User::where('status', 'active')->withModulePermission('clients')->where('id', '!=', 1)->where('id', '!=', auth()->id())->orderBy('name')->get()
+            ? User::where('status', 'active')->withModulePermission('clients')->orderBy('name')->get()
             : collect();
 
         return view('admin.clients.index', compact('clients', 'users'));

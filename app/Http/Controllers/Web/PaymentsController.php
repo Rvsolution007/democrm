@@ -77,7 +77,7 @@ class PaymentsController extends Controller
         }
 
         $users = (can('quotes.global') || auth()->user()->isAdmin())
-            ? User::where('status', 'active')->withModulePermission('quotes')->where('id', '!=', 1)->where('id', '!=', auth()->id())->orderBy('name')->get()
+            ? User::where('status', 'active')->withModulePermission('quotes')->orderBy('name')->get()
             : collect();
 
         $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);

@@ -94,7 +94,7 @@ class ProjectsController extends Controller
 
         // Users list: global sees all, non-global sees only self
         if (can('projects.global') || auth()->user()->isAdmin()) {
-            $users = User::where('status', 'active')->withModulePermission('projects')->where('id', '!=', 1)->orderBy('name')->get();
+            $users = User::where('status', 'active')->withModulePermission('projects')->orderBy('name')->get();
         } else {
             $users = collect([auth()->user()]);
         }
@@ -115,7 +115,7 @@ class ProjectsController extends Controller
         }
 
         $users = (can('projects.global') || auth()->user()->isAdmin())
-            ? User::where('status', 'active')->withModulePermission('projects')->where('id', '!=', 1)->where('id', '!=', auth()->id())->orderBy('name')->get()
+            ? User::where('status', 'active')->withModulePermission('projects')->orderBy('name')->get()
             : collect();
 
         return view('admin.projects.show', compact('project', 'users'));
