@@ -453,6 +453,218 @@
             display: none !important;
         }
     }
+
+    /* ============ Desktop Toast Notifications ============ */
+    .toast-container {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 12px;
+        pointer-events: none;
+        max-height: calc(100vh - 48px);
+        overflow: hidden;
+    }
+
+    .toast-card {
+        pointer-events: auto;
+        width: 380px;
+        max-width: calc(100vw - 48px);
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 16px;
+        box-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.18),
+                    0 8px 20px -8px rgba(0, 0, 0, 0.08),
+                    0 0 0 1px rgba(0, 0, 0, 0.04);
+        overflow: hidden;
+        cursor: pointer;
+        animation: toastSlideIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        transform: translateX(120%);
+        transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+
+    .toast-card:hover {
+        box-shadow: 0 24px 56px -12px rgba(0, 0, 0, 0.22),
+                    0 10px 24px -8px rgba(0, 0, 0, 0.1),
+                    0 0 0 1px rgba(0, 0, 0, 0.06);
+    }
+
+    .toast-card.toast-exit {
+        animation: toastSlideOut 0.35s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+    }
+
+    @keyframes toastSlideIn {
+        from {
+            transform: translateX(120%) scale(0.9);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0) scale(1);
+            opacity: 1;
+        }
+    }
+
+    @keyframes toastSlideOut {
+        from {
+            transform: translateX(0) scale(1);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(120%) scale(0.9);
+            opacity: 0;
+        }
+    }
+
+    /* Accent bar */
+    .toast-accent {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        border-radius: 4px 0 0 4px;
+    }
+
+    .toast-accent.accent-lead     { background: linear-gradient(180deg, #f59e0b, #d97706); }
+    .toast-accent.accent-task     { background: linear-gradient(180deg, #22c55e, #16a34a); }
+    .toast-accent.accent-micro_task { background: linear-gradient(180deg, #3b82f6, #2563eb); }
+    .toast-accent.accent-project  { background: linear-gradient(180deg, #8b5cf6, #7c3aed); }
+    .toast-accent.accent-default  { background: linear-gradient(180deg, #6366f1, #4f46e5); }
+
+    /* Toast inner layout */
+    .toast-inner {
+        display: flex;
+        gap: 12px;
+        padding: 14px 16px 14px 20px;
+        align-items: flex-start;
+        position: relative;
+    }
+
+    .toast-icon-box {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .toast-icon-box.icon-lead     { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #d97706; }
+    .toast-icon-box.icon-task     { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #16a34a; }
+    .toast-icon-box.icon-micro_task { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #2563eb; }
+    .toast-icon-box.icon-project  { background: linear-gradient(135deg, #ede9fe, #ddd6fe); color: #7c3aed; }
+    .toast-icon-box.icon-default  { background: linear-gradient(135deg, #e0e7ff, #c7d2fe); color: #4f46e5; }
+
+    .toast-text {
+        flex: 1;
+        min-width: 0;
+        padding-right: 20px;
+    }
+
+    .toast-title {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin: 0 0 4px 0;
+        color: #94a3b8;
+    }
+
+    .toast-msg {
+        font-size: 13.5px;
+        font-weight: 500;
+        color: #1e293b;
+        margin: 0 0 4px 0;
+        line-height: 1.45;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .toast-time {
+        font-size: 11px;
+        color: #94a3b8;
+        font-weight: 500;
+    }
+
+    .toast-close {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 24px;
+        height: 24px;
+        border-radius: 8px;
+        border: none;
+        background: transparent;
+        color: #94a3b8;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s;
+        padding: 0;
+    }
+
+    .toast-close:hover {
+        background: #f1f5f9;
+        color: #475569;
+    }
+
+    /* Progress bar */
+    .toast-progress {
+        height: 3px;
+        background: #f1f5f9;
+        overflow: hidden;
+    }
+
+    .toast-progress-bar {
+        height: 100%;
+        border-radius: 0 3px 3px 0;
+        animation: toastCountdown 8s linear forwards;
+    }
+
+    .toast-progress-bar.bar-lead     { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .toast-progress-bar.bar-task     { background: linear-gradient(90deg, #22c55e, #16a34a); }
+    .toast-progress-bar.bar-micro_task { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+    .toast-progress-bar.bar-project  { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+    .toast-progress-bar.bar-default  { background: linear-gradient(90deg, #6366f1, #4f46e5); }
+
+    @keyframes toastCountdown {
+        from { width: 100%; }
+        to   { width: 0%; }
+    }
+
+    .toast-card:hover .toast-progress-bar {
+        animation-play-state: paused;
+    }
+
+    /* Warning toast */
+    .toast-card.toast-warning {
+        cursor: default;
+    }
+    .toast-card.toast-warning .toast-accent {
+        background: linear-gradient(180deg, #ef4444, #dc2626) !important;
+    }
+    .toast-card.toast-warning .toast-icon-box {
+        background: linear-gradient(135deg, #fee2e2, #fecaca) !important;
+        color: #dc2626 !important;
+    }
+
+    @media (max-width: 480px) {
+        .toast-container {
+            right: 12px;
+            bottom: 12px;
+        }
+        .toast-card {
+            width: calc(100vw - 24px);
+        }
+    }
 </style>
 
 <header class="header">
@@ -548,6 +760,9 @@
         </div>
     </div>
 </header>
+
+<!-- Desktop Toast Notification Container -->
+<div class="toast-container" id="toast-container"></div>
 
 @push('scripts')
     <script>
@@ -670,11 +885,206 @@
                 }
             }
 
-            // Poll unread count every 30 seconds
+            // ═══════════════════════════════════════
+            //  DESKTOP TOAST NOTIFICATIONS
+            // ═══════════════════════════════════════
+            let lastKnownCount = -1; // -1 means first load, skip toast
+            const toastContainer = document.getElementById('toast-container');
+            const TOAST_DURATION = 8000;
+            const MAX_TOASTS = 4;
+
+            const toastIconMap = {
+                lead: { icon: 'users', label: 'Lead Follow-up' },
+                task: { icon: 'check-square', label: 'Task Reminder' },
+                micro_task: { icon: 'list-checks', label: 'Micro Task' },
+                project: { icon: 'folder', label: 'Project Update' },
+            };
+
+            function getToastType(data) {
+                return data?.entity_type || data?.icon || 'default';
+            }
+
+            function showToast(notification) {
+                const data = notification.data || {};
+                const entityType = getToastType(data);
+                const meta = toastIconMap[entityType] || { icon: 'bell', label: 'Notification' };
+
+                // Limit visible toasts
+                const existing = toastContainer.querySelectorAll('.toast-card:not(.toast-exit)');
+                if (existing.length >= MAX_TOASTS) {
+                    dismissToast(existing[0]);
+                }
+
+                const card = document.createElement('div');
+                card.className = 'toast-card';
+                card.dataset.notiId = notification.id;
+                card.dataset.url = data.url || '';
+                card.innerHTML = `
+                    <div class="toast-accent accent-${entityType}"></div>
+                    <div class="toast-inner">
+                        <div class="toast-icon-box icon-${entityType}">
+                            <i data-lucide="${meta.icon}" style="width:18px;height:18px"></i>
+                        </div>
+                        <div class="toast-text">
+                            <p class="toast-title">${meta.label}</p>
+                            <p class="toast-msg">${escToast(data.message || 'New notification')}</p>
+                            <span class="toast-time">${notification.created_at || 'Just now'}</span>
+                        </div>
+                        <button class="toast-close" title="Dismiss">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                    </div>
+                    <div class="toast-progress">
+                        <div class="toast-progress-bar bar-${entityType}"></div>
+                    </div>
+                `;
+
+                // Close button
+                card.querySelector('.toast-close').addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    dismissToast(card);
+                });
+
+                // Click → navigate (with dirty-form check)
+                card.addEventListener('click', function () {
+                    const url = card.dataset.url;
+                    if (!url) { dismissToast(card); return; }
+
+                    if (hasUnsavedFormData()) {
+                        showWarningToast(getCurrentModuleName());
+                        return;
+                    }
+
+                    // Mark as read then redirect
+                    const notiId = card.dataset.notiId;
+                    fetch("{{ url('admin/notifications') }}/" + notiId + "/read", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' }
+                    }).finally(() => {
+                        window.location.href = url;
+                    });
+                });
+
+                toastContainer.appendChild(card);
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                // Auto-dismiss
+                const timer = setTimeout(() => dismissToast(card), TOAST_DURATION);
+                card._toastTimer = timer;
+
+                // Pause on hover
+                card.addEventListener('mouseenter', () => clearTimeout(card._toastTimer));
+                card.addEventListener('mouseleave', () => {
+                    card._toastTimer = setTimeout(() => dismissToast(card), 3000);
+                });
+            }
+
+            function dismissToast(card) {
+                if (!card || card.classList.contains('toast-exit')) return;
+                clearTimeout(card._toastTimer);
+                card.classList.add('toast-exit');
+                setTimeout(() => card.remove(), 350);
+            }
+
+            function showWarningToast(moduleName) {
+                // Check if warning toast already exists
+                if (toastContainer.querySelector('.toast-warning')) return;
+
+                const card = document.createElement('div');
+                card.className = 'toast-card toast-warning';
+                card.innerHTML = `
+                    <div class="toast-accent"></div>
+                    <div class="toast-inner">
+                        <div class="toast-icon-box">
+                            <i data-lucide="alert-triangle" style="width:18px;height:18px"></i>
+                        </div>
+                        <div class="toast-text">
+                            <p class="toast-title">Unsaved Changes</p>
+                            <p class="toast-msg">Please save this <strong>${escToast(moduleName)}</strong> first before navigating away.</p>
+                        </div>
+                        <button class="toast-close" title="Dismiss">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                    </div>
+                    <div class="toast-progress">
+                        <div class="toast-progress-bar bar-default" style="background:linear-gradient(90deg,#ef4444,#dc2626)"></div>
+                    </div>
+                `;
+                card.querySelector('.toast-close').addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    dismissToast(card);
+                });
+                toastContainer.appendChild(card);
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                card._toastTimer = setTimeout(() => dismissToast(card), 5000);
+            }
+
+            function hasUnsavedFormData() {
+                const forms = document.querySelectorAll('form');
+                for (const form of forms) {
+                    // Skip search/filter forms and hidden forms
+                    if (form.method === 'get' || form.id?.includes('filter') || form.id?.includes('search')) continue;
+                    if (form.style.display === 'none') continue;
+                    // Check if any input has been modified
+                    const inputs = form.querySelectorAll('input:not([type=hidden]), textarea, select');
+                    for (const input of inputs) {
+                        if (input.type === 'submit' || input.type === 'button' || input.type === 'reset') continue;
+                        if (input.tagName === 'SELECT') {
+                            if (input.selectedIndex !== input.dataset.originalIndex) continue; // not tracked
+                        }
+                        if (input.type === 'checkbox' || input.type === 'radio') {
+                            if (input.checked !== input.defaultChecked) return true;
+                        } else if ((input.value || '') !== (input.defaultValue || '')) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            function getCurrentModuleName() {
+                const breadcrumb = document.querySelector('.breadcrumb span:last-child');
+                return breadcrumb?.textContent?.trim() || 'page';
+            }
+
+            function escToast(str) {
+                if (!str) return '';
+                const d = document.createElement('div');
+                d.textContent = str;
+                return d.innerHTML;
+            }
+
+            // ═══════════════════════════════════════
+            //  POLLING (enhanced with toast support)
+            // ═══════════════════════════════════════
             function pollUnreadCount() {
                 fetch("{{ route('admin.notifications.unread-count') }}", { headers: { 'Accept': 'application/json' } })
                     .then(r => r.json())
-                    .then(data => updateBadge(data.count || 0))
+                    .then(data => {
+                        const newCount = data.count || 0;
+                        updateBadge(newCount);
+
+                        // Detect NEW notifications (count went up)
+                        if (lastKnownCount >= 0 && newCount > lastKnownCount) {
+                            fetchAndShowNewToasts(newCount - lastKnownCount);
+                        }
+                        lastKnownCount = newCount;
+                    })
+                    .catch(() => { });
+            }
+
+            function fetchAndShowNewToasts(howMany) {
+                fetch("{{ route('admin.notifications.index') }}", { headers: { 'Accept': 'application/json' } })
+                    .then(r => r.json())
+                    .then(notifications => {
+                        // Show only the newest unread ones
+                        const unread = notifications.filter(n => !n.read_at).slice(0, Math.min(howMany, MAX_TOASTS));
+                        unread.reverse().forEach((n, i) => {
+                            setTimeout(() => showToast(n), i * 300); // stagger
+                        });
+                        // Also refresh dropdown if already loaded
+                        if (loaded) loadNotifications();
+                    })
                     .catch(() => { });
             }
 
