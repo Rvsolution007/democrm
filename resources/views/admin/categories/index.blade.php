@@ -90,7 +90,7 @@
                                 <div style="display:flex;gap:4px;justify-content:flex-end">
                                     @if(can('categories.write'))
                                         <button class="btn btn-outline btn-sm"
-                                            onclick="editCategory({{ $category->id }}, {{ htmlspecialchars(json_encode($category->name)) }}, {{ htmlspecialchars(json_encode($category->description ?? '')) }}, {{ htmlspecialchars(json_encode($category->status ?? 'active')) }}, {{ $category->sort_order ?? 0 }}, {{ $category->parent_category_id ?? 'null' }})"
+                                            onclick="editCategory({{ $category->id }}, {{ json_encode($category->name) }}, {{ json_encode($category->description ?? '') }}, {{ json_encode($category->status ?? 'active') }}, {{ $category->sort_order ?? 0 }}, {{ $category->parent_category_id ?? 'null' }})"
                                             style="padding:4px 10px;font-size:12px">
                                             <i data-lucide="edit" style="width:13px;height:13px"></i>
                                         </button>
@@ -142,7 +142,7 @@
                                     <div style="display:flex;gap:4px;justify-content:flex-end">
                                         @if(can('categories.write'))
                                             <button class="btn btn-outline btn-sm"
-                                                onclick="editCategory({{ $child->id }}, {{ htmlspecialchars(json_encode($child->name)) }}, {{ htmlspecialchars(json_encode($child->description ?? '')) }}, {{ htmlspecialchars(json_encode($child->status ?? 'active')) }}, {{ $child->sort_order ?? 0 }}, {{ $child->parent_category_id ?? 'null' }})"
+                                                onclick="editCategory({{ $child->id }}, {{ json_encode($child->name) }}, {{ json_encode($child->description ?? '') }}, {{ json_encode($child->status ?? 'active') }}, {{ $child->sort_order ?? 0 }}, {{ $child->parent_category_id ?? 'null' }})"
                                                 style="padding:4px 10px;font-size:12px">
                                                 <i data-lucide="edit" style="width:13px;height:13px"></i>
                                             </button>
