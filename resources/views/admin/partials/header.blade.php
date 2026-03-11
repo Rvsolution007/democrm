@@ -470,7 +470,7 @@
 
     .toast-card {
         pointer-events: auto;
-        width: 380px;
+        width: 340px;
         max-width: calc(100vw - 48px);
         background: rgba(255, 255, 255, 0.92);
         backdrop-filter: blur(20px) saturate(180%);
@@ -1076,11 +1076,19 @@
                         const unread = notifications.filter(n => !n.read_at);
                         const newOnes = unread.filter(n => !window.__toastSeenIds.has(n.id));
 
-                        // On very first load, just record current IDs (don't spam old toasts)
+                        // On very first load, show toasts for RECENT notifications (< 2 min old)
                         if (!window.__toastInitialized) {
                             window.__toastInitialized = true;
-                            unread.forEach(n => window.__toastSeenIds.add(n.id));
-                            return;
+                            const now = Date.now();
+                            unread.forEach(n => {
+                                const createdAt = n.created_at_raw ? new Date(n.created_at_raw).getTime() : 0;
+                                const ageMs = now - createdAt;
+                                // If older than 2 minutes, just mark as seen (don't show toast)
+                                if (ageMs > 120000) {
+                                    window.__toastSeenIds.add(n.id);
+                                }
+                                // Recent ones are NOT added to seenIds, so they'll be caught below
+                            });
                         }
 
                         // Show toasts for truly new notifications
