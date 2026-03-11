@@ -827,6 +827,9 @@
             if (editBtn) editBtn.style.display = 'none';
 
             document.getElementById('quote-form').reset();
+            var qAssign = document.querySelector('#quote-drawer select[name=assigned_to_user_id]');
+            if (qAssign) qAssign.value = '{{ auth()->id() }}';
+
             document.getElementById('quote-drawer-title').textContent = 'Create New Quote';
             document.getElementById('quote-form').action = '{{ route('admin.quotes.store') }}';
             document.getElementById('quote-form-method').value = 'POST';

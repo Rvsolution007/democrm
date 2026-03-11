@@ -736,6 +736,8 @@
             document.getElementById('lead-form').action = '{{ route('admin.leads.store') }}';
             document.getElementById('form-method').value = '';
             document.getElementById('lead-form').reset();
+            var leadAssign = document.getElementById('lead-assigned');
+            if (leadAssign) leadAssign.value = '{{ auth()->id() }}';
             clearProductTable();
             // Hide quote action buttons for new leads
             document.getElementById('quote-action-container').style.display = 'none';

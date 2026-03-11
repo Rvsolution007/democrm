@@ -12,7 +12,7 @@
             </div>
             <div class="page-actions" style="display:flex;gap:10px;align-items:center">
                 @if(can('tasks.write'))
-                    <button class="btn btn-primary" onclick="openDrawer('task-drawer')"
+                    <button class="btn btn-primary" onclick="document.getElementById('task-form').reset(); var assignEl = document.querySelector('#task-drawer select[name=assigned_to_user_id]'); if(assignEl) assignEl.value = '{{ auth()->id() }}'; openDrawer('task-drawer')"
                         style="display:inline-flex;align-items:center;gap:6px;padding:10px 20px;font-weight:600;border-radius:10px;box-shadow:0 2px 8px rgba(59,130,246,0.25);transition:all .2s">
                         <i data-lucide="plus" style="width:16px;height:16px"></i> Add Task
                     </button>
