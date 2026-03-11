@@ -8,7 +8,7 @@
             <div class="nav-section-title">Main</div>
             <a href="{{ route('admin.dashboard') }}"
                 class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
-                <i data-lucide="layout-dashboard"></i> Dashboard
+                <i data-lucide="layout-dashboard"></i> <span>Dashboard</span>
             </a>
         </div>
         @if(can('leads.read') || can('clients.read') || can('quotes.read'))
@@ -17,29 +17,29 @@
                 @if(can('leads.read'))
                     <a href="{{ route('admin.leads.index') }}"
                         class="nav-link {{ request()->routeIs('admin.leads.*') ? 'active' : '' }}">
-                        <i data-lucide="users"></i> Leads
+                        <i data-lucide="users"></i> <span>Leads</span>
                     </a>
                 @endif
                 @if(can('clients.read'))
                     <a href="{{ route('admin.clients.index') }}"
                         class="nav-link {{ request()->routeIs('admin.clients.*') ? 'active' : '' }}">
-                        <i data-lucide="user-circle"></i> Clients
+                        <i data-lucide="user-circle"></i> <span>Clients</span>
                     </a>
                 @endif
                 @if(can('quotes.read'))
                     <a href="{{ route('admin.quotes.index') }}"
                         class="nav-link {{ request()->routeIs('admin.quotes.*') ? 'active' : '' }}">
-                        <i data-lucide="file-text"></i> Quotes
+                        <i data-lucide="file-text"></i> <span>Quotes</span>
                     </a>
                     <a href="{{ route('admin.payments.index') }}"
                         class="nav-link {{ request()->routeIs('admin.payments.*') ? 'active' : '' }}">
-                        <i data-lucide="credit-card"></i> Payments
+                        <i data-lucide="credit-card"></i> <span>Payments</span>
                     </a>
                 @endif
                 @if(can('leads.read'))
                     <a href="{{ route('admin.followups.index') }}"
                         class="nav-link {{ request()->routeIs('admin.followups.*') ? 'active' : '' }}">
-                        <i data-lucide="phone-call"></i> Follow-ups
+                        <i data-lucide="phone-call"></i> <span>Follow-ups</span>
                     </a>
                 @endif
 
@@ -49,15 +49,15 @@
                 @if(can('leads.read'))
                     <a href="{{ route('admin.whatsapp-connect.index') }}"
                         class="nav-link {{ request()->routeIs('admin.whatsapp-connect.*') ? 'active' : '' }}">
-                        <i data-lucide="smartphone" style="color:#25D366"></i> WhatsApp Connect
+                        <i data-lucide="smartphone" style="color:#25D366"></i> <span>WhatsApp Connect</span>
                     </a>
                     <a href="{{ route('admin.whatsapp-campaigns.index') }}"
                         class="nav-link {{ request()->routeIs('admin.whatsapp-campaigns.*') ? 'active' : '' }}">
-                        <i data-lucide="send"></i> Bulk Sender
+                        <i data-lucide="send"></i> <span>Bulk Sender</span>
                     </a>
                     <a href="{{ route('admin.whatsapp-templates.index') }}"
                         class="nav-link {{ request()->routeIs('admin.whatsapp-templates.*') ? 'active' : '' }}">
-                        <i data-lucide="message-square"></i> Templates
+                        <i data-lucide="message-square"></i> <span>Templates</span>
                     </a>
                 @endif
 
@@ -69,27 +69,27 @@
                 @if(can('products.read'))
                     <a href="{{ route('admin.products.index') }}"
                         class="nav-link {{ request()->routeIs('admin.products.*') ? 'active' : '' }}">
-                        <i data-lucide="package"></i> Products
+                        <i data-lucide="package"></i> <span>Products</span>
                     </a>
                 @endif
                 @if(can('categories.read'))
                     <a href="{{ route('admin.categories.index') }}"
                         class="nav-link {{ request()->routeIs('admin.categories.*') ? 'active' : '' }}">
-                        <i data-lucide="folder"></i> Categories
+                        <i data-lucide="folder"></i> <span>Categories</span>
                     </a>
                 @endif
                 @if(can('projects.global') || can('quotes.global'))
                     <a href="{{ route('admin.vendors.index') }}"
                         class="nav-link {{ request()->routeIs('admin.vendors.*') ? 'active' : '' }}">
-                        <i data-lucide="truck"></i> Vendors
+                        <i data-lucide="truck"></i> <span>Vendors</span>
                     </a>
                     <a href="{{ route('admin.purchases.index') }}"
                         class="nav-link {{ request()->routeIs('admin.purchases.*') ? 'active' : '' }}">
-                        <i data-lucide="shopping-cart"></i> Purchases
+                        <i data-lucide="shopping-cart"></i> <span>Purchases</span>
                     </a>
                     <a href="{{ route('admin.purchase-payments.index') }}"
                         class="nav-link {{ request()->routeIs('admin.purchase-payments.*') ? 'active' : '' }}">
-                        <i data-lucide="credit-card"></i> Purchase Payments
+                        <i data-lucide="credit-card"></i> <span>Purchase Payments</span>
                     </a>
                 @endif
             </div>
@@ -100,31 +100,31 @@
                 @if(can('projects.read'))
                     <a href="{{ route('admin.projects.index') }}"
                         class="nav-link {{ request()->routeIs('admin.projects.*') ? 'active' : '' }}">
-                        <i data-lucide="briefcase"></i> Projects
+                        <i data-lucide="briefcase"></i> <span>Projects</span>
                     </a>
                 @endif
                 @if(can('tasks.read'))
                     <a href="{{ route('admin.tasks.index') }}"
                         class="nav-link {{ request()->routeIs('admin.tasks.*') ? 'active' : '' }}">
-                        <i data-lucide="check-square"></i> Tasks
+                        <i data-lucide="check-square"></i> <span>Tasks</span>
                     </a>
                 @endif
                 @if(can('tasks.read'))
                     <a href="{{ route('admin.micro-tasks.index') }}"
                         class="nav-link {{ request()->routeIs('admin.micro-tasks.*') ? 'active' : '' }}">
-                        <i data-lucide="list-todo"></i> Micro Tasks
+                        <i data-lucide="list-todo"></i> <span>Micro Tasks</span>
                     </a>
                 @endif
                 @if(can('tasks.read'))
                     <a href="{{ route('admin.task-followups.index') }}"
                         class="nav-link {{ request()->routeIs('admin.task-followups.*') ? 'active' : '' }}">
-                        <i data-lucide="bell-ring"></i> Micro Task Follow-ups
+                        <i data-lucide="bell-ring"></i> <span>Micro Task Follow-ups</span>
                     </a>
                 @endif
                 @if(can('settings.manage'))
                     <a href="{{ route('admin.service-templates.index') }}"
                         class="nav-link {{ request()->routeIs('admin.service-templates.*') ? 'active' : '' }}">
-                        <i data-lucide="clipboard-list"></i> Service Templates
+                        <i data-lucide="clipboard-list"></i> <span>Service Templates</span>
                     </a>
                 @endif
             </div>
@@ -135,19 +135,19 @@
                 @if(can('users.read'))
                     <a href="{{ route('admin.users.index') }}"
                         class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
-                        <i data-lucide="users-2"></i> Users
+                        <i data-lucide="users-2"></i> <span>Users</span>
                     </a>
                 @endif
                 @if(can('roles.read'))
                     <a href="{{ route('admin.roles.index') }}"
                         class="nav-link {{ request()->routeIs('admin.roles.*') ? 'active' : '' }}">
-                        <i data-lucide="shield"></i> Roles
+                        <i data-lucide="shield"></i> <span>Roles</span>
                     </a>
                 @endif
                 @if(can('activities.read'))
                     <a href="{{ route('admin.activities.index') }}"
                         class="nav-link {{ request()->routeIs('admin.activities.*') ? 'active' : '' }}">
-                        <i data-lucide="activity"></i> Activities
+                        <i data-lucide="activity"></i> <span>Activities</span>
                     </a>
                 @endif
             </div>
@@ -156,18 +156,18 @@
             <div class="nav-section-title">Analytics</div>
             <a href="{{ route('admin.profile.index') }}"
                 class="nav-link {{ request()->routeIs('admin.profile.*') ? 'active' : '' }}">
-                <i data-lucide="user"></i> My Profile
+                <i data-lucide="user"></i> <span>My Profile</span>
             </a>
             @if(can('reports.read'))
                 <a href="{{ route('admin.reports.index') }}"
                     class="nav-link {{ request()->routeIs('admin.reports.*') ? 'active' : '' }}">
-                    <i data-lucide="bar-chart-2"></i> Reports
+                    <i data-lucide="bar-chart-2"></i> <span>Reports</span>
                 </a>
             @endif
             @if(can('settings.manage'))
                 <a href="{{ route('admin.settings.index') }}"
                     class="nav-link {{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">
-                    <i data-lucide="settings"></i> Settings
+                    <i data-lucide="settings"></i> <span>Settings</span>
                 </a>
             @endif
         </div>

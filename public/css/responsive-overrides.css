@@ -10,24 +10,52 @@
     -webkit-overflow-scrolling: touch;
 }
 
-/* ---- Laptop (1024px – 1366px): sidebar collapses to icons ---- */
+/* ---- Laptop (1024px – 1366px): sidebar collapses to icons, expands on hover ---- */
 @media (min-width: 1024px) and (max-width: 1366px) {
-    /* Sidebar → icon-only */
+    /* Sidebar collapsed by default */
     .sidebar {
         width: 64px !important;
+        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease !important;
+        overflow-x: hidden;
+        z-index: 100;
     }
 
+    /* Expand sidebar on hover */
+    .sidebar:hover {
+        width: 260px !important;
+        box-shadow: 4px 0 15px rgba(0,0,0,0.05);
+    }
+
+    .sidebar .nav-link {
+        justify-content: flex-start !important;
+        padding: 10px 22px !important; /* Keep icon centered visually when collapsed */
+        white-space: nowrap;
+        transition: padding 0.3s ease, background 0.15s;
+    }
+
+    .sidebar:hover .nav-link {
+        padding: 10px 20px !important;
+    }
+
+    /* Hide text/titles initially with opacity, fade them in on hover */
     .sidebar .nav-link span,
     .sidebar .sidebar-logo-text,
     .sidebar .sidebar-title,
     .sidebar .nav-divider,
     .sidebar .nav-section-title {
-        display: none !important;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.2s ease, visibility 0.2s ease;
+        display: inline-block; 
+        white-space: nowrap;
     }
 
-    .sidebar .nav-link {
-        justify-content: center;
-        padding: 10px 8px;
+    /* Show when hovered */
+    .sidebar:hover .nav-link span,
+    .sidebar:hover .sidebar-title,
+    .sidebar:hover .nav-section-title {
+        opacity: 1;
+        visibility: visible;
     }
 
     .sidebar .sidebar-toggle {
@@ -35,9 +63,10 @@
     }
 
     .sidebar .sidebar-header {
-        justify-content: center;
-        padding: 1rem 0.5rem;
+        justify-content: flex-start;
+        padding: 1.25rem;
     }
+
 
     /* Main area adjusts */
     .main-content {
