@@ -1659,7 +1659,7 @@
                     actionsBtns += '<button type="button" class="kb-action-btn kb-action-edit" onclick="openEditTaskModal(' + t.id + ')" title="Edit"><i data-lucide="pencil" style="width:14px;height:14px"></i></button>';
                 }
                 if (canDelete) {
-                    actionsBtns += '<form method="POST" action="{{ url(\'admin/tasks\') }}/' + t.id + '" style="display:inline;margin:0" onsubmit="return confirm(\'Delete this task?\')"><input type="hidden" name="_token" value="' + csrfToken + '"><input type="hidden" name="_method" value="DELETE"><button type="submit" class="kb-action-btn kb-action-delete" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button></form>';
+                    actionsBtns += '<form method="POST" action="{{ url("/admin/tasks") }}/' + t.id + '" style="display:inline;margin:0" onsubmit="return confirm(\'Delete this task?\')"><input type="hidden" name="_token" value="' + csrfToken + '"><input type="hidden" name="_method" value="DELETE"><button type="submit" class="kb-action-btn kb-action-delete" title="Delete"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button></form>';
                 }
 
                 return '<tr class="list-row" data-title="' + esc(t.title.toLowerCase()) + '">' +
