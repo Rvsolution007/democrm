@@ -39,9 +39,9 @@ class OverdueNotification extends Notification
     private function buildUrl(): string
     {
         return match ($this->entityType) {
-            'task' => route('admin.tasks.index'),
-            'project' => route('admin.projects.show', $this->entityId),
-            default => route('admin.dashboard'),
+            'task' => route('admin.tasks.index', [], false),
+            'project' => route('admin.projects.show', $this->entityId, false),
+            default => route('admin.dashboard', [], false),
         };
     }
 

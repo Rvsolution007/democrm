@@ -50,11 +50,11 @@ class FollowupTodayNotification extends Notification
     private function buildUrl(): string
     {
         return match ($this->entityType) {
-            'lead' => url("admin/leads/{$this->entityId}"),
-            'micro_task' => route('admin.micro-tasks.index'),
-            'task' => route('admin.tasks.index'),
-            'project' => route('admin.projects.show', $this->entityId),
-            default => route('admin.dashboard'),
+            'lead' => '/admin/leads/' . $this->entityId,
+            'micro_task' => route('admin.micro-tasks.index', [], false),
+            'task' => route('admin.tasks.index', [], false),
+            'project' => route('admin.projects.show', $this->entityId, false),
+            default => route('admin.dashboard', [], false),
         };
     }
 
