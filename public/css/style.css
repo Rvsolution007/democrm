@@ -1291,6 +1291,65 @@ textarea.form-control {
 /* ======================================
    RESPONSIVE
    ====================================== */
+
+/* --- Laptop screens (1024px to 1366px): auto-collapse sidebar --- */
+@media (min-width: 1024px) and (max-width: 1366px) {
+    .sidebar {
+        width: 64px;
+    }
+
+    .sidebar .nav-link span,
+    .sidebar .sidebar-logo-text,
+    .sidebar .nav-divider {
+        display: none;
+    }
+
+    .sidebar .nav-link {
+        justify-content: center;
+        padding: 10px 8px;
+    }
+
+    .sidebar .sidebar-toggle {
+        display: none;
+    }
+
+    .main-wrapper {
+        margin-left: 64px;
+    }
+
+    .topbar {
+        left: 64px;
+    }
+
+    .main-content {
+        padding: 20px;
+        padding-top: 84px;
+    }
+
+    /* Make tables scrollable horizontally if they're still too wide */
+    .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Slightly compact table cells */
+    table th,
+    table td {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+
+    .page-header h1 {
+        font-size: 22px;
+    }
+
+    /* Tighten filter toolbar on laptop */
+    .table-toolbar {
+        padding: 12px 16px !important;
+    }
+}
+
+/* --- Tablet / small screens: sidebar as drawer --- */
 @media (max-width: 1023px) {
     .sidebar {
         transform: translateX(-100%);
@@ -1306,6 +1365,12 @@ textarea.form-control {
 
     .topbar {
         left: 0;
+    }
+
+    /* Make tables scrollable */
+    .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 }
 
