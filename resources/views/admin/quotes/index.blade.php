@@ -521,6 +521,7 @@
                                     <th style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px;width:70px">Qty</th>
                                     <th style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px;width:100px">Dis.
                                         Price</th>
+                                    <th style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px;width:100px" title="Auto-Purchase Amount">Pur. Amt (₹)</th>
                                     <th style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px;width:50px"></th>
                                 </tr>
                             </thead>
@@ -759,14 +760,11 @@
 
             var purchaseHtml = '';
             if (isPurchase) {
-                purchaseHtml = '<button type="button" onclick="togglePurchaseInput(' + idx + ')" style="background:none;border:none;color:#f59e0b;cursor:pointer;font-size:14px;margin-left:6px;position:relative" title="Set Purchase Amount">' +
-                    '<i data-lucide="shopping-cart" style="width:14px;height:14px"></i></button>' +
-                    '<div id="purchase-input-wrap-' + idx + '" style="display:' + (purchaseAmt > 0 ? 'flex' : 'none') + ';align-items:center;gap:4px;margin-top:4px">' +
-                    '<span style="font-size:11px;color:#666">₹</span>' +
-                    '<input type="number" name="product_purchase_amounts[]" id="purchase-amt-' + idx + '" value="' + purchaseAmt + '" min="0" step="0.01" style="width:80px;padding:3px 6px;border:1px solid #f59e0b;border-radius:4px;font-size:12px;text-align:center" placeholder="0">' +
+                purchaseHtml = '<div style="display:flex;align-items:center;justify-content:center;gap:4px">' +
+                    '<input type="number" name="product_purchase_amounts[]" value="' + purchaseAmt + '" min="0" step="0.01" style="width:80px;padding:4px;border:1px solid #f59e0b;border-radius:4px;font-size:12px;text-align:center" placeholder="0">' +
                     '</div>';
             } else {
-                purchaseHtml = '<input type="hidden" name="product_purchase_amounts[]" value="0">';
+                purchaseHtml = '<span style="font-size:11px;color:#aaa;display:block;text-align:center">N/A</span><input type="hidden" name="product_purchase_amounts[]" value="0">';
             }
 
             var tr = document.createElement('tr');
@@ -782,11 +780,9 @@
                 '</td>' +
                 '<td style="padding:8px 10px;border:1px solid #e0e0e0"><input type="number" name="product_quantities[]" value="' + qty + '" min="1" oninput="calcQuoteTotalFromProducts()" style="width:60px;padding:4px;border:1px solid #ddd;border-radius:4px;text-align:center"></td>' +
                 '<td style="padding:8px 10px;border:1px solid #e0e0e0"><input type="number" name="product_discounts[]" value="' + discount + '" min="0" oninput="calcQuoteTotalFromProducts()" style="width:90px;padding:4px;border:1px solid #ddd;border-radius:4px;text-align:center" placeholder="0"></td>' +
+                '<td style="padding:8px 10px;border:1px solid #e0e0e0;text-align:center">' + purchaseHtml + '</td>' +
                 '<td style="padding:8px 10px;border:1px solid #e0e0e0;text-align:center">' +
-                '<div style="display:flex;align-items:center;justify-content:center;flex-wrap:wrap">' +
                 '<button type="button" onclick="removeQuoteProductRow(' + idx + ')" style="background:none;border:none;color:#dc3545;cursor:pointer;font-size:16px" title="Remove">&times;</button>' +
-                purchaseHtml +
-                '</div>' +
                 '<input type="hidden" name="product_ids[]" value="' + pid + '" data-qproduct-id="' + pid + '">' +
                 '</td>';
             tbody.appendChild(tr);
