@@ -2,7 +2,7 @@
 
 ## Ye Kya Hai?
 
-Chrome/Firefox extension jo WhatsApp Web pe **Ctrl+Shift+L** press karne pe currently open chat ka phone number automatically CRM me Lead Form me bhar deta hai.
+Chrome/Firefox extension jo WhatsApp Web me upar header me **"➕ RV CRM Lead"** button add kar deta hai aur **Alt+X** shortcut se directly CRM me lead form open karta hai.
 
 ## Kaise Install Karein?
 
@@ -25,7 +25,7 @@ Chrome/Firefox extension jo WhatsApp Web pe **Ctrl+Shift+L** press karne pe curr
 
 1. **WhatsApp Web** kholo → `https://web.whatsapp.com/`
 2. Koi bhi **chat open karo** (jis number ki lead banana hai)
-3. **`Ctrl + Shift + L`** press karo
+3. Upar header me **`➕ RV CRM Lead`** button pe click karo, YA **`Alt + X`** press karo
 4. CRM ka Leads page ek naye tab me khulega — **phone number already filled hoga** aur source "WhatsApp" set hoga
 5. Baaki details bharo (Name, Email, City, etc.) aur **Save** karo
 

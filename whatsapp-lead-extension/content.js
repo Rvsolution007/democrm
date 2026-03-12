@@ -1,203 +1,131 @@
 /**
  * RV CRM - WhatsApp Lead Capture Extension
- * 
- * Ctrl+Shift+L press karne pe WhatsApp Web se phone number extract karke
- * CRM me Lead form open karta hai number pre-filled ke saath.
- * 
- * CRM URL: https://crm.rvallsolutions.com/
  */
 
 (function () {
     'use strict';
 
-    // ─── Configuration ───────────────────────────────────────────────────
     const CRM_BASE_URL = 'https://crm.rvallsolutions.com';
     const LEADS_PATH = '/admin/leads';
-    const SHORTCUT_KEY = 'l';       // Ctrl + Shift + L (L = Lead)
-    const USE_CTRL = true;
-    const USE_SHIFT = true;
-    // ─────────────────────────────────────────────────────────────────────
 
-    /**
-     * Extract phone number from the currently open WhatsApp chat header.
-     * WhatsApp Web stores the chat contact info in the header area.
-     * 
-     * Multiple strategies are used because WhatsApp Web DOM changes frequently.
-     */
+    // Extract phone number robustly from WhatsApp Web DOM
     function extractPhoneNumber() {
         let phone = null;
 
-        // ── Strategy 1: Header title (contact name / number) ──
-        // The chat header shows either a saved contact name or phone number.
-        // For unsaved contacts, it shows the phone number directly.
-        const headerTitle = document.querySelector('header span[title]');
+        // Try extracting from the "info" sidebar if open (most reliable for saved contacts)
+        const sidebarSpans = document.querySelectorAll('section span[dir="auto"], section div[dir="auto"]');
+        for (let span of sidebarSpans) {
+            const text = span.textContent || '';
+            // Match numbers like: +91 98765 43210 or 9876543210
+            const cln = text.replace(/[\s\-\(\)]/g, '');
+            if (/^\+?\d{10,15}$/.test(cln) && !text.includes('last seen') && !text.includes('online')) {
+                return cln.replace(/^\+/, '');
+            }
+        }
+
+        // Try extracting from the main chat header title
+        const headerTitle = document.querySelector('#main header span[title]');
         if (headerTitle) {
             const titleText = headerTitle.getAttribute('title') || '';
-            // Check if title looks like a phone number (contains digits, spaces, +, -)
             const cleaned = titleText.replace(/[\s\-\(\)]/g, '');
-            if (/^\+?\d{7,15}$/.test(cleaned)) {
-                phone = cleaned.replace(/^\+/, '');
-                console.log('[RV CRM] Phone from header title:', phone);
-                return phone;
-            }
-        }
-
-        // ── Strategy 2: Chat info panel (if open) ──
-        // When user clicks on the contact header, a details panel opens on the right
-        // which shows the phone number even for saved contacts.
-        const infoSection = document.querySelectorAll('section span[title]');
-        for (let i = 0; i < infoSection.length; i++) {
-            const text = (infoSection[i].getAttribute('title') || '').replace(/[\s\-\(\)]/g, '');
-            if (/^\+?\d{7,15}$/.test(text)) {
-                phone = text.replace(/^\+/, '');
-                console.log('[RV CRM] Phone from info panel:', phone);
-                return phone;
-            }
-        }
-
-        // ── Strategy 3: The "data-id" from the active chat list item ──
-        // Chat list items have data attributes with the JID (phone@s.whatsapp.net)
-        const activeChat = document.querySelector('[data-testid="cell-frame-container"][class*="active"], div[tabindex="-1"][data-testid="cell-frame-container"]._amig');
-        if (activeChat) {
-            // Look for data attribute patterns
-            const ariaText = activeChat.getAttribute('aria-label') || '';
-            const numMatch = ariaText.match(/(\+?\d[\d\s\-]{6,14}\d)/);
-            if (numMatch) {
-                phone = numMatch[1].replace(/[\s\-\+]/g, '');
-                console.log('[RV CRM] Phone from active chat aria:', phone);
-                return phone;
-            }
-        }
-
-        // ── Strategy 4: Scan conversation header more broadly ──
-        // Sometimes the number is in a different element within the header
-        const headerContainer = document.querySelector('header');
-        if (headerContainer) {
-            const allSpans = headerContainer.querySelectorAll('span');
-            for (let i = 0; i < allSpans.length; i++) {
-                const text = (allSpans[i].textContent || '').trim().replace(/[\s\-\(\)]/g, '');
-                if (/^\+?\d{8,15}$/.test(text)) {
-                    phone = text.replace(/^\+/, '');
-                    console.log('[RV CRM] Phone from header scan:', phone);
-                    return phone;
-                }
+            if (/^\+?\d{10,15}$/.test(cleaned)) {
+                return cleaned.replace(/^\+/, '');
             }
         }
 
         return null;
     }
 
-    /**
-     * Show a floating notification toast on WhatsApp Web page
-     */
+    // Floating Toast Notification
     function showToast(message, type) {
-        // Remove existing toast
         const existing = document.getElementById('rvcrm-toast');
         if (existing) existing.remove();
 
         const toast = document.createElement('div');
         toast.id = 'rvcrm-toast';
-
         const isError = type === 'error';
         const bgColor = isError ? '#dc2626' : '#25D366';
-        const icon = isError ? '⚠️' : '🚀';
-
+        
         toast.innerHTML = `
-            <div style="
-                position: fixed;
-                bottom: 24px;
-                right: 24px;
-                z-index: 99999;
-                background: ${bgColor};
-                color: white;
-                padding: 14px 22px;
-                border-radius: 12px;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                font-size: 14px;
-                font-weight: 500;
-                box-shadow: 0 8px 30px rgba(0,0,0,0.25);
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                animation: rvcrm-slide-in 0.3s ease-out;
-                cursor: pointer;
-                max-width: 400px;
-            " onclick="this.parentElement.remove()">
-                <span style="font-size:18px">${icon}</span>
+            <div style="position:fixed;bottom:24px;right:24px;z-index:99999;background:${bgColor};color:white;padding:14px 22px;border-radius:12px;font-family:sans-serif;font-size:14px;font-weight:500;box-shadow:0 8px 30px rgba(0,0,0,0.25);display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="this.parentElement.remove()">
+                <span style="font-size:18px">${isError ? '⚠️' : '🚀'}</span>
                 <span>${message}</span>
             </div>
         `;
-
-        // Add animation keyframes if not already present
-        if (!document.getElementById('rvcrm-styles')) {
-            const style = document.createElement('style');
-            style.id = 'rvcrm-styles';
-            style.textContent = `
-                @keyframes rvcrm-slide-in {
-                    from { transform: translateX(100px); opacity: 0; }
-                    to { transform: translateX(0); opacity: 1; }
-                }
-                @keyframes rvcrm-slide-out {
-                    from { transform: translateX(0); opacity: 1; }
-                    to { transform: translateX(100px); opacity: 0; }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-
         document.body.appendChild(toast);
-
-        // Auto-remove after 4 seconds
-        setTimeout(function () {
-            const el = document.getElementById('rvcrm-toast');
-            if (el) {
-                el.querySelector('div').style.animation = 'rvcrm-slide-out 0.3s ease-in forwards';
-                setTimeout(function () { el.remove(); }, 300);
-            }
-        }, 4000);
+        setTimeout(() => { if (document.getElementById('rvcrm-toast')) document.getElementById('rvcrm-toast').remove(); }, 5000);
     }
 
-    /**
-     * Main shortcut handler
-     */
-    function handleShortcut(e) {
-        // Check: Ctrl + Shift + L (case insensitive)
-        if (USE_CTRL && !e.ctrlKey) return;
-        if (USE_SHIFT && !e.shiftKey) return;
-        if (e.key.toLowerCase() !== SHORTCUT_KEY) return;
-        if (e.altKey || e.metaKey) return;
+    // Capture Lead Action
+    function captureLead() {
+        console.log('[RV CRM] Capture action triggered');
+        let phone = extractPhoneNumber();
 
-        // Prevent default browser action
-        e.preventDefault();
-        e.stopPropagation();
-
-        console.log('[RV CRM] Shortcut Ctrl+Shift+L detected!');
-
-        const phone = extractPhoneNumber();
-
+        // If phone not found automatically, ask the user to input it
         if (!phone) {
-            showToast('Phone number nahi mila! Pehle koi chat open karo ya unsaved number ki chat kholke try karo.', 'error');
-            return;
+            // Wait, for saved contacts, the user MUST open the info panel.
+            // Let's prompt them visually if we can't find it.
+            const manualPhone = prompt('Phone number automatically nahi mila.\n(Ya to right-side "Contact Info" panel open karo, YA number yahan type karo):', '+91');
+            if (manualPhone && manualPhone.trim() !== '' && manualPhone !== '+91') {
+                phone = manualPhone;
+            } else {
+                showToast('Number enter nahi kiya. Pehle Contact Info kholo ya number type karo.', 'error');
+                return;
+            }
         }
 
-        // Clean the phone number - ensure it has country code
+        // Clean phone
         let cleanPhone = phone.replace(/\D/g, '');
-
-        // Build CRM URL
         const crmUrl = CRM_BASE_URL + LEADS_PATH + '?quick_add=1&phone=' + encodeURIComponent(cleanPhone);
-
+        
         showToast('Lead form open ho raha hai: ' + cleanPhone, 'success');
-
-        // Open CRM in new tab
-        setTimeout(function () {
-            window.open(crmUrl, '_blank');
-        }, 500);
+        
+        setTimeout(() => { window.open(crmUrl, '_blank'); }, 300);
     }
 
-    // ─── Register keyboard shortcut ──────────────────────────────────────
-    document.addEventListener('keydown', handleShortcut, true);
+    // Shortcut Ctrl+Shift+L
+    document.addEventListener('keydown', function(e) {
+        // Ctrl + Shift + L
+        if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'l') {
+            e.preventDefault();
+            e.stopPropagation();
+            captureLead();
+        }
+        
+        // Backup shortcut: Alt + X
+        if (e.altKey && e.key.toLowerCase() === 'x') {
+            e.preventDefault();
+            e.stopPropagation();
+            captureLead();
+        }
+    }, true);
 
-    // ─── Confirmation that extension is loaded ───────────────────────────
-    console.log('[RV CRM] WhatsApp Lead Capture extension loaded! Press Ctrl+Shift+L to capture a lead.');
+    // Inject UI Button into WhatsApp Header
+    function injectButton() {
+        if (document.getElementById('rvcrm-btn')) return;
+
+        // WhatsApp header right-side menu container
+        const headerMenu = document.querySelector('#main header div[role="button"]')?.parentElement?.parentElement;
+        if (!headerMenu) return;
+
+        const btnContainer = document.createElement('div');
+        btnContainer.id = 'rvcrm-btn';
+        btnContainer.style.marginRight = '10px';
+        btnContainer.innerHTML = `
+            <button style="background:#2563eb;color:white;border:none;border-radius:6px;padding:6px 12px;font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:13px;box-shadow:0 2px 5px rgba(0,0,0,0.2);">
+                <span>➕</span> RV CRM Lead
+            </button>
+        `;
+        
+        btnContainer.querySelector('button').addEventListener('click', captureLead);
+        
+        // Insert right before the other icons
+        headerMenu.insertBefore(btnContainer, headerMenu.firstChild);
+    }
+
+    // Keep checking to inject button because WhatsApp is a SPA
+    setInterval(injectButton, 2000);
+
+    console.log('[RV CRM] Extension loaded! Use Alt+X, Ctrl+Shift+L, or the Header Button.');
 
 })();

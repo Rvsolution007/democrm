@@ -28,7 +28,7 @@
                 <div style="flex:1">
                     <h2 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:#1e3a8a">Capture Leads with 1 Click</h2>
                     <p style="margin:0 0 16px 0;color:#3b82f6;font-size:15px;line-height:1.5">
-                        Open any chat on WhatsApp Web, press <kbd style="background:#1e3a8a;color:white;padding:3px 8px;border-radius:4px;font-family:monospace;font-size:13px">Ctrl + Shift + L</kbd> and the lead form will open automatically with the phone number pre-filled!
+                        Open any chat on WhatsApp Web, and simply click the new <strong>"➕ RV CRM Lead"</strong> button in the top header, OR press <kbd style="background:#1e3a8a;color:white;padding:3px 8px;border-radius:4px;font-family:monospace;font-size:13px">Alt + X</kbd> to open the lead form automatically!
                     </p>
                     <a href="{{ asset('whatsapp-lead-extension.zip') }}" class="btn btn-primary" style="padding:10px 20px;font-size:15px;display:inline-flex;align-items:center;gap:8px" download>
                         <i data-lucide="download" style="width:18px;height:18px"></i> Download Extension
