@@ -14,6 +14,8 @@ class QuoteItem extends Model
         'description',
         'hsn_code',
         'qty',
+        'rate',
+        'discount',
         'unit',
         'unit_price',
         'gst_percent',
@@ -24,6 +26,8 @@ class QuoteItem extends Model
 
     protected $casts = [
         'qty' => 'integer',
+        'rate' => 'integer',
+        'discount' => 'integer',
         'unit_price' => 'integer',
         'gst_percent' => 'integer',
         'gst_amount' => 'integer',

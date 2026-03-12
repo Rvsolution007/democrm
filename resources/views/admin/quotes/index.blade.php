@@ -1121,19 +1121,19 @@
                 var price = item.unit_price / 100;
                 var discount = 0;
 
-                // Try to find original product price to calculate discount
-                // This is a bit hacky but works if products list is available in DOM
-                // Or we can just show net price and 0 discount for now if we can't determine it.
-                // Let's try to match product_id
-
-                // Since this runs after page load, product-selector options exist
-                var option = document.querySelector(`#quote-product-selector option[value="${item.product_id}"]`);
-                if (option) {
-                    var currentPrice = parseFloat(option.getAttribute('data-price'));
-                    // If current price is higher than item price, assume the difference is discount
-                    if (currentPrice > price) {
-                        discount = currentPrice - price;
-                        price = currentPrice;
+                // Try to use DB explicit rate and discount first (for newer quotes)
+                if (item.rate !== undefined && item.discount !== undefined && item.rate > 0) {
+                    price = item.rate / 100;
+                    discount = item.discount / 100;
+                } else {
+                    // Fallback to legacy calculation for old quotes without explicit rate/discount columns
+                    var option = document.querySelector(`#quote-product-selector option[value="${item.product_id}"]`);
+                    if (option) {
+                        var currentPrice = parseFloat(option.getAttribute('data-price'));
+                        if (currentPrice > price) {
+                            discount = currentPrice - price;
+                            price = currentPrice;
+                        }
                     }
                 }
 

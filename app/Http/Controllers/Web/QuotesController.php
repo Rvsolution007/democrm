@@ -191,12 +191,14 @@ class QuotesController extends Controller
 
                     // Respect user provided price or fallback to product price
                     if (isset($request->product_prices[$index])) {
-                        $unitPrice = ((float) $request->product_prices[$index]) - $discountPerUnit;
+                        $unitPrice = (float) $request->product_prices[$index];
                     } else {
-                        $unitPrice = (($product->mrp ?: $product->sale_price) / 100) - $discountPerUnit;
+                        $unitPrice = ($product->mrp ?: $product->sale_price) / 100;
                     }
 
-                    $unitPricePaise = (int) ($unitPrice * 100);
+                    $ratePaise = (int) ($unitPrice * 100);
+                    $discountPaise = (int) ($discountPerUnit * 100);
+                    $finalUnitPricePaise = $ratePaise - $discountPaise;
 
                     $desc = $request->product_descriptions[$index] ?? $product->description ?? '';
 
@@ -206,7 +208,9 @@ class QuotesController extends Controller
                         'product_name' => $product->name,
                         'description' => $desc,
                         'qty' => $qty,
-                        'unit_price' => $unitPricePaise,
+                        'rate' => $ratePaise,
+                        'discount' => $discountPaise,
+                        'unit_price' => $finalUnitPricePaise,
                         'gst_percent' => 0,
                         'sort_order' => $index,
                     ]);
@@ -349,12 +353,14 @@ class QuotesController extends Controller
 
                     // Respect user provided price or fallback to product price
                     if (isset($request->product_prices[$index])) {
-                        $unitPrice = ((float) $request->product_prices[$index]) - $discountPerUnit;
+                        $unitPrice = (float) $request->product_prices[$index];
                     } else {
-                        $unitPrice = (($product->mrp ?: $product->sale_price) / 100) - $discountPerUnit;
+                        $unitPrice = ($product->mrp ?: $product->sale_price) / 100;
                     }
 
-                    $unitPricePaise = (int) ($unitPrice * 100);
+                    $ratePaise = (int) ($unitPrice * 100);
+                    $discountPaise = (int) ($discountPerUnit * 100);
+                    $finalUnitPricePaise = $ratePaise - $discountPaise;
 
                     $desc = $request->product_descriptions[$index] ?? $product->description ?? '';
 
@@ -364,7 +370,9 @@ class QuotesController extends Controller
                         'product_name' => $product->name,
                         'description' => $desc,
                         'qty' => $qty,
-                        'unit_price' => $unitPricePaise,
+                        'rate' => $ratePaise,
+                        'discount' => $discountPaise,
+                        'unit_price' => $finalUnitPricePaise,
                         'gst_percent' => 0,
                         'sort_order' => $index,
                     ]);
