@@ -408,8 +408,8 @@
                     </div>
 
                     {{-- Client Dropdown --}}
-                    <div id="quote-client-section">
-                        <select name="client_id" id="quote-client-id" class="form-select">
+                    <div id="quote-client-section" style="width:100%;">
+                        <select name="client_id" id="quote-client-id" class="form-select" style="width:100%;">
                             <option value="">Select client</option>
                             @foreach($clients as $client)
                                 <option value="{{ $client->id }}">{{ $client->display_name }}</option>
@@ -418,8 +418,8 @@
                     </div>
 
                     {{-- Lead Dropdown --}}
-                    <div id="quote-lead-section" style="display:none">
-                        <select name="lead_id" id="quote-lead-id" class="form-select">
+                    <div id="quote-lead-section" style="display:none; width:100%;">
+                        <select name="lead_id" id="quote-lead-id" class="form-select" style="width:100%;">
                             <option value="">Select lead</option>
                             @foreach($leads as $lead)
                                 <option value="{{ $lead->id }}">{{ $lead->name }}{{ $lead->phone ? ' — ' . $lead->phone : '' }}
@@ -427,7 +427,12 @@
                             @endforeach
                         </select>
                     </div>
-                </div>
+                <style>
+                    /* Force Select2 inside Quote Drawer to be full width */
+                    #quote-drawer .select2-container {
+                        width: 100% !important;
+                    }
+                </style>
                 @php
                     $showAssignDropdown = (can('quotes.global') || auth()->user()->isAdmin()) && $users->count() > 1;
                 @endphp
@@ -837,7 +842,8 @@
             var qAssign = document.querySelector('#quote-drawer select[name=assigned_to_user_id]');
             if (qAssign) qAssign.value = '{{ auth()->id() }}';
 
-            document.getElementById('quote-drawer-title').textContent = 'Create New Quote';
+            var isClientTab = document.getElementById('tab-btn-clients').classList.contains('active');
+            document.getElementById('quote-drawer-title').textContent = isClientTab ? 'Create New Invoice' : 'Create New Quote';
             document.getElementById('quote-form').action = '{{ route('admin.quotes.store') }}';
             document.getElementById('quote-form-method').value = 'POST';
             document.getElementById('q-tax-rate').value = "0";
@@ -948,12 +954,14 @@
 
                     // Populate fields - detect client type
                     if (quote.lead_id) {
+                        document.getElementById('quote-drawer-title').textContent = 'Edit Quote';
                         switchQuoteClientType('lead');
                         setInputValue('lead_id', quote.lead_id);
                         // Explicitly show Convert to Client button for lead quotes
                         var convertBtn = document.getElementById('btn-convert-client');
                         if (convertBtn) convertBtn.style.display = 'flex';
                     } else {
+                        document.getElementById('quote-drawer-title').textContent = 'Edit Invoice';
                         switchQuoteClientType('client');
                         setInputValue('client_id', quote.client_id);
                     }
@@ -1021,16 +1029,16 @@
                         editBtn.onclick = function () { editQuote(id); };
                     }
 
-                    document.getElementById('quote-drawer-title').textContent = 'View Quote';
-
                     // Populate fields (same as edit)
                     if (quote.lead_id) {
+                        document.getElementById('quote-drawer-title').textContent = 'View Quote';
                         switchQuoteClientType('lead');
                         setInputValue('lead_id', quote.lead_id);
                         // Explicitly show Convert to Client button for lead quotes
                         var convertBtn = document.getElementById('btn-convert-client');
                         if (convertBtn) convertBtn.style.display = 'flex';
                     } else {
+                        document.getElementById('quote-drawer-title').textContent = 'View Invoice';
                         switchQuoteClientType('client');
                         setInputValue('client_id', quote.client_id);
                     }
