@@ -397,7 +397,7 @@ class QuotesController extends Controller
                             ->where('product_id', $item->product_id)
                             ->first();
                         if ($purchase) {
-                            $purchase->update(['total_amount' => $item->purchase_amount]);
+                            $purchase->update(['total_amount' => $item->purchase_amount / 100]);
                         }
                     }
                 }
@@ -526,7 +526,7 @@ class QuotesController extends Controller
                 if ($product && $product->is_purchase_enabled) {
                     $company = Company::find($companyId);
                     // Use custom purchase_amount if set, otherwise fall back to line item total
-                    $purchaseTotal = ($item->purchase_amount > 0)
+                    $purchaseTotalPaise = ($item->purchase_amount > 0)
                         ? $item->purchase_amount
                         : $item->unit_price * max(1, $item->qty);
                     Purchase::create([
@@ -536,7 +536,7 @@ class QuotesController extends Controller
                         'product_id' => $product->id,
                         'purchase_no' => Purchase::generatePurchaseNumber($company),
                         'date' => now()->toDateString(),
-                        'total_amount' => $purchaseTotal,
+                        'total_amount' => $purchaseTotalPaise / 100,
                         'paid_amount' => 0,
                         'status' => 'draft',
                         'notes' => 'Auto-generated from quote ' . $quote->quote_no . ' for product: ' . $product->name,
