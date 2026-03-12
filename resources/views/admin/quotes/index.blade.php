@@ -597,10 +597,10 @@
                 <button class="btn btn-outline" onclick="closeDrawer('quote-drawer')">Cancel</button>
                 @if(can('quotes.write'))
                     <button type="button" id="btn-edit-quote" class="btn btn-outline" style="display:none;align-items:center;">
-                        <i data-lucide="edit" style="width:16px;height:16px;margin-right:6px"></i> Edit Quote
+                        <i data-lucide="edit" style="width:16px;height:16px;margin-right:6px"></i> <span id="btn-edit-text">Edit Quote</span>
                     </button>
                 @endif
-                <button id="btn-save-quote" class="btn btn-primary" onclick="submitQuoteForm()">Save Quote</button>
+                <button type="submit" form="quote-form" class="btn btn-primary" id="btn-save-quote">Save Quote</button>
             </div>
         </div>
     </div>
@@ -884,19 +884,13 @@
             closeQDescPopup();
         }
 
-        function openCreateQuoteDrawer() {
-            setFormEditable(true); // Ensure editable
-
-            var editBtn = document.getElementById('btn-edit-quote');
-            if (editBtn) editBtn.style.display = 'none';
-
+        function openAddQuoteDrawer() {
+            setFormEditable(true);
+            var isInvoiceTab = document.getElementById('tab-invoices').classList.contains('active-tab');
+            document.getElementById('quote-drawer-title').textContent = isInvoiceTab ? 'Add Invoice' : 'Add Quote';
+            document.getElementById('btn-save-quote').textContent = isInvoiceTab ? 'Save Invoice' : 'Save Quote';
             document.getElementById('quote-form').reset();
-            var qAssign = document.querySelector('#quote-drawer select[name=assigned_to_user_id]');
-            if (qAssign) qAssign.value = '{{ auth()->id() }}';
-
-            var isClientTab = document.getElementById('tab-btn-clients').classList.contains('active');
-            document.getElementById('quote-drawer-title').textContent = isClientTab ? 'Create New Invoice' : 'Create New Quote';
-            document.getElementById('quote-form').action = '{{ route('admin.quotes.store') }}';
+            document.getElementById('quote-form').action = "{{ route('admin.quotes.store') }}";
             document.getElementById('quote-form-method').value = 'POST';
             document.getElementById('q-tax-rate').value = "0";
             document.getElementById('q-tax').value = "0";
@@ -1004,16 +998,18 @@
                     document.getElementById('quote-form').action = `{{ url('admin/quotes') }}/${id}`;
                     document.getElementById('quote-form-method').value = 'PUT';
 
+                    var isInvoice = quote.status === 'accepted';
+                    document.getElementById('quote-drawer-title').textContent = isInvoice ? 'Edit Invoice' : 'Edit Quote';
+                    document.getElementById('btn-save-quote').textContent = isInvoice ? 'Save Invoice' : 'Save Quote';
+
                     // Populate fields - detect client type
                     if (quote.lead_id) {
-                        document.getElementById('quote-drawer-title').textContent = 'Edit Quote';
                         switchQuoteClientType('lead');
                         setInputValue('lead_id', quote.lead_id);
                         // Explicitly show Convert to Client button for lead quotes
                         var convertBtn = document.getElementById('btn-convert-client');
                         if (convertBtn) convertBtn.style.display = 'flex';
                     } else {
-                        document.getElementById('quote-drawer-title').textContent = 'Edit Invoice';
                         switchQuoteClientType('client');
                         setInputValue('client_id', quote.client_id);
                     }
@@ -1081,16 +1077,19 @@
                         editBtn.onclick = function () { editQuote(id); };
                     }
 
+                    var isInvoice = quote.status === 'accepted';
+                    document.getElementById('quote-drawer-title').textContent = isInvoice ? 'View Invoice' : 'View Quote';
+                    var btnEditText = document.getElementById('btn-edit-text');
+                    if (btnEditText) btnEditText.textContent = isInvoice ? 'Edit Invoice' : 'Edit Quote';
+
                     // Populate fields (same as edit)
                     if (quote.lead_id) {
-                        document.getElementById('quote-drawer-title').textContent = 'View Quote';
                         switchQuoteClientType('lead');
                         setInputValue('lead_id', quote.lead_id);
                         // Explicitly show Convert to Client button for lead quotes
                         var convertBtn = document.getElementById('btn-convert-client');
                         if (convertBtn) convertBtn.style.display = 'flex';
                     } else {
-                        document.getElementById('quote-drawer-title').textContent = 'View Invoice';
                         switchQuoteClientType('client');
                         setInputValue('client_id', quote.client_id);
                     }
