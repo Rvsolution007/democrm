@@ -652,10 +652,8 @@ class LeadsController extends Controller
             'next_follow_up_date' => $validated['next_follow_up_date'] ?? null,
         ]);
 
-        // Update the lead's next_follow_up_at if a date was provided
-        if (!empty($validated['next_follow_up_date'])) {
-            $lead->update(['next_follow_up_at' => $validated['next_follow_up_date']]);
-        }
+        // Update the lead's next_follow_up_at
+        $lead->update(['next_follow_up_at' => $validated['next_follow_up_date'] ?? null]);
 
         $followup->load('user');
 
@@ -685,9 +683,7 @@ class LeadsController extends Controller
         ]);
 
         // Sync the lead's next_follow_up_at
-        if (!empty($validated['next_follow_up_date'])) {
-            $lead->update(['next_follow_up_at' => $validated['next_follow_up_date']]);
-        }
+        $lead->update(['next_follow_up_at' => $validated['next_follow_up_date'] ?? null]);
 
         $followup->load('user');
 
