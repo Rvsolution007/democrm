@@ -963,17 +963,21 @@
                     setInputValue('subtotal', (quote.subtotal / 100).toFixed(2));
                     setInputValue('discount', (quote.discount / 100).toFixed(2));
 
-                    var taxAmount = (quote.tax_amount || quote.gst_total || 0) / 100;
-                    var sub = quote.subtotal / 100;
-                    var disc = quote.discount / 100;
+                    var taxAmount = parseFloat(quote.tax_amount || quote.gst_total || 0) / 100;
+                    var sub = parseFloat(quote.subtotal || 0) / 100;
+                    var disc = parseFloat(quote.discount || 0) / 100;
                     var taxable = sub - disc;
 
                     if (taxable > 0 && taxAmount > 0) {
-                        var rate = Math.round((taxAmount / taxable) * 100);
+                        // Calculate rate percentage
+                        var rate = (taxAmount / taxable) * 100;
                         var select = document.getElementById('q-tax-rate');
                         var found = false;
+                        
                         for (var i = 0; i < select.options.length; i++) {
-                            if (parseFloat(select.options[i].value) === rate) {
+                            var optVal = parseFloat(select.options[i].value || 0);
+                            // Match if within 0.1% to handle JS float quirks
+                            if (Math.abs(optVal - rate) < 0.1) {
                                 select.selectedIndex = i;
                                 found = true;
                                 break;
@@ -1036,17 +1040,18 @@
                     setInputValue('subtotal', (quote.subtotal / 100).toFixed(2));
                     setInputValue('discount', (quote.discount / 100).toFixed(2));
 
-                    var taxAmount = (quote.tax_amount || quote.gst_total || 0) / 100;
-                    var sub = quote.subtotal / 100;
-                    var disc = quote.discount / 100;
+                    var taxAmount = parseFloat(quote.tax_amount || quote.gst_total || 0) / 100;
+                    var sub = parseFloat(quote.subtotal || 0) / 100;
+                    var disc = parseFloat(quote.discount || 0) / 100;
                     var taxable = sub - disc;
 
                     if (taxable > 0 && taxAmount > 0) {
-                        var rate = Math.round((taxAmount / taxable) * 100);
+                        var rate = (taxAmount / taxable) * 100;
                         var select = document.getElementById('q-tax-rate');
                         var found = false;
                         for (var i = 0; i < select.options.length; i++) {
-                            if (parseFloat(select.options[i].value) === rate) {
+                            var optVal = parseFloat(select.options[i].value || 0);
+                            if (Math.abs(optVal - rate) < 0.1) {
                                 select.selectedIndex = i;
                                 found = true;
                                 break;
