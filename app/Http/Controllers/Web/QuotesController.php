@@ -202,6 +202,8 @@ class QuotesController extends Controller
 
                     $desc = $request->product_descriptions[$index] ?? $product->description ?? '';
 
+                    $purchaseAmountPaise = (int) (((float) ($request->product_purchase_amounts[$index] ?? 0)) * 100);
+
                     QuoteItem::create([
                         'quote_id' => $quote->id,
                         'product_id' => $product->id,
@@ -210,6 +212,7 @@ class QuotesController extends Controller
                         'qty' => $qty,
                         'rate' => $ratePaise,
                         'discount' => $discountPaise,
+                        'purchase_amount' => $purchaseAmountPaise,
                         'unit_price' => $finalUnitPricePaise,
                         'gst_percent' => 0,
                         'sort_order' => $index,
@@ -364,6 +367,8 @@ class QuotesController extends Controller
 
                     $desc = $request->product_descriptions[$index] ?? $product->description ?? '';
 
+                    $purchaseAmountPaise = (int) (((float) ($request->product_purchase_amounts[$index] ?? 0)) * 100);
+
                     QuoteItem::create([
                         'quote_id' => $quote->id,
                         'product_id' => $product->id,
@@ -372,6 +377,7 @@ class QuotesController extends Controller
                         'qty' => $qty,
                         'rate' => $ratePaise,
                         'discount' => $discountPaise,
+                        'purchase_amount' => $purchaseAmountPaise,
                         'unit_price' => $finalUnitPricePaise,
                         'gst_percent' => 0,
                         'sort_order' => $index,
@@ -502,6 +508,10 @@ class QuotesController extends Controller
                 $product = Product::find($item->product_id);
                 if ($product && $product->is_purchase_enabled) {
                     $company = Company::find($companyId);
+                    // Use custom purchase_amount if set, otherwise fall back to line item total
+                    $purchaseTotal = ($item->purchase_amount > 0)
+                        ? $item->purchase_amount
+                        : $item->unit_price * max(1, $item->qty);
                     Purchase::create([
                         'company_id' => $company->id,
                         'client_id' => $client->id,
@@ -509,7 +519,7 @@ class QuotesController extends Controller
                         'product_id' => $product->id,
                         'purchase_no' => Purchase::generatePurchaseNumber($company),
                         'date' => now()->toDateString(),
-                        'total_amount' => $item->unit_price * max(1, $item->qty),
+                        'total_amount' => $purchaseTotal,
                         'paid_amount' => 0,
                         'status' => 'draft',
                         'notes' => 'Auto-generated from quote ' . $quote->quote_no . ' for product: ' . $product->name,

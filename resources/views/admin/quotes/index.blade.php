@@ -501,7 +501,8 @@
                                 @php $qDisplayPrice = ($product->mrp ?: $product->sale_price) / 100; @endphp
                                 <option value="{{ $product->id }}" data-name="{{ $product->name }}"
                                     data-price="{{ $qDisplayPrice }}"
-                                    data-desc="{{ Str::limit($product->description ?? '', 60) }}">
+                                    data-desc="{{ Str::limit($product->description ?? '', 60) }}"
+                                    data-purchase="{{ $product->is_purchase_enabled ? '1' : '0' }}">
                                     {{ $product->name }} — ₹{{ number_format($qDisplayPrice, 2) }}
                                 </option>
                             @endforeach
@@ -738,11 +739,12 @@
             var name = opt.getAttribute('data-name');
             var price = opt.getAttribute('data-price');
             var desc = opt.getAttribute('data-desc');
-            addQuoteProductRow(pid, name, price, desc, 1, 0);
+            var isPurchase = opt.getAttribute('data-purchase') === '1';
+            addQuoteProductRow(pid, name, price, desc, 1, 0, isPurchase, 0);
             sel.value = '';
         }
 
-        function addQuoteProductRow(pid, name, price, desc, qty, discount) {
+        function addQuoteProductRow(pid, name, price, desc, qty, discount, isPurchase, purchaseAmt) {
             var existing = document.querySelectorAll('#quote-products-body input[data-qproduct-id="' + pid + '"]');
             if (existing.length > 0) {
                 alert('This product is already added!');
@@ -753,6 +755,19 @@
             var table = document.getElementById('quote-products-table');
             var idx = qProductRowIndex++;
             discount = discount || 0;
+            purchaseAmt = purchaseAmt || 0;
+
+            var purchaseHtml = '';
+            if (isPurchase) {
+                purchaseHtml = '<button type="button" onclick="togglePurchaseInput(' + idx + ')" style="background:none;border:none;color:#f59e0b;cursor:pointer;font-size:14px;margin-left:6px;position:relative" title="Set Purchase Amount">' +
+                    '<i data-lucide="shopping-cart" style="width:14px;height:14px"></i></button>' +
+                    '<div id="purchase-input-wrap-' + idx + '" style="display:' + (purchaseAmt > 0 ? 'flex' : 'none') + ';align-items:center;gap:4px;margin-top:4px">' +
+                    '<span style="font-size:11px;color:#666">₹</span>' +
+                    '<input type="number" name="product_purchase_amounts[]" id="purchase-amt-' + idx + '" value="' + purchaseAmt + '" min="0" step="0.01" style="width:80px;padding:3px 6px;border:1px solid #f59e0b;border-radius:4px;font-size:12px;text-align:center" placeholder="0">' +
+                    '</div>';
+            } else {
+                purchaseHtml = '<input type="hidden" name="product_purchase_amounts[]" value="0">';
+            }
 
             var tr = document.createElement('tr');
             tr.id = 'qproduct-row-' + idx;
@@ -768,7 +783,10 @@
                 '<td style="padding:8px 10px;border:1px solid #e0e0e0"><input type="number" name="product_quantities[]" value="' + qty + '" min="1" oninput="calcQuoteTotalFromProducts()" style="width:60px;padding:4px;border:1px solid #ddd;border-radius:4px;text-align:center"></td>' +
                 '<td style="padding:8px 10px;border:1px solid #e0e0e0"><input type="number" name="product_discounts[]" value="' + discount + '" min="0" oninput="calcQuoteTotalFromProducts()" style="width:90px;padding:4px;border:1px solid #ddd;border-radius:4px;text-align:center" placeholder="0"></td>' +
                 '<td style="padding:8px 10px;border:1px solid #e0e0e0;text-align:center">' +
+                '<div style="display:flex;align-items:center;justify-content:center;flex-wrap:wrap">' +
                 '<button type="button" onclick="removeQuoteProductRow(' + idx + ')" style="background:none;border:none;color:#dc3545;cursor:pointer;font-size:16px" title="Remove">&times;</button>' +
+                purchaseHtml +
+                '</div>' +
                 '<input type="hidden" name="product_ids[]" value="' + pid + '" data-qproduct-id="' + pid + '">' +
                 '</td>';
             tbody.appendChild(tr);
@@ -776,6 +794,17 @@
 
             calcQuoteTotalFromProducts();
             if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function togglePurchaseInput(idx) {
+            var wrap = document.getElementById('purchase-input-wrap-' + idx);
+            if (wrap) {
+                wrap.style.display = wrap.style.display === 'none' ? 'flex' : 'none';
+                if (wrap.style.display === 'flex') {
+                    var inp = document.getElementById('purchase-amt-' + idx);
+                    if (inp) inp.focus();
+                }
+            }
         }
 
         function removeQuoteProductRow(idx) {
@@ -1154,7 +1183,18 @@
                     }
                 }
 
-                addQuoteProductRow(item.product_id, item.product_name, price, item.description, item.qty, discount);
+                // Determine if this product has purchase enabled
+                var isPurchase = false;
+                var purchaseAmt = 0;
+                var option = document.querySelector('#quote-product-selector option[value="' + item.product_id + '"]');
+                if (option && option.getAttribute('data-purchase') === '1') {
+                    isPurchase = true;
+                }
+                if (item.purchase_amount !== undefined && item.purchase_amount > 0) {
+                    purchaseAmt = item.purchase_amount / 100;
+                }
+
+                addQuoteProductRow(item.product_id, item.product_name, price, item.description, item.qty, discount, isPurchase, purchaseAmt);
             });
         }
 
