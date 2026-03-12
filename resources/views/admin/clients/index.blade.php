@@ -300,7 +300,7 @@
                 if (drawerTitle) drawerTitle.textContent = 'Add New Client';
 
                 const form = document.getElementById('client-form');
-                form.action = '{{ route('admin.clients.store') }}';
+                form.action = "{{ route('admin.clients.store') }}";
                 document.getElementById('client-method').value = 'POST';
                 form.reset();
                 form.querySelector('select[name="type"]').value = 'business';

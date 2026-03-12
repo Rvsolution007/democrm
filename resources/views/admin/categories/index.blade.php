@@ -247,10 +247,14 @@
 @endsection
 
 @push('scripts')
+    <script id="cat-settings-data" type="application/json">
+        {!! json_encode($columnVisibility ?? []) !!}
+    </script>
     <script>
         // Apply column visibility from database Settings
         (function () {
-            var catSettings = @json($columnVisibility ?? []);
+            var catSettingsText = document.getElementById('cat-settings-data').textContent;
+            var catSettings = catSettingsText ? JSON.parse(catSettingsText) : {};
             Object.keys(catSettings).forEach(function (col) {
                 if (catSettings[col] === false) {
                     document.querySelectorAll('[data-col="' + col + '"]').forEach(function (el) {

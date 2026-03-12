@@ -40,7 +40,7 @@
                     <div style="position:relative;display:flex;align-items:center;cursor:pointer"
                         onclick="this.querySelector('input').showPicker()">
                         <input type="date" name="date" id="followup-date-filter" value="{{ $filterDate ?? '' }}"
-                            style="padding:8px 14px;padding-left:36px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:13px;outline:none;transition:all 0.15s;width:170px;background:white;color:#334155;font-weight:500;cursor:pointer{{ $filterDate && $filterDate != $todayDate && $filterDate != $tomorrowDate ? ';border-color:#3b82f6;background:#eff6ff' : '' }}"
+                            style="padding:8px 14px;padding-left:36px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:13px;outline:none;transition:all 0.15s;width:170px;background:white;color:#334155;font-weight:500;cursor:pointer; {{ $filterDate && $filterDate != $todayDate && $filterDate != $tomorrowDate ? 'border-color:#3b82f6;background:#eff6ff' : '' }}"
                             onfocus="this.style.borderColor='#3b82f6';this.style.boxShadow='0 0 0 3px rgba(59,130,246,0.1)'"
                             onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'"
                             onchange="this.form.submit()">
