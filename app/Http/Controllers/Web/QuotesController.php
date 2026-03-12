@@ -213,7 +213,6 @@ class QuotesController extends Controller
                 }
             }
             $quote->refresh();
-            $quote->recalculateTotals();
         }
 
         // Auto-project/purchase creation is handled during explicit quote conversion
@@ -372,10 +371,8 @@ class QuotesController extends Controller
                 }
             }
             $quote->refresh();
-            $quote->recalculateTotals();
         } elseif ($request->has('clear_products')) {
             $quote->items()->delete();
-            $quote->recalculateTotals();
         }
 
         // If products changed and the quote was previously accepted, revert it to draft

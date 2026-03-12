@@ -39,15 +39,6 @@ class QuoteItem extends Model
         static::saving(function ($item) {
             $item->calculateTotals();
         });
-
-        // Recalculate quote totals when item changes
-        static::saved(function ($item) {
-            $item->quote->recalculateTotals();
-        });
-
-        static::deleted(function ($item) {
-            $item->quote->recalculateTotals();
-        });
     }
 
     // Relationships
