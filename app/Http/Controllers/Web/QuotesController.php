@@ -385,6 +385,23 @@ class QuotesController extends Controller
                 }
             }
             $quote->refresh();
+
+            // Sync purchase_amount to existing purchases linked to this quote's project
+            $project = \App\Models\Project::where('lead_id', $quote->lead_id)
+                ->orWhere('quote_id', $quote->id)
+                ->first();
+            if ($project) {
+                foreach ($quote->items as $item) {
+                    if ($item->product_id && $item->purchase_amount > 0) {
+                        $purchase = Purchase::where('project_id', $project->id)
+                            ->where('product_id', $item->product_id)
+                            ->first();
+                        if ($purchase) {
+                            $purchase->update(['total_amount' => $item->purchase_amount]);
+                        }
+                    }
+                }
+            }
         } elseif ($request->has('clear_products')) {
             $quote->items()->delete();
         }
