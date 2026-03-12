@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quote {{ $quote->quote_no }}</title>
+    <title>{{ $quote->status === 'accepted' ? 'Invoice' : 'Quote' }} {{ $quote->quote_no }}</title>
     <style>
         * {
             margin: 0;
@@ -291,7 +291,7 @@
                 <!-- Add company logo if it exists here optionally. For now, text format -->
             </div>
             <div class="quote-meta">
-                <h2>Quotation</h2>
+                <h2>{{ $quote->status === 'accepted' ? 'Invoice' : 'Quotation' }}</h2>
                 <p class="quote-no">{{ $quote->quote_no }}</p>
                 <p>Date: {{ $quote->date ? $quote->date->format('d M Y') : '—' }}</p>
                 <p>Valid Till: {{ $quote->valid_till ? $quote->valid_till->format('d M Y') : '—' }}</p>

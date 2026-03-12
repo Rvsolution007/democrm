@@ -201,4 +201,37 @@ class Quote extends Model
 
         return sprintf('%s-%s-%06d', $company->quote_prefix, $fy, $sequence);
     }
+
+    // Generate invoice number with FY pattern (I-YY-YY-NNNNNN)
+    public static function generateInvoiceNumber(Company $company): string
+    {
+        $now = now();
+
+        // Determine financial year (April to March)
+        if ($now->month >= 4) {
+            $fyStart = $now->year;
+            $fyEnd = $now->year + 1;
+        } else {
+            $fyStart = $now->year - 1;
+            $fyEnd = $now->year;
+        }
+
+        // FY format: YY-YY (e.g., 25-26)
+        $fy = substr($fyStart, -2) . '-' . substr($fyEnd, -2);
+
+        // Get next sequence number for invoices (prefix I-)
+        $lastInvoice = static::withTrashed()
+            ->where('company_id', $company->id)
+            ->where('quote_no', 'like', 'I-' . $fy . '-%')
+            ->orderBy('id', 'desc')
+            ->first();
+
+        $sequence = 1;
+        if ($lastInvoice) {
+            $parts = explode('-', $lastInvoice->quote_no);
+            $sequence = (int) end($parts) + 1;
+        }
+
+        return sprintf('I-%s-%06d', $fy, $sequence);
+    }
 }

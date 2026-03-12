@@ -105,7 +105,20 @@ class QuotesController extends Controller
             ? User::where('status', 'active')->withModulePermission('quotes')->orderBy('name')->get()
             : collect();
 
-        $quoteTaxes = Setting::getValue('quotes', 'taxes', []);
+        $companyId = auth()->check() ? auth()->user()->company_id : 1;
+        
+        // Fetch company specific taxes
+        $companyTaxes = Setting::getValue('quotes', 'taxes', [], $companyId);
+        
+        // Fetch global taxes (company 1) as fallback/addition
+        $globalTaxes = $companyId !== 1 ? Setting::getValue('quotes', 'taxes', [], 1) : [];
+        
+        // Merge and ensure uniqueness by name and rate
+        $allTaxes = array_merge($globalTaxes, $companyTaxes);
+        
+        $quoteTaxes = collect($allTaxes)->unique(function ($item) {
+            return ($item['name'] ?? '') . '_' . ($item['rate'] ?? 0);
+        })->values()->toArray();
         $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
 
         return view('admin.quotes.index', compact('leadQuotes', 'clientQuotes', 'clients', 'products', 'leads', 'users', 'quoteTaxes', 'paymentTypes', 'leadTotalAmount', 'leadDueAmount', 'clientTotalAmount', 'clientDueAmount'));
@@ -395,8 +408,15 @@ class QuotesController extends Controller
             return response()->json(['message' => 'Quote is already converted.'], 409);
         }
 
-        // Mark as accepted
-        $quote->update(['status' => 'accepted']);
+        // Generate invoice number (I-YY-YY-NNNNNN)
+        $company = auth()->user()->company;
+        $invoiceNumber = Quote::generateInvoiceNumber($company);
+
+        // Mark as accepted and assign invoice number
+        $quote->update([
+            'status' => 'accepted',
+            'quote_no' => $invoiceNumber,
+        ]);
 
         // Auto-create project and purchases
         if ($quote->client_id) {
@@ -404,7 +424,7 @@ class QuotesController extends Controller
         }
 
         return response()->json([
-            'message' => 'Quote converted successfully. Project and purchases have been auto-created.',
+            'message' => 'Quote converted to Invoice successfully. Invoice No: ' . $invoiceNumber,
             'redirect' => route('admin.quotes.index'),
         ]);
     }

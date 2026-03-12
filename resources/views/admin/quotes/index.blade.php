@@ -124,8 +124,7 @@
             <button class="quote-tab-btn active" onclick="switchQuoteTab('leads')" id="tab-btn-leads"
                 style="background:none;border:none;padding:12px 4px;font-size:14px;font-weight:600;color:#0f172a;border-bottom:2px solid #3b82f6;cursor:pointer;transition:all 0.2s;">Quotes</button>
             <button class="quote-tab-btn" onclick="switchQuoteTab('clients')" id="tab-btn-clients"
-                style="background:none;border:none;padding:12px 4px;font-size:14px;font-weight:600;color:#64748b;border-bottom:2px solid transparent;cursor:pointer;transition:all 0.2s;">Converted
-                Quotes</button>
+                style="background:none;border:none;padding:12px 4px;font-size:14px;font-weight:600;color:#64748b;border-bottom:2px solid transparent;cursor:pointer;transition:all 0.2s;">Invoices</button>
         </div>
 
         <!-- LEADS TABLE (Quotes) -->
@@ -216,12 +215,12 @@
             </div>
         </div>
 
-        <!-- CLIENTS TABLE (Converted Quotes) -->
+        <!-- CLIENTS TABLE (Invoices) -->
         <div class="table-wrapper quote-tab-content" id="tab-content-clients" style="display:none;">
             <table class="table" id="client-quotes-table">
                 <thead>
                     <tr>
-                        <th class="sortable">Quote Number</th>
+                        <th class="sortable">Invoice Number</th>
                         <th>Client</th>
                         <th>Assigned To</th>
                         <th class="sortable">Status</th>
@@ -284,7 +283,7 @@
                         <tr>
                             <td colspan="8" style="text-align:center;padding:40px 0;color:#999">
                                 <i data-lucide="file-text" style="width:40px;height:40px;color:#ddd;margin-bottom:12px"></i>
-                                <p style="margin:0;font-size:14px">No Converted Quotes found.</p>
+                                <p style="margin:0;font-size:14px">No Invoices found.</p>
                             </td>
                         </tr>
                     @endforelse
@@ -517,15 +516,22 @@
                 </div>
                 <div class="form-row form-row-2">
                     <div class="form-group">
-                        <label class="form-label">GST / Tax</label>
+                        <label class="form-label">GST / Tax Rate</label>
                         <select id="q-tax-rate" class="form-select" onchange="calcQuoteTotal()">
                             <option value="0">No Tax</option>
-                            @foreach($quoteTaxes as $tax)
-                                <option value="{{ $tax['rate'] }}">{{ $tax['name'] }} ({{ $tax['rate'] }}%)</option>
-                            @endforeach
+                            @if(isset($quoteTaxes) && is_array($quoteTaxes))
+                                @foreach($quoteTaxes as $tax)
+                                    @if(isset($tax['rate']) && isset($tax['name']))
+                                        <option value="{{ $tax['rate'] }}">{{ $tax['name'] }} ({{ $tax['rate'] }}%)</option>
+                                    @endif
+                                @endforeach
+                            @endif
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Calculated Tax (₹)</label>
+                        <input type="text" id="q-tax-display-input" class="form-input bg-gray-50" readonly value="₹0.00">
                         <input type="hidden" name="tax_amount" id="q-tax" value="0">
-                        <div style="font-size:12px;color:#666;margin-top:6px;font-weight:500" id="q-tax-display">₹0.00</div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Grand Total (₹)</label>
@@ -686,7 +692,8 @@
             var t = taxable * (rate / 100);
 
             document.getElementById('q-tax').value = t.toFixed(2);
-            document.getElementById('q-tax-display').textContent = rate > 0 ? `Tax/GST (${rate}%): ₹` + t.toFixed(2) : '₹' + t.toFixed(2);
+            var taxDisplay = document.getElementById('q-tax-display-input');
+            if (taxDisplay) taxDisplay.value = '₹' + t.toFixed(2);
 
             var total = taxable + t;
             document.getElementById('q-total').value = '₹' + total.toFixed(2);
@@ -835,7 +842,8 @@
             document.getElementById('quote-form-method').value = 'POST';
             document.getElementById('q-tax-rate').value = "0";
             document.getElementById('q-tax').value = "0";
-            document.getElementById('q-tax-display').textContent = '₹0.00';
+            var taxDisplay = document.getElementById('q-tax-display-input');
+            if (taxDisplay) taxDisplay.value = '₹0.00';
             document.getElementById('quote-status-group').style.display = 'none';
             switchQuoteClientType('client');
             clearQuoteProducts();
@@ -977,7 +985,8 @@
                     }
 
                     document.getElementById('q-tax').value = taxAmount.toFixed(2);
-                    document.getElementById('q-tax-display').textContent = '₹' + taxAmount.toFixed(2);
+                    var taxDisplay = document.getElementById('q-tax-display-input');
+                    if (taxDisplay) taxDisplay.value = '₹' + taxAmount.toFixed(2);
 
                     document.getElementById('quote-notes-input').value = quote.notes || '';
 
@@ -1049,7 +1058,8 @@
                     }
 
                     document.getElementById('q-tax').value = taxAmount.toFixed(2);
-                    document.getElementById('q-tax-display').textContent = '₹' + taxAmount.toFixed(2);
+                    var viewTaxDisplay = document.getElementById('q-tax-display-input');
+                    if (viewTaxDisplay) viewTaxDisplay.value = '₹' + taxAmount.toFixed(2);
 
                     document.getElementById('quote-notes-input').value = quote.notes || '';
                     document.getElementById('quote-status-group').style.display = '';
@@ -1147,7 +1157,7 @@
         }
 
         function convertQuote(id) {
-            if (!confirm('Are you sure you want to convert this quote? This will create a project and auto-purchase entries.')) return;
+            if (!confirm('Are you sure you want to convert this quote to an Invoice? This will create a project and auto-purchase entries.')) return;
 
             fetch(`{{ url('admin/quotes') }}/${id}/convert`, {
                 method: 'POST',
@@ -1275,8 +1285,8 @@
             } else if (tabName === 'clients') {
                 if (totalEl) totalEl.textContent = '₹' + clientTotalAmountFormatted;
                 if (dueEl) dueEl.textContent = '₹' + clientDueAmountFormatted;
-                if (totalLabel) totalLabel.textContent = 'Total Amount (Converted)';
-                if (dueLabel) dueLabel.textContent = 'Due Amount (Converted)';
+                if (totalLabel) totalLabel.textContent = 'Total Amount (Invoices)';
+                if (dueLabel) dueLabel.textContent = 'Due Amount (Invoices)';
             }
 
             // Save to local storage so pagination keeps state
