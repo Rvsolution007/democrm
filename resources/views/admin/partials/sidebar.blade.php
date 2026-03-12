@@ -51,6 +51,10 @@
                         class="nav-link {{ request()->routeIs('admin.whatsapp-connect.*') ? 'active' : '' }}">
                         <i data-lucide="smartphone" style="color:#25D366"></i> <span>WhatsApp Connect</span>
                     </a>
+                    <a href="{{ route('admin.whatsapp.extension') }}"
+                        class="nav-link {{ request()->routeIs('admin.whatsapp.extension') ? 'active' : '' }}">
+                        <i data-lucide="chrome" style="color:#3b82f6"></i> <span>Chrome Extension</span>
+                    </a>
                     <a href="{{ route('admin.whatsapp-campaigns.index') }}"
                         class="nav-link {{ request()->routeIs('admin.whatsapp-campaigns.*') ? 'active' : '' }}">
                         <i data-lucide="send"></i> <span>Bulk Sender</span>

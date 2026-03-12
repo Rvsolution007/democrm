@@ -154,6 +154,9 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     // WhatsApp Templates
     Route::resource('whatsapp-templates', App\Http\Controllers\Web\WhatsappTemplateController::class)->except(['create', 'show', 'edit']);
 
+    // WhatsApp Extension
+    Route::get('/whatsapp-extension', [App\Http\Controllers\Web\WhatsappConnectController::class, 'extension'])->name('whatsapp.extension');
+
     // WhatsApp Campaigns
     Route::get('whatsapp-campaigns', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'index'])->name('whatsapp-campaigns.index');
     Route::get('whatsapp-campaigns/create', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'create'])->name('whatsapp-campaigns.create');

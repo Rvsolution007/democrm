@@ -54,6 +54,14 @@ class WhatsappConnectController extends Controller
     }
 
     /**
+     * Show the WhatsApp Extension Download Page
+     */
+    public function extension()
+    {
+        return view('admin.whatsapp-connect.extension');
+    }
+
+    /**
      * Get QR code from Evolution API for this user's instance
      */
     public function getQrCode()

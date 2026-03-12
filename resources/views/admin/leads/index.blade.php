@@ -718,6 +718,27 @@
             }
         });
 
+        // ─── WhatsApp Quick-Add: Auto-open lead modal from Chrome Extension ───
+        document.addEventListener('DOMContentLoaded', function () {
+            var urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('quick_add') === '1' && urlParams.get('phone')) {
+                var phone = urlParams.get('phone');
+                // Small delay to ensure modal JS is ready
+                setTimeout(function () {
+                    openAddLeadModal();
+                    var phoneInput = document.getElementById('lead-phone');
+                    if (phoneInput) phoneInput.value = phone;
+                    var sourceSelect = document.getElementById('lead-source');
+                    if (sourceSelect) sourceSelect.value = 'whatsapp';
+                    // Focus on name field since phone is already filled
+                    var nameInput = document.getElementById('lead-name');
+                    if (nameInput) nameInput.focus();
+                    // Clean URL to prevent re-trigger on refresh
+                    window.history.replaceState({}, '', window.location.pathname);
+                }, 300);
+            }
+        });
+
         function openAddLeadModal() {
             editingLeadId = null;
             currentLeadQuoteId = null;
