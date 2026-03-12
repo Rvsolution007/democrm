@@ -9,6 +9,8 @@ return new class extends Migration
      * Renumber all existing quotes and invoices with the new pattern.
      * Quotes (lead quotes, not accepted): Q-25-26-000001
      * Invoices (client quotes / accepted): I-25-26-000001
+     * 
+     * Uses a 2-pass approach to avoid UNIQUE constraint violations.
      */
     public function up(): void
     {
@@ -25,7 +27,15 @@ return new class extends Migration
 
         $fy = substr($fyStart, -2) . '-' . substr($fyEnd, -2);
 
-        // Renumber all non-accepted quotes (Quotes tab) with Q-YY-YY-NNNNNN
+        // PASS 1: Assign temporary unique numbers to ALL quotes to clear the unique constraint
+        $allQuotes = DB::table('quotes')->whereNull('deleted_at')->get();
+        foreach ($allQuotes as $quote) {
+            DB::table('quotes')->where('id', $quote->id)->update([
+                'quote_no' => 'TEMP-' . $quote->id
+            ]);
+        }
+
+        // PASS 2: Renumber non-accepted quotes (Quotes tab) with Q-YY-YY-NNNNNN
         $quotes = DB::table('quotes')
             ->whereNull('deleted_at')
             ->where(function ($q) {
@@ -42,7 +52,7 @@ return new class extends Migration
             $qSeq++;
         }
 
-        // Renumber all accepted client quotes (Invoices tab) with I-YY-YY-NNNNNN
+        // PASS 3: Renumber accepted client quotes (Invoices tab) with I-YY-YY-NNNNNN
         $invoices = DB::table('quotes')
             ->whereNull('deleted_at')
             ->whereNotNull('client_id')
