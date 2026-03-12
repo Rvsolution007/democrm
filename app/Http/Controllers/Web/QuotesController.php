@@ -198,7 +198,7 @@ class QuotesController extends Controller
 
                     $ratePaise = (int) ($unitPrice * 100);
                     $discountPaise = (int) ($discountPerUnit * 100);
-                    $finalUnitPricePaise = $ratePaise - $discountPaise;
+                    $finalUnitPricePaise = $ratePaise; // Just save original rate in unit_price or ignore it, but we calculate flat discount. Wait, unit_price isn't used for subtotal if we change calculateTotals but let's keep unit_price = rate.
 
                     $desc = $request->product_descriptions[$index] ?? $product->description ?? '';
 
@@ -360,7 +360,7 @@ class QuotesController extends Controller
 
                     $ratePaise = (int) ($unitPrice * 100);
                     $discountPaise = (int) ($discountPerUnit * 100);
-                    $finalUnitPricePaise = $ratePaise - $discountPaise;
+                    $finalUnitPricePaise = $ratePaise;
 
                     $desc = $request->product_descriptions[$index] ?? $product->description ?? '';
 

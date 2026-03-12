@@ -59,9 +59,10 @@ class QuoteItem extends Model
     // Calculate GST and line total
     public function calculateTotals(): void
     {
-        $baseAmount = $this->unit_price * $this->qty;
-        $this->gst_amount = (int) round($baseAmount * ($this->gst_percent / 100));
-        $this->line_total = $baseAmount + $this->gst_amount;
+        $baseAmount = ($this->rate ?: $this->unit_price) * $this->qty;
+        $netAmount = $baseAmount - $this->discount;
+        $this->gst_amount = (int) round($netAmount * ($this->gst_percent / 100));
+        $this->line_total = $netAmount + $this->gst_amount;
     }
 
     // Price helpers

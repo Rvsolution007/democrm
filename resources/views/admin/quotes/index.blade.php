@@ -438,6 +438,14 @@
                     #quote-drawer .select2-container {
                         width: 100% !important;
                     }
+                    /* Fix Select2 clear button overflow */
+                    #quote-drawer .select2-selection__clear {
+                        margin-right: 25px;
+                        z-index: 10;
+                    }
+                    #quote-drawer .select2-selection__arrow {
+                        z-index: 1;
+                    }
                 </style>
                 @php
                     $showAssignDropdown = (can('quotes.global') || auth()->user()->isAdmin()) && $users->count() > 1;
@@ -792,7 +800,7 @@
                     var price = parseFloat(priceInput.value) || 0;
                     var qty = parseInt(qtyInput.value) || 1;
                     var disc = parseFloat(discInput.value) || 0;
-                    subtotal += (price - disc) * qty;
+                    subtotal += (price * qty) - disc;
                 }
             });
             document.getElementById('q-subtotal').value = subtotal.toFixed(2);
