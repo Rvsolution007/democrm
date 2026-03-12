@@ -176,8 +176,12 @@
                                     class="badge badge-{{ $quote->status === 'accepted' ? 'success' : ($quote->status === 'rejected' ? 'destructive' : ($quote->status === 'sent' ? 'info' : 'secondary')) }}">
                                     {{ ucfirst($quote->status) }}
                                 </span>
+                            <td class="font-medium">
+                                ₹{{ number_format($quote->grand_total_in_rupees, 2) }}
+                                @if($quote->tax_amount > 0)
+                                    <span style="margin-left:6px;font-size:10px;color:#0ea5e9;background:#e0f2fe;padding:2px 5px;border-radius:4px;font-weight:600;display:inline-block">+GST</span>
+                                @endif
                             </td>
-                            <td class="font-medium">₹{{ number_format($quote->grand_total_in_rupees, 2) }}</td>
                             <td>{{ $quote->valid_till ? $quote->valid_till->format('d M Y') : '—' }}</td>
                             <td>
                                 <div class="table-actions">
@@ -255,7 +259,12 @@
                                     {{ ucfirst($quote->status) }}
                                 </span>
                             </td>
-                            <td class="font-medium">₹{{ number_format($quote->grand_total_in_rupees, 2) }}</td>
+                            <td class="font-medium">
+                                ₹{{ number_format($quote->grand_total_in_rupees, 2) }}
+                                @if($quote->tax_amount > 0)
+                                    <span style="margin-left:6px;font-size:10px;color:#0ea5e9;background:#e0f2fe;padding:2px 5px;border-radius:4px;font-weight:600;display:inline-block">+GST</span>
+                                @endif
+                            </td>
                             <td id="due-amount-{{ $quote->id }}">
                                 @php $dueAmt = $quote->due_amount_in_rupees; @endphp
                                 <span style="font-weight:700;color:{{ $dueAmt > 0 ? '#ef4444' : '#059669' }};">
