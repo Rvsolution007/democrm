@@ -557,9 +557,10 @@ class LeadsController extends Controller
                     if ($product && $product->is_purchase_enabled) {
                         $company = clone \App\Models\Company::find($client->company_id ?? auth()->user()->company_id);
                         // Use custom purchase_amount if set, otherwise fall back to line item total
-                        $purchaseTotal = ($item->purchase_amount > 0)
-                            ? ($item->purchase_amount / 100)
-                            : (($item->unit_price * max(1, $item->qty)) / 100);
+                        // purchase_amount is in paise, total_amount column is also in paise
+                        $purchaseTotalPaise = ($item->purchase_amount > 0)
+                            ? $item->purchase_amount
+                            : ($item->unit_price * max(1, $item->qty));
                         \App\Models\Purchase::create([
                             'company_id' => $company->id,
                             'client_id' => $client->id,
@@ -567,7 +568,7 @@ class LeadsController extends Controller
                             'product_id' => $product->id,
                             'purchase_no' => \App\Models\Purchase::generatePurchaseNumber($company),
                             'date' => now()->toDateString(),
-                            'total_amount' => $purchaseTotal,
+                            'total_amount' => $purchaseTotalPaise,
                             'paid_amount' => 0,
                             'status' => 'draft',
                             'notes' => 'Auto-generated during quote conversion from product/service: ' . $product->name,

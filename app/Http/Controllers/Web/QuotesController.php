@@ -26,7 +26,7 @@ class QuotesController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $query = Quote::with(['client', 'lead', 'assignedTo']);
+        $query = Quote::with(['client', 'lead', 'assignedTo', 'items']);
 
         // Global permission filter
         if (!can('quotes.global')) {
@@ -88,7 +88,7 @@ class QuotesController extends Controller
         $clientQuery = clone $query;
 
         $leadQuotes = $leadQuery->where('status', '!=', 'accepted')->latest()->paginate(20, ['*'], 'lead_page')->withQueryString();
-        $clientQuotes = $clientQuery->where('status', 'accepted')->with('payments')->latest()->paginate(20, ['*'], 'client_page')->withQueryString();
+        $clientQuotes = $clientQuery->where('status', 'accepted')->with(['payments', 'items'])->latest()->paginate(20, ['*'], 'client_page')->withQueryString();
         $clients = Client::all();
         $products = Product::all();
 
@@ -543,7 +543,7 @@ class QuotesController extends Controller
                         'product_id' => $product->id,
                         'purchase_no' => Purchase::generatePurchaseNumber($company),
                         'date' => now()->toDateString(),
-                        'total_amount' => $purchaseTotalPaise / 100,
+                        'total_amount' => $purchaseTotalPaise,
                         'paid_amount' => 0,
                         'status' => 'draft',
                         'notes' => 'Auto-generated from quote ' . $quote->quote_no . ' for product: ' . $product->name,

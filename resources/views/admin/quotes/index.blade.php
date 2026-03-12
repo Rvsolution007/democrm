@@ -137,6 +137,7 @@
                         <th>Assigned To</th>
                         <th class="sortable">Status</th>
                         <th class="sortable">Total</th>
+                        <th>Purchase</th>
                         <th class="sortable">Valid Until</th>
                         <th>Actions</th>
                     </tr>
@@ -180,6 +181,15 @@
                                 ₹{{ number_format($quote->grand_total_in_rupees, 2) }}
                                 @if($quote->tax_amount > 0)
                                     <span style="margin-left:6px;font-size:10px;color:#0ea5e9;background:#e0f2fe;padding:2px 5px;border-radius:4px;font-weight:600;display:inline-block">+GST</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($quote->total_purchase_amount_in_rupees > 0)
+                                    <span style="font-weight:600;color:#f59e0b;">
+                                        ₹{{ number_format($quote->total_purchase_amount_in_rupees, 2) }}
+                                    </span>
+                                @else
+                                    <span style="color:#cbd5e1">—</span>
                                 @endif
                             </td>
                             <td>{{ $quote->valid_till ? $quote->valid_till->format('d M Y') : '—' }}</td>
@@ -233,6 +243,7 @@
                         <th class="sortable">Status</th>
                         <th class="sortable">Total</th>
                         <th class="sortable">Due Amount</th>
+                        <th>Purchase</th>
                         <th class="sortable">Valid Until</th>
                         <th>Actions</th>
                     </tr>
@@ -270,6 +281,15 @@
                                 <span style="font-weight:700;color:{{ $dueAmt > 0 ? '#ef4444' : '#059669' }};">
                                     ₹{{ number_format($dueAmt, 2) }}
                                 </span>
+                            </td>
+                            <td>
+                                @if($quote->total_purchase_amount_in_rupees > 0)
+                                    <span style="font-weight:600;color:#f59e0b;">
+                                        ₹{{ number_format($quote->total_purchase_amount_in_rupees, 2) }}
+                                    </span>
+                                @else
+                                    <span style="color:#cbd5e1">—</span>
+                                @endif
                             </td>
                             <td>{{ $quote->valid_till ? $quote->valid_till->format('d M Y') : '—' }}</td>
                             <td>

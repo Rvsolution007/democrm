@@ -150,6 +150,11 @@ class Quote extends Model
         return $total / 100;
     }
 
+    public function getTotalPurchaseAmountInRupeesAttribute(): float
+    {
+        return $this->items->sum('purchase_amount') / 100;
+    }
+
     // Recalculate totals from items
     public function recalculateTotals(): void
     {
