@@ -28,7 +28,7 @@
                 <div style="flex:1">
                     <h2 style="margin:0 0 8px 0;font-size:22px;font-weight:700;color:#1e3a8a">Capture Leads with 1 Click</h2>
                     <p style="margin:0 0 16px 0;color:#3b82f6;font-size:15px;line-height:1.5">
-                        Open any chat on WhatsApp Web, press <kbd style="background:#1e3a8a;color:white;padding:3px 8px;border-radius:4px;font-family:monospace;font-size:13px">Ctrl + G</kbd> and the lead form will open automatically with the phone number pre-filled!
+                        Open any chat on WhatsApp Web, press <kbd style="background:#1e3a8a;color:white;padding:3px 8px;border-radius:4px;font-family:monospace;font-size:13px">Ctrl + Shift + L</kbd> and the lead form will open automatically with the phone number pre-filled!
                     </p>
                     <a href="{{ asset('whatsapp-lead-extension.zip') }}" class="btn btn-primary" style="padding:10px 20px;font-size:15px;display:inline-flex;align-items:center;gap:8px" download>
                         <i data-lucide="download" style="width:18px;height:18px"></i> Download Extension
@@ -95,7 +95,7 @@
                     <i data-lucide="alert-triangle" style="width:16px;height:16px"></i> Usage Note
                 </h4>
                 <p style="margin:0;color:#78350f;font-size:14px;line-height:1.5">
-                    For contacts that are already saved in your phone, the number might be hidden. <strong>Click on their name to open the contact info panel</strong> on the right side, then press Ctrl+G.
+                    For contacts that are already saved in your phone, the number might be hidden. <strong>Click on their name to open the contact info panel</strong> on the right side, then press Ctrl+Shift+L.
                 </p>
             </div>
         </div>

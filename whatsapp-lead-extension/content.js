@@ -1,7 +1,7 @@
 /**
  * RV CRM - WhatsApp Lead Capture Extension
  * 
- * Ctrl+G press karne pe WhatsApp Web se phone number extract karke
+ * Ctrl+Shift+L press karne pe WhatsApp Web se phone number extract karke
  * CRM me Lead form open karta hai number pre-filled ke saath.
  * 
  * CRM URL: https://crm.rvallsolutions.com/
@@ -13,8 +13,9 @@
     // ─── Configuration ───────────────────────────────────────────────────
     const CRM_BASE_URL = 'https://crm.rvallsolutions.com';
     const LEADS_PATH = '/admin/leads';
-    const SHORTCUT_KEY = 'g';       // Ctrl + G
-    const USE_CTRL = true;          // true = Ctrl+G, false = just G (not recommended)
+    const SHORTCUT_KEY = 'l';       // Ctrl + Shift + L (L = Lead)
+    const USE_CTRL = true;
+    const USE_SHIFT = true;
     // ─────────────────────────────────────────────────────────────────────
 
     /**
@@ -160,16 +161,17 @@
      * Main shortcut handler
      */
     function handleShortcut(e) {
-        // Check: Ctrl + G (case insensitive)
+        // Check: Ctrl + Shift + L (case insensitive)
         if (USE_CTRL && !e.ctrlKey) return;
+        if (USE_SHIFT && !e.shiftKey) return;
         if (e.key.toLowerCase() !== SHORTCUT_KEY) return;
-        if (e.altKey || e.metaKey || e.shiftKey) return;
+        if (e.altKey || e.metaKey) return;
 
-        // Prevent default browser action (e.g., Chrome's "Find" on some shortcut combos)
+        // Prevent default browser action
         e.preventDefault();
         e.stopPropagation();
 
-        console.log('[RV CRM] Shortcut Ctrl+G detected!');
+        console.log('[RV CRM] Shortcut Ctrl+Shift+L detected!');
 
         const phone = extractPhoneNumber();
 
@@ -196,6 +198,6 @@
     document.addEventListener('keydown', handleShortcut, true);
 
     // ─── Confirmation that extension is loaded ───────────────────────────
-    console.log('[RV CRM] WhatsApp Lead Capture extension loaded! Press Ctrl+G to capture a lead.');
+    console.log('[RV CRM] WhatsApp Lead Capture extension loaded! Press Ctrl+Shift+L to capture a lead.');
 
 })();
