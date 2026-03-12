@@ -202,7 +202,7 @@ class QuotesController extends Controller
 
                     $desc = $request->product_descriptions[$index] ?? $product->description ?? '';
 
-                    $purchaseAmountPaise = (int) (((float) ($request->product_purchase_amounts[$index] ?? 0)) * 100);
+                    $purchaseAmountPaise = (int) round(((float) ($request->product_purchase_amounts[$index] ?? 0)) * 100);
 
                     QuoteItem::create([
                         'quote_id' => $quote->id,
@@ -367,7 +367,7 @@ class QuotesController extends Controller
 
                     $desc = $request->product_descriptions[$index] ?? $product->description ?? '';
 
-                    $purchaseAmountPaise = (int) (((float) ($request->product_purchase_amounts[$index] ?? 0)) * 100);
+                    $purchaseAmountPaise = (int) round(((float) ($request->product_purchase_amounts[$index] ?? 0)) * 100);
 
                     QuoteItem::create([
                         'quote_id' => $quote->id,
@@ -387,9 +387,16 @@ class QuotesController extends Controller
             $quote->refresh();
 
             // Sync purchase_amount to existing purchases linked to this quote's project
-            $project = \App\Models\Project::where('lead_id', $quote->lead_id)
-                ->orWhere('quote_id', $quote->id)
-                ->first();
+            $projectQuery = \App\Models\Project::query();
+            if ($quote->lead_id) {
+                $projectQuery->where(function($q) use ($quote) {
+                    $q->where('lead_id', $quote->lead_id)
+                      ->orWhere('quote_id', $quote->id);
+                });
+            } else {
+                $projectQuery->where('quote_id', $quote->id);
+            }
+            $project = $projectQuery->first();
             if ($project) {
                 foreach ($quote->items as $item) {
                     if ($item->product_id && $item->purchase_amount > 0) {
