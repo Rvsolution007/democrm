@@ -8,8 +8,8 @@
         <div class="page-header-content"
             style="display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap">
             <div style="flex:1;min-width:200px">
-                <h1 class="page-title">Quotes</h1>
-                <p class="page-description">Manage quotations and proposals</p>
+                <h1 class="page-title">Quotes & Invoices</h1>
+                <p class="page-description">Manage quotations and invoices</p>
             </div>
 
             <div style="flex:4;min-width:500px;max-width:900px">
@@ -146,6 +146,9 @@
                         <tr data-status="{{ $quote->status }}">
                             <td>
                                 <span class="font-medium">{{ $quote->quote_no }}</span>
+                                @if($quote->tax_amount > 0)
+                                    <span style="margin-left:6px;font-size:11px;color:#0ea5e9;background:#e0f2fe;padding:2px 6px;border-radius:4px;font-weight:600">GST</span>
+                                @endif
                                 @if($quote->lead_id)
                                     <span
                                         style="margin-left:6px;font-size:11px;color:#6366f1;background:#eef2ff;padding:2px 6px;border-radius:4px">Lead
@@ -235,6 +238,9 @@
                         <tr data-status="{{ $quote->status }}">
                             <td>
                                 <span class="font-medium">{{ $quote->quote_no }}</span>
+                                @if($quote->tax_amount > 0)
+                                    <span style="margin-left:6px;font-size:11px;color:#0ea5e9;background:#e0f2fe;padding:2px 6px;border-radius:4px;font-weight:600">GST</span>
+                                @endif
                                 @if($quote->lead_id)
                                     <span
                                         style="margin-left:6px;font-size:11px;color:#6366f1;background:#eef2ff;padding:2px 6px;border-radius:4px">Lead
