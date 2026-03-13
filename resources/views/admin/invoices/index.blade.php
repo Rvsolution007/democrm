@@ -1,7 +1,7 @@
 @extends('admin.layouts.app')
 
-@section('title', 'Quotes')
-@section('breadcrumb', 'Quotes')
+@section('title', 'Invoices')
+@section('breadcrumb', 'Invoices')
 
 @section('content')
     <div class="page-header" style="margin-bottom:24px">
@@ -1277,9 +1277,6 @@
                     viewQuote(openQuoteId);
                 }, 300); // Slight delay to ensure everything is ready
             }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            // Document load handler
         });
 
         // ====== Payment Modal Functions ======
