@@ -51,7 +51,7 @@
             <div class="page-actions"
                 style="display:flex;gap:12px;align-items:center;align-self:flex-end;margin-bottom:8px">
                 @if(can('quotes.write'))
-                    <button class="btn btn-primary" onclick="openCreateQuoteDrawer()"><i data-lucide="plus"
+                    <button class="btn btn-primary" onclick="openAddQuoteDrawer()"><i data-lucide="plus"
                             style="width:16px;height:16px"></i> Create Quote</button>
                 @endif
             </div>
@@ -796,9 +796,8 @@
 
         function openAddQuoteDrawer() {
             setFormEditable(true);
-            var isInvoiceTab = document.getElementById('tab-invoices').classList.contains('active-tab');
-            document.getElementById('quote-drawer-title').textContent = isInvoiceTab ? 'Add Invoice' : 'Add Quote';
-            document.getElementById('btn-save-quote').textContent = isInvoiceTab ? 'Save Invoice' : 'Save Quote';
+            document.getElementById('quote-drawer-title').textContent = 'Add Quote';
+            document.getElementById('btn-save-quote').textContent = 'Save Quote';
             document.getElementById('quote-form').reset();
             document.getElementById('quote-form').action = "{{ route('admin.quotes.store') }}";
             document.getElementById('quote-form-method').value = 'POST';
