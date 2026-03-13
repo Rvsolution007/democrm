@@ -117,11 +117,9 @@
                         <tr>
                             <td>
                                 <a href="{{ route('admin.projects.show', $project->id) }}" class="font-medium" style="color:var(--primary);text-decoration:none">
-                                    {{ $project->name }}
+                                    {{ $project->project_id_code }}
                                 </a>
-                                @if($project->description)
-                                    <p class="text-xs text-muted" style="margin-top:2px">{{ Str::limit($project->description, 50) }}</p>
-                                @endif
+                                <p class="text-xs text-muted" style="margin-top:2px">{{ $project->name }}</p>
                             </td>
                             <td>{{ $project->client->display_name ?? '—' }}</td>
                             <td>
@@ -562,7 +560,7 @@
                 }
 
                 return '<tr>' +
-                    '<td><a href="/admin/projects/' + p.id + '" class="font-medium" style="color:var(--primary);text-decoration:none">' + escHtml(p.name) + '</a>' + descHtml + '</td>' +
+                    '<td><a href="/admin/projects/' + p.id + '" class="font-medium" style="color:var(--primary);text-decoration:none">' + escHtml(p.project_id_code || p.name) + '</a><p class="text-xs text-muted" style="margin-top:2px">' + escHtml(p.name) + '</p></td>' +
                     '<td>' + escHtml(p.client_name) + '</td>' +
                     '<td>' + phoneTd + '</td>' +
                     '<td><span class="badge badge-' + badge + '">' + statusLabel + '</span></td>' +

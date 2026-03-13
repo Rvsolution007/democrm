@@ -40,6 +40,12 @@ class ProjectsController extends Controller
                     ->orWhereHas('lead', function ($lq) use ($search) {
                         $lq->where('phone', 'like', "%{$search}%");
                     });
+                // Search by Project ID pattern like Project-26-001
+                if (preg_match('/project-?(\d{2})?-?(\d+)?/i', $search, $matches)) {
+                    if (!empty($matches[2])) {
+                        $q->orWhere('id', (int)$matches[2]);
+                    }
+                }
             });
         }
 
@@ -72,6 +78,7 @@ class ProjectsController extends Controller
                 return [
                     'id' => $p->id,
                     'name' => $p->name,
+                    'project_id_code' => $p->project_id_code,
                     'description' => $p->description ? \Str::limit($p->description, 50) : null,
                     'client_name' => $p->client->display_name ?? '—',
                     'contact_phone' => $contactPhone,

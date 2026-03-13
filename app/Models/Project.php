@@ -92,6 +92,13 @@ class Project extends Model
         return $this->status === 'on_hold';
     }
 
+    // Generate Project ID like Project-26-001
+    public function getProjectIdCodeAttribute(): string
+    {
+        $year = $this->created_at ? $this->created_at->format('y') : date('y');
+        return 'Project-' . $year . '-' . str_pad($this->id, 3, '0', STR_PAD_LEFT);
+    }
+
     // Budget helper (paise to rupees)
     public function getBudgetInRupeesAttribute(): float
     {

@@ -117,27 +117,28 @@
 
                             <!-- Card Top Layout -->
                             <div style="padding: 12px 14px 10px;">
-                                <!-- Main Project Name -->
+                                <!-- Main Project ID -->
                                 <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; padding-right: 80px;">
                                     @if($mt->task && $mt->task->project)
                                         <i data-lucide="briefcase" style="width:16px;height:16px;color:#4f46e5;"></i>
                                         <span
-                                            style="font-size: 15px; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $mt->task->project->name }}</span>
+                                            style="font-size: 15px; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+                                            title="{{ $mt->task->project->name }}">{{ $mt->task->project->project_id_code }}</span>
                                     @else
                                         <i data-lucide="folder" style="width:16px;height:16px;color:#64748b;"></i>
                                         <span style="font-size: 15px; font-weight: 700; color: #0f172a;">General Task</span>
                                     @endif
                                 </div>
 
-                                <!-- Product (Task) Name and Micro Task Name side-by-side -->
+                                <!-- Micro Task Name (left) and Task/Service Name (right tag) -->
                                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
                                     <div
                                         style="font-size: 13px; font-weight: 500; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;">
-                                        {{ $mt->task->title ?? 'Unknown Product/Task' }}
+                                        {{ $mt->title ?? 'Unknown Micro Task' }}
                                     </div>
                                     <div style="font-size: 11px; font-weight: 500; color: #475569; border: 1px solid #e2e8f0; padding: 3px 8px; border-radius: 6px; flex-shrink: 0; background-color: #f8fafc;"
-                                        title="{{ $mt->title }}">
-                                        {{ str()->limit($mt->title, 20) }}
+                                        title="{{ $mt->task->title ?? 'Unknown' }}">
+                                        {{ str()->limit($mt->task->title ?? 'Unknown', 20) }}
                                     </div>
                                 </div>
                             </div>

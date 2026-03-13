@@ -185,15 +185,12 @@
                             data-title="{{ strtolower($task->title) }}" ondragstart="kanbanDragStart(event)"
                             ondragend="kanbanDragEnd(event)" onclick="openViewTaskModal({{ $task->id }})" style="cursor: pointer;">
 
-                            <!-- Card Top: Priority Badge -->
+                            <!-- Card Top: Tags -->
                             <div class="kb-card-top">
                                 @php
                                     $prioMap = ['high' => ['label' => 'High', 'class' => 'prio-high'], 'medium' => ['label' => 'Medium', 'class' => 'prio-medium'], 'low' => ['label' => 'Low', 'class' => 'prio-low']];
                                     $prio = $prioMap[$task->priority] ?? $prioMap['low'];
                                 @endphp
-                                <span class="kb-prio {{ $prio['class'] }}">
-                                    <span class="kb-prio-dot"></span> {{ $prio['label'] }}
-                                </span>
                                 @php
                                     $clientName = null;
                                     $leadName = null;
@@ -218,24 +215,20 @@
                                 @if($clientName)
                                     <span class="kb-entity-tag"
                                         style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-                                        title="{{ $task->title }}">
+                                        title="{{ $clientName }}">
                                         <i data-lucide="briefcase" style="width:10px;height:10px"></i>
-                                        {{ $task->title }}
+                                        {{ $clientName }}
                                     </span>
                                 @endif
-                                @if($task->entity_type)
-                                    @if($task->entity_type === 'project' && $task->project)
-                                        <span class="kb-entity-tag" style="background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe;">
-                                            <i data-lucide="link" style="width:10px;height:10px"></i>
-                                            Project: {{ $task->project->name }}
-                                        </span>
-                                    @else
-                                        <span class="kb-entity-tag">
-                                            <i data-lucide="link" style="width:10px;height:10px"></i>
-                                            {{ ucfirst($task->entity_type) }}
-                                        </span>
-                                    @endif
+                                @if($task->project)
+                                    <span class="kb-entity-tag" style="background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe;">
+                                        <i data-lucide="link" style="width:10px;height:10px"></i>
+                                        {{ $task->project->project_id_code }}
+                                    </span>
                                 @endif
+                                <span class="kb-prio {{ $prio['class'] }}">
+                                    <span class="kb-prio-dot"></span> {{ $prio['label'] }}
+                                </span>
                             </div>
 
                             <!-- Card Title -->
@@ -336,15 +329,11 @@
                     <tr class="list-row" data-title="{{ strtolower($task->title) }}">
                         <td>
                             <div style="font-weight:600;color:#1e293b;margin-bottom:4px">{{ $task->title }}</div>
-                            @if($task->entity_type)
+                            @if($task->project)
                                 <span class="kb-entity-tag"
                                     style="background:transparent;border:1px solid #e2e8f0;color:#64748b;margin-top:2px;display:inline-flex">
                                     <i data-lucide="link" style="width:10px;height:10px;margin-right:3px"></i>
-                                    @if($task->entity_type === 'project' && $task->project)
-                                        Project: {{ $task->project->name }}
-                                    @else
-                                        {{ ucfirst($task->entity_type) }}
-                                    @endif
+                                    {{ $task->project->project_id_code }}
                                 </span>
                             @endif
                         </td>
