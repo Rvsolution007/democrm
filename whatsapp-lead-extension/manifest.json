@@ -1,9 +1,15 @@
 {
   "manifest_version": 3,
   "name": "RV CRM - WhatsApp Lead Capture",
-  "version": "1.0.0",
-  "description": "Press Ctrl+G on WhatsApp Web to instantly create a lead in RV CRM with the phone number pre-filled.",
+  "version": "1.1.0",
+  "description": "Press Alt+X or click RV CRM Lead button on WhatsApp Web to instantly create a lead in RV CRM.",
   "permissions": [],
+  "host_permissions": [
+    "https://crm.rvallsolutions.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": [
