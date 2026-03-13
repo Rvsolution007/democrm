@@ -333,15 +333,25 @@
         if (document.getElementById('rvcrm-btn')) return;
 
         let headerArea = null;
-        const mainPanel = document.querySelector('#main');
-        if (!mainPanel) return;
         
-        const header = mainPanel.querySelector('header');
+        // WhatsApp new UI header structure
+        // Look for the header panel on the right side
+        const header = document.querySelector('header');
         if (!header) return;
 
-        const headerChildren = header.children;
+        // Try to find the flex container containing main header buttons (search, menu etc)
+        const headerChildren = Array.from(header.querySelectorAll('div')).filter(el => {
+            const styles = window.getComputedStyle(el);
+            return styles.display === 'flex' && styles.alignItems === 'center' && el.children.length > 1;
+        });
+
         if (headerChildren.length > 0) {
-            headerArea = headerChildren[headerChildren.length - 1];
+            headerArea = headerChildren[headerChildren.length - 1]; // Usually the last flex container has the action icons
+        } else {
+            // Fallback to exactly what the old script did, just safer
+            if (header.children.length > 0) {
+                headerArea = header.children[header.children.length - 1];
+            }
         }
 
         if (!headerArea) return;
@@ -369,8 +379,18 @@
     function injectFilterBar() {
         if (document.getElementById('rvcrm-filter-bar')) return;
 
-        // Find the chat list panel (left sidebar)
-        const sidePanel = document.querySelector('#pane-side');
+        // In new WhatsApp web, the chat list is generally beneath a header and a search bar container
+        // pane-side is still sometimes used, or we just find the container holding role="list" or aria-label="Chat list"
+        let sidePanel = document.querySelector('#pane-side');
+        
+        if (!sidePanel) {
+            // Fallback for new UI: Find the scrollable div containing chat items
+            const chatItems = document.querySelectorAll('[role="listitem"]');
+            if (chatItems.length > 0) {
+                sidePanel = chatItems[0].closest('div[style*="overflow-y"]');
+            }
+        }
+
         if (!sidePanel) return;
 
         const filterBar = document.createElement('div');
@@ -380,13 +400,16 @@
             overflow-x:auto;background:#f0f2f5;border-bottom:1px solid #e2e8f0;
             scrollbar-width:none;-ms-overflow-style:none;
             font-family:'Segoe UI',sans-serif;flex-shrink:0;
+            width: 100%; box-sizing: border-box;
         `;
 
         // Build filter pills
         buildFilterPills(filterBar);
 
         // Insert the filter bar before the chat list
-        sidePanel.parentNode.insertBefore(filterBar, sidePanel);
+        if (sidePanel.parentNode) {
+             sidePanel.parentNode.insertBefore(filterBar, sidePanel);
+        }
     }
 
     function buildFilterPills(container) {
@@ -533,17 +556,18 @@
             badge.style.cssText = `
                 display:inline-flex;align-items:center;gap:3px;
                 background:${color}18;color:${color};
-                padding:1px 8px;border-radius:10px;
+                padding:1px 6px;border-radius:6px;
                 font-size:10px;font-weight:700;font-family:'Segoe UI',sans-serif;
-                margin-left:6px;border:1px solid ${color}30;
+                margin-right:6px;border:1px solid ${color}30;
                 letter-spacing:0.3px;white-space:nowrap;vertical-align:middle;
                 line-height:16px;flex-shrink:0;
             `;
-            badge.innerHTML = `<span style="width:5px;height:5px;border-radius:50%;background:${color};display:inline-block"></span>${label}`;
+            badge.innerHTML = `<span style="width:6px;height:6px;border-radius:50%;background:${color};display:inline-block"></span>${label}`;
 
             parentRow.style.display = 'flex';
             parentRow.style.alignItems = 'center';
-            parentRow.appendChild(badge);
+            // Insert the badge BEFORE the title text (Left side)
+            parentRow.insertBefore(badge, titleRow);
         });
     }
 
