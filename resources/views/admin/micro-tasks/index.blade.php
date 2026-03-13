@@ -134,12 +134,11 @@
                                         }
                                     }
                                 @endphp
-                                @if($clientName)
+                                @if($mt->title)
                                     <span class="kb-entity-tag"
                                         style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-                                        title="{{ $clientName }}">
-                                        <i data-lucide="briefcase" style="width:10px;height:10px"></i>
-                                        {{ $clientName }}
+                                        title="{{ $mt->title }}">
+                                        {{ str()->limit($mt->title, 20) }}
                                     </span>
                                 @endif
                                 @if($mt->task && $mt->task->project)
@@ -153,8 +152,8 @@
                                 </span>
                             </div>
 
-                            <!-- Card Title (Micro Task Name) -->
-                            <h4 class="kb-card-title">{{ $mt->title }}</h4>
+                            <!-- Card Title (Client Name) -->
+                            <h4 class="kb-card-title">{{ $clientName ?? $mt->title }}</h4>
 
                             <!-- Description: Service/Task Name -->
                             @if($mt->task)
