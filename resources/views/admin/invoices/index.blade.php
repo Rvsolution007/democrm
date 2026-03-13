@@ -8,8 +8,8 @@
         <div class="page-header-content"
             style="display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap">
             <div style="flex:1;min-width:200px">
-                <h1 class="page-title">Quotes</h1>
-                <p class="page-description">Manage quotations</p>
+                <h1 class="page-title">Invoices</h1>
+                <p class="page-description">Manage invoices and payments</p>
             </div>
 
             <div style="flex:4;min-width:500px;max-width:900px">
@@ -20,9 +20,9 @@
                         <div>
                             <p id="summary-total-label"
                                 style="margin:0 0 4px 0;font-size:12px;font-weight:600;color:#e0e7ff;text-transform:uppercase;letter-spacing:0.05em">
-                                Total Amount (Quotes)</p>
+                                Total Amount (Invoices)</p>
                             <h3 id="summary-total" style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px">
-                                ₹{{ number_format($leadTotalAmount, 2) }}</h3>
+                                ₹{{ number_format($clientTotalAmount, 2) }}</h3>
                         </div>
                         <div
                             style="width:44px;height:44px;background:rgba(255,255,255,0.2);backdrop-filter:blur(4px);border-radius:12px;display:flex;align-items:center;justify-content:center">
@@ -36,9 +36,9 @@
                         <div>
                             <p id="summary-due-label"
                                 style="margin:0 0 4px 0;font-size:12px;font-weight:600;color:#fce7f3;text-transform:uppercase;letter-spacing:0.05em">
-                                Due Amount (Quotes)</p>
+                                Due Amount (Invoices)</p>
                             <h3 id="summary-due" style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px">
-                                ₹{{ number_format($leadDueAmount, 2) }}</h3>
+                                ₹{{ number_format($clientDueAmount, 2) }}</h3>
                         </div>
                         <div
                             style="width:44px;height:44px;background:rgba(255,255,255,0.2);backdrop-filter:blur(4px);border-radius:12px;display:flex;align-items:center;justify-content:center">
@@ -51,8 +51,8 @@
             <div class="page-actions"
                 style="display:flex;gap:12px;align-items:center;align-self:flex-end;margin-bottom:8px">
                 @if(can('quotes.write'))
-                    <button class="btn btn-primary" onclick="openCreateQuoteDrawer()"><i data-lucide="plus"
-                            style="width:16px;height:16px"></i> Create Quote</button>
+                    <button class="btn btn-primary" onclick="openCreateInvoiceDrawer()"><i data-lucide="plus"
+                            style="width:16px;height:16px"></i> Create Invoice</button>
                 @endif
             </div>
         </div>
@@ -70,7 +70,7 @@
 
     <div class="table-container">
         <div class="table-toolbar">
-            <form method="GET" action="{{ route('admin.quotes.index') }}"
+            <form method="GET" action="{{ route('admin.invoices.index') }}"
                 style="display:flex;gap:12px;width:100%;flex-wrap:wrap">
                 <div class="table-search" style="flex:1;min-width:250px">
                     <i data-lucide="search" class="table-search-icon" style="width:16px;height:16px"></i>
@@ -111,7 +111,7 @@
                 </div>
 
                 @if(request()->hasAny(['search', 'assigned_to_user_id', 'status', 'start_date', 'due_date']))
-                    <a href="{{ route('admin.quotes.index') }}" class="btn btn-outline btn-sm"
+                    <a href="{{ route('admin.invoices.index') }}" class="btn btn-outline btn-sm"
                         style="display:flex;align-items:center;padding:0 12px;height:38px"><i data-lucide="x"
                             style="width:14px;height:14px;margin-right:6px"></i> Clear</a>
                 @endif
@@ -119,23 +119,24 @@
             </form>
         </div>
 
-        <!-- Quotes Table -->
-        <div class="table-wrapper" id="tab-content-leads">
-            <table class="table" id="lead-quotes-table">
+        <!-- CLIENTS TABLE (Invoices) -->
+        <div class="table-wrapper quote-tab-content" id="tab-content-clients">
+            <table class="table" id="client-quotes-table">
                 <thead>
                     <tr>
-                        <th class="sortable">Quote Number</th>
-                        <th>Quote For</th>
+                        <th class="sortable">Invoice Number</th>
+                        <th>Client</th>
                         <th>Assigned To</th>
                         <th class="sortable">Status</th>
                         <th class="sortable">Total</th>
+                        <th class="sortable">Due Amount</th>
                         <th>Purchase</th>
                         <th class="sortable">Valid Until</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody class="quotes-tbody" id="lead-quotes-tbody">
-                    @forelse($leadQuotes as $quote)
+                <tbody class="quotes-tbody" id="client-quotes-tbody">
+                    @forelse($invoices as $quote)
                         <tr data-status="{{ $quote->status }}">
                             <td>
                                 <span class="font-medium">{{ $quote->quote_no }}</span>
@@ -148,32 +149,25 @@
                                         #{{ $quote->lead_id }}</span>
                                 @endif
                             </td>
-                            <td>
-                                @if($quote->client_id)
-                                    <div style="display:flex;align-items:center;gap:4px">
-                                        <i data-lucide="building" style="width:12px;height:12px;color:#64748b;"></i>
-                                        <span>{{ $quote->client->display_name ?? $quote->client->name ?? '—' }}</span>
-                                    </div>
-                                @elseif($quote->lead_id)
-                                    <div style="display:flex;align-items:center;gap:4px">
-                                        <i data-lucide="user" style="width:12px;height:12px;color:#64748b;"></i>
-                                        <span>{{ $quote->lead->name ?? '—' }}</span>
-                                    </div>
-                                @else
-                                    —
-                                @endif
-                            </td>
+                            <td>{{ $quote->client ? $quote->client->display_name : '—' }}</td>
                             <td>{{ $quote->assignedTo->name ?? '—' }}</td>
                             <td>
                                 <span
                                     class="badge badge-{{ $quote->status === 'accepted' ? 'success' : ($quote->status === 'rejected' ? 'destructive' : ($quote->status === 'sent' ? 'info' : 'secondary')) }}">
                                     {{ ucfirst($quote->status) }}
                                 </span>
+                            </td>
                             <td class="font-medium">
                                 ₹{{ number_format($quote->grand_total_in_rupees, 2) }}
                                 @if($quote->gst_total > 0)
                                     <span style="margin-left:6px;font-size:10px;color:#0ea5e9;background:#e0f2fe;padding:2px 5px;border-radius:4px;font-weight:600;display:inline-block">+GST</span>
                                 @endif
+                            </td>
+                            <td id="due-amount-{{ $quote->id }}">
+                                @php $dueAmt = $quote->due_amount_in_rupees; @endphp
+                                <span style="font-weight:700;color:{{ $dueAmt > 0 ? '#ef4444' : '#059669' }};">
+                                    ₹{{ number_format($dueAmt, 2) }}
+                                </span>
                             </td>
                             <td>
                                 @if($quote->total_purchase_amount_in_rupees > 0)
@@ -191,18 +185,17 @@
                                         title="View"><i data-lucide="eye" style="width:16px;height:16px"></i></button>
                                     <button class="btn btn-ghost btn-icon btn-sm" onclick="downloadQuote({{ $quote->id }})"
                                         title="Download"><i data-lucide="download" style="width:16px;height:16px"></i></button>
-                                    @if(can('quotes.write') && $quote->client_id)
-                                        <button class="btn btn-ghost btn-icon btn-sm" style="color:#16a34a"
-                                            onclick="convertQuote({{ $quote->id }})" title="Convert Quote"><i
-                                                data-lucide="check-circle" style="width:16px;height:16px"></i></button>
-                                    @endif
                                     @if(can('quotes.write'))
-                                        <button class="btn btn-ghost btn-icon btn-sm" onclick="editQuote({{ $quote->id }})"
+                                        <button class="btn btn-ghost btn-icon btn-sm" style="color:#059669;"
+                                            onclick="openPaymentModal({{ $quote->id }}, '{{ $quote->quote_no }}', {{ $quote->grand_total_in_rupees }})"
+                                            title="Record Payment"><i data-lucide="indian-rupee"
+                                                style="width:16px;height:16px"></i></button>
+                                        <button class="btn btn-ghost btn-icon btn-sm" onclick="editInvoice({{ $quote->id }})"
                                             title="Edit"><i data-lucide="edit" style="width:16px;height:16px"></i></button>
                                     @endif
                                     @if(can('quotes.delete'))
                                         <button class="btn btn-ghost btn-icon btn-sm" style="color:var(--destructive)"
-                                            onclick="deleteQuote({{ $quote->id }})" title="Delete"><i data-lucide="trash-2"
+                                            onclick="deleteInvoice({{ $quote->id }})" title="Delete"><i data-lucide="trash-2"
                                                 style="width:16px;height:16px"></i></button>
                                     @endif
                                 </div>
@@ -210,17 +203,17 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" style="text-align:center;padding:40px 0;color:#999">
+                            <td colspan="8" style="text-align:center;padding:40px 0;color:#999">
                                 <i data-lucide="file-text" style="width:40px;height:40px;color:#ddd;margin-bottom:12px"></i>
-                                <p style="margin:0;font-size:14px">No Quotes found.</p>
+                                <p style="margin:0;font-size:14px">No Invoices found.</p>
                             </td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
             <div class="table-footer">
-                <span>Showing {{ $leadQuotes->count() }} of {{ $leadQuotes->total() }} entries</span>
-                {{ $leadQuotes->links() }}
+                <span>Showing {{ $invoices->count() }} of {{ $invoices->total() }} entries</span>
+                {{ $invoices->links() }}
             </div>
         </div>
     </div>
@@ -294,8 +287,8 @@
             style="padding:20px 28px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
             <div>
                 <h3 class="drawer-title" id="quote-drawer-title"
-                    style="margin:0;font-size:18px;font-weight:700;color:#0f172a">Create New Quote</h3>
-                <p class="drawer-description" style="margin:4px 0 0;font-size:13px;color:#64748b">Enter quote details</p>
+                    style="margin:0;font-size:18px;font-weight:700;color:#0f172a">Create New Invoice</h3>
+                <p class="drawer-description" style="margin:4px 0 0;font-size:13px;color:#64748b">Enter invoice details</p>
             </div>
             <button class="drawer-close" onclick="closeDrawer('quote-drawer')"
                 style="background:#f1f5f9;border:none;width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer"><i
@@ -316,7 +309,7 @@
                     </ul>
                 </div>
             @endif
-            <form id="quote-form" method="POST" action="{{ route('admin.quotes.store') }}">
+            <form id="quote-form" method="POST" action="{{ route('admin.invoices.store') }}">
                 @csrf
                 <input type="hidden" name="_method" id="quote-form-method" value="POST">
                 <input type="hidden" name="client_type" id="quote-client-type" value="client">
@@ -616,14 +609,6 @@
         });
 
         function filterByStatus(status) {
-            document.querySelectorAll('.quotes-tbody tr').forEach(row => {
-                if (!status || row.dataset.status === status) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        }
 
         function calcQuoteTotal() {
             var s = parseFloat(document.getElementById('q-subtotal').value) || 0;
@@ -1118,11 +1103,100 @@
             }
         }
 
-        function deleteQuote(id) {
-            if (confirm('Are you sure you want to delete this quote?')) {
+        function editInvoice(id) {
+            fetch(`{{ url('admin/invoices') }}/${id}/edit`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    // Update UI titles/actions
+                    var titleEl = document.getElementById('quote-drawer-title');
+                    if (titleEl) titleEl.textContent = 'Edit Invoice';
+                    var btnEdit = document.getElementById('btn-edit-quote');
+                    if (btnEdit) btnEdit.style.display = 'none';
+                    var btnSave = document.getElementById('btn-save-quote');
+                    if (btnSave) {
+                        btnSave.textContent = 'Update Invoice';
+                        btnSave.style.display = 'block';
+                    }
+
+                    // Populate form fields
+                    var form = document.getElementById('quote-form');
+                    form.action = `{{ url('admin/invoices') }}/${id}`;
+                    document.getElementById('quote-form-method').value = 'PUT';
+
+                    var clientType = data.client_id ? 'client' : 'lead';
+                    switchQuoteClientType(clientType);
+                    if (clientType === 'client') {
+                        setInputValue('client_id', data.client_id);
+                    } else {
+                        setInputValue('lead_id', data.lead_id);
+                    }
+                    if (data.assigned_to_user_id) setInputValue('assigned_to_user_id', data.assigned_to_user_id);
+
+                    setInputValue('quote_date', data.date ? data.date.split('T')[0] : '');
+                    setInputValue('valid_until', data.valid_till ? data.valid_till.split('T')[0] : '');
+                    setInputValue('notes', data.notes || '');
+
+                    if (document.getElementById('quote-status-group')) {
+                        document.getElementById('quote-status-group').style.display = 'block';
+                        setInputValue('status', data.status || 'draft');
+                    }
+
+                    // Reset and populate items
+                    clearQuoteProducts();
+                    if (data.items && data.items.length > 0) {
+                        data.items.forEach(function (item) {
+                            var priceVal = item.unit_price ? (item.unit_price / 100) : (item.rate / 100);
+                            addQuoteProductRow(
+                                item.product_id,
+                                item.product_name,
+                                priceVal,
+                                item.description,
+                                item.qty,
+                                item.discount / 100,
+                                item.purchase_amount > 0,
+                                item.purchase_amount / 100
+                            );
+                        });
+                    }
+
+                    // Set tax rate
+                    var computedTaxPct = 0;
+                    if (data.subtotal > 0 && data.gst_total > 0) {
+                        computedTaxPct = (data.gst_total / (data.subtotal - data.discount)) * 100;
+                    }
+                    var taxSel = document.getElementById('q-tax-rate');
+                    var matched = false;
+                    for (var i = 0; i < taxSel.options.length; i++) {
+                        if (Math.abs(parseFloat(taxSel.options[i].value) - computedTaxPct) < 0.1) {
+                            taxSel.selectedIndex = i;
+                            matched = true; break;
+                        }
+                    }
+                    if (!matched) taxSel.value = "0";
+
+                    calcQuoteTotalFromProducts();
+                    openDrawer('quote-drawer');
+                })
+                .catch(error => {
+                    console.error('Error fetching invoice:', error);
+                    alert('Could not load invoice data.');
+                });
+        }
+
+        function viewQuote(id) {
+            editInvoice(id); // Using the same drawer logic temporarily
+        }
+
+        function deleteInvoice(id) {
+            if (confirm('Are you sure you want to delete this invoice?')) {
                 var form = document.createElement('form');
                 form.method = 'POST';
-                form.action = `{{ url('admin/quotes') }}/${id}`;
+                form.action = `{{ url('admin/invoices') }}/${id}`;
 
                 var csrf = document.createElement('input');
                 csrf.type = 'hidden';
@@ -1139,28 +1213,6 @@
                 document.body.appendChild(form);
                 form.submit();
             }
-        }
-
-        function convertQuote(id) {
-            if (!confirm('Are you sure you want to convert this quote to an Invoice? This will create a project and auto-purchase entries.')) return;
-
-            fetch(`{{ url('admin/quotes') }}/${id}/convert`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
-                }
-            })
-                .then(response => response.json())
-                .then(data => {
-                    alert(data.message || 'Quote converted successfully.');
-                    window.location.reload();
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred while converting the quote.');
-                });
         }
 
         function submitQuoteForm() {
@@ -1209,8 +1261,8 @@
                 });
         }
 
-        const leadTotalAmountFormatted = "{{ number_format($leadTotalAmount, 2) }}";
-        const leadDueAmountFormatted = "{{ number_format($leadDueAmount, 2) }}";
+        const clientTotalAmountFormatted = "{{ number_format($clientTotalAmount, 2) }}";
+        const clientDueAmountFormatted = "{{ number_format($clientDueAmount, 2) }}";
 
         document.addEventListener('DOMContentLoaded', () => {
             // Check for edit open quote parameter
@@ -1226,6 +1278,9 @@
                     viewQuote(openQuoteId);
                 }, 300); // Slight delay to ensure everything is ready
             }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Document load handler
         });
 
         // ====== Payment Modal Functions ======

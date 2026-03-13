@@ -29,7 +29,11 @@
                 @if(can('quotes.read'))
                     <a href="{{ route('admin.quotes.index') }}"
                         class="nav-link {{ request()->routeIs('admin.quotes.*') ? 'active' : '' }}">
-                        <i data-lucide="file-text"></i> <span>Quotes & Invoices</span>
+                        <i data-lucide="file-text"></i> <span>Quotes</span>
+                    </a>
+                    <a href="{{ route('admin.invoices.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.invoices.*') ? 'active' : '' }}">
+                        <i data-lucide="file-check"></i> <span>Invoices</span>
                     </a>
                     <a href="{{ route('admin.payments.index') }}"
                         class="nav-link {{ request()->routeIs('admin.payments.*') ? 'active' : '' }}">

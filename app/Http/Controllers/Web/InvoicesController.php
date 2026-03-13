@@ -18,7 +18,7 @@ use App\Models\ServiceTemplate;
 use App\Models\MicroTask;
 use Illuminate\Http\Request;
 
-class QuotesController extends Controller
+class InvoicesController extends Controller
 {
     public function index(Request $request)
     {
@@ -70,14 +70,16 @@ class QuotesController extends Controller
             $query->whereDate('valid_until', '<=', $request->due_date);
         }
 
-        // Quotes tab: all non-accepted quotes (regular quotes)
-        $leadTotalAmount = $query->where('status', '!=', 'accepted')->sum('grand_total') / 100;
+        // Only fetch accepted quotes (Invoices)
+        $query->where('status', 'accepted');
 
-        $leadDueQuery = clone $query;
-        $leadDueAmount = $leadDueQuery->where('status', '!=', 'accepted')->sum('grand_total') / 100;
+        $clientSummaryQuery = clone $query;
+        $clientTotalAmount = $clientSummaryQuery->sum('grand_total') / 100;
 
-        $leadQuery = clone $query;
-        $leadQuotes = $leadQuery->where('status', '!=', 'accepted')->latest()->paginate(20, ['*'], 'lead_page')->withQueryString();
+        $clientDueQuery = clone $query;
+        $clientDueAmount = $clientDueQuery->sum('grand_total') / 100;
+
+        $invoices = $query->with(['payments', 'items'])->latest()->paginate(20)->withQueryString();
         $clients = Client::all();
         $products = Product::all();
 
@@ -110,7 +112,7 @@ class QuotesController extends Controller
         })->values()->toArray();
         $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
 
-        return view('admin.quotes.index', compact('leadQuotes', 'clients', 'products', 'leads', 'users', 'quoteTaxes', 'paymentTypes', 'leadTotalAmount', 'leadDueAmount'));
+        return view('admin.invoices.index', compact('invoices', 'clients', 'products', 'leads', 'users', 'quoteTaxes', 'paymentTypes', 'clientTotalAmount', 'clientDueAmount'));
     }
 
     public function store(Request $request)
@@ -132,9 +134,9 @@ class QuotesController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        // Auto-generate quote number
+        // Auto-generate invoice number
         $company = auth()->user()->company;
-        $quoteNumber = Quote::generateQuoteNumber($company);
+        $quoteNumber = Quote::generateInvoiceNumber($company);
 
         // Convert rupees to paise (model stores in paise)
         $subtotal = (int) (($validated['subtotal'] ?? 0) * 100);
@@ -164,7 +166,7 @@ class QuotesController extends Controller
             'discount' => $discount,
             'gst_total' => $taxAmount,
             'grand_total' => $grandTotal,
-            'status' => 'draft',
+            'status' => 'accepted',
             'notes' => $validated['notes'] ?? null,
         ]);
 
@@ -211,14 +213,17 @@ class QuotesController extends Controller
             $quote->refresh();
         }
 
-        // Auto-project/purchase creation is handled during explicit quote conversion
-
-        if ($request->wantsJson()) {
-            return response()->json(['message' => 'Quote created successfully', 'redirect' => route('admin.quotes.index')]);
+        // If directly creating an Invoice for a client, we may want to auto-create projects.
+        if ($quote->client_id && $quote->status === 'accepted') {
+            $this->autoCreateProjectAndPurchases($quote);
         }
 
-        return redirect()->route('admin.quotes.index')
-            ->with('success', 'Quote created successfully');
+        if ($request->wantsJson()) {
+            return response()->json(['message' => 'Invoice created successfully', 'redirect' => route('admin.invoices.index')]);
+        }
+
+        return redirect()->route('admin.invoices.index')
+            ->with('success', 'Invoice created successfully');
     }
 
     public function edit($id)
@@ -402,56 +407,20 @@ class QuotesController extends Controller
             $quote->items()->delete();
         }
 
-        // If products changed and the quote was previously accepted, revert it to draft
-        if ($productsChanged && $quote->status === 'accepted') {
-            $quote->update(['status' => 'draft']);
-        }
-
-        // Auto-project/purchase creation is handled during explicit quote conversion
-
-        if ($request->wantsJson()) {
-            return response()->json(['message' => 'Quote updated successfully', 'redirect' => route('admin.quotes.index')]);
-        }
-
-        return redirect()->route('admin.quotes.index')
-            ->with('success', 'Quote updated successfully');
-    }
-
-    /**
-     * Convert a quote to accepted status, auto-create project and purchases.
-     */
-    public function convert(Request $request, $id)
-    {
-        if (!can('quotes.write')) {
-            abort(403, 'Unauthorized action.');
-        }
-
-        $quote = Quote::findOrFail($id);
-
-        if ($quote->status === 'accepted') {
-            return response()->json(['message' => 'Quote is already converted.'], 409);
-        }
-
-        // Generate invoice number (I-YY-YY-NNNNNN)
-        $company = auth()->user()->company;
-        $invoiceNumber = Quote::generateInvoiceNumber($company);
-
-        // Mark as accepted and assign invoice number
-        $quote->update([
-            'status' => 'accepted',
-            'quote_no' => $invoiceNumber,
-        ]);
-
-        // Auto-create project and purchases
-        if ($quote->client_id) {
+        // Since this is an invoice, it remains accepted. We will run auto-creation if client is attached and not yet created.
+        if ($quote->client_id && $quote->status === 'accepted') {
             $this->autoCreateProjectAndPurchases($quote);
         }
 
-        return response()->json([
-            'message' => 'Quote converted to Invoice successfully. Invoice No: ' . $invoiceNumber,
-            'redirect' => route('admin.invoices.index'),
-        ]);
+        if ($request->wantsJson()) {
+            return response()->json(['message' => 'Invoice updated successfully', 'redirect' => route('admin.invoices.index')]);
+        }
+
+        return redirect()->route('admin.invoices.index')
+            ->with('success', 'Invoice updated successfully');
     }
+
+    // Removed convert method entirely since we convert quotes in QuotesController
 
     /**
      * Auto-create a Project (with tasks) and Purchases for a client quote.

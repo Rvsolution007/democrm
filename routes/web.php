@@ -197,6 +197,15 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::delete('/quotes/{id}', [QuotesController::class, 'destroy'])->name('quotes.destroy');
     Route::post('/quotes/{id}/convert', [QuotesController::class, 'convert'])->name('quotes.convert');
 
+    // Invoices
+    Route::get('/invoices', [\App\Http\Controllers\Web\InvoicesController::class, 'index'])->name('invoices.index');
+    Route::post('/invoices', [\App\Http\Controllers\Web\InvoicesController::class, 'store'])->name('invoices.store');
+    Route::get('/invoices/{id}/edit', [\App\Http\Controllers\Web\InvoicesController::class, 'edit'])->name('invoices.edit');
+    Route::get('/invoices/{id}', [\App\Http\Controllers\Web\InvoicesController::class, 'show'])->name('invoices.show');
+    Route::get('/invoices/{id}/download', [\App\Http\Controllers\Web\InvoicesController::class, 'download'])->name('invoices.download');
+    Route::put('/invoices/{id}', [\App\Http\Controllers\Web\InvoicesController::class, 'update'])->name('invoices.update');
+    Route::delete('/invoices/{id}', [\App\Http\Controllers\Web\InvoicesController::class, 'destroy'])->name('invoices.destroy');
+
     // Payments
     Route::get('/payments', [PaymentsController::class, 'index'])->name('payments.index');
     Route::post('/payments', [PaymentsController::class, 'store'])->name('payments.store');
