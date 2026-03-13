@@ -218,9 +218,9 @@
                                 @if($clientName)
                                     <span class="kb-entity-tag"
                                         style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-                                        title="{{ $clientName }}">
+                                        title="{{ $task->title }}">
                                         <i data-lucide="briefcase" style="width:10px;height:10px"></i>
-                                        {{ $clientName }}
+                                        {{ $task->title }}
                                     </span>
                                 @endif
                                 @if($task->entity_type)
@@ -239,7 +239,7 @@
                             </div>
 
                             <!-- Card Title -->
-                            <h4 class="kb-card-title">{{ $task->title }}</h4>
+                            <h4 class="kb-card-title">{{ $clientName ?? $task->title }}</h4>
 
                             <!-- Card Description Preview -->
                             @if($task->description)
