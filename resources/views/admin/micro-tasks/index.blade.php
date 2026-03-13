@@ -115,131 +115,104 @@
                             ondragstart="kanbanDragStart(event)" ondragend="kanbanDragEnd(event)" @endif @if(!$canDragThisMt)
                             style="cursor: default; opacity: 0.85;" @endif>
 
-                            <!-- Card Top Layout -->
-                            <div style="padding: 12px 14px 10px;">
-                                <!-- Main Project ID -->
-                                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; padding-right: 80px;">
-                                    @if($mt->task && $mt->task->project)
-                                        <i data-lucide="briefcase" style="width:16px;height:16px;color:#4f46e5;"></i>
-                                        <span
-                                            style="font-size: 15px; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
-                                            title="{{ $mt->task->project->name }}">{{ $mt->task->project->project_id_code }}</span>
-                                    @else
-                                        <i data-lucide="folder" style="width:16px;height:16px;color:#64748b;"></i>
-                                        <span style="font-size: 15px; font-weight: 700; color: #0f172a;">General Task</span>
-                                    @endif
-                                </div>
-
-                                <!-- Micro Task Name (left) and Task/Service Name (right tag) -->
-                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-                                    <div
-                                        style="font-size: 13px; font-weight: 500; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;">
-                                        {{ $mt->title ?? 'Unknown Micro Task' }}
-                                    </div>
-                                    <div style="font-size: 11px; font-weight: 500; color: #475569; border: 1px solid #e2e8f0; padding: 3px 8px; border-radius: 6px; flex-shrink: 0; background-color: #f8fafc;"
-                                        title="{{ $mt->task->title ?? 'Unknown' }}">
-                                        {{ str()->limit($mt->task->title ?? 'Unknown', 20) }}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Client Tag (if any) -->
-                            @php
-                                $clientName = null;
-                                $task = $mt->task;
-                                if ($task && $task->entity_type === 'client' && $task->clientEntity) {
-                                    $clientName = $task->clientEntity->business_name ?: $task->clientEntity->contact_name;
-                                } elseif ($task && $task->entity_type === 'lead' && $task->leadEntity) {
-                                    $clientName = $task->leadEntity->name . ' (Lead)';
-                                } elseif ($task && $task->project_id && $task->project) {
-                                    if ($task->project->client) {
-                                        $clientName = $task->project->client->business_name ?: $task->project->client->contact_name;
+                            <!-- Card Top: Tags (same as Task card) -->
+                            <div class="kb-card-top">
+                                @php
+                                    $prioMap = ['high' => ['label' => 'High', 'class' => 'prio-high'], 'medium' => ['label' => 'Medium', 'class' => 'prio-medium'], 'low' => ['label' => 'Low', 'class' => 'prio-low']];
+                                    $prio = $prioMap[$mt->task->priority ?? 'medium'] ?? $prioMap['low'];
+                                @endphp
+                                @php
+                                    $clientName = null;
+                                    $task = $mt->task;
+                                    if ($task && $task->entity_type === 'client' && $task->clientEntity) {
+                                        $clientName = $task->clientEntity->business_name ?: $task->clientEntity->contact_name;
+                                    } elseif ($task && $task->entity_type === 'lead' && $task->leadEntity) {
+                                        $clientName = $task->leadEntity->name . ' (Lead)';
+                                    } elseif ($task && $task->project_id && $task->project) {
+                                        if ($task->project->client) {
+                                            $clientName = $task->project->client->business_name ?: $task->project->client->contact_name;
+                                        }
                                     }
-                                }
-                            @endphp
-                            @if($clientName)
-                                <div style="border-top: 1px solid #f8fafc; padding: 8px 14px;">
-                                    <span
-                                        style="display: inline-flex; align-items: center; gap: 4px; background: #faf5ff; border: 1px solid #f3e8ff; color: #a855f7; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 12px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;"
+                                @endphp
+                                @if($clientName)
+                                    <span class="kb-entity-tag"
+                                        style="max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
                                         title="{{ $clientName }}">
-                                        <i data-lucide="user" style="width:10px;height:10px"></i>
+                                        <i data-lucide="briefcase" style="width:10px;height:10px"></i>
                                         {{ $clientName }}
                                     </span>
-                                    @if($mt->role)
-                                        <span
-                                            style="display: inline-flex; align-items: center; gap: 4px; background: #fff7ed; border: 1px solid #fed7aa; color: #ea580c; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 12px; white-space: nowrap; margin-left: 4px;"
-                                            title="Role: {{ $mt->role->name }}">
-                                            <i data-lucide="shield" style="width:10px;height:10px"></i>
-                                            {{ $mt->role->name }}
-                                        </span>
-                                    @endif
-                                </div>
-                            @elseif($mt->role)
-                                <div style="border-top: 1px solid #f8fafc; padding: 8px 14px;">
-                                    <span
-                                        style="display: inline-flex; align-items: center; gap: 4px; background: #fff7ed; border: 1px solid #fed7aa; color: #ea580c; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 12px; white-space: nowrap;"
-                                        title="Role: {{ $mt->role->name }}">
-                                        <i data-lucide="shield" style="width:10px;height:10px"></i>
-                                        {{ $mt->role->name }}
+                                @endif
+                                @if($mt->task && $mt->task->project)
+                                    <span class="kb-entity-tag" style="background:#eef2ff;color:#4f46e5;border:1px solid #c7d2fe;">
+                                        <i data-lucide="link" style="width:10px;height:10px"></i>
+                                        {{ $mt->task->project->project_id_code }}
                                     </span>
+                                @endif
+                                <span class="kb-prio {{ $prio['class'] }}">
+                                    <span class="kb-prio-dot"></span> {{ $prio['label'] }}
+                                </span>
+                            </div>
+
+                            <!-- Card Title (Micro Task Name) -->
+                            <h4 class="kb-card-title">{{ $mt->title }}</h4>
+
+                            <!-- Description: Service/Task Name -->
+                            @if($mt->task)
+                                <div class="kb-card-desc-row">
+                                    <p class="kb-card-desc">{{ $mt->task->title }}</p>
                                 </div>
                             @endif
 
-                            <!-- Bottom Footer (Avatar + Priority) -->
-                            <div
-                                style="border-top: 1px solid #f8fafc; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center;">
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <div
-                                        style="width: 24px; height: 24px; border-radius: 50%; background: #6366f1; color: white; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700;">
-                                        {{ isset($mt->task) && isset($mt->task->assignedTo) ? strtoupper(substr($mt->task->assignedTo->name, 0, 2)) : '?' }}
-                                    </div>
-                                    <div
-                                        style="font-size: 12px; font-weight: 500; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px;">
-                                        {{ $mt->task->assignedTo->name ?? 'Unassigned' }}
-                                    </div>
-                                </div>
-                                <div style="display:flex; gap: 8px; align-items: center;">
-                                    @if($mt->follow_up_date)
-                                        <span class="kb-meta-item"
-                                            style="font-size: 11px; padding: 2px 6px; background: #f1f5f9; border-radius: 4px; color: #475569;">
-                                            <i data-lucide="calendar" style="width:10px;height:10px; margin-right: 4px;"></i>
-                                            {{ $mt->follow_up_date->format('d M') }}
-                                        </span>
-                                    @endif
-                                    @php
-                                        $prioMap = ['high' => ['class' => 'prio-high'], 'medium' => ['class' => 'prio-medium'], 'low' => ['class' => 'prio-low']];
-                                        $prio = $prioMap[$mt->task->priority ?? 'medium'] ?? $prioMap['low'];
-                                    @endphp
-                                    <span class="kb-prio-dot {{ $prio['class'] }}-dot" style="margin-left: 4px;"></span>
-                                </div>
+                            <!-- Card Meta: Contact + Follow-up Date -->
+                            <div class="kb-card-meta">
+                                @if($mt->task && $mt->task->contact_phone)
+                                    <a href="tel:{{ $mt->task->contact_phone }}" class="kb-meta-item kb-meta-phone"
+                                        onclick="event.stopPropagation()">
+                                        <i data-lucide="phone" style="width:12px;height:12px"></i>
+                                        {{ $mt->task->contact_phone }}
+                                    </a>
+                                @endif
+                                @if($mt->follow_up_date)
+                                    <span class="kb-meta-item">
+                                        <i data-lucide="calendar" style="width:12px;height:12px"></i>
+                                        {{ $mt->follow_up_date->format('d M Y') }}
+                                    </span>
+                                @endif
                             </div>
 
-                            <!-- Action buttons container (visible on hover via CSS) -->
-                            @php
-                                $canEditThisMt = auth()->user()->isAdmin() || (!is_null($mt->role_id) && $mt->role_id == auth()->user()->role_id);
-                            @endphp
-                            <div class="kb-card-actions" draggable="false" onmousedown="event.stopPropagation()">
-                                <button type="button" class="kb-action-btn kb-action-view"
-                                    onclick="event.stopPropagation(); openViewMtModal({{ $mt->id }})" title="View">
-                                    <i data-lucide="eye" style="width:12px;height:12px"></i>
-                                </button>
-                                @if(can('tasks.write') && $canEditThisMt)
+                            <!-- Card Footer: Avatar + Actions -->
+                            <div class="kb-card-footer">
+                                <div class="kb-avatar-row">
+                                    <span
+                                        class="kb-avatar">{{ isset($mt->task) && isset($mt->task->assignedTo) ? strtoupper(substr($mt->task->assignedTo->name, 0, 2)) : '?' }}</span>
+                                    <span class="kb-avatar-name">{{ $mt->task->assignedTo->name ?? 'Unassigned' }}</span>
+                                </div>
+                                @php
+                                    $canEditThisMt = auth()->user()->isAdmin() || (!is_null($mt->role_id) && $mt->role_id == auth()->user()->role_id);
+                                @endphp
+                                <div class="kb-card-actions" draggable="false" onmousedown="event.stopPropagation()">
                                     <button type="button" class="kb-action-btn kb-action-edit"
-                                        onclick="event.stopPropagation(); openEditMtModal({{ $mt->id }})" title="Edit">
-                                        <i data-lucide="pencil" style="width:12px;height:12px"></i>
+                                        onclick="event.stopPropagation(); openViewMtModal({{ $mt->id }})" title="View">
+                                        <i data-lucide="eye" style="width:13px;height:13px"></i>
                                     </button>
-                                @endif
-                                @if(can('tasks.delete') && $canEditThisMt)
-                                    <form method="POST" action="{{ route('admin.micro-tasks.destroy', $mt->id) }}"
-                                        style="display:inline;margin:0"
-                                        onsubmit="event.stopPropagation(); return confirm('Delete this micro task?')">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="kb-action-btn kb-action-delete" onclick="event.stopPropagation()"
-                                            title="Delete">
-                                            <i data-lucide="trash-2" style="width:12px;height:12px"></i>
+                                    @if(can('tasks.write') && $canEditThisMt)
+                                        <button type="button" class="kb-action-btn kb-action-edit"
+                                            onclick="event.stopPropagation(); openEditMtModal({{ $mt->id }})" title="Edit">
+                                            <i data-lucide="pencil" style="width:13px;height:13px"></i>
                                         </button>
-                                    </form>
-                                @endif
+                                    @endif
+                                    @if(can('tasks.delete') && $canEditThisMt)
+                                        <form method="POST" action="{{ route('admin.micro-tasks.destroy', $mt->id) }}"
+                                            style="display:inline;margin:0" draggable="false"
+                                            onsubmit="event.stopPropagation(); return confirm('Delete this micro task?')">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="kb-action-btn kb-action-delete" draggable="false"
+                                                onclick="event.stopPropagation()" title="Delete">
+                                                <i data-lucide="trash-2" style="width:13px;height:13px"></i>
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
                             </div>
                         </div>
                     @empty
@@ -518,6 +491,54 @@
             font-weight: 600;
         }
 
+        /* ── Priority Badges ── */
+        .kb-prio {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .kb-prio .kb-prio-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .prio-high {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        .prio-high .kb-prio-dot {
+            background: #ef4444;
+        }
+
+        .prio-medium {
+            background: #fffbeb;
+            color: #d97706;
+            border: 1px solid #fde68a;
+        }
+
+        .prio-medium .kb-prio-dot {
+            background: #f59e0b;
+        }
+
+        .prio-low {
+            background: #f0fdf4;
+            color: #16a34a;
+            border: 1px solid #bbf7d0;
+        }
+
+        .prio-low .kb-prio-dot {
+            background: #22c55e;
+        }
+
         /* ── Card Title ── */
         .kb-card-title {
             margin: 0 0 8px;
@@ -526,6 +547,41 @@
             color: #1e293b;
             line-height: 1.4;
             letter-spacing: -0.01em;
+        }
+
+        /* ── Card Description ── */
+        .kb-card-desc-row {
+            margin-bottom: 8px;
+        }
+
+        .kb-card-desc {
+            margin: 0;
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* ── Card Meta ── */
+        .kb-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .kb-meta-phone {
+            text-decoration: none !important;
+            color: #3b82f6 !important;
+        }
+
+        .kb-meta-phone:hover {
+            color: #2563eb !important;
+            background: #eff6ff !important;
         }
 
         /* ── Card Footer ── */
