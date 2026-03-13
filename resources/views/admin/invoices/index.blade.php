@@ -131,7 +131,7 @@
                         <th class="sortable">Total</th>
                         <th class="sortable">Due Amount</th>
                         <th>Purchase</th>
-                        <th class="sortable">Valid Until</th>
+                        <th class="sortable">Invoice Date</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -178,7 +178,7 @@
                                     <span style="color:#cbd5e1">—</span>
                                 @endif
                             </td>
-                            <td>{{ $quote->valid_till ? $quote->valid_till->format('d M Y') : '—' }}</td>
+                            <td>{{ $quote->created_at ? $quote->created_at->format('d M Y') : '—' }}</td>
                             <td>
                                 <div class="table-actions">
                                     <button class="btn btn-ghost btn-icon btn-sm" onclick="viewQuote({{ $quote->id }})"
@@ -388,7 +388,7 @@
                 @endif
                 <div class="form-row form-row-2">
                     <div class="form-group">
-                        <label class="form-label">Quote Date</label>
+                        <label class="form-label">Invoice Date</label>
                         <input type="date" name="quote_date" class="form-input" value="{{ date('Y-m-d') }}">
                     </div>
                     <div class="form-group">
