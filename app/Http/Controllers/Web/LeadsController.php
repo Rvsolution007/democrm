@@ -286,8 +286,22 @@ class LeadsController extends Controller
             }
         }
 
+        // Check if a duplicate lead exists with the same phone
+        $isDuplicate = Lead::where('phone', $validated['phone'])->where('id', '!=', $lead->id)->exists();
+        $message = $isDuplicate ? 'Duplicate lead found for this number, but saved anyway.' : 'Lead created successfully';
+        $type = $isDuplicate ? 'warning' : 'success';
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'isDuplicate' => $isDuplicate,
+                'lead_id' => $lead->id
+            ]);
+        }
+
         return redirect()->route('admin.leads.index')
-            ->with('success', 'Lead created successfully');
+            ->with($type, $message);
     }
 
     public function edit($id)

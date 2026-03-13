@@ -158,11 +158,15 @@
         const toast = document.createElement('div');
         toast.id = 'rvcrm-toast';
         const isError = type === 'error';
-        const bgColor = isError ? '#dc2626' : '#25D366';
+        const isWarning = type === 'warning';
+        let bgColor = '#25D366'; // success
+        let icon = '✅';
+        if (isError) { bgColor = '#dc2626'; icon = '❌'; }
+        if (isWarning) { bgColor = '#f59e0b'; icon = '⚠️'; }
         
         toast.innerHTML = `
             <div style="position:fixed;bottom:24px;right:24px;z-index:999999;background:${bgColor};color:white;padding:14px 22px;border-radius:12px;font-family:'Segoe UI',sans-serif;font-size:14px;font-weight:500;box-shadow:0 8px 30px rgba(0,0,0,0.25);display:flex;align-items:center;gap:10px;cursor:pointer;animation:rvcrm-slideIn 0.3s ease" onclick="this.parentElement.remove()">
-                <span style="font-size:18px">${isError ? '⚠️' : '✅'}</span>
+                <span style="font-size:18px">${icon}</span>
                 <span>${message}</span>
             </div>
         `;
@@ -284,7 +288,11 @@
         }, function(response) {
             if (response && response.success) {
                 closeLeadPopup();
-                showToast('Lead "' + name + '" saved successfully! ✅', 'success');
+                if (response.isDuplicate) {
+                    showToast(response.message || 'Duplicate lead found... but saved anyway.', 'warning');
+                } else {
+                    showToast('Lead "' + name + '" saved successfully! ✅', 'success');
+                }
                 // Refresh lead data after saving
                 setTimeout(scanAndLookupLeads, 1500);
             } else {

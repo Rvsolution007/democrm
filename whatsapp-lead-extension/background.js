@@ -85,7 +85,17 @@ async function saveLead(data) {
     });
     
     if (response.ok || response.redirected) {
-        return { success: true };
+        try {
+            const data = await response.json();
+            return { 
+                success: true, 
+                message: data.message, 
+                isDuplicate: data.isDuplicate 
+            };
+        } catch (e) {
+            // Fallback if not JSON
+            return { success: true };
+        }
     } else {
         const text = await response.text();
         throw new Error('Lead save failed (Status: ' + response.status + ')');
