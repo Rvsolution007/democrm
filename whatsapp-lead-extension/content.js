@@ -97,17 +97,45 @@
         return null;
     }
 
-    // ====== Extract Phone from Chat List Item ======
+    // ====== Extract Phone from Chat Item ======
+
+    function getChatTitleElement(chatItem) {
+        if (!chatItem) return null;
+        
+        // 1: span with title attribute
+        let spansWithTitle = chatItem.querySelectorAll('span[title]');
+        for (let s of spansWithTitle) {
+            if (s.getAttribute('title').trim() !== '') return s;
+        }
+        
+        // 2: div with title attribute
+        let divsWithTitle = chatItem.querySelectorAll('div[title]');
+        for (let d of divsWithTitle) {
+            if (d.getAttribute('title').trim() !== '') return d;
+        }
+
+        // 3: span with dir="auto"
+        let dirAutoSpans = chatItem.querySelectorAll('span[dir="auto"]');
+        for (let s of dirAutoSpans) {
+            const txt = s.textContent || '';
+            if (txt.trim().length > 1 && !/^\d{1,2}:\d{2}/.test(txt.trim())) {
+                return s;
+            }
+        }
+        
+        return null;
+    }
+
+    function getChatTitleText(chatItem) {
+        const el = getChatTitleElement(chatItem);
+        if (!el) return '';
+        return el.getAttribute('title') || el.textContent || '';
+    }
 
     function extractPhoneFromChatItem(chatItem) {
-        // Try to get the title/name from the chat list item
-        const titleSpan = chatItem.querySelector('span[title]');
-        if (!titleSpan) return null;
-
-        const title = titleSpan.getAttribute('title') || '';
+        const title = getChatTitleText(chatItem);
         const cleaned = title.replace(/[\s\-\(\)\+]/g, '');
 
-        // Check if it's a phone number (unsaved contact)
         if (/^\d{10,15}$/.test(cleaned)) {
             return cleaned;
         }
@@ -115,14 +143,8 @@
         return null;
     }
 
-    // ====== Extract chat name for display ======
-
     function getChatName(chatItem) {
-        const titleSpan = chatItem.querySelector('span[title]');
-        if (titleSpan) {
-            return titleSpan.getAttribute('title') || '';
-        }
-        return '';
+        return getChatTitleText(chatItem);
     }
 
     // ====== Toast Notification ======
@@ -495,10 +517,10 @@
             removeBadge(item);
 
             // Find the name/title area to append the badge
-            const titleRow = item.querySelector('span[title]');
+            const titleRow = getChatTitleElement(item);
             if (!titleRow) return;
 
-            const parentRow = titleRow.closest('div');
+            const parentRow = titleRow.parentElement || titleRow.closest('div');
             if (!parentRow) return;
 
             const stage = leadData.stage;
@@ -530,8 +552,6 @@
         if (badge) badge.remove();
     }
 
-    // ====== Get Chat List Items ======
-
     function getChatListItems() {
         // WhatsApp Web chat list items
         const paneContent = document.querySelector('#pane-side');
@@ -540,25 +560,24 @@
         // Chat items are inside divs with role="listitem" or inside the scrollable container
         let items = paneContent.querySelectorAll('[role="listitem"]');
         if (items.length === 0) {
-            // Fallback: get direct child divs of the scrollable list
             items = paneContent.querySelectorAll('div[data-testid="cell-frame-container"]');
         }
         if (items.length === 0) {
-            // Another fallback - look for chat row containers
+            // New WhatsApp classes
+            items = paneContent.querySelectorAll('.x1n2onr6.x1y1aw1k');
+        }
+        if (items.length === 0) {
+            // Highly generic fallback
             items = paneContent.querySelectorAll('div[tabindex="-1"]');
         }
 
         return Array.from(items);
     }
 
-    // ====== Map chat item to a phone number ======
-
     function getPhoneForChatItem(chatItem) {
         // Strategy 1: Check if the title is a phone number
-        const titleSpan = chatItem.querySelector('span[title]');
-        if (!titleSpan) return null;
-
-        const title = titleSpan.getAttribute('title') || '';
+        const title = getChatTitleText(chatItem);
+        if (!title) return null;
 
         // Match phone number from the title (unsaved contacts show phone as name)
         const cleaned = title.replace(/[\s\-\(\)\+]/g, '');
@@ -588,16 +607,15 @@
         const names = [];
 
         chatItems.forEach(item => {
-            const titleSpan = item.querySelector('span[title]');
-            if (!titleSpan) return;
-            const title = titleSpan.getAttribute('title') || '';
+            const title = getChatTitleText(item);
+            if (!title) return;
             const cleaned = title.replace(/[\s\-\(\)\+]/g, '');
             
             if (/^\d{10,15}$/.test(cleaned)) {
                 phones.push(cleaned);
             }
             // Also collect names to search for
-            if (title && !/^\d{10,15}$/.test(cleaned)) {
+            if (!/^\d{10,15}$/.test(cleaned)) {
                 names.push(title);
             }
         });
