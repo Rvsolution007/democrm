@@ -51,7 +51,7 @@
             <div class="page-actions"
                 style="display:flex;gap:12px;align-items:center;align-self:flex-end;margin-bottom:8px">
                 @if(can('quotes.write'))
-                    <button class="btn btn-primary" onclick="openAddQuoteDrawer()"><i data-lucide="plus"
+                    <button class="btn btn-primary" onclick="openCreateQuoteDrawer()"><i data-lucide="plus"
                             style="width:16px;height:16px"></i> Create Quote</button>
                 @endif
             </div>
@@ -794,7 +794,7 @@
             closeQDescPopup();
         }
 
-        function openAddQuoteDrawer() {
+        function openCreateQuoteDrawer() {
             setFormEditable(true);
             document.getElementById('quote-drawer-title').textContent = 'Add Quote';
             document.getElementById('btn-save-quote').textContent = 'Save Quote';
