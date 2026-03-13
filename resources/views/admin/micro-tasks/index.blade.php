@@ -393,8 +393,7 @@
             background: #ffffff;
             border: 1px solid #e2e8f0;
             border-radius: 12px;
-            padding: 0;
-            /* padding handled in internal elements */
+            padding: 14px;
             margin-bottom: 12px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
             /* Match screenshot gentle shadow */
