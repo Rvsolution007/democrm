@@ -147,7 +147,7 @@
                         <tr data-status="{{ $quote->status }}">
                             <td>
                                 <span class="font-medium">{{ $quote->quote_no }}</span>
-                                @if($quote->tax_amount > 0)
+                                @if($quote->gst_total > 0)
                                     <span style="margin-left:6px;font-size:11px;color:#0ea5e9;background:#e0f2fe;padding:2px 6px;border-radius:4px;font-weight:600">GST</span>
                                 @endif
                                 @if($quote->lead_id)
@@ -179,7 +179,7 @@
                                 </span>
                             <td class="font-medium">
                                 ₹{{ number_format($quote->grand_total_in_rupees, 2) }}
-                                @if($quote->tax_amount > 0)
+                                @if($quote->gst_total > 0)
                                     <span style="margin-left:6px;font-size:10px;color:#0ea5e9;background:#e0f2fe;padding:2px 5px;border-radius:4px;font-weight:600;display:inline-block">+GST</span>
                                 @endif
                             </td>
@@ -253,7 +253,7 @@
                         <tr data-status="{{ $quote->status }}">
                             <td>
                                 <span class="font-medium">{{ $quote->quote_no }}</span>
-                                @if($quote->tax_amount > 0)
+                                @if($quote->gst_total > 0)
                                     <span style="margin-left:6px;font-size:11px;color:#0ea5e9;background:#e0f2fe;padding:2px 6px;border-radius:4px;font-weight:600">GST</span>
                                 @endif
                                 @if($quote->lead_id)
@@ -272,7 +272,7 @@
                             </td>
                             <td class="font-medium">
                                 ₹{{ number_format($quote->grand_total_in_rupees, 2) }}
-                                @if($quote->tax_amount > 0)
+                                @if($quote->gst_total > 0)
                                     <span style="margin-left:6px;font-size:10px;color:#0ea5e9;background:#e0f2fe;padding:2px 5px;border-radius:4px;font-weight:600;display:inline-block">+GST</span>
                                 @endif
                             </td>
