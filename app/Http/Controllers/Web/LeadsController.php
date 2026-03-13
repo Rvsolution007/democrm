@@ -88,6 +88,85 @@ class LeadsController extends Controller
     }
 
     /**
+     * WhatsApp Extension: Bulk phone lookup for lead status badges.
+     * GET /admin/leads/whatsapp-lookup?phones[]=91xxxxx&phones[]=91yyyyy
+     */
+    public function whatsappLookup(Request $request)
+    {
+        $phones = $request->input('phones', []);
+        if (empty($phones) || !is_array($phones)) {
+            return response()->json(['leads' => [], 'stages' => []]);
+        }
+
+        // Limit to 100 phone numbers per request
+        $phones = array_slice($phones, 0, 100);
+
+        // Clean phone numbers — keep only digits, take last 10
+        $cleanedPhones = [];
+        foreach ($phones as $phone) {
+            $digits = preg_replace('/\D/', '', $phone);
+            $last10 = substr($digits, -10);
+            if (strlen($last10) === 10) {
+                $cleanedPhones[$last10] = $phone; // map last10 → original
+            }
+        }
+
+        if (empty($cleanedPhones)) {
+            return response()->json(['leads' => [], 'stages' => []]);
+        }
+
+        // Query leads matching any of the phone numbers (fuzzy: last 10 digits)
+        $query = Lead::query();
+
+        // Apply permission filter
+        if (!can('leads.global')) {
+            $query->where(function ($q) {
+                $q->where('assigned_to_user_id', auth()->id())
+                    ->orWhere('created_by_user_id', auth()->id());
+            });
+        }
+
+        $leads = $query->get(['id', 'name', 'phone', 'stage']);
+
+        // Build result map: original phone → lead data
+        $result = [];
+        foreach ($leads as $lead) {
+            $leadLast10 = substr(preg_replace('/\D/', '', $lead->phone), -10);
+            if (isset($cleanedPhones[$leadLast10])) {
+                $originalPhone = $cleanedPhones[$leadLast10];
+                // If multiple leads match same phone, use the most recent (highest ID)
+                if (!isset($result[$originalPhone]) || $lead->id > $result[$originalPhone]['id']) {
+                    $result[$originalPhone] = [
+                        'id' => $lead->id,
+                        'name' => $lead->name,
+                        'stage' => $lead->stage,
+                    ];
+                }
+            }
+        }
+
+        // Get dynamic stages
+        $stages = Lead::getDynamicStages();
+
+        // Stage colors
+        $stageColors = [
+            'new' => '#3b82f6',
+            'contacted' => '#f97316',
+            'qualified' => '#8b5cf6',
+            'proposal' => '#6366f1',
+            'negotiation' => '#f59e0b',
+            'won' => '#22c55e',
+            'lost' => '#ef4444',
+        ];
+
+        return response()->json([
+            'leads' => $result,
+            'stages' => $stages,
+            'stageColors' => $stageColors,
+        ]);
+    }
+
+    /**
      * Build validation rules based on column visibility settings.
      * Hidden (unchecked) columns become nullable instead of required.
      */

@@ -23,6 +23,15 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
         });
         return true; // Keep message channel open for async response
     }
+
+    if (message.action === 'lookupLeads') {
+        lookupLeads(message.phones).then(result => {
+            sendResponse(result);
+        }).catch(err => {
+            sendResponse({ success: false, error: err.message });
+        });
+        return true;
+    }
 });
 
 async function fetchCSRFToken() {
@@ -81,4 +90,35 @@ async function saveLead(data) {
         const text = await response.text();
         throw new Error('Lead save failed (Status: ' + response.status + ')');
     }
+}
+
+async function lookupLeads(phones) {
+    if (!phones || phones.length === 0) {
+        return { success: true, leads: {}, stages: [], stageColors: {} };
+    }
+
+    // Build query string with phones array
+    const params = new URLSearchParams();
+    phones.forEach(p => params.append('phones[]', p));
+
+    const response = await fetch(CRM_BASE_URL + '/admin/leads/whatsapp-lookup?' + params.toString(), {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error('CRM lookup failed (Status: ' + response.status + '). CRM me login check karo!');
+    }
+
+    const data = await response.json();
+    return {
+        success: true,
+        leads: data.leads || {},
+        stages: data.stages || [],
+        stageColors: data.stageColors || {}
+    };
 }

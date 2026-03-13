@@ -166,6 +166,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::delete('whatsapp-campaigns/{campaign}', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'destroy'])->name('whatsapp-campaigns.destroy');
 
     // Leads
+    Route::get('/leads/whatsapp-lookup', [LeadsController::class, 'whatsappLookup'])->name('leads.whatsapp-lookup');
     Route::get('/leads', [LeadsController::class, 'index'])->name('leads.index');
     Route::post('/leads', [LeadsController::class, 'store'])->name('leads.store');
     Route::get('/leads/{id}/edit', [LeadsController::class, 'edit'])->name('leads.edit');

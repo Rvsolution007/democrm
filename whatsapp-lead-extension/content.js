@@ -6,6 +6,8 @@
  * - Shows lead form popup directly inside WhatsApp (no redirect)
  * - Button injection in chat header
  * - Shortcuts: Alt+X, Ctrl+Shift+L
+ * - Lead status badges on sidebar chats
+ * - Stage-wise filter bar above chat list
  */
 
 (function () {
@@ -13,14 +15,28 @@
 
     const CRM_BASE_URL = 'https://crm.rvallsolutions.com';
 
+    // ====== Stage Colors (fallback, overridden by CRM response) ======
+    let STAGE_COLORS = {
+        'new': '#3b82f6',
+        'contacted': '#f97316',
+        'qualified': '#8b5cf6',
+        'proposal': '#6366f1',
+        'negotiation': '#f59e0b',
+        'won': '#22c55e',
+        'lost': '#ef4444',
+    };
+
+    let STAGE_LIST = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
+    let leadDataCache = {}; // phone → { id, name, stage }
+    let activeStageFilter = 'all';
+    let isLookupInProgress = false;
+
     // ====== Phone Number Extraction ======
 
     function extractPhoneNumber() {
         let phone = null;
 
         // Method 1: Extract from page URL (most reliable)
-        // WhatsApp Web URL format: https://web.whatsapp.com/#/chat/919876543210
-        // or sometimes in the URL hash
         try {
             const hash = window.location.hash || '';
             const urlMatch = hash.match(/(\d{10,15})/);
@@ -32,7 +48,6 @@
 
         // Method 2: Extract from chat header (works for unsaved contacts)
         try {
-            // Try multiple selectors for the header title
             const selectors = [
                 '#main header span[title]',
                 '#main header [data-testid="conversation-info-header-chat-title"] span[dir="ltr"]',
@@ -82,6 +97,34 @@
         return null;
     }
 
+    // ====== Extract Phone from Chat List Item ======
+
+    function extractPhoneFromChatItem(chatItem) {
+        // Try to get the title/name from the chat list item
+        const titleSpan = chatItem.querySelector('span[title]');
+        if (!titleSpan) return null;
+
+        const title = titleSpan.getAttribute('title') || '';
+        const cleaned = title.replace(/[\s\-\(\)\+]/g, '');
+
+        // Check if it's a phone number (unsaved contact)
+        if (/^\d{10,15}$/.test(cleaned)) {
+            return cleaned;
+        }
+
+        return null;
+    }
+
+    // ====== Extract chat name for display ======
+
+    function getChatName(chatItem) {
+        const titleSpan = chatItem.querySelector('span[title]');
+        if (titleSpan) {
+            return titleSpan.getAttribute('title') || '';
+        }
+        return '';
+    }
+
     // ====== Toast Notification ======
 
     function showToast(message, type) {
@@ -106,7 +149,6 @@
     // ====== Inline Lead Form Popup ======
 
     function createLeadPopup(phone) {
-        // Remove any existing popup
         const existing = document.getElementById('rvcrm-lead-popup');
         if (existing) existing.remove();
 
@@ -164,7 +206,6 @@
         overlay.appendChild(popup);
         document.body.appendChild(overlay);
 
-        // Event handlers
         document.getElementById('rvcrm-close-popup').addEventListener('click', closeLeadPopup);
         document.getElementById('rvcrm-cancel-btn').addEventListener('click', closeLeadPopup);
         overlay.addEventListener('click', function(e) {
@@ -173,12 +214,10 @@
 
         document.getElementById('rvcrm-save-btn').addEventListener('click', submitLead);
 
-        // Focus on name field
         setTimeout(() => {
             document.getElementById('rvcrm-name').focus();
         }, 200);
 
-        // Allow Enter key to submit
         popup.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') closeLeadPopup();
         });
@@ -215,7 +254,6 @@
         saveBtn.style.opacity = '0.7';
         saveBtn.disabled = true;
 
-        // Send lead data to background service worker for cross-origin submission
         chrome.runtime.sendMessage({
             action: 'saveLead',
             data: { name, phone, email, city, state, notes }
@@ -223,6 +261,8 @@
             if (response && response.success) {
                 closeLeadPopup();
                 showToast('Lead "' + name + '" saved successfully! ✅', 'success');
+                // Refresh lead data after saving
+                setTimeout(scanAndLookupLeads, 1500);
             } else {
                 const errMsg = (response && response.error) || 'Error saving lead. CRM me login ho?';
                 showToast(errMsg, 'error');
@@ -245,7 +285,6 @@
             console.log('[RV CRM] Phone not found in DOM, popup will open with empty phone');
         }
 
-        // Show inline lead form popup
         createLeadPopup(phone || '');
     }
 
@@ -271,17 +310,13 @@
     function injectButton() {
         if (document.getElementById('rvcrm-btn')) return;
 
-        // Try multiple strategies to find the header menu area
         let headerArea = null;
-        
-        // Strategy 1: Find the menu/actions area in the main chat header
         const mainPanel = document.querySelector('#main');
         if (!mainPanel) return;
         
         const header = mainPanel.querySelector('header');
         if (!header) return;
 
-        // Find the rightmost container in the header (where action buttons are)
         const headerChildren = header.children;
         if (headerChildren.length > 0) {
             headerArea = headerChildren[headerChildren.length - 1];
@@ -298,15 +333,320 @@
             </button>
         `;
         
-        // Add click handler
         btnContainer.querySelector('#rvcrm-header-btn').addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             captureLead();
         });
         
-        // Insert at the beginning of the header area
         headerArea.insertBefore(btnContainer, headerArea.firstChild);
+    }
+
+    // ====== Stage Filter Bar ======
+
+    function injectFilterBar() {
+        if (document.getElementById('rvcrm-filter-bar')) return;
+
+        // Find the chat list panel (left sidebar)
+        const sidePanel = document.querySelector('#pane-side');
+        if (!sidePanel) return;
+
+        const filterBar = document.createElement('div');
+        filterBar.id = 'rvcrm-filter-bar';
+        filterBar.style.cssText = `
+            display:flex;align-items:center;gap:6px;padding:8px 12px;
+            overflow-x:auto;background:#f0f2f5;border-bottom:1px solid #e2e8f0;
+            scrollbar-width:none;-ms-overflow-style:none;
+            font-family:'Segoe UI',sans-serif;flex-shrink:0;
+        `;
+
+        // Build filter pills
+        buildFilterPills(filterBar);
+
+        // Insert the filter bar before the chat list
+        sidePanel.parentNode.insertBefore(filterBar, sidePanel);
+    }
+
+    function buildFilterPills(container) {
+        if (!container) container = document.getElementById('rvcrm-filter-bar');
+        if (!container) return;
+
+        container.innerHTML = '';
+
+        // Count leads per stage
+        const stageCounts = {};
+        let totalLeads = 0;
+        for (const phone in leadDataCache) {
+            const stage = leadDataCache[phone].stage;
+            stageCounts[stage] = (stageCounts[stage] || 0) + 1;
+            totalLeads++;
+        }
+
+        // "All" pill
+        const allPill = createFilterPill('All', totalLeads, 'all', '#6b7280');
+        container.appendChild(allPill);
+
+        // Stage pills
+        STAGE_LIST.forEach(stage => {
+            const count = stageCounts[stage] || 0;
+            const color = STAGE_COLORS[stage] || '#6b7280';
+            const label = stage.charAt(0).toUpperCase() + stage.slice(1);
+            const pill = createFilterPill(label, count, stage, color);
+            container.appendChild(pill);
+        });
+    }
+
+    function createFilterPill(label, count, stageValue, color) {
+        const isActive = activeStageFilter === stageValue;
+        
+        const pill = document.createElement('button');
+        pill.className = 'rvcrm-filter-pill';
+        pill.dataset.stage = stageValue;
+        pill.style.cssText = `
+            display:flex;align-items:center;gap:5px;padding:5px 12px;
+            border-radius:20px;border:1.5px solid ${isActive ? color : '#d1d5db'};
+            background:${isActive ? color : 'white'};
+            color:${isActive ? 'white' : '#374151'};
+            font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;
+            transition:all 0.2s;font-family:'Segoe UI',sans-serif;
+            box-shadow:${isActive ? '0 2px 8px ' + color + '40' : 'none'};
+        `;
+
+        pill.innerHTML = `
+            <span>${label}</span>
+            <span style="
+                background:${isActive ? 'rgba(255,255,255,0.3)' : color + '18'};
+                color:${isActive ? 'white' : color};
+                padding:1px 6px;border-radius:10px;font-size:10px;font-weight:700;
+                min-width:14px;text-align:center;
+            ">${count}</span>
+        `;
+
+        pill.addEventListener('click', function() {
+            activeStageFilter = stageValue;
+            buildFilterPills();
+            applyStageFilter();
+        });
+
+        pill.addEventListener('mouseover', function() {
+            if (!isActive) {
+                this.style.borderColor = color;
+                this.style.background = color + '10';
+            }
+        });
+
+        pill.addEventListener('mouseout', function() {
+            if (activeStageFilter !== stageValue) {
+                this.style.borderColor = '#d1d5db';
+                this.style.background = 'white';
+            }
+        });
+
+        return pill;
+    }
+
+    // ====== Apply Stage Filter to Chat Items ======
+
+    function applyStageFilter() {
+        const chatItems = getChatListItems();
+        
+        chatItems.forEach(item => {
+            const phone = getPhoneForChatItem(item);
+            const leadData = phone ? leadDataCache[phone] : null;
+
+            if (activeStageFilter === 'all') {
+                item.style.display = '';
+            } else {
+                if (leadData && leadData.stage === activeStageFilter) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            }
+        });
+    }
+
+    // ====== Inject Stage Badges on Chat Items ======
+
+    function injectStageBadges() {
+        const chatItems = getChatListItems();
+
+        chatItems.forEach(item => {
+            const phone = getPhoneForChatItem(item);
+            if (!phone) {
+                // Remove badge if no phone match
+                removeBadge(item);
+                return;
+            }
+
+            const leadData = leadDataCache[phone];
+            if (!leadData) {
+                removeBadge(item);
+                return;
+            }
+
+            // Check if badge already exists and is correct
+            const existingBadge = item.querySelector('.rvcrm-stage-badge');
+            if (existingBadge && existingBadge.dataset.stage === leadData.stage) {
+                return; // Badge already correct
+            }
+
+            // Remove old badge
+            removeBadge(item);
+
+            // Find the name/title area to append the badge
+            const titleRow = item.querySelector('span[title]');
+            if (!titleRow) return;
+
+            const parentRow = titleRow.closest('div');
+            if (!parentRow) return;
+
+            const stage = leadData.stage;
+            const color = STAGE_COLORS[stage] || '#6b7280';
+            const label = stage.charAt(0).toUpperCase() + stage.slice(1);
+
+            const badge = document.createElement('span');
+            badge.className = 'rvcrm-stage-badge';
+            badge.dataset.stage = stage;
+            badge.style.cssText = `
+                display:inline-flex;align-items:center;gap:3px;
+                background:${color}18;color:${color};
+                padding:1px 8px;border-radius:10px;
+                font-size:10px;font-weight:700;font-family:'Segoe UI',sans-serif;
+                margin-left:6px;border:1px solid ${color}30;
+                letter-spacing:0.3px;white-space:nowrap;vertical-align:middle;
+                line-height:16px;flex-shrink:0;
+            `;
+            badge.innerHTML = `<span style="width:5px;height:5px;border-radius:50%;background:${color};display:inline-block"></span>${label}`;
+
+            parentRow.style.display = 'flex';
+            parentRow.style.alignItems = 'center';
+            parentRow.appendChild(badge);
+        });
+    }
+
+    function removeBadge(chatItem) {
+        const badge = chatItem.querySelector('.rvcrm-stage-badge');
+        if (badge) badge.remove();
+    }
+
+    // ====== Get Chat List Items ======
+
+    function getChatListItems() {
+        // WhatsApp Web chat list items
+        const paneContent = document.querySelector('#pane-side');
+        if (!paneContent) return [];
+
+        // Chat items are inside divs with role="listitem" or inside the scrollable container
+        let items = paneContent.querySelectorAll('[role="listitem"]');
+        if (items.length === 0) {
+            // Fallback: get direct child divs of the scrollable list
+            items = paneContent.querySelectorAll('div[data-testid="cell-frame-container"]');
+        }
+        if (items.length === 0) {
+            // Another fallback - look for chat row containers
+            items = paneContent.querySelectorAll('div[tabindex="-1"]');
+        }
+
+        return Array.from(items);
+    }
+
+    // ====== Map chat item to a phone number ======
+
+    function getPhoneForChatItem(chatItem) {
+        // Strategy 1: Check if the title is a phone number
+        const titleSpan = chatItem.querySelector('span[title]');
+        if (!titleSpan) return null;
+
+        const title = titleSpan.getAttribute('title') || '';
+
+        // Match phone number from the title (unsaved contacts show phone as name)
+        const cleaned = title.replace(/[\s\-\(\)\+]/g, '');
+        if (/^\d{10,15}$/.test(cleaned)) {
+            return cleaned;
+        }
+
+        // Strategy 2: Check if this chat name matches a lead name in our cache
+        // Build a reverse lookup: lead name → phone
+        for (const phone in leadDataCache) {
+            if (leadDataCache[phone].name && leadDataCache[phone].name.toLowerCase() === title.toLowerCase()) {
+                return phone;
+            }
+        }
+
+        return null;
+    }
+
+    // ====== Scan Sidebar and Lookup Leads ======
+
+    function scanAndLookupLeads() {
+        if (isLookupInProgress) return;
+        isLookupInProgress = true;
+
+        const chatItems = getChatListItems();
+        const phones = [];
+        const names = [];
+
+        chatItems.forEach(item => {
+            const titleSpan = item.querySelector('span[title]');
+            if (!titleSpan) return;
+            const title = titleSpan.getAttribute('title') || '';
+            const cleaned = title.replace(/[\s\-\(\)\+]/g, '');
+            
+            if (/^\d{10,15}$/.test(cleaned)) {
+                phones.push(cleaned);
+            }
+            // Also collect names to search for
+            if (title && !/^\d{10,15}$/.test(cleaned)) {
+                names.push(title);
+            }
+        });
+
+        if (phones.length === 0 && names.length === 0) {
+            isLookupInProgress = false;
+            return;
+        }
+
+        // Send phone numbers to background for CRM lookup
+        const allPhones = [...new Set(phones)];
+        
+        if (allPhones.length === 0) {
+            isLookupInProgress = false;
+            // Still inject filter bar even if no phones found
+            injectFilterBar();
+            return;
+        }
+
+        chrome.runtime.sendMessage({
+            action: 'lookupLeads',
+            phones: allPhones
+        }, function(response) {
+            isLookupInProgress = false;
+
+            if (response && response.success) {
+                // Update cache
+                leadDataCache = response.leads || {};
+
+                // Update stages if provided
+                if (response.stages && response.stages.length > 0) {
+                    STAGE_LIST = response.stages;
+                }
+                if (response.stageColors) {
+                    STAGE_COLORS = { ...STAGE_COLORS, ...response.stageColors };
+                }
+
+                console.log('[RV CRM] Lead lookup complete:', Object.keys(leadDataCache).length, 'leads found');
+
+                // Inject UI
+                injectFilterBar();
+                injectStageBadges();
+                applyStageFilter();
+            } else {
+                console.log('[RV CRM] Lead lookup failed:', response?.error || 'Unknown error');
+                // Still show filter bar
+                injectFilterBar();
+            }
+        });
     }
 
     // ====== Inject CSS Animations ======
@@ -328,6 +668,12 @@
                 from { opacity: 0; transform: translateX(30px); }
                 to { opacity: 1; transform: translateX(0); }
             }
+            #rvcrm-filter-bar::-webkit-scrollbar {
+                display: none;
+            }
+            .rvcrm-stage-badge {
+                animation: rvcrm-fadeIn 0.3s ease;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -337,6 +683,22 @@
     injectStyles();
     setInterval(injectButton, 2000);
 
+    // Scan for leads every 15 seconds (first scan after 3s to let WhatsApp load)
+    setTimeout(scanAndLookupLeads, 3000);
+    setInterval(scanAndLookupLeads, 15000);
+
+    // Re-inject badges when DOM changes (chat list scroll etc)
+    setInterval(() => {
+        if (Object.keys(leadDataCache).length > 0) {
+            injectStageBadges();
+            // Re-inject filter bar if it was removed by WhatsApp re-render
+            if (!document.getElementById('rvcrm-filter-bar')) {
+                injectFilterBar();
+            }
+        }
+    }, 3000);
+
     console.log('[RV CRM] Extension loaded! Use Alt+X, Ctrl+Shift+L, or the Header Button.');
+    console.log('[RV CRM] Lead status badges & stage filter enabled.');
 
 })();
