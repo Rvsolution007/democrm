@@ -232,7 +232,7 @@
                             </div>
 
                             <!-- Card Title -->
-                            <h4 class="kb-card-title">{{ $clientName ?? $task->title }}</h4>
+                            <h4 class="kb-card-title">{{ $task->title }}</h4>
 
                             <!-- Card Description Preview -->
                             @if($task->description)
