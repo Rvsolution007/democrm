@@ -404,7 +404,7 @@ class QuotesController extends Controller
                             ->where('product_id', $item->product_id)
                             ->first();
                         if ($purchase) {
-                            $purchase->update(['total_amount' => $item->purchase_amount / 100]);
+                            $purchase->update(['total_amount' => $item->purchase_amount]);
                         }
                     }
                 }
