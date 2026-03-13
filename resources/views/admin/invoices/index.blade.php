@@ -609,6 +609,8 @@
         });
 
         function filterByStatus(status) {
+            // No-op: filtering is handled server-side
+        }
 
         function calcQuoteTotal() {
             var s = parseFloat(document.getElementById('q-subtotal').value) || 0;
