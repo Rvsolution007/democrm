@@ -94,51 +94,93 @@ class LeadsController extends Controller
     public function whatsappLookup(Request $request)
     {
         $phones = $request->input('phones', []);
-        if (empty($phones) || !is_array($phones)) {
-            return response()->json(['leads' => [], 'stages' => []]);
+        $names = $request->input('names', []);
+
+        if ((empty($phones) || !is_array($phones)) && (empty($names) || !is_array($names))) {
+            return response()->json(['leads' => [], 'leadsByName' => [], 'stages' => []]);
         }
 
-        // Limit to 100 phone numbers per request
-        $phones = array_slice($phones, 0, 100);
+        // ---- Phone-based lookup ----
+        $result = [];
+        if (!empty($phones) && is_array($phones)) {
+            // Limit to 100 phone numbers per request
+            $phones = array_slice($phones, 0, 100);
 
-        // Clean phone numbers — keep only digits, take last 10
-        $cleanedPhones = [];
-        foreach ($phones as $phone) {
-            $digits = preg_replace('/\D/', '', $phone);
-            $last10 = substr($digits, -10);
-            if (strlen($last10) === 10) {
-                $cleanedPhones[$last10] = $phone; // map last10 → original
+            // Clean phone numbers — keep only digits, take last 10
+            $cleanedPhones = [];
+            foreach ($phones as $phone) {
+                $digits = preg_replace('/\D/', '', $phone);
+                $last10 = substr($digits, -10);
+                if (strlen($last10) === 10) {
+                    $cleanedPhones[$last10] = $phone; // map last10 → original
+                }
+            }
+
+            if (!empty($cleanedPhones)) {
+                // Query leads matching any of the phone numbers (fuzzy: last 10 digits)
+                $phoneQuery = Lead::query();
+
+                // Apply permission filter
+                if (!can('leads.global')) {
+                    $phoneQuery->where(function ($q) {
+                        $q->where('assigned_to_user_id', auth()->id())
+                            ->orWhere('created_by_user_id', auth()->id());
+                    });
+                }
+
+                $phoneLeads = $phoneQuery->get(['id', 'name', 'phone', 'stage']);
+
+                // Build result map: original phone → lead data
+                foreach ($phoneLeads as $lead) {
+                    $leadLast10 = substr(preg_replace('/\D/', '', $lead->phone), -10);
+                    if (isset($cleanedPhones[$leadLast10])) {
+                        $originalPhone = $cleanedPhones[$leadLast10];
+                        // If multiple leads match same phone, use the most recent (highest ID)
+                        if (!isset($result[$originalPhone]) || $lead->id > $result[$originalPhone]['id']) {
+                            $result[$originalPhone] = [
+                                'id' => $lead->id,
+                                'name' => $lead->name,
+                                'stage' => $lead->stage,
+                            ];
+                        }
+                    }
+                }
             }
         }
 
-        if (empty($cleanedPhones)) {
-            return response()->json(['leads' => [], 'stages' => []]);
-        }
+        // ---- Name-based lookup ----
+        $resultByName = [];
+        if (!empty($names) && is_array($names)) {
+            // Limit to 100 names per request
+            $names = array_slice($names, 0, 100);
 
-        // Query leads matching any of the phone numbers (fuzzy: last 10 digits)
-        $query = Lead::query();
+            $nameQuery = Lead::query();
 
-        // Apply permission filter
-        if (!can('leads.global')) {
-            $query->where(function ($q) {
-                $q->where('assigned_to_user_id', auth()->id())
-                    ->orWhere('created_by_user_id', auth()->id());
+            // Apply permission filter
+            if (!can('leads.global')) {
+                $nameQuery->where(function ($q) {
+                    $q->where('assigned_to_user_id', auth()->id())
+                        ->orWhere('created_by_user_id', auth()->id());
+                });
+            }
+
+            // Build LIKE conditions for case-insensitive name matching
+            $nameQuery->where(function ($q) use ($names) {
+                foreach ($names as $name) {
+                    $q->orWhere('name', 'LIKE', trim($name));
+                }
             });
-        }
 
-        $leads = $query->get(['id', 'name', 'phone', 'stage']);
+            $nameLeads = $nameQuery->get(['id', 'name', 'phone', 'stage']);
 
-        // Build result map: original phone → lead data
-        $result = [];
-        foreach ($leads as $lead) {
-            $leadLast10 = substr(preg_replace('/\D/', '', $lead->phone), -10);
-            if (isset($cleanedPhones[$leadLast10])) {
-                $originalPhone = $cleanedPhones[$leadLast10];
-                // If multiple leads match same phone, use the most recent (highest ID)
-                if (!isset($result[$originalPhone]) || $lead->id > $result[$originalPhone]['id']) {
-                    $result[$originalPhone] = [
+            foreach ($nameLeads as $lead) {
+                $key = strtolower(trim($lead->name));
+                // If multiple leads match same name, use the most recent (highest ID)
+                if (!isset($resultByName[$key]) || $lead->id > $resultByName[$key]['id']) {
+                    $resultByName[$key] = [
                         'id' => $lead->id,
                         'name' => $lead->name,
+                        'phone' => $lead->phone,
                         'stage' => $lead->stage,
                     ];
                 }
@@ -161,6 +203,7 @@ class LeadsController extends Controller
 
         return response()->json([
             'leads' => $result,
+            'leadsByName' => $resultByName,
             'stages' => $stages,
             'stageColors' => $stageColors,
         ]);

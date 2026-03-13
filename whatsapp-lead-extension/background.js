@@ -25,7 +25,7 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
     }
 
     if (message.action === 'lookupLeads') {
-        lookupLeads(message.phones).then(result => {
+        lookupLeads(message.phones, message.names).then(result => {
             sendResponse(result);
         }).catch(err => {
             sendResponse({ success: false, error: err.message });
@@ -92,14 +92,19 @@ async function saveLead(data) {
     }
 }
 
-async function lookupLeads(phones) {
-    if (!phones || phones.length === 0) {
-        return { success: true, leads: {}, stages: [], stageColors: {} };
+async function lookupLeads(phones, names) {
+    if ((!phones || phones.length === 0) && (!names || names.length === 0)) {
+        return { success: true, leads: {}, leadsByName: {}, stages: [], stageColors: {} };
     }
 
-    // Build query string with phones array
+    // Build query string with phones and names arrays
     const params = new URLSearchParams();
-    phones.forEach(p => params.append('phones[]', p));
+    if (phones && phones.length > 0) {
+        phones.forEach(p => params.append('phones[]', p));
+    }
+    if (names && names.length > 0) {
+        names.forEach(n => params.append('names[]', n));
+    }
 
     const response = await fetch(CRM_BASE_URL + '/admin/leads/whatsapp-lookup?' + params.toString(), {
         method: 'GET',
@@ -118,6 +123,7 @@ async function lookupLeads(phones) {
     return {
         success: true,
         leads: data.leads || {},
+        leadsByName: data.leadsByName || {},
         stages: data.stages || [],
         stageColors: data.stageColors || {}
     };

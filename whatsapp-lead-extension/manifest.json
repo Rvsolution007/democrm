@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "RV CRM - WhatsApp Lead Capture",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Press Alt+X or click RV CRM Lead button on WhatsApp Web to instantly create a lead in RV CRM.",
   "permissions": [],
   "host_permissions": [

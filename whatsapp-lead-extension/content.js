@@ -8,6 +8,7 @@
  * - Shortcuts: Alt+X, Ctrl+Shift+L
  * - Lead status badges on sidebar chats
  * - Stage-wise filter bar above chat list
+ * - Stage label displayed on left side above lead number
  */
 
 (function () {
@@ -28,6 +29,7 @@
 
     let STAGE_LIST = ['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
     let leadDataCache = {}; // phone → { id, name, stage }
+    let leadsByNameCache = {}; // lowercase name → { id, name, stage, phone }
     let activeStageFilter = 'all';
     let isLookupInProgress = false;
 
@@ -327,51 +329,52 @@
         }
     }, true);
 
+    // ====== EVENT DELEGATION for button clicks (fixes WhatsApp React re-render issue) ======
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('#rvcrm-header-btn');
+        if (btn) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            console.log('[RV CRM] Header button clicked via delegation');
+            captureLead();
+        }
+    }, true);
+
     // ====== Inject Button into WhatsApp Header ======
 
     function injectButton() {
         if (document.getElementById('rvcrm-btn')) return;
 
-        let headerArea = null;
+        const mainPanel = document.querySelector('#main');
+        if (!mainPanel) return;
         
-        // WhatsApp new UI header structure
-        // Look for the header panel on the right side
-        const header = document.querySelector('header');
+        const header = mainPanel.querySelector('header');
         if (!header) return;
 
-        // Try to find the flex container containing main header buttons (search, menu etc)
-        const headerChildren = Array.from(header.querySelectorAll('div')).filter(el => {
-            const styles = window.getComputedStyle(el);
-            return styles.display === 'flex' && styles.alignItems === 'center' && el.children.length > 1;
-        });
-
+        // Find the right side action area in the header
+        let headerArea = null;
+        const headerChildren = header.children;
         if (headerChildren.length > 0) {
-            headerArea = headerChildren[headerChildren.length - 1]; // Usually the last flex container has the action icons
-        } else {
-            // Fallback to exactly what the old script did, just safer
-            if (header.children.length > 0) {
-                headerArea = header.children[header.children.length - 1];
-            }
+            headerArea = headerChildren[headerChildren.length - 1];
         }
 
         if (!headerArea) return;
 
         const btnContainer = document.createElement('div');
         btnContainer.id = 'rvcrm-btn';
-        btnContainer.style.cssText = 'margin-right:8px;display:flex;align-items:center;';
+        btnContainer.style.cssText = 'margin-right:8px;display:flex;align-items:center;position:relative;z-index:100;';
         btnContainer.innerHTML = `
-            <button id="rvcrm-header-btn" style="background:linear-gradient(135deg,#2563eb,#3b82f6);color:white;border:none;border-radius:8px;padding:7px 14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:12px;box-shadow:0 2px 8px rgba(37,99,235,0.35);transition:all 0.2s;font-family:'Segoe UI',sans-serif;white-space:nowrap" onmouseover="this.style.boxShadow='0 4px 12px rgba(37,99,235,0.5)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='0 2px 8px rgba(37,99,235,0.35)';this.style.transform='translateY(0)'">
+            <button id="rvcrm-header-btn" style="background:linear-gradient(135deg,#2563eb,#3b82f6);color:white;border:none;border-radius:8px;padding:7px 14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:12px;box-shadow:0 2px 8px rgba(37,99,235,0.35);transition:all 0.2s;font-family:'Segoe UI',sans-serif;white-space:nowrap;pointer-events:auto;position:relative;z-index:101" onmouseover="this.style.boxShadow='0 4px 12px rgba(37,99,235,0.5)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='0 2px 8px rgba(37,99,235,0.35)';this.style.transform='translateY(0)'">
                 <span style="font-size:13px">➕</span> RV CRM Lead
             </button>
         `;
         
-        btnContainer.querySelector('#rvcrm-header-btn').addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            captureLead();
-        });
+        // NOTE: We rely on event delegation (document click handler above) for click handling
+        // This avoids issues with WhatsApp React re-renders removing event listeners
         
         headerArea.insertBefore(btnContainer, headerArea.firstChild);
+        console.log('[RV CRM] Button injected into header');
     }
 
     // ====== Stage Filter Bar ======
@@ -379,18 +382,8 @@
     function injectFilterBar() {
         if (document.getElementById('rvcrm-filter-bar')) return;
 
-        // In new WhatsApp web, the chat list is generally beneath a header and a search bar container
-        // pane-side is still sometimes used, or we just find the container holding role="list" or aria-label="Chat list"
-        let sidePanel = document.querySelector('#pane-side');
-        
-        if (!sidePanel) {
-            // Fallback for new UI: Find the scrollable div containing chat items
-            const chatItems = document.querySelectorAll('[role="listitem"]');
-            if (chatItems.length > 0) {
-                sidePanel = chatItems[0].closest('div[style*="overflow-y"]');
-            }
-        }
-
+        // Find the chat list panel (left sidebar)
+        const sidePanel = document.querySelector('#pane-side');
         if (!sidePanel) return;
 
         const filterBar = document.createElement('div');
@@ -400,16 +393,13 @@
             overflow-x:auto;background:#f0f2f5;border-bottom:1px solid #e2e8f0;
             scrollbar-width:none;-ms-overflow-style:none;
             font-family:'Segoe UI',sans-serif;flex-shrink:0;
-            width: 100%; box-sizing: border-box;
         `;
 
         // Build filter pills
         buildFilterPills(filterBar);
 
         // Insert the filter bar before the chat list
-        if (sidePanel.parentNode) {
-             sidePanel.parentNode.insertBefore(filterBar, sidePanel);
-        }
+        sidePanel.parentNode.insertBefore(filterBar, sidePanel);
     }
 
     function buildFilterPills(container) {
@@ -418,13 +408,30 @@
 
         container.innerHTML = '';
 
-        // Count leads per stage
+        // Count leads per stage from both caches
         const stageCounts = {};
         let totalLeads = 0;
+        
+        // Count from phone-based cache
         for (const phone in leadDataCache) {
             const stage = leadDataCache[phone].stage;
             stageCounts[stage] = (stageCounts[stage] || 0) + 1;
             totalLeads++;
+        }
+        
+        // Count from name-based cache (avoid double-counting)
+        const countedIds = new Set();
+        for (const phone in leadDataCache) {
+            countedIds.add(leadDataCache[phone].id);
+        }
+        for (const name in leadsByNameCache) {
+            const lead = leadsByNameCache[name];
+            if (!countedIds.has(lead.id)) {
+                const stage = lead.stage;
+                stageCounts[stage] = (stageCounts[stage] || 0) + 1;
+                totalLeads++;
+                countedIds.add(lead.id);
+            }
         }
 
         // "All" pill
@@ -496,14 +503,16 @@
         const chatItems = getChatListItems();
         
         chatItems.forEach(item => {
-            const phone = getPhoneForChatItem(item);
-            const leadData = phone ? leadDataCache[phone] : null;
+            const leadData = getLeadDataForChatItem(item);
 
             if (activeStageFilter === 'all') {
                 item.style.display = '';
             } else {
                 if (leadData && leadData.stage === activeStageFilter) {
                     item.style.display = '';
+                } else if (!leadData) {
+                    // If no lead data and filter is active, hide
+                    item.style.display = 'none';
                 } else {
                     item.style.display = 'none';
                 }
@@ -511,21 +520,45 @@
         });
     }
 
-    // ====== Inject Stage Badges on Chat Items ======
+    // ====== Get Lead Data for a Chat Item ======
+    // Checks both phone-based and name-based caches
+
+    function getLeadDataForChatItem(chatItem) {
+        const title = getChatTitleText(chatItem);
+        if (!title) return null;
+
+        const cleaned = title.replace(/[\s\-\(\)\+]/g, '');
+
+        // Strategy 1: Phone number match
+        if (/^\d{10,15}$/.test(cleaned)) {
+            if (leadDataCache[cleaned]) return leadDataCache[cleaned];
+        }
+
+        // Strategy 2: Name match in phone cache
+        for (const phone in leadDataCache) {
+            if (leadDataCache[phone].name && leadDataCache[phone].name.toLowerCase() === title.toLowerCase()) {
+                return leadDataCache[phone];
+            }
+        }
+
+        // Strategy 3: Name match in name cache
+        const lowerTitle = title.toLowerCase().trim();
+        if (leadsByNameCache[lowerTitle]) {
+            return leadsByNameCache[lowerTitle];
+        }
+
+        return null;
+    }
+
+    // ====== Inject Stage Badges on Chat Items (LEFT SIDE, ABOVE NAME) ======
 
     function injectStageBadges() {
         const chatItems = getChatListItems();
 
         chatItems.forEach(item => {
-            const phone = getPhoneForChatItem(item);
-            if (!phone) {
-                // Remove badge if no phone match
-                removeBadge(item);
-                return;
-            }
-
-            const leadData = leadDataCache[phone];
+            const leadData = getLeadDataForChatItem(item);
             if (!leadData) {
+                // Remove badge if no lead data
                 removeBadge(item);
                 return;
             }
@@ -539,41 +572,43 @@
             // Remove old badge
             removeBadge(item);
 
-            // Find the name/title area to append the badge
-            const titleRow = getChatTitleElement(item);
+            // Find the name/title area
+            const titleEl = getChatTitleElement(item);
+            if (!titleEl) return;
+
+            // Find the container that holds the title row
+            const titleRow = titleEl.closest('div') || titleEl.parentElement;
             if (!titleRow) return;
 
-            const parentRow = titleRow.parentElement || titleRow.closest('div');
-            if (!parentRow) return;
+            // Find the grandparent that holds the entire chat info block
+            const chatInfoBlock = titleRow.parentElement;
+            if (!chatInfoBlock) return;
 
             const stage = leadData.stage;
             const color = STAGE_COLORS[stage] || '#6b7280';
             const label = stage.charAt(0).toUpperCase() + stage.slice(1);
 
-            const badge = document.createElement('span');
+            // Create a stage label that goes ABOVE the name on the LEFT side
+            const badge = document.createElement('div');
             badge.className = 'rvcrm-stage-badge';
             badge.dataset.stage = stage;
             badge.style.cssText = `
-                display:inline-flex;align-items:center;gap:3px;
-                background:${color}18;color:${color};
-                padding:1px 6px;border-radius:6px;
-                font-size:10px;font-weight:700;font-family:'Segoe UI',sans-serif;
-                margin-right:6px;border:1px solid ${color}30;
-                letter-spacing:0.3px;white-space:nowrap;vertical-align:middle;
-                line-height:16px;flex-shrink:0;
+                display:flex;align-items:center;gap:4px;
+                padding:1px 0;margin-bottom:1px;
+                font-size:9.5px;font-weight:700;font-family:'Segoe UI',sans-serif;
+                color:${color};letter-spacing:0.3px;white-space:nowrap;
+                line-height:13px;
             `;
-            badge.innerHTML = `<span style="width:6px;height:6px;border-radius:50%;background:${color};display:inline-block"></span>${label}`;
+            badge.innerHTML = `<span style="width:5px;height:5px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span><span>${label}</span><span style="color:#9ca3af;font-weight:500;font-size:8.5px;margin-left:2px">Lead #${leadData.id}</span>`;
 
-            parentRow.style.display = 'flex';
-            parentRow.style.alignItems = 'center';
-            // Insert the badge BEFORE the title text (Left side)
-            parentRow.insertBefore(badge, titleRow);
+            // Insert above the title row
+            chatInfoBlock.insertBefore(badge, titleRow);
         });
     }
 
     function removeBadge(chatItem) {
-        const badge = chatItem.querySelector('.rvcrm-stage-badge');
-        if (badge) badge.remove();
+        const badges = chatItem.querySelectorAll('.rvcrm-stage-badge');
+        badges.forEach(b => b.remove());
     }
 
     function getChatListItems() {
@@ -637,37 +672,40 @@
             
             if (/^\d{10,15}$/.test(cleaned)) {
                 phones.push(cleaned);
-            }
-            // Also collect names to search for
-            if (!/^\d{10,15}$/.test(cleaned)) {
-                names.push(title);
+            } else if (title.trim().length > 1) {
+                // Collect contact names for name-based lookup
+                names.push(title.trim());
             }
         });
 
         if (phones.length === 0 && names.length === 0) {
             isLookupInProgress = false;
-            return;
-        }
-
-        // Send phone numbers to background for CRM lookup
-        const allPhones = [...new Set(phones)];
-        
-        if (allPhones.length === 0) {
-            isLookupInProgress = false;
-            // Still inject filter bar even if no phones found
+            // Still show filter bar even with no data
             injectFilterBar();
             return;
         }
 
+        // Send phone numbers AND names to background for CRM lookup
+        const uniquePhones = [...new Set(phones)];
+        const uniqueNames = [...new Set(names)];
+
         chrome.runtime.sendMessage({
             action: 'lookupLeads',
-            phones: allPhones
+            phones: uniquePhones,
+            names: uniqueNames
         }, function(response) {
             isLookupInProgress = false;
 
+            if (chrome.runtime.lastError) {
+                console.log('[RV CRM] Extension error:', chrome.runtime.lastError.message);
+                injectFilterBar();
+                return;
+            }
+
             if (response && response.success) {
-                // Update cache
+                // Update caches
                 leadDataCache = response.leads || {};
+                leadsByNameCache = response.leadsByName || {};
 
                 // Update stages if provided
                 if (response.stages && response.stages.length > 0) {
@@ -677,10 +715,12 @@
                     STAGE_COLORS = { ...STAGE_COLORS, ...response.stageColors };
                 }
 
-                console.log('[RV CRM] Lead lookup complete:', Object.keys(leadDataCache).length, 'leads found');
+                const totalLeads = Object.keys(leadDataCache).length + Object.keys(leadsByNameCache).length;
+                console.log('[RV CRM] Lead lookup complete:', totalLeads, 'leads found');
 
                 // Inject UI
                 injectFilterBar();
+                buildFilterPills(); // Refresh pill counts
                 injectStageBadges();
                 applyStageFilter();
             } else {
@@ -731,7 +771,8 @@
 
     // Re-inject badges when DOM changes (chat list scroll etc)
     setInterval(() => {
-        if (Object.keys(leadDataCache).length > 0) {
+        const totalCached = Object.keys(leadDataCache).length + Object.keys(leadsByNameCache).length;
+        if (totalCached > 0) {
             injectStageBadges();
             // Re-inject filter bar if it was removed by WhatsApp re-render
             if (!document.getElementById('rvcrm-filter-bar')) {
