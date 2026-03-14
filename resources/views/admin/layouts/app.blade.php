@@ -22,6 +22,8 @@
     @hasSection('has_charts')
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     @endif
+    <!-- Select2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     @stack('styles')
 </head>
 
@@ -58,6 +60,11 @@
         </div>
     </div>
 
+    <!-- jQuery (required for Select2) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <!-- Select2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    
     <script src="{{ asset('js/admin-main.js') }}"></script>
     @stack('scripts')
     <script>

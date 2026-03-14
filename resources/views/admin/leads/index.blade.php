@@ -374,27 +374,38 @@
                 @csrf
                 <input type="hidden" id="form-method" name="_method" value="">
                 <div style="padding:24px">
-                    <div data-field="name" style="margin-bottom:16px">
-                        <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">Name
-                            <span style="color:#ef4444">*</span></label>
-                        <input type="text" class="form-input" name="name" id="lead-name" required
-                            style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;transition:border-color 0.15s;outline:none"
-                            onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                    <style>
+                        .responsive-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+                        .responsive-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+                        @media (max-width: 768px) {
+                            .responsive-grid-2, .responsive-grid-3 { grid-template-columns: 1fr; gap: 12px; }
+                        }
+                    </style>
+
+                    <div class="responsive-grid-2">
+                        <div data-field="name">
+                            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">Name
+                                <span style="color:#ef4444">*</span></label>
+                            <input type="text" class="form-input" name="name" id="lead-name" required
+                                style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;transition:border-color 0.15s;outline:none"
+                                onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                        </div>
+                        <div data-field="source">
+                            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">Source
+                                <span style="color:#ef4444">*</span></label>
+                            <select class="form-select" name="source" id="lead-source" required
+                                style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;background:white;transition:border-color 0.15s;outline:none"
+                                onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                                <option value="">Select Source</option>
+                                @foreach(\App\Models\Lead::getDynamicSources() as $sourceVal)
+                                    <option value="{{ $sourceVal }}">{{ ucfirst(str_replace('_', ' ', $sourceVal)) }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
-                    <div data-field="source" style="margin-bottom:16px">
-                        <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">Source
-                            <span style="color:#ef4444">*</span></label>
-                        <select class="form-select" name="source" id="lead-source" required
-                            style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;background:white;transition:border-color 0.15s;outline:none"
-                            onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
-                            <option value="">Select Source</option>
-                            @foreach(\App\Models\Lead::getDynamicSources() as $sourceVal)
-                                <option value="{{ $sourceVal }}">{{ ucfirst(str_replace('_', ' ', $sourceVal)) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-                        <div>
+
+                    <div class="responsive-grid-3">
+                        <div data-field="phone">
                             <label
                                 style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">Phone
                                 <span style="color:#ef4444">*</span></label>
@@ -402,7 +413,18 @@
                                 style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;transition:border-color 0.15s;outline:none"
                                 onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
                         </div>
-                        <div>
+                        <div data-field="stage">
+                            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">Stage <span
+                                    style="color:#ef4444">*</span></label>
+                            <select name="stage" id="lead-stage" class="form-input" required
+                                style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;background:white;transition:border-color 0.15s;outline:none"
+                                onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                                @foreach(\App\Models\Lead::getDynamicStages() as $stageVal)
+                                    <option value="{{ $stageVal }}">{{ ucfirst(str_replace('_', ' ', $stageVal)) }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div data-field="email">
                             <label
                                 style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">Email</label>
                             <input type="email" class="form-input" name="email" id="lead-email"
@@ -410,58 +432,47 @@
                                 onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
                         </div>
                     </div>
-                    <div data-field="location"
-                        style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-                        <div>
+
+                    <div class="responsive-grid-3">
+                        <div data-field="city">
                             <label
                                 style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">City</label>
                             <input type="text" class="form-input" name="city" id="lead-city"
                                 style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;transition:border-color 0.15s;outline:none"
                                 onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
                         </div>
-                        <div>
+                        <div data-field="state">
                             <label
                                 style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">State</label>
                             <input type="text" class="form-input" name="state" id="lead-state"
                                 style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;transition:border-color 0.15s;outline:none"
                                 onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
                         </div>
+                        @if(can('leads.global') || auth()->user()->isAdmin())
+                            <div data-field="assigned">
+                                <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">Assigned
+                                    To</label>
+                                <select class="form-select" name="assigned_to_user_id" id="lead-assigned"
+                                    style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;background:white;transition:border-color 0.15s;outline:none"
+                                    onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                                    <option value="">Unassigned</option>
+                                    @foreach($users as $user)
+                                        <option value="{{ $user->id }}" {{ $user->id == auth()->id() ? 'selected' : '' }}>
+                                            {{ $user->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @else
+                            <div data-field="assigned">
+                                <input type="hidden" name="assigned_to_user_id" value="{{ auth()->id() }}">
+                                <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">Assigned
+                                    To</label>
+                                <input type="text" class="form-input" value="{{ auth()->user()->name }}" readonly
+                                    style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;background-color:#f8fafc;color:#666">
+                            </div>
+                        @endif
                     </div>
-                    <div data-field="stage" style="margin-bottom:16px">
-                        <div>
-                            <label class="form-label" style="font-weight:500">Stage <span
-                                    style="color:var(--destructive)">*</span></label>
-                            <select name="stage" id="lead-stage" class="form-input" required>
-                                @foreach(\App\Models\Lead::getDynamicStages() as $stageVal)
-                                    <option value="{{ $stageVal }}">{{ ucfirst(str_replace('_', ' ', $stageVal)) }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-                    @if(can('leads.global') || auth()->user()->isAdmin())
-                        <div data-field="assigned" style="margin-bottom:16px">
-                            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">Assigned
-                                To</label>
-                            <select class="form-select" name="assigned_to_user_id" id="lead-assigned"
-                                style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;background:white;transition:border-color 0.15s;outline:none"
-                                onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
-                                <option value="">Unassigned</option>
-                                @foreach($users as $user)
-                                    <option value="{{ $user->id }}" {{ $user->id == auth()->id() ? 'selected' : '' }}>
-                                        {{ $user->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                    @else
-                        <input type="hidden" name="assigned_to_user_id" value="{{ auth()->id() }}">
-                        <div data-field="assigned" style="margin-bottom:16px">
-                            <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">Assigned
-                                To</label>
-                            <input type="text" class="form-input" value="{{ auth()->user()->name }}" readonly
-                                style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;background-color:#f8fafc;color:#666">
-                        </div>
-                    @endif
                     <div style="margin-bottom:16px">
                         <label
                             style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">Notes</label>
@@ -754,10 +765,12 @@
             if (leadAssign) leadAssign.value = '{{ auth()->id() }}';
             clearProductTable();
             // Hide quote action buttons for new leads
-            document.getElementById('quote-action-container').style.display = 'none';
-            // Hide followup section for new leads
+            document.getElementById('quote-action-container').style.display = 'none';            // Hide followup section for new leads
             document.getElementById('followup-section').style.display = 'none';
             document.getElementById('lead-modal').style.display = 'flex';
+            
+            // Initialize Select2 after modal opens
+            setTimeout(initProductSelect2, 100);
         }
 
         function viewLead(id) {
@@ -933,8 +946,13 @@
                     document.getElementById('followup-message').value = '';
 
                     // Take snapshot for dirty checking (after a short delay for DOM to settle)
-                    setTimeout(function () {
-                        initialFormSnapshot = getFormSnapshot();
+                    // Save initial state for dirty checking
+                    setTimeout(() => {
+                        let formData = new FormData(document.getElementById('lead-form'));
+                        initialFormSnapshot = new URLSearchParams(formData).toString();
+                        
+                        // Initialize Select2 after modal opens and data is loaded
+                        initProductSelect2();
                     }, 100);
 
                     // Reinitialize lucide icons for new buttons
