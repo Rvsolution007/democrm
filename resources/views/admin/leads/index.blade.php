@@ -1493,7 +1493,26 @@
                     }
                 }
             });
+            
+            // Re-initialize select2 if modal is ever opened
+            $(document).on('shown.bs.modal', '#lead-modal', function () {
+                initProductSelect2();
+            });
         });
+
+        // Initialize Select2 for product search
+        function initProductSelect2() {
+            if (typeof $ !== 'undefined' && $.fn.select2) {
+                $('#product-selector').select2({
+                    dropdownParent: $('#lead-modal'),
+                    placeholder: "-- Select Product --",
+                    allowClear: true,
+                    width: '100%'
+                });
+            } else {
+                console.error("Select2 or jQuery is not loaded");
+            }
+        }
     </script>
     <!-- Include Flatpickr for Date Range Selection -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
