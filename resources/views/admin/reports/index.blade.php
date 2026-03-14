@@ -37,6 +37,12 @@
         <button class="report-tab-btn" data-tab="team" onclick="switchReportTab('team', this)">
             <i data-lucide="users-2" style="width:16px;height:16px"></i> Team
         </button>
+        <button class="report-tab-btn" data-tab="products" onclick="switchReportTab('products', this)">
+            <i data-lucide="box" style="width:16px;height:16px"></i> Products
+        </button>
+        <button class="report-tab-btn" data-tab="vendors" onclick="switchReportTab('vendors', this)">
+            <i data-lucide="truck" style="width:16px;height:16px"></i> Vendors
+        </button>
     </div>
 
     <!-- ======================== TAB 1: OVERVIEW ======================== -->
@@ -318,6 +324,78 @@
         <div class="card mb-6">
             <div class="card-header"><h3 class="card-title">Top Performers — Revenue Generated</h3></div>
             <div class="card-content"><canvas id="team-revenue-chart" height="280"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ======================== TAB 8: PRODUCTS ======================== -->
+    <div class="report-tab-content" id="tab-products" style="display:none">
+        <div class="report-section-header">
+            <div class="report-stats-row">
+                <div class="report-stat-chip"><span class="report-stat-label">Total Products</span><span class="report-stat-val">{{ $products['productsTotal'] }}</span></div>
+                <div class="report-stat-chip" style="--chip-color:#22c55e"><span class="report-stat-label">Active</span><span class="report-stat-val">{{ $products['productsActive'] }}</span></div>
+                <div class="report-stat-chip" style="--chip-color:#ef4444"><span class="report-stat-label">Low Stock</span><span class="report-stat-val">{{ $products['lowStockProducts'] }}</span></div>
+                <div class="report-stat-chip" style="--chip-color:#6366f1"><span class="report-stat-label">Inventory Value</span><span class="report-stat-val">₹{{ number_format($products['inventoryValue'], 0) }}</span></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6 mb-6">
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">Top Selling Products</h3></div>
+                <div class="card-content" style="padding:0">
+                    <table class="data-table" style="width:100%">
+                        <thead><tr><th>Product Name</th><th style="text-align:center">Qty Sold</th><th style="text-align:right">Revenue (₹)</th></tr></thead>
+                        <tbody>
+                            @forelse($products['topProducts'] as $tp)
+                                <tr>
+                                    <td><strong>{{ $tp->product_name }}</strong></td>
+                                    <td style="text-align:center">{{ $tp->qty_sold }}</td>
+                                    <td style="text-align:right;font-weight:600">₹{{ number_format($tp->revenue, 2) }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="3" style="text-align:center;padding:24px;color:#999">No product sales data</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card"><div class="card-header"><h3 class="card-title">Top Products by Revenue</h3></div><div class="card-content"><canvas id="products-revenue-chart" height="300"></canvas></div></div>
+        </div>
+    </div>
+
+    <!-- ======================== TAB 9: VENDORS ======================== -->
+    <div class="report-tab-content" id="tab-vendors" style="display:none">
+        <div class="report-section-header">
+            <div class="report-stats-row">
+                <div class="report-stat-chip"><span class="report-stat-label">Total Vendors</span><span class="report-stat-val">{{ $vendors['vendorsTotal'] }}</span></div>
+                <div class="report-stat-chip" style="--chip-color:#22c55e"><span class="report-stat-label">Active</span><span class="report-stat-val">{{ $vendors['vendorsActive'] }}</span></div>
+                <div class="report-stat-chip" style="--chip-color:#3b82f6"><span class="report-stat-label">Total Purchases</span><span class="report-stat-val">₹{{ number_format($vendors['purchasesTotal'], 0) }}</span></div>
+                <div class="report-stat-chip" style="--chip-color:#10b981"><span class="report-stat-label">Total Paid</span><span class="report-stat-val">₹{{ number_format($vendors['purchasesPaid'], 0) }}</span></div>
+                <div class="report-stat-chip" style="--chip-color:#ef4444"><span class="report-stat-label">Total Due</span><span class="report-stat-val">₹{{ number_format($vendors['purchasesDue'], 0) }}</span></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6 mb-6">
+            <div class="card">
+                <div class="card-header"><h3 class="card-title">Top Vendors by Purchase Volume</h3></div>
+                <div class="card-content" style="padding:0">
+                    <table class="data-table" style="width:100%">
+                        <thead><tr><th>Vendor Name</th><th style="text-align:center">Purchases</th><th style="text-align:right">Total Amount (₹)</th><th style="text-align:right">Due (₹)</th></tr></thead>
+                        <tbody>
+                            @forelse($vendors['topVendors'] as $tv)
+                                <tr>
+                                    <td><strong>{{ $tv->name }}</strong></td>
+                                    <td style="text-align:center">{{ $tv->purchases_count }}</td>
+                                    <td style="text-align:right;font-weight:600">₹{{ number_format($tv->purchases_sum_total_amount / 100, 2) }}</td>
+                                    <td style="text-align:right;color:#ef4444">₹{{ number_format(($tv->purchases_sum_total_amount - $tv->purchases_sum_paid_amount) / 100, 2) }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="4" style="text-align:center;padding:24px;color:#999">No vendors data</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card"><div class="card-header"><h3 class="card-title">Top Vendors by Volume</h3></div><div class="card-content"><canvas id="vendors-volume-chart" height="300"></canvas></div></div>
         </div>
     </div>
 @endsection
@@ -631,6 +709,26 @@
             makeChart('team-revenue-chart', 'bar',
                 sorted.map(m => m.name),
                 [{ label: 'Revenue (₹)', data: sorted.map(m => m.revenue_generated), backgroundColor: '#6366f1', borderRadius: 6, barPercentage: 0.5 }]
+            );
+            lucide.createIcons();
+        };
+
+        // ===== PRODUCTS CHARTS =====
+        window.initCharts_products = function() {
+            const topProducts = @json($products['topProducts']);
+            makeChart('products-revenue-chart', 'bar',
+                topProducts.map(p => p.product_name || 'Unknown Item'),
+                [{ label: 'Revenue (₹)', data: topProducts.map(p => p.revenue), backgroundColor: '#10b981', borderRadius: 6, barPercentage: 0.5 }]
+            );
+            lucide.createIcons();
+        };
+
+        // ===== VENDORS CHARTS =====
+        window.initCharts_vendors = function() {
+            const topVendors = @json($vendors['topVendors']);
+            makeChart('vendors-volume-chart', 'bar',
+                topVendors.map(v => v.name || 'Unknown Vendor'),
+                [{ label: 'Volume (₹)', data: topVendors.map(v => (v.purchases_sum_total_amount || 0) / 100), backgroundColor: '#f59e0b', borderRadius: 6, barPercentage: 0.5 }]
             );
             lucide.createIcons();
         };

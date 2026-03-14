@@ -11,6 +11,9 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Models\Activity;
 use App\Models\User;
+use App\Models\Product;
+use App\Models\Vendor;
+use App\Models\Purchase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -199,6 +202,54 @@ class ReportsController extends Controller
 
         $team = compact('teamData');
 
+        // ===================== PRODUCTS TAB =====================
+        $productsTotal = Product::count();
+        $productsActive = Product::where('status', 'active')->count();
+
+        // Sum inventory value
+        $inventoryValue = Product::where('status', 'active')
+            ->where('stock_qty', '>', 0)
+            ->selectRaw('SUM((stock_qty * sale_price) / 100) as value')
+            ->value('value');
+        $inventoryValue = $inventoryValue ?: 0;
+
+        $lowStockProducts = Product::whereColumn('stock_qty', '<=', 'min_stock_qty')
+            ->where('status', 'active')
+            ->count();
+
+        // Top 10 selling products (based on accepted quotes)
+        $topProducts = DB::table('quote_items')
+            ->join('quotes', 'quote_items.quote_id', '=', 'quotes.id')
+            ->where('quotes.status', 'accepted')
+            ->whereNotNull('quote_items.product_id')
+            ->select('quote_items.product_id', 'quote_items.product_name', 
+                DB::raw('SUM(quote_items.qty) as qty_sold'), 
+                DB::raw('SUM(quote_items.line_total) / 100 as revenue'))
+            ->groupBy('quote_items.product_id', 'quote_items.product_name')
+            ->orderByDesc('revenue')
+            ->limit(10)
+            ->get();
+
+        $products = compact('productsTotal', 'productsActive', 'inventoryValue', 'lowStockProducts', 'topProducts');
+
+        // ===================== VENDORS TAB =====================
+        $vendorsTotal = Vendor::count();
+        $vendorsActive = Vendor::where('status', 'active')->count();
+
+        $purchasesTotal = Purchase::sum('total_amount') / 100;
+        $purchasesPaid = Purchase::sum('paid_amount') / 100;
+        $purchasesDue = $purchasesTotal - $purchasesPaid;
+
+        // Top 10 Vendors by purchase volume
+        $topVendors = Vendor::withSum('purchases', 'total_amount')
+            ->withSum('purchases', 'paid_amount')
+            ->withCount('purchases')
+            ->orderByDesc('purchases_sum_total_amount')
+            ->limit(10)
+            ->get();
+
+        $vendors = compact('vendorsTotal', 'vendorsActive', 'purchasesTotal', 'purchasesPaid', 'purchasesDue', 'topVendors');
+
         return view('admin.reports.index', compact(
             'overview',
             'monthlyRevenue',
@@ -210,7 +261,9 @@ class ReportsController extends Controller
             'payments',
             'projects',
             'tasks',
-            'team'
+            'team',
+            'products',
+            'vendors'
         ));
     }
 
