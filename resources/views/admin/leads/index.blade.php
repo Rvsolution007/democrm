@@ -481,47 +481,51 @@
                             onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
                     </div>
 
-                    {{-- Product Selection --}}
-                    <div style="margin-bottom:16px">
-                        <label style="display:block;margin-bottom:8px;font-weight:500">Products</label>
-                        <div style="display:flex;gap:8px;margin-bottom:12px">
-                            <select id="product-selector" class="form-select"
-                                style="flex:1;padding:8px;border:1px solid #ddd;border-radius:4px">
-                                <option value="">-- Select Product --</option>
-                                @foreach($products as $product)
-                                    @php $displayPrice = ($product->mrp ?: $product->sale_price) / 100; @endphp
-                                    <option value="{{ $product->id }}" data-name="{{ $product->name }}"
-                                        data-price="{{ $displayPrice }}" data-mrp="{{ $product->mrp }}"
-                                        data-desc="{{ Str::limit($product->description ?? '', 60) }}">
-                                        {{ $product->name }} — ₹{{ number_format($displayPrice, 2) }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            <button type="button" class="btn btn-outline" onclick="addSelectedProduct()"
-                                style="padding:8px 16px;border:1px solid #007bff;color:#007bff;background:white;border-radius:4px;cursor:pointer;white-space:nowrap">
-                                + Add
-                            </button>
+                    {{-- Product Selection - Premium UI --}}
+                    <div style="margin-bottom:16px;border:1.5px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff">
+                        <div style="padding:12px 16px;background:linear-gradient(135deg,#f8fafc,#eef2ff);border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:8px">
+                            <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center">
+                                <i data-lucide="package" style="width:14px;height:14px;color:white"></i>
+                            </div>
+                            <span style="font-weight:600;font-size:14px;color:#1e293b">Products</span>
                         </div>
-                        <div id="selected-products-wrapper">
-                            <table id="selected-products-table" style="width:100%;border-collapse:collapse;display:none">
-                                <thead>
-                                    <tr style="background:#f8f9fa;text-align:left">
-                                        <th style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px">Product Name
-                                        </th>
-                                        <th style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px;width:100px">
-                                            Price (₹)</th>
-                                        <th style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px">Description
-                                        </th>
-                                        <th style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px;width:70px">Qty
-                                        </th>
-                                        <th style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px;width:100px">
-                                            Dis. Price</th>
-                                        <th style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px;width:50px">
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody id="selected-products-body"></tbody>
-                            </table>
+                        <div style="padding:16px">
+                            <div style="display:flex;gap:10px;margin-bottom:12px;align-items:stretch">
+                                <div style="flex:1;position:relative">
+                                    <select id="product-selector" class="form-select" style="width:100%">
+                                        <option value="">🔍 Search or select a product...</option>
+                                        @foreach($products as $product)
+                                            @php $displayPrice = ($product->mrp ?: $product->sale_price) / 100; @endphp
+                                            <option value="{{ $product->id }}" data-name="{{ $product->name }}"
+                                                data-price="{{ $displayPrice }}" data-mrp="{{ $product->mrp }}"
+                                                data-desc="{{ Str::limit($product->description ?? '', 60) }}">
+                                                {{ $product->name }} — ₹{{ number_format($displayPrice, 2) }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <button type="button" class="btn" onclick="addSelectedProduct()"
+                                    style="padding:10px 20px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;border-radius:10px;cursor:pointer;white-space:nowrap;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(37,99,235,0.25);transition:all 0.2s"
+                                    onmouseover="this.style.boxShadow='0 4px 14px rgba(37,99,235,0.4)';this.style.transform='translateY(-1px)'"
+                                    onmouseout="this.style.boxShadow='0 2px 8px rgba(37,99,235,0.25)';this.style.transform='translateY(0)'">
+                                    <i data-lucide="plus" style="width:14px;height:14px"></i> Add
+                                </button>
+                            </div>
+                            <div id="selected-products-wrapper">
+                                <table id="selected-products-table" style="width:100%;border-collapse:separate;border-spacing:0;display:none;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
+                                    <thead>
+                                        <tr style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);text-align:left">
+                                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0">Product Name</th>
+                                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;width:100px">Price (₹)</th>
+                                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0">Description</th>
+                                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;width:70px">Qty</th>
+                                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;width:100px">Dis. Price</th>
+                                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;width:50px"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="selected-products-body"></tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
 
@@ -1500,18 +1504,134 @@
             });
         });
 
-        // Initialize Select2 for product search
+        // Initialize Select2 for product search — Premium Facebook-style UI
         function initProductSelect2() {
-            if (typeof $ !== 'undefined' && $.fn.select2) {
-                $('#product-selector').select2({
-                    dropdownParent: $('#lead-modal'),
-                    placeholder: "-- Select Product --",
-                    allowClear: true,
-                    width: '100%'
-                });
-            } else {
-                console.error("Select2 or jQuery is not loaded");
+            if (typeof $ === 'undefined' || !$.fn.select2) {
+                console.error('Select2 or jQuery is not loaded');
+                return;
             }
+
+            // Destroy previous instance if any
+            if ($('#product-selector').hasClass('select2-hidden-accessible')) {
+                $('#product-selector').select2('destroy');
+            }
+
+            // Inject premium select2 styles if not already present
+            if (!document.getElementById('select2-premium-styles')) {
+                var styleEl = document.createElement('style');
+                styleEl.id = 'select2-premium-styles';
+                styleEl.textContent = `
+                    /* Premium Select2 Theme */
+                    .select2-container--default .select2-selection--single {
+                        height: 44px !important;
+                        border: 1.5px solid #e2e8f0 !important;
+                        border-radius: 10px !important;
+                        background: #fff !important;
+                        padding: 0 12px !important;
+                        display: flex !important;
+                        align-items: center !important;
+                        transition: all 0.2s ease !important;
+                        font-size: 14px !important;
+                    }
+                    .select2-container--default .select2-selection--single:hover {
+                        border-color: #94a3b8 !important;
+                    }
+                    .select2-container--default.select2-container--open .select2-selection--single {
+                        border-color: #6366f1 !important;
+                        box-shadow: 0 0 0 3px rgba(99,102,241,0.12) !important;
+                    }
+                    .select2-container--default .select2-selection--single .select2-selection__rendered {
+                        line-height: normal !important;
+                        padding-left: 0 !important;
+                        color: #334155 !important;
+                        font-weight: 500 !important;
+                    }
+                    .select2-container--default .select2-selection--single .select2-selection__arrow {
+                        height: 100% !important;
+                        right: 10px !important;
+                    }
+                    .select2-container--default .select2-selection--single .select2-selection__arrow b {
+                        border-color: #94a3b8 transparent transparent transparent !important;
+                    }
+                    .select2-container--default .select2-selection--single .select2-selection__placeholder {
+                        color: #94a3b8 !important;
+                        font-weight: 400 !important;
+                    }
+                    .select2-dropdown {
+                        border: 1.5px solid #e2e8f0 !important;
+                        border-radius: 12px !important;
+                        box-shadow: 0 12px 36px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04) !important;
+                        overflow: hidden !important;
+                        margin-top: 6px !important;
+                    }
+                    .select2-container--default .select2-search--dropdown {
+                        padding: 12px !important;
+                        background: #f8fafc !important;
+                        border-bottom: 1px solid #e2e8f0 !important;
+                    }
+                    .select2-container--default .select2-search--dropdown .select2-search__field {
+                        border: 1.5px solid #e2e8f0 !important;
+                        border-radius: 8px !important;
+                        padding: 10px 14px !important;
+                        font-size: 14px !important;
+                        outline: none !important;
+                        transition: all 0.2s !important;
+                        background: #fff !important;
+                    }
+                    .select2-container--default .select2-search--dropdown .select2-search__field:focus {
+                        border-color: #6366f1 !important;
+                        box-shadow: 0 0 0 3px rgba(99,102,241,0.12) !important;
+                    }
+                    .select2-results__options {
+                        max-height: 260px !important;
+                        padding: 6px !important;
+                    }
+                    .select2-container--default .select2-results__option {
+                        padding: 10px 14px !important;
+                        font-size: 13px !important;
+                        border-radius: 8px !important;
+                        margin-bottom: 2px !important;
+                        color: #334155 !important;
+                        transition: all 0.15s !important;
+                    }
+                    .select2-container--default .select2-results__option--highlighted[aria-selected] {
+                        background: linear-gradient(135deg,#eef2ff,#e0e7ff) !important;
+                        color: #4338ca !important;
+                        font-weight: 500 !important;
+                    }
+                    .select2-container--default .select2-results__option[aria-selected=true] {
+                        background: #f0fdf4 !important;
+                        color: #15803d !important;
+                        font-weight: 600 !important;
+                    }
+                    .select2-container--default .select2-results__option[aria-selected=true]::after {
+                        content: '✓';
+                        float: right;
+                        font-weight: 700;
+                        color: #16a34a;
+                    }
+                    .select2-container--default .select2-results__message {
+                        padding: 16px !important;
+                        color: #94a3b8 !important;
+                        font-size: 13px !important;
+                        text-align: center !important;
+                    }
+                `;
+                document.head.appendChild(styleEl);
+            }
+
+            $('#product-selector').select2({
+                dropdownParent: $('#lead-modal'),
+                placeholder: '🔍 Search or select a product...',
+                allowClear: true,
+                width: '100%',
+                minimumInputLength: 0,
+                language: {
+                    inputTooShort: function() { return 'Type to search products...'; },
+                    noResults: function() { return '😔 No products found'; },
+                    searching: function() { return '🔍 Searching...'; }
+                }
+            });
         }
     </script>
     <!-- Include Flatpickr for Date Range Selection -->
