@@ -211,6 +211,24 @@ class QuotesController extends Controller
             $quote->refresh();
         }
 
+        // Sync products back to Lead if quote has a lead and is not accepted
+        if ($quote->lead_id && $quote->status !== 'accepted') {
+            $lead = \App\Models\Lead::find($quote->lead_id);
+            if ($lead) {
+                $productData = [];
+                $quote->load('items');
+                foreach ($quote->items as $item) {
+                    $productData[$item->product_id] = [
+                        'quantity' => $item->qty,
+                        'price' => $item->rate ?? $item->unit_price,
+                        'discount' => $item->discount ?? 0,
+                        'description' => $item->description,
+                    ];
+                }
+                $lead->products()->sync($productData);
+            }
+        }
+
         // Auto-project/purchase creation is handled during explicit quote conversion
 
         if ($request->wantsJson()) {
@@ -405,6 +423,24 @@ class QuotesController extends Controller
         // If products changed and the quote was previously accepted, revert it to draft
         if ($productsChanged && $quote->status === 'accepted') {
             $quote->update(['status' => 'draft']);
+        }
+
+        // Sync products back to Lead if quote has a lead and is not accepted
+        if ($quote->lead_id && $quote->status !== 'accepted') {
+            $lead = \App\Models\Lead::find($quote->lead_id);
+            if ($lead) {
+                $productData = [];
+                $quote->load('items');
+                foreach ($quote->items as $item) {
+                    $productData[$item->product_id] = [
+                        'quantity' => $item->qty,
+                        'price' => $item->rate ?? $item->unit_price,
+                        'discount' => $item->discount ?? 0,
+                        'description' => $item->description,
+                    ];
+                }
+                $lead->products()->sync($productData);
+            }
         }
 
         // Auto-project/purchase creation is handled during explicit quote conversion

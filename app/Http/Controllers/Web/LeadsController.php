@@ -381,7 +381,7 @@ class LeadsController extends Controller
         // Sync lead products to associated quote (if exists)
         $lead->load('products');
         $quote = Quote::where('lead_id', $lead->id)->first();
-        if ($quote) {
+        if ($quote && $quote->status !== 'accepted') {
             // Delete all existing quote items
             $quote->items()->delete();
 
@@ -399,8 +399,10 @@ class LeadsController extends Controller
                     'quote_id' => $quote->id,
                     'product_id' => $product->id,
                     'product_name' => $product->name,
-                    'description' => $product->description ?? '',
+                    'description' => $product->pivot->description ?? '',
                     'qty' => $qty,
+                    'rate' => $price,
+                    'discount' => $discount,
                     'unit_price' => $unitPrice,
                     'gst_percent' => 0,
                     'gst_amount' => 0,
@@ -509,8 +511,10 @@ class LeadsController extends Controller
                 'quote_id' => $quote->id,
                 'product_id' => $product->id,
                 'product_name' => $product->name,
-                'description' => $product->description ?? '',
+                'description' => $product->pivot->description ?? '',
                 'qty' => $qty,
+                'rate' => $price,
+                'discount' => $discount,
                 'unit_price' => $unitPrice,
                 'gst_percent' => 0,
                 'gst_amount' => 0,
