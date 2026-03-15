@@ -50,27 +50,38 @@
                 <div class="nav-section-title"
                     style="margin-top: 15px; font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.8;">
                     WhatsApp Bulk</div>
-                @if(can('leads.read'))
+                
+                @if(can('whatsapp-connect.read') || can('whatsapp-connect.write'))
                     <a href="{{ route('admin.whatsapp-connect.index') }}"
                         class="nav-link {{ request()->routeIs('admin.whatsapp-connect.*') ? 'active' : '' }}">
                         <i data-lucide="smartphone" style="color:#25D366"></i> <span>WhatsApp Connect</span>
                     </a>
+                @endif
+                @if(can('whatsapp-extension.read'))
                     <a href="{{ route('admin.whatsapp.extension') }}"
                         class="nav-link {{ request()->routeIs('admin.whatsapp.extension') ? 'active' : '' }}">
                         <i data-lucide="chrome" style="color:#3b82f6"></i> <span>Chrome Extension</span>
                     </a>
+                @endif
+                @if(can('whatsapp-campaigns.read'))
                     <a href="{{ route('admin.whatsapp-campaigns.index') }}"
                         class="nav-link {{ request()->routeIs('admin.whatsapp-campaigns.*') ? 'active' : '' }}">
                         <i data-lucide="send"></i> <span>Bulk Sender</span>
                     </a>
+                @endif
+                @if(can('whatsapp-templates.read'))
                     <a href="{{ route('admin.whatsapp-templates.index') }}"
                         class="nav-link {{ request()->routeIs('admin.whatsapp-templates.*') ? 'active' : '' }}">
                         <i data-lucide="message-square"></i> <span>Templates</span>
                     </a>
+                @endif
+                @if(can('whatsapp-auto-reply.read'))
                     <a href="{{ route('admin.whatsapp-auto-reply.index') }}"
                         class="nav-link {{ request()->routeIs('admin.whatsapp-auto-reply.*') && !request()->routeIs('admin.whatsapp-auto-reply.analytics') ? 'active' : '' }}">
                         <i data-lucide="bot" style="color:#f59e0b"></i> <span>Auto-Reply Rules</span>
                     </a>
+                @endif
+                @if(can('whatsapp-analytics.read'))
                     <a href="{{ route('admin.whatsapp-auto-reply.analytics') }}"
                         class="nav-link {{ request()->routeIs('admin.whatsapp-auto-reply.analytics') ? 'active' : '' }}">
                         <i data-lucide="bar-chart-3" style="color:#8b5cf6"></i> <span>Reply Analytics</span>
