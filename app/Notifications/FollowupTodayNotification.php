@@ -19,7 +19,7 @@ class FollowupTodayNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return ['database', \App\Channels\WhatsAppChannel::class];
     }
 
     public function toArray(object $notifiable): array
