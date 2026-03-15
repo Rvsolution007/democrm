@@ -297,10 +297,10 @@
                                     </tr>
                                     <tr style="border-bottom:1px solid #f0f0f0">
                                         <td style="padding:8px 4px">Templates</td>
-                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-templates.read"></td>
-                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-templates.write"></td>
-                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-templates.delete"></td>
-                                        <td style="text-align:center;padding:8px 4px"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="edit_whatsapp" name="permissions[]" value="whatsapp-templates.read" {{ in_array('whatsapp-templates.read', $role->permissions ?? []) ? 'checked' : '' }}></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="edit_whatsapp" name="permissions[]" value="whatsapp-templates.write" {{ in_array('whatsapp-templates.write', $role->permissions ?? []) ? 'checked' : '' }}></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="edit_whatsapp" name="permissions[]" value="whatsapp-templates.delete" {{ in_array('whatsapp-templates.delete', $role->permissions ?? []) ? 'checked' : '' }}></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="edit_whatsapp" name="permissions[]" value="whatsapp-templates.global" {{ in_array('whatsapp-templates.global', $role->permissions ?? []) ? 'checked' : '' }}></td>
                                     </tr>
                                     <tr style="border-bottom:1px solid #f0f0f0">
                                         <td style="padding:8px 4px">Auto-Reply Rules</td>

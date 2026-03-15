@@ -51,7 +51,7 @@ class Role extends Model
         'whatsapp-connect.read', 'whatsapp-connect.write',
         'whatsapp-extension.read',
         'whatsapp-campaigns.read', 'whatsapp-campaigns.write', 'whatsapp-campaigns.delete',
-        'whatsapp-templates.read', 'whatsapp-templates.write', 'whatsapp-templates.delete',
+        'whatsapp-templates.read', 'whatsapp-templates.write', 'whatsapp-templates.delete', 'whatsapp-templates.global',
         'whatsapp-auto-reply.read', 'whatsapp-auto-reply.write', 'whatsapp-auto-reply.delete',
         'whatsapp-analytics.read',
 

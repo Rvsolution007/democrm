@@ -16,9 +16,13 @@ class WhatsappCampaignController extends Controller
 {
     public function index()
     {
-        $campaigns = WhatsappCampaign::with('template', 'product')
-            ->latest()
-            ->paginate(15);
+        $query = WhatsappCampaign::with('template', 'product')->latest();
+        
+        if (!can('leads.global')) {
+            $query->where('user_id', auth()->id());
+        }
+        
+        $campaigns = $query->paginate(15);
 
         return view('admin.whatsapp-campaigns.index', compact('campaigns'));
     }
@@ -26,16 +30,31 @@ class WhatsappCampaignController extends Controller
     public function create()
     {
         $templates = WhatsappTemplate::latest()->get();
-        // Pluck unique stages from leads to use in the dropdown
-        $stages = Lead::select('stage')->distinct()->pluck('stage');
+        
+        $stageQuery = Lead::select('stage')->distinct();
+        $users = [];
+        
+        if (!can('leads.global')) {
+            $stageQuery->where('assigned_to_user_id', auth()->id());
+        } else {
+            $users = \App\Models\User::orderBy('name')->get();
+        }
+        
+        $stages = $stageQuery->pluck('stage');
         $products = Product::where('status', 'active')->get();
 
-        return view('admin.whatsapp-campaigns.create', compact('templates', 'stages', 'products'));
+        return view('admin.whatsapp-campaigns.create', compact('templates', 'stages', 'products', 'users'));
     }
 
     public function preview(Request $request)
     {
-        $query = Lead::query();
+        $query = Lead::query()->whereNotNull('phone')->where('phone', '!=', '');
+
+        if (!can('leads.global')) {
+            $query->where('assigned_to_user_id', auth()->id());
+        } elseif ($request->target_user_id) {
+            $query->where('assigned_to_user_id', $request->target_user_id);
+        }
 
         if ($request->stage) {
             $query->where('stage', $request->stage);
@@ -47,9 +66,6 @@ class WhatsappCampaignController extends Controller
                 $q->where('products.id', $request->product_id);
             });
         }
-
-        // Must have phone number
-        $query->whereNotNull('phone')->where('phone', '!=', '');
 
         // Deduplication: exclude phone numbers already sent with same template_code
         $alreadySentPhones = [];
@@ -131,13 +147,20 @@ class WhatsappCampaignController extends Controller
         $request->validate([
             'template_id' => 'required|exists:whatsapp_templates,id',
             'target_stage' => 'nullable|string',
-            'target_product_id' => 'nullable|exists:products,id'
+            'target_product_id' => 'nullable|exists:products,id',
+            'target_user_id' => 'nullable|exists:users,id'
         ]);
 
         $template = WhatsappTemplate::findOrFail($request->template_id);
 
         // Get Leads
         $query = Lead::query()->whereNotNull('phone')->where('phone', '!=', '');
+
+        if (!can('leads.global')) {
+            $query->where('assigned_to_user_id', auth()->id());
+        } elseif ($request->target_user_id) {
+            $query->where('assigned_to_user_id', $request->target_user_id);
+        }
 
         if ($request->target_stage) {
             $query->where('stage', $request->target_stage);

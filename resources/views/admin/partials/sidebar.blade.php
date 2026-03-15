@@ -47,6 +47,11 @@
                     </a>
                 @endif
 
+            </div>
+        @endif
+        
+        @if(can('whatsapp-connect.read') || can('whatsapp-connect.write') || can('whatsapp-extension.read') || can('whatsapp-campaigns.read') || can('whatsapp-templates.read') || can('whatsapp-auto-reply.read') || can('whatsapp-analytics.read'))
+            <div class="nav-section">
                 <div class="nav-section-title"
                     style="margin-top: 15px; font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.8;">
                     WhatsApp Bulk</div>

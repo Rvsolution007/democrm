@@ -10,6 +10,7 @@ class WhatsappTemplate extends Model
 {
     protected $fillable = [
         'company_id',
+        'user_id',
         'name',
         'template_code',
         'type',
@@ -31,5 +32,10 @@ class WhatsappTemplate extends Model
     public function company()
     {
         return $this->belongsTo(Company::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }

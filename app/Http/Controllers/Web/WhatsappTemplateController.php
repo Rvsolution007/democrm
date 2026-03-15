@@ -9,12 +9,16 @@ class WhatsappTemplateController extends Controller
 {
     public function index()
     {
-        $templates = \App\Models\WhatsappTemplate::latest()->get();
+        $templates = \App\Models\WhatsappTemplate::with('user')->latest()->get();
         return view('admin.whatsapp-templates.index', compact('templates'));
     }
 
     public function store(Request $request)
     {
+        if (!can('whatsapp-templates.global')) {
+            abort(403, 'Only authorized users with global access can create templates.');
+        }
+
         $request->validate([
             'name' => 'required|string|max:255',
             'type' => 'required|in:text,image,video,pdf',
@@ -23,6 +27,7 @@ class WhatsappTemplateController extends Controller
         ]);
 
         $data = $request->only(['name', 'template_code', 'type', 'message_text']);
+        $data['user_id'] = auth()->id();
 
         if ($request->hasFile('media_file')) {
             $path = $request->file('media_file')->store('whatsapp_media', 'public');
@@ -37,6 +42,10 @@ class WhatsappTemplateController extends Controller
     public function update(Request $request, $id)
     {
         $template = \App\Models\WhatsappTemplate::findOrFail($id);
+
+        if (!can('whatsapp-templates.global') && $template->user_id !== auth()->id()) {
+            abort(403, 'Unauthorized action.');
+        }
 
         $request->validate([
             'name' => 'required|string|max:255',
@@ -63,6 +72,11 @@ class WhatsappTemplateController extends Controller
     public function destroy($id)
     {
         $template = \App\Models\WhatsappTemplate::findOrFail($id);
+        
+        if (!can('whatsapp-templates.global') && $template->user_id !== auth()->id()) {
+            abort(403, 'Unauthorized action.');
+        }
+
         if ($template->media_path) {
             \Illuminate\Support\Facades\Storage::disk('public')->delete($template->media_path);
         }

@@ -332,6 +332,19 @@
                                 </select>
                             </div>
 
+                            @if(can('leads.global'))
+                            <div class="mb-4">
+                                <label class="modern-form-label">Target User's Leads</label>
+                                <select name="target_user_id" id="target_user_id" class="modern-form-select select2">
+                                    <option value="">All Users (Entire System)</option>
+                                    @foreach($users as $user)
+                                        <option value="{{ $user->id }}">{{ $user->name }}</option>
+                                    @endforeach
+                                </select>
+                                <span class="modern-help-text">Select a user to broadcast only to their assigned leads</span>
+                            </div>
+                            @endif
+
                             <div class="mb-4">
                                 <label class="modern-form-label">Target Lead Stage</label>
                                 <select name="target_stage" id="target_stage" class="modern-form-select">
@@ -469,6 +482,7 @@
         function previewCampaign() {
             const stage = document.getElementById('target_stage').value;
             const productId = document.getElementById('target_product_id').value;
+            const targetUserId = document.getElementById('target_user_id') ? document.getElementById('target_user_id').value : '';
             const btnStart = document.getElementById('btnStart');
 
             // Disable start button during preview fetch
@@ -493,6 +507,7 @@
                 body: JSON.stringify({
                     stage: stage,
                     product_id: productId,
+                    target_user_id: targetUserId,
                     template_id: document.getElementById('template_id').value
                 })
             })

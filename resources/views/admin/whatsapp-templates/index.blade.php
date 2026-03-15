@@ -205,10 +205,12 @@
                 <h2 class="page-title-modern">WhatsApp Templates</h2>
                 <p class="text-muted mt-1 mb-0" style="font-size: 0.9rem;">Design and manage your rich media messaging templates</p>
             </div>
-            <button class="btn-create-modern" onclick="openTemplateModal()">
-                <i data-lucide="plus-circle" style="width: 20px; height: 20px;"></i> 
-                <span>Create Template</span>
-            </button>
+            @if(can('whatsapp-templates.global'))
+                <button class="btn-create-modern" onclick="openTemplateModal()">
+                    <i data-lucide="plus-circle" style="width: 20px; height: 20px;"></i> 
+                    <span>Create Template</span>
+                </button>
+            @endif
         </div>
 
         @if(session('success'))
@@ -229,6 +231,7 @@
                         <tr>
                             <th>Template Name</th>
                             <th>Template Code</th>
+                            <th>Creator</th>
                             <th>Format</th>
                             <th>Content Preview</th>
                             <th>Attachment</th>
@@ -244,6 +247,16 @@
                                 </td>
                                 <td>
                                     <code style="background: #f1f5f9; padding: 3px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; color: #6366f1; letter-spacing: 1px;">{{ $template->template_code }}</code>
+                                </td>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <div style="width: 28px; height: 28px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; color: #64748b; font-weight: 600; font-size: 0.75rem;">
+                                            {{ substr($template->user->name ?? 'A', 0, 1) }}
+                                        </div>
+                                        <span style="font-size: 0.9rem; font-weight: 500; color: #475569;">
+                                            {{ $template->user->name ?? 'System' }}
+                                        </span>
+                                    </div>
                                 </td>
                                 <td>
                                     <span class="type-badge type-{{ $template->type }}">
@@ -276,9 +289,20 @@
                                 </td>
                                 <td class="text-end">
                                     <div class="d-flex justify-content-end align-items-center gap-2">
-                                        <button type="button" class="action-btn btn-edit-modern" onclick='editTemplate({{ json_encode($template) }})' title="Edit Template">
-                                            <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
-                                        </button>
+                                        @if(can('whatsapp-templates.global') || $template->user_id == auth()->id())
+                                            <button type="button" class="action-btn btn-edit-modern" onclick='editTemplate({{ json_encode($template) }})' title="Edit Template">
+                                                <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
+                                            </button>
+                                            <form action="{{ route('admin.whatsapp-templates.destroy', $template->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this template?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="action-btn btn-delete-modern" title="Delete Template">
+                                                    <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                                                </button>
+                                            </form>
+                                        @else
+                                            <span style="font-size:0.8rem;color:#94a3b8;font-style:italic;">Read-only</span>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
