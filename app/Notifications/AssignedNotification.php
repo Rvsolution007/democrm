@@ -38,12 +38,16 @@ class AssignedNotification extends Notification
 
     private function buildUrl(): string
     {
-        return match ($this->entityType) {
-            'lead' => route('admin.leads.index', [], false),
-            'task' => route('admin.tasks.index', [], false),
-            'project' => route('admin.projects.show', $this->entityId, false),
-            default => route('admin.dashboard', [], false),
+        $baseUrl = rtrim(config('app.url', url('/')), '/');
+        
+        $path = match ($this->entityType) {
+            'lead' => '/admin/leads',
+            'task' => '/admin/tasks',
+            'project' => '/admin/projects/' . $this->entityId,
+            default => '/admin/dashboard',
         };
+        
+        return $baseUrl . $path;
     }
 
     private function getIcon(): string

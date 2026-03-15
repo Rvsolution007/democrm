@@ -50,13 +50,17 @@ class FollowupTodayNotification extends Notification
 
     private function buildUrl(): string
     {
-        return match ($this->entityType) {
-            'lead' => route('admin.leads.show', $this->entityId),
-            'micro_task' => route('admin.micro-tasks.index'),
-            'task' => route('admin.tasks.index'),
-            'project' => route('admin.projects.show', $this->entityId),
-            default => route('admin.dashboard'),
+        $baseUrl = rtrim(config('app.url', url('/')), '/');
+        
+        $path = match ($this->entityType) {
+            'lead' => '/admin/leads/' . $this->entityId,
+            'micro_task' => '/admin/micro-tasks',
+            'task' => '/admin/tasks',
+            'project' => '/admin/projects/' . $this->entityId,
+            default => '/admin/dashboard',
         };
+        
+        return $baseUrl . $path;
     }
 
     private function getIcon(): string
