@@ -97,88 +97,96 @@ class ProcessWhatsappCampaigns extends Command
                     $phone = '91' . $phone; // Assuming India default
                 }
 
-                $payload = [];
-                $endpoint = '';
-
-                // Prepare payload based on template type
-                if (strtolower($template->type) === 'text') {
-                    $endpoint = "{$apiUrl}/message/sendText/{$instanceName}";
-                    $payload = [
-                        'number' => $phone,
-                        'text' => $template->message_text,
-                        'delay' => 1200,
-                    ];
-                } else if (in_array(strtolower($template->type), ['image', 'video', 'pdf'])) {
-                    $endpoint = "{$apiUrl}/message/sendMedia/{$instanceName}";
-
-                    // Read file from local storage and convert to base64 for Evolution API
-                    $filePath = storage_path('app/public/' . $template->media_path);
-
-                    if (!file_exists($filePath)) {
-                        Log::error("WhatsApp Bulk: Media file not found at {$filePath}");
-                        $recipient->update(['status' => 'failed', 'error_message' => "Media file not found on server"]);
-                        $campaign->increment('total_failed');
-                        continue;
-                    }
-
-                    $fileContent = file_get_contents($filePath);
-                    $mimeType = mime_content_type($filePath);
-                    // Evolution API requires PLAIN base64, NOT data URI format
-                    $base64Media = base64_encode($fileContent);
-
-                    $templateType = strtolower($template->type);
-                    $mediaType = $templateType === 'pdf' ? 'document' : $templateType;
-                    $originalFileName = basename($template->media_path);
-
-                    $payload = [
-                        'number' => $phone,
-                        'mediatype' => $mediaType,
-                        'mimetype' => $mimeType,
-                        'caption' => $template->message_text ?? '',
-                        'media' => $base64Media,
-                        'fileName' => $originalFileName,
-                        'delay' => 1200,
-                    ];
-
-                    Log::info("WhatsApp Bulk: Sending {$mediaType} to {$phone}, mime={$mimeType}, file={$originalFileName}, base64_length=" . strlen($base64Media));
-                } else {
-                    Log::error("WhatsApp Bulk Error: Unknown template type {$template->type}");
-                    $recipient->update(['status' => 'failed', 'error_message' => "Unknown template type: {$template->type}"]);
-                    $campaign->increment('total_failed');
-                    continue;
-                }
+                $mediaFiles = is_array($template->media_files) ? $template->media_files : [];
+                $textMsg = trim($template->message_text ?? '');
+                $totalMedia = count($mediaFiles);
 
                 try {
-                    Log::info("WhatsApp Bulk: Sending to endpoint: {$endpoint}");
-                    // Send to Evolution API
-                    $response = Http::withHeaders([
-                        'apikey' => $apiKey,
-                        'Content-Type' => 'application/json'
-                    ])->timeout(60)->post($endpoint, $payload);
+                    if ($totalMedia === 0 && !empty($textMsg)) {
+                        // Text only
+                        $endpoint = "{$apiUrl}/message/sendText/{$instanceName}";
+                        $payload = [
+                            'number' => $phone,
+                            'text' => $textMsg,
+                            'delay' => 1200,
+                        ];
+                        
+                        $response = Http::withHeaders([
+                            'apikey' => $apiKey,
+                            'Content-Type' => 'application/json'
+                        ])->timeout(60)->post($endpoint, $payload);
+                        
+                        if (!$response->successful()) {
+                            throw new \Exception("API Error: " . $response->body());
+                        }
 
-                    if ($response->successful()) {
-                        $recipient->update([
-                            'status' => 'sent',
-                            'sent_at' => now()
-                        ]);
-                        $campaign->increment('total_sent');
-                        Log::info("WhatsApp Bulk: Successfully sent to {$phone}");
+                    } else if ($totalMedia > 0) {
+                        // Multiple media files
+                        $endpoint = "{$apiUrl}/message/sendMedia/{$instanceName}";
+
+                        foreach ($mediaFiles as $index => $media) {
+                            $filePath = storage_path('app/public/' . $media['path']);
+                            if (!file_exists($filePath)) {
+                                Log::error("WhatsApp Bulk: Media file not found at {$filePath}");
+                                continue; // Skip missing file but try others
+                            }
+
+                            $fileContent = file_get_contents($filePath);
+                            $mimeType = mime_content_type($filePath);
+                            $base64Media = base64_encode($fileContent);
+                            
+                            // Determine type dynamically or fallback to template type
+                            $ext = strtolower(pathinfo($media['path'], PATHINFO_EXTENSION));
+                            if (in_array($ext, ['png', 'jpg', 'jpeg', 'webp'])) $mediaType = 'image';
+                            elseif (in_array($ext, ['mp4', '3gp'])) $mediaType = 'video';
+                            else $mediaType = 'document';
+
+                            $isLast = ($index === $totalMedia - 1);
+                            $caption = ($isLast && !empty($textMsg)) ? $textMsg : '';
+
+                            $payload = [
+                                'number' => $phone,
+                                'mediatype' => $mediaType,
+                                'mimetype' => $mimeType,
+                                'caption' => $caption,
+                                'media' => $base64Media,
+                                'fileName' => basename($media['path']),
+                                'delay' => 1200,
+                            ];
+
+                            Log::info("WhatsApp Bulk: Sending {$mediaType} ({$index+1}/{$totalMedia}) to {$phone}");
+                            
+                            $response = Http::withHeaders([
+                                'apikey' => $apiKey,
+                                'Content-Type' => 'application/json'
+                            ])->timeout(60)->post($endpoint, $payload);
+                            
+                            if (!$response->successful()) {
+                                throw new \Exception("API Error on media {$index}: " . $response->body());
+                            }
+                            
+                            // Prevent spam banning if multiple files go out too fast
+                            if (!$isLast) sleep(2);
+                        }
                     } else {
-                        $errorBody = $response->body();
-                        Log::error("WhatsApp Bulk: API Error for {$phone}: Status={$response->status()}, Body={$errorBody}");
-                        $recipient->update([
-                            'status' => 'failed',
-                            'error_message' => $errorBody
-                        ]);
-                        $campaign->increment('total_failed');
+                        throw new \Exception("Template has no media and no text.");
                     }
+
+                    // If we reach here, it means all parts succeeded
+                    $recipient->update([
+                        'status' => 'sent',
+                        'sent_at' => now()
+                    ]);
+                    $campaign->increment('total_sent');
+                    Log::info("WhatsApp Bulk: Successfully sent sequence to {$phone}");
+
                 } catch (\Exception $e) {
                     $recipient->update([
                         'status' => 'failed',
                         'error_message' => $e->getMessage()
                     ]);
                     $campaign->increment('total_failed');
-                    Log::error("WhatsApp Bulk Error: " . $e->getMessage());
+                    Log::error("WhatsApp Bulk Error for {$phone}: " . $e->getMessage());
                 }
 
                 // CRITICAL SECURITY LOGIC: Sleep for 20 seconds

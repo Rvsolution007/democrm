@@ -15,7 +15,11 @@ class WhatsappTemplate extends Model
         'template_code',
         'type',
         'message_text',
-        'media_path',
+        'media_files',
+    ];
+
+    protected $casts = [
+        'media_files' => 'array',
     ];
 
     protected static function boot()

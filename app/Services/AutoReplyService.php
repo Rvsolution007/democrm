@@ -217,38 +217,60 @@ class AutoReplyService
             // Format phone for Evolution API (with @s.whatsapp.net)
             $formattedPhone = $this->formatPhoneForApi($recipientPhone);
 
-            if ($template->type === 'text') {
+            $mediaFiles = is_array($template->media_files) ? $template->media_files : [];
+            $textMsg = trim($template->message_text ?? '');
+            $totalMedia = count($mediaFiles);
+
+            if ($totalMedia === 0 && !empty($textMsg)) {
                 // Send text message
                 $response = Http::withHeaders([
                     'apikey' => $config['api_key'],
                     'Content-Type' => 'application/json',
                 ])->post("{$config['api_url']}/message/sendText/{$instanceName}", [
                     'number' => $formattedPhone,
-                    'text' => $template->message_text ?? '',
+                    'text' => $textMsg,
                 ]);
-            } else {
-                // Send media message (image, video, pdf)
-                $mediaUrl = $this->getMediaUrl($template->media_path);
-                $mediaType = $this->getMediaType($template->type);
+                
+                if (!$response->successful()) {
+                    return ['success' => false, 'error' => 'api_error: ' . $response->body()];
+                }
+            } else if ($totalMedia > 0) {
+                // Send multiple media files sequentially
+                foreach ($mediaFiles as $index => $media) {
+                    $mediaUrl = $this->getMediaUrl($media['path']);
+                    
+                    // Determine type locally
+                    $ext = strtolower(pathinfo($media['path'], PATHINFO_EXTENSION));
+                    if (in_array($ext, ['png', 'jpg', 'jpeg', 'webp'])) $mediaType = 'image';
+                    elseif (in_array($ext, ['mp4', '3gp'])) $mediaType = 'video';
+                    else $mediaType = 'document';
 
-                $response = Http::withHeaders([
-                    'apikey' => $config['api_key'],
-                    'Content-Type' => 'application/json',
-                ])->post("{$config['api_url']}/message/sendMedia/{$instanceName}", [
-                    'number' => $formattedPhone,
-                    'mediatype' => $mediaType,
-                    'mimetype' => $this->getMimeType($template->type, $template->media_path),
-                    'caption' => $template->message_text ?? '',
-                    'media' => $mediaUrl,
-                ]);
+                    $isLast = ($index === $totalMedia - 1);
+                    $caption = ($isLast && !empty($textMsg)) ? $textMsg : '';
+
+                    $response = Http::withHeaders([
+                        'apikey' => $config['api_key'],
+                        'Content-Type' => 'application/json',
+                    ])->post("{$config['api_url']}/message/sendMedia/{$instanceName}", [
+                        'number' => $formattedPhone,
+                        'mediatype' => $mediaType,
+                        'mimetype' => $this->getMimeType($mediaType, $media['path']),
+                        'caption' => $caption,
+                        'media' => $mediaUrl,
+                        'fileName' => basename($media['path']),
+                    ]);
+
+                    if (!$response->successful()) {
+                        Log::error("AutoReply: Media send {$index} failed for {$formattedPhone}: " . $response->body());
+                        return ['success' => false, 'error' => 'api_error: ' . $response->body()];
+                    }
+                    if (!$isLast) sleep(1); // minor delay to ensure chronological ordering via API
+                }
+            } else {
+                return ['success' => false, 'error' => 'empty_template'];
             }
 
-            if ($response->successful()) {
-                return ['success' => true];
-            } else {
-                Log::error("AutoReply: Evolution API send failed: " . $response->body());
-                return ['success' => false, 'error' => 'api_error: ' . $response->status()];
-            }
+            return ['success' => true];
         } catch (\Exception $e) {
             Log::error("AutoReply: Send exception: " . $e->getMessage());
             return ['success' => false, 'error' => $e->getMessage()];

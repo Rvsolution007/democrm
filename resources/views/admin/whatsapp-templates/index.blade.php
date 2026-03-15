@@ -273,10 +273,14 @@
                                     </div>
                                 </td>
                                 <td>
-                                    @if($template->media_path)
-                                        <a href="{{ Storage::url($template->media_path) }}" target="_blank" class="media-preview-btn">
-                                            <i data-lucide="external-link" style="width:14px;height:14px;"></i> View Asset
-                                        </a>
+                                    @if(is_array($template->media_files) && count($template->media_files) > 0)
+                                        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                        @foreach($template->media_files as $idx => $media)
+                                            <a href="{{ Storage::url($media['path']) }}" target="_blank" class="media-preview-btn" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;" title="{{ $media['name'] }}">
+                                                <i data-lucide="paperclip" style="width:12px;height:12px;"></i> #{{$idx + 1}}
+                                            </a>
+                                        @endforeach
+                                        </div>
                                     @else
                                         <span class="badge" style="background: #f1f5f9; color: #94a3b8; font-weight: 400; padding: 0.4rem 0.8rem;">Text Only</span>
                                     @endif
@@ -369,27 +373,17 @@
                 </div>
 
                 <div class="mb-3" id="mediaInputContainer" style="display:none; margin-top:15px;">
-                    <label class="form-label fw-bold">Upload Media File</label>
+                    <label class="form-label fw-bold">Upload Media Files (Drag to reorder)</label>
+                    <input type="file" name="media_files[]" id="mediaFile" class="form-control form-input" accept="" multiple>
+                    <small id="mediaHelpText" class="text-muted" style="font-size:12px; display:block; margin-top:4px; max-width:100%; word-break:break-word;"></small>
                     
-                    <!-- Current Media Preview (only visible when editing) -->
-                    <div id="currentMediaPreview" style="display:none; margin-bottom: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 15px; flex-direction: column; gap: 10px;">
-                        <div style="display:flex; align-items:center; justify-content: space-between; width: 100%;">
-                            <div style="display:flex; align-items:center; gap: 10px;">
-                                <i data-lucide="paperclip" style="width:16px; height:16px; color:#64748b;"></i>
-                                <div style="font-size: 0.85rem;">
-                                    <span style="color:#64748b; font-weight:500;">Current file:</span>
-                                    <span id="currentMediaName" style="color:#0f172a; font-weight:600; margin-left: 5px;"></span>
-                                </div>
-                            </div>
-                            <a id="currentMediaLink" href="#" target="_blank" class="media-preview-btn" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">View File</a>
-                        </div>
-                        <div id="visualMediaContainer" style="display:none; text-align:center; padding-top: 10px; border-top: 1px dashed #e2e8f0;">
-                            <!-- Dynamic preview content -->
-                        </div>
+                    <input type="hidden" name="existing_media" id="existingMediaInput" value="[]">
+
+                    <div style="margin-top: 15px;">
+                        <ul id="sortableMediaList" style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px;">
+                            <!-- File preview items injected via JS -->
+                        </ul>
                     </div>
-                    
-                    <input type="file" name="media_file" id="mediaFile" class="form-control form-input" accept="">
-                    <small id="mediaHelpText" class="text-muted" style="font-size:12px; display:block; margin-top:4px;"></small>
                 </div>
 
                 <div class="mb-3" style="margin-top:15px;">
@@ -409,17 +403,64 @@
 @endsection
 
 @push('scripts')
+    <!-- SortableJS for drag-and-drop -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script>
+        let selectedFiles = []; // Holds new File objects
+        let existingFiles = []; // Holds existing JSON objects from DB
+        
+        // Setup Sortable
+        let sortableList;
+        document.addEventListener('DOMContentLoaded', function () {
+            const listEl = document.getElementById('sortableMediaList');
+            sortableList = new Sortable(listEl, {
+                animation: 150,
+                handle: '.drag-handle',
+                ghostClass: 'sortable-ghost',
+                onEnd: function (evt) {
+                    // Update internal arrays when user finishes dragging
+                    const type = evt.item.dataset.type;
+                    const oldIndex = evt.oldIndex;
+                    const newIndex = evt.newIndex;
+                    
+                    // The DOM is already reordered, we just need to reconstruct our combined virtual array layout
+                    syncArraysFromDOM();
+                }
+            });
+        });
+
+        function syncArraysFromDOM() {
+            const items = document.querySelectorAll('#sortableMediaList li');
+            let newExisting = [];
+            let newSelected = [];
+            
+            items.forEach(item => {
+                if (item.dataset.type === 'existing') {
+                    const id = item.dataset.id;
+                    const f = existingFiles.find(ex => ex.path === id);
+                    if (f) newExisting.push(f);
+                } else {
+                    const id = item.dataset.id;
+                    const f = selectedFiles.find(sel => sel.name === id);
+                    if (f) newSelected.push(f);
+                }
+            });
+            
+            existingFiles = newExisting;
+            selectedFiles = newSelected;
+            document.getElementById('existingMediaInput').value = JSON.stringify(existingFiles);
+        }
         function openTemplateModal() {
             document.getElementById('modalTitle').textContent = 'Create Template';
             document.getElementById('templateForm').action = "{{ route('admin.whatsapp-templates.store') }}";
             document.getElementById('formMethod').value = 'POST';
             document.getElementById('templateForm').reset();
             
-            // Hide current media preview on new template creation
-            document.getElementById('currentMediaPreview').style.display = 'none';
+            selectedFiles = [];
+            existingFiles = [];
+            document.getElementById('existingMediaInput').value = '[]';
+            renderMediaList();
 
-            // Remove simulated required asterisk
             document.getElementById('templateType').value = 'text';
             toggleMediaInput();
 
@@ -440,34 +481,14 @@
             document.getElementById('templateType').value = template.type;
             document.getElementById('messageText').value = template.message_text;
             
-            // Handle current media preview
-            const currentMediaPreview = document.getElementById('currentMediaPreview');
-            const visualMediaContainer = document.getElementById('visualMediaContainer');
-            if (template.media_path) {
-                currentMediaPreview.style.display = 'flex';
-                // Extract filename from path
-                const fileName = template.media_path.split('/').pop();
-                document.getElementById('currentMediaName').textContent = fileName;
-                // Get the current APP_URL and format the link
-                const baseUrl = window.location.origin;
-                const fileUrl = baseUrl + '/storage/' + template.media_path;
-                document.getElementById('currentMediaLink').href = fileUrl;
-                
-                // Show visual preview based on type
-                visualMediaContainer.style.display = 'block';
-                if (template.type === 'image') {
-                    visualMediaContainer.innerHTML = `<img src="${fileUrl}" style="max-width: 100%; max-height: 250px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" alt="Image Preview">`;
-                } else if (template.type === 'video') {
-                    visualMediaContainer.innerHTML = `<video src="${fileUrl}" controls style="max-width: 100%; max-height: 250px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></video>`;
-                } else if (template.type === 'pdf') {
-                    visualMediaContainer.innerHTML = `<iframe src="${fileUrl}" style="width: 100%; height: 250px; border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>`;
-                } else {
-                    visualMediaContainer.style.display = 'none';
-                }
-            } else {
-                currentMediaPreview.style.display = 'none';
-            }
-
+            selectedFiles = [];
+            existingFiles = Array.isArray(template.media_files) ? template.media_files : [];
+            document.getElementById('existingMediaInput').value = JSON.stringify(existingFiles);
+            
+            // Optional: reset file input to clear any previous local files
+            document.getElementById('mediaFile').value = '';
+            
+            renderMediaList();
             toggleMediaInput();
 
             openModal('templateModal');
@@ -525,50 +546,137 @@
                 container.style.display = 'block';
                 input.setAttribute('accept', rule.accept);
                 helpText.textContent = rule.help;
-                if (document.getElementById('formMethod').value === 'POST') {
-                    input.setAttribute('required', 'required');
-                } else {
-                    input.removeAttribute('required');
-                }
             } else {
                 container.style.display = 'none';
                 input.removeAttribute('required');
             }
         }
 
-        document.addEventListener('DOMContentLoaded', function () {
-            // Initialize lucide icons if needed
+        // File Selection handling
+        document.getElementById('mediaFile').addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            selectedFiles = [...selectedFiles, ...files];
+            
+            // Clear the actual input so user can select the same file again if desired
+            e.target.value = '';
+            
+            renderMediaList();
+        });
+
+        function removeMedia(type, id) {
+            if (type === 'existing') {
+                existingFiles = existingFiles.filter(f => f.path !== id);
+                document.getElementById('existingMediaInput').value = JSON.stringify(existingFiles);
+            } else {
+                selectedFiles = selectedFiles.filter(f => f.name !== id);
+            }
+            renderMediaList();
+        }
+
+        function renderMediaList() {
+            const listEl = document.getElementById('sortableMediaList');
+            listEl.innerHTML = '';
+            
+            // Since we combined arrays virtually on submit using syncArraysFromDOM, we just render them sequentially here
+            let html = '';
+            const baseUrl = window.location.origin + '/storage/';
+            
+            existingFiles.forEach((file, index) => {
+                html += createMediaCard(file.name, baseUrl + file.path, 'existing', file.path);
+            });
+            
+            selectedFiles.forEach((file, index) => {
+                const url = URL.createObjectURL(file);
+                html += createMediaCard(file.name, url, 'new', file.name);
+            });
+            
+            listEl.innerHTML = html;
+            
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
             }
+        }
 
-            // Client-side media preview
-            document.getElementById('mediaFile').addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                const currentMediaPreview = document.getElementById('currentMediaPreview');
-                const visualMediaContainer = document.getElementById('visualMediaContainer');
-                
-                if (file) {
-                    const fileUrl = URL.createObjectURL(file);
-                    const type = document.getElementById('templateType').value;
-                    
-                    document.getElementById('currentMediaName').textContent = file.name;
-                    document.getElementById('currentMediaLink').href = fileUrl;
-                    
-                    currentMediaPreview.style.display = 'flex';
-                    visualMediaContainer.style.display = 'block';
-                    
-                    if (type === 'image' && file.type.startsWith('image/')) {
-                        visualMediaContainer.innerHTML = `<img src="${fileUrl}" style="max-width: 100%; max-height: 250px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" alt="Image Preview">`;
-                    } else if (type === 'video' && file.type.startsWith('video/')) {
-                        visualMediaContainer.innerHTML = `<video src="${fileUrl}" controls style="max-width: 100%; max-height: 250px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></video>`;
-                    } else if (type === 'pdf' && file.type === 'application/pdf') {
-                        visualMediaContainer.innerHTML = `<iframe src="${fileUrl}" style="width: 100%; height: 250px; border: none; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></iframe>`;
-                    } else {
-                        visualMediaContainer.style.display = 'none';
+        function createMediaCard(fileName, fileUrl, type, id) {
+            const tType = document.getElementById('templateType').value;
+            let previewHtml = '';
+            
+            if (tType === 'image') {
+                previewHtml = `<img src="${fileUrl}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px;">`;
+            } else if (tType === 'video') {
+                previewHtml = `<video src="${fileUrl}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px;" muted></video>`;
+            } else {
+                previewHtml = `<div style="width: 50px; height: 50px; background: #e2e8f0; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><i data-lucide="file-text" style="color: #64748b;"></i></div>`;
+            }
+
+            return `
+                <li data-type="${type}" data-id="${id}" style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; cursor: default;">
+                    <div style="display: flex; align-items: center; gap: 12px; flex: 1; overflow: hidden;">
+                        <span class="drag-handle" style="cursor: grab; color: #cbd5e1; padding: 0 5px;">
+                            <i data-lucide="grip-vertical" style="width: 20px; height: 20px;"></i>
+                        </span>
+                        ${previewHtml}
+                        <div style="font-size: 0.85rem; font-weight: 600; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;">
+                            ${fileName} 
+                            <span style="font-size: 0.7rem; font-weight: normal; color: #94a3b8; display: block;">${type === 'existing' ? '(Saved)' : '(New)'}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <button type="button" onclick="removeMedia('${type}', '${id}')" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 5px; border-radius: 5px; display: inline-flex;">
+                            <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+                        </button>
+                    </div>
+                </li>
+            `;
+        }
+
+        // Intercept form submission to rebuild the FileList according to current sequence
+        document.getElementById('templateForm').addEventListener('submit', function(e) {
+            // First we ensure the logical array sequence matches the physical DOM sequence
+            syncArraysFromDOM();
+            
+            // Now build a new DataTransfer for the actual file input representing ONLY the new "selectedFiles"
+            // Wait, existing files do not need re-uploading, they are preserved via the existing_media array
+            // The order of the combined items indicates the FINAL sending order.
+            // Our backend needs to know the absolute final arrangement of EVERYTHING
+            // So we submit "existing_media[]" array order AND we submit "media_files[]" array order
+            // However, typical HTML forms can't easily interleave multipart files with standard text arrays for ordering.
+            // SOLUTION: We'll send a virtual JSON array describing the exact structural order.
+            
+            let structuralMap = [];
+            const items = document.querySelectorAll('#sortableMediaList li');
+            
+            const dt = new DataTransfer();
+            items.forEach((item, index) => {
+                if (item.dataset.type === 'existing') {
+                    structuralMap.push({ source: 'existing', identifier: item.dataset.id });
+                } else {
+                    const f = selectedFiles.find(sel => sel.name === item.dataset.id);
+                    if (f) {
+                        structuralMap.push({ source: 'new', identifier: f.name });
+                        dt.items.add(f); // Add to real payload
                     }
                 }
             });
+            
+            // Pass structural map to backend
+            const mapInput = document.createElement('input');
+            mapInput.type = 'hidden';
+            mapInput.name = 'structural_order';
+            mapInput.value = JSON.stringify(structuralMap);
+            this.appendChild(mapInput);
+            
+            // Reset the physical input's files
+            document.getElementById('mediaFile').files = dt.files;
+            
+            // Require at least 1 image/file if creating explicitly (if mandatory)
+            // Left to the backend for final verification
+        });
+        
+        document.addEventListener('DOMContentLoaded', function () {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
         });
     </script>
 @endpush
