@@ -35,6 +35,21 @@ class Project extends Model
         'budget' => 'integer',
     ];
 
+    protected static function booted()
+    {
+        static::updated(function ($project) {
+            if ($project->isDirty('status') && $project->status === 'completed') {
+                foreach ($project->tasks as $task) {
+                    if ($task->status !== 'done') {
+                        $task->status = 'done';
+                        $task->completed_at = now();
+                        $task->save();
+                    }
+                }
+            }
+        });
+    }
+
     // Relationships
     public function company(): BelongsTo
     {

@@ -23,16 +23,36 @@ class MicroTask extends Model
     protected static function booted()
     {
         static::saved(function ($microTask) {
-            if ($microTask->task && $microTask->task->project_id) {
-                if ($project = \App\Models\Project::find($microTask->task->project_id)) {
-                    $project->checkAndUpdateStatus();
+            $task = $microTask->task;
+            if ($task) {
+                $microTasks = $task->microTasks()->get();
+                if ($microTasks->isNotEmpty()) {
+                    $allDone = true;
+                    foreach ($microTasks as $mt) {
+                        if ($mt->status !== 'done') {
+                            $allDone = false;
+                            break;
+                        }
+                    }
+                    if ($allDone && $task->status !== 'done') {
+                        $task->status = 'done';
+                        $task->completed_at = now();
+                        $task->save();
+                    }
+                }
+
+                if ($task->project_id) {
+                    if ($project = \App\Models\Project::find($task->project_id)) {
+                        $project->checkAndUpdateStatus();
+                    }
                 }
             }
         });
 
         static::deleted(function ($microTask) {
-            if ($microTask->task && $microTask->task->project_id) {
-                if ($project = \App\Models\Project::find($microTask->task->project_id)) {
+            $task = $microTask->task;
+            if ($task && $task->project_id) {
+                if ($project = \App\Models\Project::find($task->project_id)) {
                     $project->checkAndUpdateStatus();
                 }
             }

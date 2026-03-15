@@ -59,6 +59,17 @@ class Task extends Model
                 }
             }
         });
+
+        static::updated(function ($task) {
+            if ($task->isDirty('status') && $task->status === 'done') {
+                foreach ($task->microTasks as $microTask) {
+                    if ($microTask->status !== 'done') {
+                        $microTask->status = 'done';
+                        $microTask->save();
+                    }
+                }
+            }
+        });
     }
 
     // Relationships
