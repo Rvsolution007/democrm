@@ -1,0 +1,8 @@
+﻿=== ALL LEADS WITH ANY FOLLOW-UP DATA ===
+NO leads with next_follow_up_at found at all!
+
+=== CHECK lead_followups TABLE ===
+NO followups found in lead_followups table!
+
+=== CHECK Fb Ad Lead 1 directly ===
+Not found!

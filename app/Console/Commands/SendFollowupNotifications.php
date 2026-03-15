@@ -11,7 +11,7 @@ use App\Notifications\FollowupTodayNotification;
 class SendFollowupNotifications extends Command
 {
     protected $signature = 'notifications:followups';
-    protected $description = 'Send notifications for leads/micro-tasks with follow-up matching current time';
+    protected $description = 'Send notifications for leads/micro-tasks with follow-up due (past or current)';
 
     public function handle()
     {
@@ -24,15 +24,17 @@ class SendFollowupNotifications extends Command
     }
 
     /**
-     * Lead follow-ups: exact minute match on next_follow_up_at
+     * Lead follow-ups: find all leads where next_follow_up_at is due (past or now)
+     * and notification hasn't been sent yet today for that lead.
+     * This ensures missed follow-ups are still caught.
      */
     private function processLeadFollowups(): int
     {
         $now = now();
-        $minuteStart = $now->copy()->startOfMinute();
-        $minuteEnd = $now->copy()->endOfMinute();
 
-        $leads = Lead::whereBetween('next_follow_up_at', [$minuteStart, $minuteEnd])
+        // Get all leads where follow-up time has passed (or is right now)
+        // and stage is not won/lost
+        $leads = Lead::where('next_follow_up_at', '<=', $now)
             ->whereNotNull('assigned_to_user_id')
             ->whereNotIn('stage', ['won', 'lost'])
             ->get();
@@ -43,7 +45,7 @@ class SendFollowupNotifications extends Command
             if (!$user)
                 continue;
 
-            // Avoid duplicate: check if same notification already sent today
+            // Avoid duplicate: check if same notification already sent today for this lead
             $exists = $user->notifications()
                 ->whereDate('created_at', now()->toDateString())
                 ->where('type', FollowupTodayNotification::class)
@@ -69,7 +71,7 @@ class SendFollowupNotifications extends Command
     {
         $today = now()->toDateString();
 
-        $microTasks = MicroTask::whereDate('follow_up_date', $today)
+        $microTasks = MicroTask::whereDate('follow_up_date', '<=', $today)
             ->whereNot('status', 'done')
             ->with('task')
             ->get();
