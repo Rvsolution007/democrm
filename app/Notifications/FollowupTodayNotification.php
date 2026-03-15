@@ -44,17 +44,18 @@ class FollowupTodayNotification extends Notification
             'message' => $message,
             'url' => $this->buildUrl(),
             'icon' => $this->getIcon(),
+            'time' => $this->followUpTime,
         ];
     }
 
     private function buildUrl(): string
     {
         return match ($this->entityType) {
-            'lead' => '/admin/leads/' . $this->entityId,
-            'micro_task' => route('admin.micro-tasks.index', [], false),
-            'task' => route('admin.tasks.index', [], false),
-            'project' => route('admin.projects.show', $this->entityId, false),
-            default => route('admin.dashboard', [], false),
+            'lead' => route('admin.leads.show', $this->entityId),
+            'micro_task' => route('admin.micro-tasks.index'),
+            'task' => route('admin.tasks.index'),
+            'project' => route('admin.projects.show', $this->entityId),
+            default => route('admin.dashboard'),
         };
     }
 

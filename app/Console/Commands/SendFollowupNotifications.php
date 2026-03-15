@@ -45,16 +45,18 @@ class SendFollowupNotifications extends Command
             if (!$user)
                 continue;
 
-            // Avoid duplicate: check if same notification already sent today for this lead
+            $followUpTime = $lead->next_follow_up_at->format('h:i A');
+
+            // Avoid duplicate: check if same notification already sent today for this exact follow-up time
             $exists = $user->notifications()
                 ->whereDate('created_at', now()->toDateString())
                 ->where('type', FollowupTodayNotification::class)
                 ->whereJsonContains('data->entity_type', 'lead')
                 ->whereJsonContains('data->entity_id', $lead->id)
+                ->whereJsonContains('data->time', $followUpTime)
                 ->exists();
 
             if (!$exists) {
-                $followUpTime = $lead->next_follow_up_at->format('h:i A');
                 $user->notify(new FollowupTodayNotification('lead', $lead->id, $lead->name, $followUpTime));
                 $count++;
             }
