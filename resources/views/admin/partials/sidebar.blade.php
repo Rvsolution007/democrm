@@ -67,6 +67,14 @@
                         class="nav-link {{ request()->routeIs('admin.whatsapp-templates.*') ? 'active' : '' }}">
                         <i data-lucide="message-square"></i> <span>Templates</span>
                     </a>
+                    <a href="{{ route('admin.whatsapp-auto-reply.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.whatsapp-auto-reply.*') && !request()->routeIs('admin.whatsapp-auto-reply.analytics') ? 'active' : '' }}">
+                        <i data-lucide="bot" style="color:#f59e0b"></i> <span>Auto-Reply Rules</span>
+                    </a>
+                    <a href="{{ route('admin.whatsapp-auto-reply.analytics') }}"
+                        class="nav-link {{ request()->routeIs('admin.whatsapp-auto-reply.analytics') ? 'active' : '' }}">
+                        <i data-lucide="bar-chart-3" style="color:#8b5cf6"></i> <span>Reply Analytics</span>
+                    </a>
                 @endif
 
             </div>

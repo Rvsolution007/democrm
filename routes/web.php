@@ -35,6 +35,9 @@ Route::get('/', function () {
     return redirect()->route('admin.dashboard');
 });
 
+// WhatsApp Webhook (public — no auth, Evolution API calls this)
+Route::post('/webhook/whatsapp/incoming/{instanceName}', [App\Http\Controllers\Web\WhatsappWebhookController::class, 'handleIncoming']);
+
 // Admin Panel Routes (protected by auth)
 Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
 
@@ -164,6 +167,21 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::post('whatsapp-campaigns/preview', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'preview'])->name('whatsapp-campaigns.preview');
     Route::get('whatsapp-campaigns/{campaign}', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'show'])->name('whatsapp-campaigns.show');
     Route::delete('whatsapp-campaigns/{campaign}', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'destroy'])->name('whatsapp-campaigns.destroy');
+
+    // WhatsApp Auto-Reply
+    Route::get('whatsapp-auto-reply', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'index'])->name('whatsapp-auto-reply.index');
+    Route::get('whatsapp-auto-reply/create', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'create'])->name('whatsapp-auto-reply.create');
+    Route::post('whatsapp-auto-reply', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'store'])->name('whatsapp-auto-reply.store');
+    Route::get('whatsapp-auto-reply/{id}/edit', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'edit'])->name('whatsapp-auto-reply.edit');
+    Route::put('whatsapp-auto-reply/{id}', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'update'])->name('whatsapp-auto-reply.update');
+    Route::delete('whatsapp-auto-reply/{id}', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'destroy'])->name('whatsapp-auto-reply.destroy');
+    Route::post('whatsapp-auto-reply/{id}/toggle', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'toggle'])->name('whatsapp-auto-reply.toggle');
+    Route::post('whatsapp-auto-reply/{id}/duplicate', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'duplicate'])->name('whatsapp-auto-reply.duplicate');
+    Route::post('whatsapp-auto-reply/pause-all', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'pauseAll'])->name('whatsapp-auto-reply.pause-all');
+    Route::get('whatsapp-auto-reply-analytics', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'analytics'])->name('whatsapp-auto-reply.analytics');
+    Route::get('whatsapp-auto-reply-blacklist', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'blacklist'])->name('whatsapp-auto-reply.blacklist');
+    Route::post('whatsapp-auto-reply-blacklist', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'addToBlacklist'])->name('whatsapp-auto-reply.blacklist.store');
+    Route::delete('whatsapp-auto-reply-blacklist/{id}', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'removeFromBlacklist'])->name('whatsapp-auto-reply.blacklist.destroy');
 
     // Leads
     Route::get('/leads/whatsapp-lookup', [LeadsController::class, 'whatsappLookup'])->name('leads.whatsapp-lookup');

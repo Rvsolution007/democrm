@@ -20,6 +20,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
         ]);
 
+        // Exclude webhook from CSRF verification
+        $middleware->validateCsrfTokens(except: [
+            'webhook/*',
+        ]);
+
         // CORS for frontend
         $middleware->statefulApi();
     })
