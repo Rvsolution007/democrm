@@ -3,104 +3,98 @@
 @push('styles')
 <style>
     .page-header-modern {
-        display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;
-        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-        padding: 1.5rem 2rem; border-radius: 16px;
-        box-shadow: 0 4px 20px -10px rgba(0,0,0,0.05); border: 1px solid rgba(226, 232, 240, 0.8);
+        display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;
+        background: #ffffff; padding: 1rem 1.5rem; border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;
     }
     .page-title-modern {
-        font-size: 1.75rem; font-weight: 700;
-        background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; letter-spacing: -0.5px;
+        font-size: 1.25rem; font-weight: 700; color: #0f172a; margin: 0;
     }
     .btn-create-modern {
-        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border: none;
-        padding: 0.75rem 1.5rem; border-radius: 12px; font-weight: 600;
-        display: inline-flex; align-items: center; gap: 0.5rem;
-        box-shadow: 0 4px 15px -3px rgba(245, 158, 11, 0.4); transition: all 0.3s ease; text-decoration: none;
+        background: #0f172a; color: white; border: none;
+        padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem;
+        display: inline-flex; align-items: center; gap: 0.4rem; text-decoration: none; transition: background 0.2s;
     }
-    .btn-create-modern:hover { transform: translateY(-2px); box-shadow: 0 8px 25px -5px rgba(245, 158, 11, 0.5); color: white; }
+    .btn-create-modern:hover { background: #1e293b; color: white; }
 
     .connection-banner {
-        padding: 1rem 1.5rem; border-radius: 14px; margin-bottom: 1.5rem;
-        display: flex; align-items: center; gap: 1rem; font-weight: 500;
+        padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem;
+        display: flex; align-items: center; gap: 0.75rem; font-weight: 500; font-size: 0.9rem;
     }
-    .connection-connected {
-        background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-        border: 1px solid #a7f3d0; color: #047857;
-    }
-    .connection-disconnected {
-        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-        border: 1px solid #fecaca; color: #dc2626;
-    }
+    .connection-connected { background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; }
+    .connection-disconnected { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
 
     .stat-card {
-        background: white; border-radius: 14px; padding: 1.25rem 1.5rem;
-        border: 1px solid #e2e8f0; text-align: center;
-        box-shadow: 0 2px 10px -5px rgba(0,0,0,0.05);
+        background: white; border-radius: 8px; padding: 1rem;
+        border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 1rem;
     }
-    .stat-card .stat-value { font-size: 2rem; font-weight: 800; color: #0f172a; }
-    .stat-card .stat-label { font-size: 0.8rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-
-    .rule-card {
-        background: white; border-radius: 16px; padding: 1.25rem 1.5rem;
-        border: 1px solid #e2e8f0; margin-bottom: 1rem;
-        transition: all 0.2s ease; box-shadow: 0 2px 10px -5px rgba(0,0,0,0.03);
+    .stat-card .stat-value { font-size: 1.5rem; font-weight: 800; color: #0f172a; line-height: 1; }
+    .stat-card .stat-label { font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    .rules-container {
+        background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden;
     }
-    .rule-card:hover { box-shadow: 0 8px 30px -10px rgba(0,0,0,0.08); transform: translateY(-1px); }
-    .rule-card .rule-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
-    .rule-card .rule-name { font-size: 1.1rem; font-weight: 700; color: #0f172a; }
-    .rule-card .rule-meta { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
-    .rule-card .rule-meta span { font-size: 0.8rem; color: #64748b; display: inline-flex; align-items: center; gap: 4px; }
+    
+    .rule-list-item {
+        padding: 0.8rem 1.25rem; border-bottom: 1px solid #f1f5f9;
+        display: flex; align-items: center; justify-content: space-between; transition: background 0.15s;
+    }
+    .rule-list-item:last-child { border-bottom: none; }
+    .rule-list-item:hover { background: #f8fafc; }
 
-    .match-badge { padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-    .match-exact { background: #eff6ff; color: #3b82f6; border: 1px solid #dbeafe; }
-    .match-contains { background: #fdf4ff; color: #d946ef; border: 1px solid #fae8ff; }
-    .match-any_message { background: #f0fdf4; color: #16a34a; border: 1px solid #dcfce7; }
-    .match-first_message { background: #fff7ed; color: #ea580c; border: 1px solid #ffedd5; }
+    .rule-main { display: flex; align-items: center; gap: 1rem; flex: 1; }
+    .rule-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .rule-status-dot.active { background: #22c55e; box-shadow: 0 0 0 3px #dcfce7; }
+    .rule-status-dot.paused { background: #94a3b8; }
+    
+    .rule-info { flex: 1; display: flex; flex-direction: column; gap: 0.2rem; }
+    .rule-title-row { display: flex; align-items: center; gap: 0.75rem; }
+    .rule-name { font-size: 0.95rem; font-weight: 700; color: #1e293b; }
+    
+    .rule-meta-row { display: flex; align-items: center; gap: 1.25rem; font-size: 0.75rem; color: #64748b; flex-wrap: wrap; }
+    .meta-item { display: inline-flex; align-items: center; gap: 0.3rem; }
+    .meta-label { font-weight: 600; color: #94a3b8; text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.5px; }
+    
+    .match-badge { padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .match-exact { background: #eff6ff; color: #3b82f6; }
+    .match-contains { background: #fdf4ff; color: #d946ef; }
+    .match-any_message { background: #f0fdf4; color: #16a34a; }
+    .match-first_message { background: #fff7ed; color: #ea580c; }
 
-    .toggle-switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+    .rule-actions { display: flex; align-items: center; gap: 1rem; }
+    
+    .toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; margin: 0; }
     .toggle-switch input { opacity: 0; width: 0; height: 0; }
-    .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #cbd5e1; border-radius: 26px; transition: 0.3s; }
-    .toggle-slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; }
+    .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #cbd5e1; border-radius: 20px; transition: 0.2s; }
+    .toggle-slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background: white; border-radius: 50%; transition: 0.2s; }
     .toggle-switch input:checked + .toggle-slider { background: #22c55e; }
-    .toggle-switch input:checked + .toggle-slider:before { transform: translateX(22px); }
+    .toggle-switch input:checked + .toggle-slider:before { transform: translateX(16px); }
 
+    .action-group { display: flex; align-items: center; gap: 0.25rem; }
     .action-btn {
-        width: 34px; height: 34px; border-radius: 10px;
-        display: inline-flex; align-items: center; justify-content: center;
-        border: none; transition: all 0.2s ease; cursor: pointer; background: #f1f5f9; color: #475569;
+        width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center;
+        border: none; background: transparent; color: #64748b; cursor: pointer; transition: all 0.15s;
     }
-    .action-btn:hover { transform: translateY(-2px); }
-    .btn-edit { color: #3b82f6; }
-    .btn-edit:hover { background: #3b82f6; color: white; }
-    .btn-dup { color: #8b5cf6; }
-    .btn-dup:hover { background: #8b5cf6; color: white; }
-    .btn-del { color: #ef4444; }
-    .btn-del:hover { background: #ef4444; color: white; }
+    .btn-edit:hover { background: #eff6ff; color: #3b82f6; }
+    .btn-dup:hover { background: #f5f3ff; color: #8b5cf6; }
+    .btn-del:hover { background: #fef2f2; color: #ef4444; }
 
     .btn-pause-all {
-        background: #fee2e2; color: #dc2626; border: 1px solid #fecaca;
-        padding: 0.6rem 1.25rem; border-radius: 10px; font-weight: 600; font-size: 0.85rem;
-        display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: all 0.2s;
+        background: white; color: #dc2626; border: 1px solid #fecaca;
+        padding: 0.4rem 0.8rem; border-radius: 6px; font-weight: 600; font-size: 0.8rem;
+        display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; transition: background 0.15s;
     }
-    .btn-pause-all:hover { background: #dc2626; color: white; }
+    .btn-pause-all:hover { background: #fef2f2; }
 
-    .empty-state { text-align: center; padding: 4rem 2rem; }
-    .empty-state-icon {
-        width: 80px; height: 80px; background: #fef9c3; border-radius: 50%;
-        display: inline-flex; align-items: center; justify-content: center;
-        margin-bottom: 1.5rem; color: #f59e0b;
-    }
-
-    .filter-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .filter-tabs { display: flex; gap: 0.4rem; margin-bottom: 1rem; }
     .filter-tab {
-        padding: 0.5rem 1rem; border-radius: 10px; font-size: 0.85rem; font-weight: 600;
-        cursor: pointer; border: 1px solid #e2e8f0; background: white; color: #64748b; transition: all 0.2s;
+        padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600;
+        cursor: pointer; border: 1px solid #e2e8f0; background: white; color: #64748b; transition: all 0.1s;
     }
     .filter-tab.active { background: #0f172a; color: white; border-color: #0f172a; }
-    .filter-tab:hover { background: #f1f5f9; }
-    .filter-tab.active:hover { background: #1e293b; }
+    .filter-tab:hover:not(.active) { background: #f8fafc; }
+    
+    .empty-state { text-align: center; padding: 3rem 1rem; }
 </style>
 @endpush
 
@@ -161,23 +155,23 @@
     @endif
 
     <!-- Stats Cards -->
-    <div class="row g-3 mb-4">
+    <div class="row g-2 mb-3">
         <div class="col-md-4">
             <div class="stat-card">
                 <div class="stat-value" style="color: #22c55e;">{{ $todayStats['active'] }}</div>
-                <div class="stat-label">✅ Active Rules</div>
+                <div class="stat-label">Active Rules</div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="stat-card">
                 <div class="stat-value" style="color: #3b82f6;">{{ $todayStats['total_sent_today'] }}</div>
-                <div class="stat-label">📊 Replies Today</div>
+                <div class="stat-label">Replies Today</div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="stat-card">
                 <div class="stat-value" style="color: #94a3b8;">{{ $todayStats['paused'] }}</div>
-                <div class="stat-label">⏸️ Paused</div>
+                <div class="stat-label">Paused Rules</div>
             </div>
         </div>
     </div>
@@ -190,70 +184,74 @@
     </div>
 
     <!-- Rules List -->
-    @forelse($rules as $rule)
-        <div class="rule-card" data-status="{{ $rule->is_active ? 'active' : 'paused' }}">
-            <div class="rule-header">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="width: 10px; height: 10px; border-radius: 50%; background: {{ $rule->is_active ? '#22c55e' : '#ef4444' }};"></span>
-                    <span class="rule-name">{{ $rule->name }}</span>
-                    <span class="match-badge match-{{ $rule->match_type }}">
-                        {{ str_replace('_', ' ', $rule->match_type) }}
-                    </span>
+    <div class="rules-container">
+        @forelse($rules as $rule)
+            <div class="rule-list-item rule-card" data-status="{{ $rule->is_active ? 'active' : 'paused' }}">
+                <div class="rule-main">
+                    <div class="rule-status-dot {{ $rule->is_active ? 'active' : 'paused' }}" title="{{ $rule->is_active ? 'Active' : 'Paused' }}"></div>
+                    
+                    <div class="rule-info">
+                        <div class="rule-title-row">
+                            <span class="rule-name">{{ $rule->name }}</span>
+                            <span class="match-badge match-{{ $rule->match_type }}">{{ str_replace('_', ' ', $rule->match_type) }}</span>
+                        </div>
+                        
+                        <div class="rule-meta-row">
+                            <span class="meta-item"><span class="meta-label">TPL:</span> <strong style="color:#0f172a">{{ $rule->template->name ?? 'None' }}</strong></span>
+                            @if($rule->keywords && count($rule->keywords) > 0)
+                                <span class="meta-item"><span class="meta-label">KWD:</span> <strong style="color:#0f172a">{{ implode(', ', $rule->keywords) }}</strong></span>
+                            @endif
+                            <span class="meta-item"><i data-lucide="{{ $rule->is_one_time ? 'lock' : 'repeat' }}" style="width:12px; height:12px;"></i> {{ $rule->is_one_time ? 'One-time' : 'Repeat' }}</span>
+                            <span class="meta-item"><span class="meta-label">Delay:</span> {{ $rule->reply_delay_seconds }}s</span>
+                            @if($rule->cooldown_hours > 0)
+                                <span class="meta-item"><span class="meta-label">Cooldown:</span> {{ $rule->cooldown_hours }}h</span>
+                            @endif
+                            @if($rule->business_hours_only)
+                                <span class="meta-item"><i data-lucide="clock" style="width:12px; height:12px;"></i> {{ \Carbon\Carbon::parse($rule->business_hours_start)->format('H:i') }} - {{ \Carbon\Carbon::parse($rule->business_hours_end)->format('H:i') }}</span>
+                            @endif
+                            <span class="meta-item" style="color:#16a34a; font-weight:600;"><i data-lucide="send" style="width:12px; height:12px;"></i> {{ $rule->total_sent }} sent</span>
+                            @if($rule->total_skipped > 0)
+                                <span class="meta-item" style="color:#f59e0b; font-weight:600;"><i data-lucide="skip-forward" style="width:12px; height:12px;"></i> {{ $rule->total_skipped }} skipped</span>
+                            @endif
+                        </div>
+                    </div>
                 </div>
-                <label class="toggle-switch">
-                    <input type="checkbox" {{ $rule->is_active ? 'checked' : '' }} onchange="toggleRule({{ $rule->id }})">
-                    <span class="toggle-slider"></span>
-                </label>
-            </div>
 
-            <div class="rule-meta">
-                <span>📝 Template: <strong>{{ $rule->template->name ?? 'Not Set' }}</strong></span>
-                @if($rule->keywords && count($rule->keywords) > 0)
-                    <span>🔑 Keywords: <strong>{{ implode(', ', $rule->keywords) }}</strong></span>
-                @endif
-                <span>{{ $rule->is_one_time ? '🔒 One-time' : '🔄 Repeat' }}</span>
-                <span>⏱️ Cooldown: {{ $rule->cooldown_hours }}h</span>
-                <span>⏳ Delay: {{ $rule->reply_delay_seconds }}s</span>
-                <span>📊 Priority: {{ $rule->priority }}/10</span>
-                @if($rule->business_hours_only)
-                    <span>🕐 {{ $rule->business_hours_start }} – {{ $rule->business_hours_end }}</span>
-                @endif
-                <span style="color: #22c55e; font-weight: 600;">▲ {{ $rule->total_sent }} sent</span>
-                <span style="color: #f59e0b; font-weight: 600;">⏭️ {{ $rule->total_skipped }} skipped</span>
+                <div class="rule-actions">
+                    <label class="toggle-switch">
+                        <input type="checkbox" {{ $rule->is_active ? 'checked' : '' }} onchange="toggleRule({{ $rule->id }})">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div class="action-group">
+                        <a href="{{ route('admin.whatsapp-auto-reply.edit', $rule->id) }}" class="action-btn btn-edit" title="Edit">
+                            <i data-lucide="edit-2" style="width: 14px; height: 14px;"></i>
+                        </a>
+                        <form action="{{ route('admin.whatsapp-auto-reply.duplicate', $rule->id) }}" method="POST" style="display:inline;">
+                            @csrf
+                            <button type="submit" class="action-btn btn-dup" title="Duplicate">
+                                <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                            </button>
+                        </form>
+                        <form action="{{ route('admin.whatsapp-auto-reply.destroy', $rule->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this rule?')">
+                            @csrf @method('DELETE')
+                            <button type="submit" class="action-btn btn-del" title="Delete">
+                                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
-
-            <div style="margin-top: 0.75rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
-                <a href="{{ route('admin.whatsapp-auto-reply.edit', $rule->id) }}" class="action-btn btn-edit" title="Edit">
-                    <i data-lucide="edit-2" style="width: 15px; height: 15px;"></i>
-                </a>
-                <form action="{{ route('admin.whatsapp-auto-reply.duplicate', $rule->id) }}" method="POST" style="display:inline;">
-                    @csrf
-                    <button type="submit" class="action-btn btn-dup" title="Duplicate">
-                        <i data-lucide="copy" style="width: 15px; height: 15px;"></i>
-                    </button>
-                </form>
-                <form action="{{ route('admin.whatsapp-auto-reply.destroy', $rule->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this rule?')">
-                    @csrf @method('DELETE')
-                    <button type="submit" class="action-btn btn-del" title="Delete">
-                        <i data-lucide="trash-2" style="width: 15px; height: 15px;"></i>
-                    </button>
-                </form>
-            </div>
-        </div>
-    @empty
-        <div class="rule-card">
+        @empty
             <div class="empty-state">
-                <div class="empty-state-icon">
-                    <i data-lucide="bot" style="width: 40px; height: 40px; stroke-width: 1.5;"></i>
-                </div>
-                <h4 style="color: #1e293b; font-weight: 600;">No Auto-Reply Rules Yet</h4>
-                <p style="color: #64748b; max-width: 400px; margin: 0.5rem auto;">Create your first rule to automatically respond to incoming WhatsApp messages.</p>
-                <a href="{{ route('admin.whatsapp-auto-reply.create') }}" class="btn-create-modern mt-3" style="padding: 0.6rem 1.25rem; font-size: 0.9rem;">
-                    Create First Rule
+                <i data-lucide="message-square-dashed" style="width: 48px; height: 48px; color: #94a3b8; margin-bottom: 1rem;"></i>
+                <h5 style="color: #334155; font-weight: 600; margin-bottom: 0.25rem;">No rules found</h5>
+                <p style="color: #64748b; font-size: 0.9rem;">Auto-reply keeps your business running 24/7 without delays.</p>
+                <a href="{{ route('admin.whatsapp-auto-reply.create') }}" class="btn-create-modern mt-2" style="padding: 0.5rem 1rem;">
+                    Create Rule
                 </a>
             </div>
-        </div>
-    @endforelse
+        @endforelse
+    </div>
 
     <!-- Pause All Button -->
     @if($rules->where('is_active', true)->count() > 0)
