@@ -39,33 +39,42 @@ class Role extends Model
 
     // Available permissions
     public const PERMISSIONS = [
-        'leads.read',
-        'leads.write',
-        'leads.delete',
-        'clients.read',
-        'clients.write',
-        'clients.delete',
-        'quotes.read',
-        'quotes.write',
-        'quotes.delete',
-        'quotes.approve',
-        'products.read',
-        'products.write',
-        'products.delete',
-        'categories.read',
-        'categories.write',
-        'categories.delete',
-        'users.read',
-        'users.write',
-        'users.delete',
-        'roles.read',
-        'roles.write',
-        'roles.delete',
-        'activities.read',
-        'activities.write',
-        'tasks.read',
-        'tasks.write',
-        'tasks.delete',
+        // Sales
+        'leads.read', 'leads.write', 'leads.delete', 'leads.global',
+        'clients.read', 'clients.write', 'clients.delete', 'clients.global',
+        'quotes.read', 'quotes.write', 'quotes.delete', 'quotes.global', 'quotes.approve',
+        'invoices.read', 'invoices.write', 'invoices.delete', 'invoices.global',
+        'payments.read', 'payments.write', 'payments.delete', 'payments.global',
+        'followups.read', 'followups.write', 'followups.delete', 'followups.global',
+
+        // WhatsApp Bulk
+        'whatsapp-connect.read', 'whatsapp-connect.write',
+        'whatsapp-extension.read',
+        'whatsapp-campaigns.read', 'whatsapp-campaigns.write', 'whatsapp-campaigns.delete',
+        'whatsapp-templates.read', 'whatsapp-templates.write', 'whatsapp-templates.delete',
+        'whatsapp-auto-reply.read', 'whatsapp-auto-reply.write', 'whatsapp-auto-reply.delete',
+        'whatsapp-analytics.read',
+
+        // Catalog
+        'products.read', 'products.write', 'products.delete', 'products.global',
+        'categories.read', 'categories.write', 'categories.delete', 'categories.global',
+        'vendors.read', 'vendors.write', 'vendors.delete', 'vendors.global',
+        'purchases.read', 'purchases.write', 'purchases.delete', 'purchases.global',
+        'purchase-payments.read', 'purchase-payments.write', 'purchase-payments.delete', 'purchase-payments.global',
+
+        // Production
+        'projects.read', 'projects.write', 'projects.delete', 'projects.global',
+        'tasks.read', 'tasks.write', 'tasks.delete', 'tasks.global',
+        'micro-tasks.read', 'micro-tasks.write', 'micro-tasks.delete', 'micro-tasks.global',
+        'task-followups.read', 'task-followups.write', 'task-followups.delete', 'task-followups.global',
+        'service-templates.read', 'service-templates.write', 'service-templates.delete',
+
+        // Team
+        'users.read', 'users.write', 'users.delete', 'users.global',
+        'roles.read', 'roles.write', 'roles.delete', 'roles.global',
+        'activities.read', 'activities.write', 'activities.global',
+
+        // Analytics
         'reports.read',
         'settings.manage',
         'integrations.manage',

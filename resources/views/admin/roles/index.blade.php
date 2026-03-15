@@ -201,6 +201,121 @@
                                                 class="form-check-input perm-checkbox global-checkbox" data-section="sales"
                                                 name="permissions[]" value="quotes.global"></td>
                                     </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">Invoices</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="sales"
+                                                name="permissions[]" value="invoices.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="sales"
+                                                name="permissions[]" value="invoices.write"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="sales"
+                                                name="permissions[]" value="invoices.delete"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox global-checkbox" data-section="sales"
+                                                name="permissions[]" value="invoices.global"></td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">Payments</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="sales"
+                                                name="permissions[]" value="payments.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="sales"
+                                                name="permissions[]" value="payments.write"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="sales"
+                                                name="permissions[]" value="payments.delete"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox global-checkbox" data-section="sales"
+                                                name="permissions[]" value="payments.global"></td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">Follow-ups</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="sales"
+                                                name="permissions[]" value="followups.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="sales"
+                                                name="permissions[]" value="followups.write"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="sales"
+                                                name="permissions[]" value="followups.delete"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox global-checkbox" data-section="sales"
+                                                name="permissions[]" value="followups.global"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- WhatsApp Bulk Section -->
+                    <div style="margin-bottom:16px">
+                        <div
+                            style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8f9fa;border-radius:6px;margin-bottom:8px">
+                            <span
+                                style="font-weight:600;font-size:13px;color:#555;text-transform:uppercase;letter-spacing:0.03em">WhatsApp Bulk</span>
+                            <label class="form-check" style="margin:0"><input type="checkbox"
+                                    class="form-check-input section-toggle" data-section="whatsapp"
+                                    onchange="toggleSection(this, 'whatsapp')"> <span class="form-check-label"
+                                    style="font-size:12px">Select All</span></label>
+                        </div>
+                        <div style="padding-left:8px">
+                            <table style="width:100%;font-size:13px;border-collapse:collapse">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e0e0e0">
+                                        <th style="text-align:left;padding:8px 4px;font-weight:600;color:#666">Module</th>
+                                        <th style="text-align:center;padding:8px 4px;font-weight:600;color:#666;width:70px">Read</th>
+                                        <th style="text-align:center;padding:8px 4px;font-weight:600;color:#666;width:70px">Write</th>
+                                        <th style="text-align:center;padding:8px 4px;font-weight:600;color:#666;width:70px">Delete</th>
+                                        <th style="text-align:center;padding:8px 4px;font-weight:600;color:#2563eb;width:70px">Global</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">WhatsApp Connect</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-connect.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-connect.write"></td>
+                                        <td style="text-align:center;padding:8px 4px"></td>
+                                        <td style="text-align:center;padding:8px 4px"></td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">Chrome Extension</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-extension.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"></td>
+                                        <td style="text-align:center;padding:8px 4px"></td>
+                                        <td style="text-align:center;padding:8px 4px"></td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">Bulk Sender</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-campaigns.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-campaigns.write"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-campaigns.delete"></td>
+                                        <td style="text-align:center;padding:8px 4px"></td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">Templates</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-templates.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-templates.write"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-templates.delete"></td>
+                                        <td style="text-align:center;padding:8px 4px"></td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">Auto-Reply Rules</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-auto-reply.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-auto-reply.write"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-auto-reply.delete"></td>
+                                        <td style="text-align:center;padding:8px 4px"></td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">Reply Analytics</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox" class="form-check-input perm-checkbox" data-section="whatsapp" name="permissions[]" value="whatsapp-analytics.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"></td>
+                                        <td style="text-align:center;padding:8px 4px"></td>
+                                        <td style="text-align:center;padding:8px 4px"></td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -264,6 +379,51 @@
                                                 class="form-check-input perm-checkbox global-checkbox"
                                                 data-section="catalog" name="permissions[]" value="categories.global"></td>
                                     </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">Vendors</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="catalog"
+                                                name="permissions[]" value="vendors.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="catalog"
+                                                name="permissions[]" value="vendors.write"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="catalog"
+                                                name="permissions[]" value="vendors.delete"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox global-checkbox"
+                                                data-section="catalog" name="permissions[]" value="vendors.global"></td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">Purchases</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="catalog"
+                                                name="permissions[]" value="purchases.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="catalog"
+                                                name="permissions[]" value="purchases.write"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="catalog"
+                                                name="permissions[]" value="purchases.delete"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox global-checkbox"
+                                                data-section="catalog" name="permissions[]" value="purchases.global"></td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">Purchase Payments</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="catalog"
+                                                name="permissions[]" value="purchase-payments.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="catalog"
+                                                name="permissions[]" value="purchase-payments.write"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="catalog"
+                                                name="permissions[]" value="purchase-payments.delete"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox global-checkbox"
+                                                data-section="catalog" name="permissions[]" value="purchase-payments.global"></td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -326,6 +486,49 @@
                                         <td style="text-align:center;padding:8px 4px"><input type="checkbox"
                                                 class="form-check-input perm-checkbox global-checkbox"
                                                 data-section="production" name="permissions[]" value="tasks.global"></td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">Micro Tasks</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="production"
+                                                name="permissions[]" value="micro-tasks.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="production"
+                                                name="permissions[]" value="micro-tasks.write"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="production"
+                                                name="permissions[]" value="micro-tasks.delete"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox global-checkbox"
+                                                data-section="production" name="permissions[]" value="micro-tasks.global"></td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">Micro Task Follow-ups</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="production"
+                                                name="permissions[]" value="task-followups.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="production"
+                                                name="permissions[]" value="task-followups.write"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="production"
+                                                name="permissions[]" value="task-followups.delete"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox global-checkbox"
+                                                data-section="production" name="permissions[]" value="task-followups.global"></td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:8px 4px">Service Templates</td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="production"
+                                                name="permissions[]" value="service-templates.read"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="production"
+                                                name="permissions[]" value="service-templates.write"></td>
+                                        <td style="text-align:center;padding:8px 4px"><input type="checkbox"
+                                                class="form-check-input perm-checkbox" data-section="production"
+                                                name="permissions[]" value="service-templates.delete"></td>
+                                        <td style="text-align:center;padding:8px 4px"></td>
                                     </tr>
                                 </tbody>
                             </table>
