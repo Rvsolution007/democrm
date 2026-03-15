@@ -154,7 +154,8 @@ class ProcessWhatsappCampaigns extends Command
                                 'delay' => 1200,
                             ];
 
-                            Log::info("WhatsApp Bulk: Sending {$mediaType} ({$index+1}/{$totalMedia}) to {$phone}");
+                            $currentNum = $index + 1;
+                            Log::info("WhatsApp Bulk: Sending {$mediaType} ({$currentNum}/{$totalMedia}) to {$phone}");
                             
                             $response = Http::withHeaders([
                                 'apikey' => $apiKey,
