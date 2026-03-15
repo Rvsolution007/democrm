@@ -87,6 +87,8 @@ class WhatsAppChannel
             $payload = [
                 'number' => $phone,
                 'text'   => $messageText,
+                'delay'  => 1200,
+                'linkPreview' => true,
             ];
 
             $response = Http::withHeaders([
