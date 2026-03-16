@@ -42,7 +42,8 @@ class InvoicesController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('quote_no', 'like', "%{$search}%")
                     ->orWhereHas('client', function ($cq) use ($search) {
-                        $cq->where('name', 'like', "%{$search}%");
+                        $cq->where('business_name', 'like', "%{$search}%")
+                           ->orWhere('contact_name', 'like', "%{$search}%");
                     })
                     ->orWhereHas('lead', function ($lq) use ($search) {
                         $lq->where('name', 'like', "%{$search}%");

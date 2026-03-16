@@ -949,11 +949,9 @@
                     document.getElementById('followup-date').value = '';
                     document.getElementById('followup-message').value = '';
 
-                    // Take snapshot for dirty checking (after a short delay for DOM to settle)
                     // Save initial state for dirty checking
                     setTimeout(() => {
-                        let formData = new FormData(document.getElementById('lead-form'));
-                        initialFormSnapshot = new URLSearchParams(formData).toString();
+                        initialFormSnapshot = getFormSnapshot();
                         
                         // Initialize Select2 after modal opens and data is loaded
                         initProductSelect2();
