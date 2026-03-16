@@ -17,7 +17,7 @@ class MicroTask extends Model
     ];
 
     protected $casts = [
-        'follow_up_date' => 'date',
+        'follow_up_date' => 'datetime',
     ];
 
     protected static function booted()
