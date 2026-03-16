@@ -391,9 +391,10 @@ class LeadsController extends Controller
                 $qty = $product->pivot->quantity ?? 1;
                 $price = $product->pivot->price ?? ($product->mrp ?: $product->sale_price);
                 $discount = $product->pivot->discount ?? 0;
-                $unitPrice = $price - $discount;
-                $lineTotal = $unitPrice * $qty;
+                $unitPriceTotal = $price * $qty;
+                $lineTotal = $unitPriceTotal - $discount;
                 $subtotal += $lineTotal;
+                $unitPrice = $price;
 
                 QuoteItem::create([
                     'quote_id' => $quote->id,
@@ -478,8 +479,8 @@ class LeadsController extends Controller
             $qty = $product->pivot->quantity ?? 1;
             $price = $product->pivot->price ?? ($product->mrp ?: $product->sale_price);
             $discount = $product->pivot->discount ?? 0;
-            $unitPrice = $price - $discount;
-            $subtotal += $unitPrice * $qty;
+            $unitPriceTotal = $price * $qty;
+            $subtotal += ($unitPriceTotal - $discount);
         }
 
         $quote = Quote::create([
@@ -504,8 +505,9 @@ class LeadsController extends Controller
             $qty = $product->pivot->quantity ?? 1;
             $price = $product->pivot->price ?? ($product->mrp ?: $product->sale_price);
             $discount = $product->pivot->discount ?? 0;
-            $unitPrice = $price - $discount;
-            $lineTotal = $unitPrice * $qty;
+            $unitPriceTotal = $price * $qty;
+            $lineTotal = $unitPriceTotal - $discount;
+            $unitPrice = $price;
 
             QuoteItem::create([
                 'quote_id' => $quote->id,
