@@ -101,7 +101,8 @@
 
             <!-- Status -->
             <div class="checkbox-row" style="margin-bottom: 1.5rem;">
-                <input type="checkbox" name="is_active" id="is_active" {{ old('is_active', isset($rule) ? $rule->is_active : true) ? 'checked' : '' }}>
+                <input type="hidden" name="is_active" value="0">
+                <input type="checkbox" name="is_active" id="is_active" value="1" {{ old('is_active', isset($rule) ? $rule->is_active : true) ? 'checked' : '' }}>
                 <label for="is_active" style="margin: 0; font-weight: 600; cursor: pointer;">Active — Rule is enabled and will process incoming messages</label>
             </div>
 
@@ -174,7 +175,8 @@
             <div class="form-section-title">🛡️ Anti-Spam Controls</div>
 
             <div class="checkbox-row">
-                <input type="checkbox" name="is_one_time" id="is_one_time" {{ old('is_one_time', isset($rule) ? $rule->is_one_time : true) ? 'checked' : '' }}>
+                <input type="hidden" name="is_one_time" value="0">
+                <input type="checkbox" name="is_one_time" id="is_one_time" value="1" {{ old('is_one_time', isset($rule) ? $rule->is_one_time : true) ? 'checked' : '' }}>
                 <label for="is_one_time" style="margin: 0; cursor: pointer;">One-time reply per number (recommended)</label>
             </div>
 
@@ -196,9 +198,15 @@
                 </div>
             </div>
 
-            <div class="checkbox-row">
-                <input type="checkbox" name="business_hours_only" id="biz_hours" {{ old('business_hours_only', isset($rule) ? $rule->business_hours_only : false) ? 'checked' : '' }} onchange="toggleBizHours()">
-                <label for="biz_hours" style="margin: 0; cursor: pointer;">Business hours only</label>
+            <hr style="border: none; border-top: 2px solid #f1f5f9; margin: 1.5rem 0;">
+
+            <!-- PRIORITY -->
+            <div class="form-section-title">🕒 Schedule Limits</div>
+
+            <div class="checkbox-row" style="margin-bottom: 1rem;">
+                <input type="hidden" name="business_hours_only" value="0">
+                <input type="checkbox" name="business_hours_only" id="business_hours_only" value="1" {{ old('business_hours_only', isset($rule) ? $rule->business_hours_only : false) ? 'checked' : '' }} onchange="toggleBusinessHours()">
+                <label for="business_hours_only" style="margin: 0; cursor: pointer;">Only reply during business hours</label>
             </div>
 
             <div class="row g-3" id="biz-hours-fields" style="{{ old('business_hours_only', isset($rule) && $rule->business_hours_only ? true : false) ? '' : 'display:none;' }}">

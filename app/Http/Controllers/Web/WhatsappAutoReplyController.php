@@ -148,14 +148,14 @@ class WhatsappAutoReplyController extends Controller
             'keywords' => $keywords,
             'template_id' => $request->template_id,
             'reply_delay_seconds' => $request->reply_delay_seconds ?? 5,
-            'is_one_time' => $request->has('is_one_time'),
+            'is_one_time' => $request->boolean('is_one_time'),
             'cooldown_hours' => $request->cooldown_hours ?? 24,
-            'business_hours_only' => $request->has('business_hours_only'),
+            'business_hours_only' => $request->boolean('business_hours_only'),
             'business_hours_start' => $request->business_hours_start,
             'business_hours_end' => $request->business_hours_end,
             'max_replies_per_day' => $request->max_replies_per_day ?? 3,
             'priority' => $request->priority ?? 5,
-            'is_active' => $request->has('is_active'),
+            'is_active' => $request->boolean('is_active'),
         ]);
 
         // Ensure webhook is registered for this instance
@@ -214,14 +214,14 @@ class WhatsappAutoReplyController extends Controller
             'keywords' => $keywords,
             'template_id' => $request->template_id,
             'reply_delay_seconds' => $request->reply_delay_seconds ?? 5,
-            'is_one_time' => $request->has('is_one_time'),
+            'is_one_time' => $request->boolean('is_one_time'),
             'cooldown_hours' => $request->cooldown_hours ?? 24,
-            'business_hours_only' => $request->has('business_hours_only'),
+            'business_hours_only' => $request->boolean('business_hours_only'),
             'business_hours_start' => $request->business_hours_start,
             'business_hours_end' => $request->business_hours_end,
             'max_replies_per_day' => $request->max_replies_per_day ?? 3,
             'priority' => $request->priority ?? 5,
-            'is_active' => $request->has('is_active'),
+            'is_active' => $request->boolean('is_active'),
         ]);
 
         return redirect()->route('admin.whatsapp-auto-reply.index')
