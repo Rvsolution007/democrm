@@ -147,7 +147,9 @@ class Lead extends Model
             $price = $product->pivot->price ?? 0;
             $discount = $product->pivot->discount ?? 0;
             $quantity = $product->pivot->quantity ?? 1;
-            $total += (($price - $discount) * $quantity) / 100;
+            $unitPriceTotal = $price * $quantity;
+            $lineTotal = $unitPriceTotal - $discount;
+            $total += $lineTotal / 100;
         }
 
         return $total;
