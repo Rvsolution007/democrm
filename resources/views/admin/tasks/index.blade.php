@@ -637,6 +637,12 @@
                             <option value="client_reply">💬 Client Reply</option>
                             <option value="revision">🔄 Revision</option>
                         </select>
+                        <select id="activity-mention" style="padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;width:130px;background:white">
+                            <option value="">👤 No Mention</option>
+                            @foreach($globalTaskUsers as $gu)
+                                <option value="{{ $gu->id }}">@ {{ $gu->name }}</option>
+                            @endforeach
+                        </select>
                         <input type="text" id="activity-message" placeholder="Write activity note..."
                             style="flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px">
                         <button type="button" onclick="submitActivity()"
@@ -1757,8 +1763,15 @@
             var type = document.getElementById('activity-type').value;
             var messageEl = document.getElementById('activity-message');
             var message = messageEl.value.trim();
+            var mentionEl = document.getElementById('activity-mention');
+            var notified_user_id = mentionEl ? mentionEl.value : '';
 
             if (!message || !window.currentEditTaskId) return;
+
+            var payload = { type: type, message: message };
+            if (notified_user_id) {
+                payload.notified_user_id = notified_user_id;
+            }
 
             fetch('/admin/tasks/' + window.currentEditTaskId + '/activities', {
                 method: 'POST',
@@ -1766,7 +1779,7 @@
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': csrfToken
                 },
-                body: JSON.stringify({ type: type, message: message })
+                body: JSON.stringify(payload)
             })
                 .then(res => res.json())
                 .then(data => {

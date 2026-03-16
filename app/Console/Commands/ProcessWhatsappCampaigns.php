@@ -97,7 +97,10 @@ class ProcessWhatsappCampaigns extends Command
                     $phone = '91' . $phone; // Assuming India default
                 }
 
-                $mediaFiles = is_array($template->media_files) ? $template->media_files : [];
+                // Ensure media_files is properly decoded
+                $mediaFiles = is_string($template->media_files) ? json_decode($template->media_files, true) : (is_array($template->media_files) ? $template->media_files : []);
+                if (!is_array($mediaFiles)) $mediaFiles = [];
+                
                 $textMsg = trim($template->message_text ?? '');
                 $totalMedia = count($mediaFiles);
 
@@ -139,6 +142,7 @@ class ProcessWhatsappCampaigns extends Command
                             $ext = strtolower(pathinfo($media['path'], PATHINFO_EXTENSION));
                             if (in_array($ext, ['png', 'jpg', 'jpeg', 'webp'])) $mediaType = 'image';
                             elseif (in_array($ext, ['mp4', '3gp'])) $mediaType = 'video';
+                            elseif (in_array($ext, ['mp3', 'ogg', 'wav'])) $mediaType = 'audio';
                             else $mediaType = 'document';
 
                             $isLast = ($index === $totalMedia - 1);

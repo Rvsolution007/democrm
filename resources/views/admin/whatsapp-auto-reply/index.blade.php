@@ -156,22 +156,28 @@
 
     <!-- Stats Cards -->
     <div class="row g-2 mb-3">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="stat-card">
                 <div class="stat-value" style="color: #22c55e;">{{ $todayStats['active'] }}</div>
                 <div class="stat-label">Active Rules</div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="stat-card">
                 <div class="stat-value" style="color: #3b82f6;">{{ $todayStats['total_sent_today'] }}</div>
                 <div class="stat-label">Replies Today</div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="stat-card">
                 <div class="stat-value" style="color: #94a3b8;">{{ $todayStats['paused'] }}</div>
                 <div class="stat-label">Paused Rules</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-value" style="color: #ef4444;">{{ $todayStats['total_failed_today'] }}</div>
+                <div class="stat-label">Failed Today</div>
             </div>
         </div>
     </div>
@@ -186,6 +192,13 @@
     <!-- Rules List -->
     <div class="rules-container">
         @forelse($rules as $rule)
+            @php
+                $satisfaction = $rule->satisfaction;
+                $satColor = $satisfaction >= 80 ? '#22c55e' : ($satisfaction >= 50 ? '#f59e0b' : '#ef4444');
+                $satBg = $satisfaction >= 80 ? '#f0fdf4' : ($satisfaction >= 50 ? '#fffbeb' : '#fef2f2');
+                $hasError = !empty($rule->last_error);
+                $totalFailed = $rule->logs()->where('status', 'failed')->count();
+            @endphp
             <div class="rule-list-item rule-card" data-status="{{ $rule->is_active ? 'active' : 'paused' }}">
                 <div class="rule-main">
                     <div class="rule-status-dot {{ $rule->is_active ? 'active' : 'paused' }}" title="{{ $rule->is_active ? 'Active' : 'Paused' }}"></div>
@@ -194,6 +207,11 @@
                         <div class="rule-title-row">
                             <span class="rule-name">{{ $rule->name }}</span>
                             <span class="match-badge match-{{ $rule->match_type }}">{{ str_replace('_', ' ', $rule->match_type) }}</span>
+                            <!-- Satisfaction Badge -->
+                            <span style="display: inline-flex; align-items: center; gap: 4px; padding: 0.2rem 0.6rem; border-radius: 6px; font-size: 0.7rem; font-weight: 700; background: {{ $satBg }}; color: {{ $satColor }}; border: 1px solid {{ $satColor }}20;">
+                                @if($satisfaction >= 80) ✅ @elseif($satisfaction >= 50) ⚠️ @else ❌ @endif
+                                {{ $satisfaction }}% Satisfaction
+                            </span>
                         </div>
                         
                         <div class="rule-meta-row">
@@ -213,7 +231,28 @@
                             @if($rule->total_skipped > 0)
                                 <span class="meta-item" style="color:#f59e0b; font-weight:600;"><i data-lucide="skip-forward" style="width:12px; height:12px;"></i> {{ $rule->total_skipped }} skipped</span>
                             @endif
+                            @if($totalFailed > 0)
+                                <span class="meta-item" style="color:#ef4444; font-weight:600;"><i data-lucide="alert-circle" style="width:12px; height:12px;"></i> {{ $totalFailed }} failed</span>
+                            @endif
                         </div>
+
+                        <!-- Error Display -->
+                        @if($hasError)
+                            <div style="margin-top: 0.4rem; padding: 0.4rem 0.75rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-size: 0.75rem; color: #dc2626; display: flex; align-items: center; gap: 6px;">
+                                <i data-lucide="alert-triangle" style="width: 14px; height: 14px; flex-shrink: 0;"></i>
+                                <div>
+                                    <strong>Last Error:</strong> {{ \Illuminate\Support\Str::limit($rule->last_error, 120) }}
+                                    @if($rule->last_error_at)
+                                        <span style="color: #9ca3af; margin-left: 8px;">{{ $rule->last_error_at->diffForHumans() }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                        @elseif($rule->is_active && $rule->total_triggered == 0)
+                            <div style="margin-top: 0.4rem; padding: 0.4rem 0.75rem; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; font-size: 0.75rem; color: #2563eb; display: flex; align-items: center; gap: 6px;">
+                                <i data-lucide="info" style="width: 14px; height: 14px; flex-shrink: 0;"></i>
+                                <span><strong>Waiting</strong> — Rule is active and ready. No messages matched yet.</span>
+                            </div>
+                        @endif
                     </div>
                 </div>
 

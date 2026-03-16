@@ -125,7 +125,14 @@ class ProjectsController extends Controller
             ? User::where('status', 'active')->withModulePermission('projects')->orderBy('name')->get()
             : collect();
 
-        return view('admin.projects.show', compact('project', 'users'));
+        $globalTaskUsers = User::where('status', 'active')
+            ->whereHas('role', function($q) {
+                $q->where('permissions', 'LIKE', '%"tasks.global"%')
+                  ->orWhere('permissions', 'LIKE', '%"all"%')
+                  ->orWhere('name', 'LIKE', '%admin%');
+            })->orderBy('name')->get();
+
+        return view('admin.projects.show', compact('project', 'users', 'globalTaskUsers'));
     }
 
     public function update(Request $request, $id)
@@ -275,6 +282,7 @@ class ProjectsController extends Controller
         $validated = $request->validate([
             'type' => 'required|in:note,client_reply,revision',
             'message' => 'required|string|max:2000',
+            'notified_user_id' => 'nullable|exists:users,id',
         ]);
 
         TaskActivity::create([
@@ -283,6 +291,18 @@ class ProjectsController extends Controller
             'type' => $validated['type'],
             'message' => $validated['message'],
         ]);
+
+        if (!empty($validated['notified_user_id'])) {
+            $user = \App\Models\User::find($validated['notified_user_id']);
+            if ($user && $user->id !== auth()->id()) {
+                $user->notify(new \App\Notifications\TaskMentionNotification(
+                    $task->id,
+                    $task->title,
+                    auth()->user()->name,
+                    $validated['message']
+                ));
+            }
+        }
 
         return redirect()->route('admin.projects.show', $project->id)
             ->with('success', 'Activity added successfully');

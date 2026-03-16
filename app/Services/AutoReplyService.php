@@ -71,13 +71,18 @@ class AutoReplyService
 
                 if ($sendResult['success']) {
                     $rule->increment('total_sent');
+                    // Clear any previous error on successful send
+                    $rule->update(['last_error' => null, 'last_error_at' => null]);
                     $this->logReply($userId, $instanceName, $rule->id, $cleanPhone, $messageText, $rule->template_id, 'sent', null);
                     Log::info("AutoReply: Sent reply for rule '{$rule->name}' to {$cleanPhone}");
                     return ['status' => 'sent', 'rule' => $rule->name, 'template' => $rule->template->name ?? 'N/A'];
                 } else {
-                    $this->logReply($userId, $instanceName, $rule->id, $cleanPhone, $messageText, $rule->template_id, 'failed', $sendResult['error'] ?? 'send_failed');
-                    Log::error("AutoReply: Failed to send reply for rule '{$rule->name}': " . ($sendResult['error'] ?? 'unknown'));
-                    return ['status' => 'failed', 'error' => $sendResult['error'] ?? 'unknown'];
+                    $errorMsg = $sendResult['error'] ?? 'send_failed';
+                    // Save error on the rule itself for UI display
+                    $rule->update(['last_error' => $errorMsg, 'last_error_at' => now()]);
+                    $this->logReply($userId, $instanceName, $rule->id, $cleanPhone, $messageText, $rule->template_id, 'failed', $errorMsg);
+                    Log::error("AutoReply: Failed to send reply for rule '{$rule->name}': {$errorMsg}");
+                    return ['status' => 'failed', 'error' => $errorMsg];
                 }
             }
         }

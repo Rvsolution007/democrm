@@ -453,7 +453,14 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
 
         $clients = \App\Models\Client::select('id', 'business_name', 'contact_name')->orderBy('business_name')->get();
 
-        return view('admin.tasks.index', compact('tasks', 'users', 'clients', 'dynamicStatuses'));
+        $globalTaskUsers = \App\Models\User::where('status', 'active')
+            ->whereHas('role', function($q) {
+                $q->where('permissions', 'LIKE', '%"tasks.global"%')
+                  ->orWhere('permissions', 'LIKE', '%"all"%')
+                  ->orWhere('name', 'LIKE', '%admin%');
+            })->orderBy('name')->get();
+
+        return view('admin.tasks.index', compact('tasks', 'users', 'globalTaskUsers', 'clients', 'dynamicStatuses'));
     })->name('tasks.index');
 
     Route::post('/tasks', function (\Illuminate\Http\Request $request) {
@@ -613,6 +620,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
         $validated = $request->validate([
             'type' => 'required|in:note,client_reply,revision',
             'message' => 'required|string|max:2000',
+            'notified_user_id' => 'nullable|exists:users,id',
         ]);
         $activity = \App\Models\TaskActivity::create([
             'task_id' => $task->id,
@@ -620,6 +628,19 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
             'type' => $validated['type'],
             'message' => $validated['message'],
         ]);
+
+        if (!empty($validated['notified_user_id'])) {
+            $user = \App\Models\User::find($validated['notified_user_id']);
+            if ($user && $user->id !== auth()->id()) {
+                $user->notify(new \App\Notifications\TaskMentionNotification(
+                    $task->id,
+                    $task->title,
+                    auth()->user()->name,
+                    $validated['message']
+                ));
+            }
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Activity added successfully',

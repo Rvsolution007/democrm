@@ -544,8 +544,16 @@ class LeadsController extends Controller
         if ($lead->client()->exists()) {
             $existingClient = $lead->client;
 
-            // Link any unlinked quotes from this lead to the existing client and mark as accepted
-            \App\Models\Quote::where('lead_id', $lead->id)->whereNull('client_id')->update(['client_id' => $existingClient->id, 'status' => 'accepted']);
+            // Link any unlinked quotes from this lead to the existing client, generate invoice numbers, and mark as accepted
+            $unlinkedQuotes = \App\Models\Quote::where('lead_id', $lead->id)->whereNull('client_id')->get();
+            $company = auth()->user()->company;
+            foreach ($unlinkedQuotes as $q) {
+                $q->update([
+                    'client_id' => $existingClient->id,
+                    'status' => 'accepted',
+                    'quote_no' => \App\Models\Quote::generateInvoiceNumber($company),
+                ]);
+            }
 
             // Add new tasks to existing project (or create project if somehow missing)
             $newTasksCount = $this->createProjectsAndTasks($lead, $existingClient);
@@ -576,8 +584,16 @@ class LeadsController extends Controller
             }
             $lead->update(['stage' => 'won']);
 
-            // Link all quotes from this lead to the existing client and mark as accepted
-            \App\Models\Quote::where('lead_id', $lead->id)->whereNull('client_id')->update(['client_id' => $existingClient->id, 'status' => 'accepted']);
+            // Link all quotes from this lead to the existing client, generate invoice numbers, and mark as accepted
+            $unlinkedQuotes = \App\Models\Quote::where('lead_id', $lead->id)->whereNull('client_id')->get();
+            $company = auth()->user()->company;
+            foreach ($unlinkedQuotes as $q) {
+                $q->update([
+                    'client_id' => $existingClient->id,
+                    'status' => 'accepted',
+                    'quote_no' => \App\Models\Quote::generateInvoiceNumber($company),
+                ]);
+            }
 
             // Auto-create projects and tasks from quotes
             $newTasksCount = $this->createProjectsAndTasks($lead, $existingClient);
@@ -613,8 +629,16 @@ class LeadsController extends Controller
 
         $lead->update(['stage' => 'won']);
 
-        // Link all quotes from this lead to the new client and mark as accepted
-        \App\Models\Quote::where('lead_id', $lead->id)->whereNull('client_id')->update(['client_id' => $client->id, 'status' => 'accepted']);
+        // Link all quotes from this lead to the new client, generate invoice numbers, and mark as accepted
+        $unlinkedQuotes = \App\Models\Quote::where('lead_id', $lead->id)->whereNull('client_id')->get();
+        $company = auth()->user()->company;
+        foreach ($unlinkedQuotes as $q) {
+            $q->update([
+                'client_id' => $client->id,
+                'status' => 'accepted',
+                'quote_no' => \App\Models\Quote::generateInvoiceNumber($company),
+            ]);
+        }
 
         // Auto-create projects and tasks from quotes
         $newTasksCount = $this->createProjectsAndTasks($lead, $client);

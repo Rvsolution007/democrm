@@ -26,6 +26,8 @@ class WhatsappAutoReplyRule extends Model
         'total_triggered',
         'total_sent',
         'total_skipped',
+        'last_error',
+        'last_error_at',
     ];
 
     protected $casts = [
@@ -33,7 +35,19 @@ class WhatsappAutoReplyRule extends Model
         'is_one_time' => 'boolean',
         'business_hours_only' => 'boolean',
         'is_active' => 'boolean',
+        'last_error_at' => 'datetime',
     ];
+
+    /**
+     * Get satisfaction percentage (sent / triggered * 100)
+     */
+    public function getSatisfactionAttribute(): float
+    {
+        if ($this->total_triggered <= 0) {
+            return 100.0; // No triggers yet = healthy
+        }
+        return round(($this->total_sent / $this->total_triggered) * 100, 1);
+    }
 
     public function user()
     {

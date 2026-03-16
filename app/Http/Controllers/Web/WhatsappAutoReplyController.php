@@ -87,6 +87,10 @@ class WhatsappAutoReplyController extends Controller
                 ->where('status', 'sent')
                 ->whereDate('created_at', today())
                 ->count(),
+            'total_failed_today' => WhatsappAutoReplyLog::where('user_id', $user->id)
+                ->where('status', 'failed')
+                ->whereDate('created_at', today())
+                ->count(),
         ];
 
         return view('admin.whatsapp-auto-reply.index', compact('rules', 'connectionStatus', 'instanceName', 'todayStats'));

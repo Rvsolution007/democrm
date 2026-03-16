@@ -489,6 +489,12 @@
                             <option value="client_reply">💬 Client Reply</option>
                             <option value="revision">🔄 Revision</option>
                         </select>
+                        <select id="activity-mention" style="padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;width:130px;background:white">
+                            <option value="">👤 No Mention</option>
+                            @foreach($globalTaskUsers as $gu)
+                                <option value="{{ $gu->id }}">@ {{ $gu->name }}</option>
+                            @endforeach
+                        </select>
                         <input type="text" id="activity-message" placeholder="Write activity note..."
                             style="flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px">
                         <button type="button" onclick="submitActivity()"
@@ -870,6 +876,9 @@
         function submitActivity() {
             var type = document.getElementById('activity-type').value;
             var message = document.getElementById('activity-message').value.trim();
+            var mentionEl = document.getElementById('activity-mention');
+            var notified_user_id = mentionEl ? mentionEl.value : '';
+
             if (!message) { alert('Please enter an activity message'); return; }
             if (!currentEditTaskId) { alert('No task selected'); return; }
 
@@ -895,6 +904,14 @@
             msgInput.name = 'message';
             msgInput.value = message;
             form.appendChild(msgInput);
+
+            if (notified_user_id) {
+                var mentionInput = document.createElement('input');
+                mentionInput.type = 'hidden';
+                mentionInput.name = 'notified_user_id';
+                mentionInput.value = notified_user_id;
+                form.appendChild(mentionInput);
+            }
 
             document.body.appendChild(form);
             form.submit();
