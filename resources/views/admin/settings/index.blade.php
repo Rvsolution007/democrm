@@ -645,6 +645,15 @@
                                 your Evolution API server</small>
                         </div>
 
+                        <div class="form-group" style="margin-bottom:16px">
+                            <label class="form-label" style="font-weight:600">Webhook Base URL <span style="color:#999;font-weight:400">(Your CRM Server URL)</span></label>
+                            <input type="url" class="form-input" id="wa-webhook-url"
+                                value="{{ $whatsappApiConfig['webhook_base_url'] ?? '' }}"
+                                placeholder="https://your-crm-domain.com">
+                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Your CRM server's public URL 
+                                (e.g. https://crm.yourdomain.com). Evolution API ko webhook callbacks ke liye is URL ka zaroorat hai. Agar ye empty hai, to Auto-Reply kaam nahi karega.</small>
+                        </div>
+
                         <button class="btn btn-primary" id="wa-save-btn" onclick="saveWhatsappApiConfig()">
                             <i data-lucide="save" style="width:16px;height:16px"></i> Save Configuration
                         </button>
@@ -1123,9 +1132,10 @@
         function saveWhatsappApiConfig() {
             var apiUrl = document.getElementById('wa-api-url').value.trim();
             var apiKey = document.getElementById('wa-api-key').value.trim();
+            var webhookUrl = document.getElementById('wa-webhook-url').value.trim();
 
             if (!apiUrl || !apiKey) {
-                alert('Please fill in all fields.');
+                alert('Please fill in API URL and API Key.');
                 return;
             }
 
@@ -1142,7 +1152,8 @@
                 },
                 body: JSON.stringify({
                     api_url: apiUrl,
-                    api_key: apiKey
+                    api_key: apiKey,
+                    webhook_base_url: webhookUrl
                 })
             })
                 .then(function (res) { return res.json(); })

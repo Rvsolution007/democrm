@@ -145,10 +145,19 @@ class WhatsappConnectController extends Controller
 
             if ($response->successful()) {
                 $data = $response->json();
+                $state = $data['instance']['state'] ?? $data['state'] ?? 'unknown';
+                
+                // If connected, try to get the phone number
+                $phoneNumber = null;
+                if ($state === 'open') {
+                    $phoneNumber = $this->getConnectedPhone($config, $instanceName);
+                }
+                
                 return response()->json([
                     'success' => true,
-                    'state' => $data['instance']['state'] ?? $data['state'] ?? 'unknown',
+                    'state' => $state,
                     'instance' => $instanceName,
+                    'phone' => $phoneNumber,
                 ]);
             }
 
@@ -171,6 +180,38 @@ class WhatsappConnectController extends Controller
             Log::error('WhatsApp Status Error: ' . $e->getMessage());
             return response()->json(['success' => false, 'state' => 'error', 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Get the connected phone number from Evolution API
+     */
+    private function getConnectedPhone($config, $instanceName)
+    {
+        try {
+            $response = Http::withHeaders([
+                'apikey' => $config['api_key'],
+                'Content-Type' => 'application/json',
+            ])->get("{$config['api_url']}/instance/fetchInstances", [
+                'instanceName' => $instanceName,
+            ]);
+
+            if ($response->successful()) {
+                $instances = $response->json();
+                // Evolution API returns array of instances
+                if (is_array($instances)) {
+                    foreach ($instances as $inst) {
+                        $name = $inst['instance']['instanceName'] ?? $inst['instanceName'] ?? '';
+                        if ($name === $instanceName) {
+                            // Try known paths for the phone number
+                            return $inst['instance']['owner'] ?? $inst['owner'] ?? null;
+                        }
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning("WhatsApp: Could not fetch phone for {$instanceName}: " . $e->getMessage());
+        }
+        return null;
     }
 
     /**

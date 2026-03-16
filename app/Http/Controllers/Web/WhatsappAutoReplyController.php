@@ -408,7 +408,10 @@ class WhatsappAutoReplyController extends Controller
             return;
         }
 
-        $webhookUrl = url("/webhook/whatsapp/incoming/{$instanceName}");
+        // Use webhook_base_url from settings (the server's public URL)
+        // Falls back to APP_URL if not set, but that may be localhost
+        $baseUrl = !empty($config['webhook_base_url']) ? $config['webhook_base_url'] : url('');
+        $webhookUrl = rtrim($baseUrl, '/') . "/webhook/whatsapp/incoming/{$instanceName}";
 
         try {
             Http::withHeaders([

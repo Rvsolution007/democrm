@@ -222,7 +222,9 @@ class AutoReplyService
             // Format phone for Evolution API (with @s.whatsapp.net)
             $formattedPhone = $this->formatPhoneForApi($recipientPhone);
 
-            $mediaFiles = is_array($template->media_files) ? $template->media_files : [];
+            // Ensure media_files is properly decoded
+            $mediaFiles = is_string($template->media_files) ? json_decode($template->media_files, true) : (is_array($template->media_files) ? $template->media_files : []);
+            if (!is_array($mediaFiles)) $mediaFiles = [];
             $textMsg = trim($template->message_text ?? '');
             $totalMedia = count($mediaFiles);
 
@@ -242,7 +244,8 @@ class AutoReplyService
             } else if ($totalMedia > 0) {
                 // Send multiple media files sequentially
                 foreach ($mediaFiles as $index => $media) {
-                    $mediaUrl = $this->getMediaUrl($media['path']);
+                    $mediaPath = $media['path'] ?? '';
+                    $mediaUrl = $this->getMediaUrl($mediaPath, $userId);
                     
                     // Determine type locally
                     $ext = strtolower(pathinfo($media['path'], PATHINFO_EXTENSION));
@@ -363,10 +366,19 @@ class AutoReplyService
     /**
      * Get full URL for media file
      */
-    private function getMediaUrl(?string $mediaPath): string
+    private function getMediaUrl(?string $mediaPath, int $userId = 0): string
     {
         if (!$mediaPath) return '';
-        return url('storage/' . $mediaPath);
+        
+        // Use webhook_base_url from settings if available (public server URL)
+        $config = Setting::getValue('whatsapp', 'api_config', [
+            'api_url' => '',
+            'api_key' => '',
+            'webhook_base_url' => '',
+        ], $this->getCompanyId($userId));
+        
+        $baseUrl = !empty($config['webhook_base_url']) ? $config['webhook_base_url'] : url('');
+        return rtrim($baseUrl, '/') . '/storage/' . $mediaPath;
     }
 
     /**

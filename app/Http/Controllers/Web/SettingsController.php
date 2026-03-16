@@ -34,7 +34,7 @@ class SettingsController extends Controller
         $leadSources = Setting::getValue('leads', 'sources', Lead::SOURCES);
         $taskStatuses = Setting::getValue('tasks', 'statuses', Task::STATUSES);
         $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
-        $whatsappApiConfig = Setting::getValue('whatsapp', 'api_config', ['api_url' => '', 'api_key' => '']);
+        $whatsappApiConfig = Setting::getValue('whatsapp', 'api_config', ['api_url' => '', 'api_key' => '', 'webhook_base_url' => '']);
 
         return view('admin.settings.index', compact('company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources', 'taskStatuses', 'paymentTypes', 'whatsappApiConfig'));
     }
@@ -149,11 +149,13 @@ class SettingsController extends Controller
         $request->validate([
             'api_url' => 'required|url',
             'api_key' => 'required|string',
+            'webhook_base_url' => 'nullable|url',
         ]);
 
         Setting::setValue('whatsapp', 'api_config', [
             'api_url' => rtrim($request->api_url, '/'),
             'api_key' => $request->api_key,
+            'webhook_base_url' => rtrim($request->webhook_base_url ?? '', '/'),
         ], auth()->user()->company_id);
 
         return response()->json(['success' => true, 'message' => 'WhatsApp API configuration saved']);

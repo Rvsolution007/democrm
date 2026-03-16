@@ -131,6 +131,10 @@
                                 <i data-lucide="server" style="width:14px;height:14px;color:#888"></i>
                                 <span style="font-size:12px;color:#999;font-family:monospace">{{ $instanceName }}</span>
                             </div>
+                            <div id="phone-row" style="padding:4px 0;display:none;align-items:center;gap:8px">
+                                <i data-lucide="phone" style="width:14px;height:14px;color:#25D366"></i>
+                                <span id="phone-number" style="font-size:13px;color:#16a34a;font-weight:600"></span>
+                            </div>
                         </div>
                     </div>
 
@@ -212,6 +216,18 @@
                         showSection('qr-connected');
                         updateStatus(state, 'Connected', 'WhatsApp is linked and active', '#22c55e');
                         stopQrPolling();
+                        // Show phone number if available
+                        if (data.phone) {
+                            var phoneRow = document.getElementById('phone-row');
+                            var phoneNum = document.getElementById('phone-number');
+                            if (phoneRow && phoneNum) {
+                                // Format: remove @s.whatsapp.net if present
+                                var displayPhone = data.phone.replace('@s.whatsapp.net', '');
+                                phoneNum.textContent = '+' + displayPhone;
+                                phoneRow.style.display = 'flex';
+                                lucide.createIcons();
+                            }
+                        }
                     } else if (state === 'close' || state === 'closed' || state === 'not_connected') {
                         showSection('qr-loading');
                         updateStatus(state, 'Disconnected', 'Scan QR code to connect', '#f59e0b');
