@@ -59,10 +59,8 @@ class MicroTasksController extends Controller
                                     ->orWhere('phone', 'like', "%{$search}%");
                             })
                             ->orWhereHas('leadEntity', function ($lq) use ($search) {
-                                $lq->where('first_name', 'like', "%{$search}%")
-                                    ->orWhere('last_name', 'like', "%{$search}%")
-                                    ->orWhere('phone', 'like', "%{$search}%")
-                                    ->orWhere('name', 'like', "%{$search}%");
+                                $lq->where('name', 'like', "%{$search}%")
+                                    ->orWhere('phone', 'like', "%{$search}%");
                             })
                             ->orWhereHas('project', function ($pq) use ($search) {
                                 $pq->where('name', 'like', "%{$search}%")
@@ -71,9 +69,7 @@ class MicroTasksController extends Controller
                                             ->orWhere('contact_name', 'like', "%{$search}%");
                                     })
                                     ->orWhereHas('lead', function ($lq) use ($search) {
-                                        $lq->where('first_name', 'like', "%{$search}%")
-                                            ->orWhere('last_name', 'like', "%{$search}%")
-                                            ->orWhere('name', 'like', "%{$search}%");
+                                        $lq->where('name', 'like', "%{$search}%");
                                     });
                             });
                     });
