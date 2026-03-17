@@ -150,7 +150,7 @@
                                 @endif
                             </td>
                             <td>{{ $quote->client ? $quote->client->display_name : '—' }}</td>
-                            <td>{{ $quote->assignedTo->name ?? '—' }}</td>
+                            <td>{{ $quote->assignedUsers->isNotEmpty() ? $quote->assignedUsers->pluck('name')->implode(', ') : '—' }}</td>
                             <td>
                                 <span
                                     class="badge badge-{{ $quote->status === 'accepted' ? 'success' : ($quote->status === 'rejected' ? 'destructive' : ($quote->status === 'sent' ? 'info' : 'secondary')) }}">

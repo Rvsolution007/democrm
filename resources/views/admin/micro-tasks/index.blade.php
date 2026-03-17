@@ -183,8 +183,8 @@
                             <div class="kb-card-footer">
                                 <div class="kb-avatar-row">
                                     <span
-                                        class="kb-avatar">{{ isset($mt->task) && isset($mt->task->assignedTo) ? strtoupper(substr($mt->task->assignedTo->name, 0, 2)) : '?' }}</span>
-                                    <span class="kb-avatar-name">{{ $mt->task->assignedTo->name ?? 'Unassigned' }}</span>
+                                        class="kb-avatar">{{ isset($mt->task) && $mt->task->assignedUsers->isNotEmpty() ? strtoupper(substr($mt->task->assignedUsers->first()->name, 0, 2)) : '?' }}</span>
+                                    <span class="kb-avatar-name">{{ isset($mt->task) && $mt->task->assignedUsers->isNotEmpty() ? $mt->task->assignedUsers->pluck('name')->implode(', ') : 'Unassigned' }}</span>
                                 </div>
                                 @php
                                     $canEditThisMt = auth()->user()->isAdmin() || (!is_null($mt->role_id) && $mt->role_id == auth()->user()->role_id);

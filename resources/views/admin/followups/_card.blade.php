@@ -69,7 +69,7 @@
             <i data-lucide="phone" style="width:9px;height:9px"></i> {{ $lead->phone }}
         </span>
         <span style="display:flex;align-items:center;gap:3px;margin-right:8px;">
-            <i data-lucide="user" style="width:9px;height:9px"></i> {{ $lead->assignedTo->name ?? '—' }}
+            <i data-lucide="user" style="width:9px;height:9px"></i> {{ $lead->assignedUsers->isNotEmpty() ? $lead->assignedUsers->pluck('name')->implode(', ') : '—' }}
         </span>
 
         @if($lead->products->count() > 0)

@@ -17,7 +17,7 @@ class ProjectsController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $query = Project::with(['client', 'assignedTo', 'tasks', 'lead', 'quote']);
+        $query = Project::with(['client', 'assignedUsers', 'tasks', 'lead', 'quote']);
 
         if (!can('projects.global')) {
             $query->where(function ($q) {

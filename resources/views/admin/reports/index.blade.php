@@ -217,7 +217,7 @@
                                     <td><strong>{{ $p->name }}</strong></td>
                                     <td>{{ $p->client ? ($p->client->business_name ?: $p->client->contact_name) : '-' }}</td>
                                     <td style="color:#ef4444;font-weight:600">{{ $p->due_date->format('d M Y') }}</td>
-                                    <td>{{ $p->assignedTo->name ?? 'Unassigned' }}</td>
+                                    <td>{{ $p->assignedUsers->isNotEmpty() ? $p->assignedUsers->pluck('name')->implode(', ') : 'Unassigned' }}</td>
                                     <td><span class="badge badge-warning">{{ ucfirst(str_replace('_', ' ', $p->status)) }}</span></td>
                                 </tr>
                             @empty
@@ -264,7 +264,7 @@
                                 <td><strong>{{ $t->title }}</strong></td>
                                 <td>{{ $t->project->name ?? '-' }}</td>
                                 <td style="color:#ef4444;font-weight:600">{{ $t->due_at->format('d M Y') }}</td>
-                                <td>{{ $t->assignedTo->name ?? 'Unassigned' }}</td>
+                                <td>{{ $t->assignedUsers->isNotEmpty() ? $t->assignedUsers->pluck('name')->implode(', ') : 'Unassigned' }}</td>
                                 <td><span class="badge badge-{{ $t->priority === 'high' ? 'destructive' : ($t->priority === 'medium' ? 'warning' : 'secondary') }}">{{ ucfirst($t->priority) }}</span></td>
                             </tr>
                         @empty

@@ -184,7 +184,7 @@
                             </td>
                             <td>{{ $project->start_date ? $project->start_date->format('d M Y') : '—' }}</td>
                             <td>{{ $project->due_date ? $project->due_date->format('d M Y') : '—' }}</td>
-                            <td>{{ $project->assignedTo->name ?? 'Unassigned' }}</td>
+                            <td>{{ $project->assignedUsers->isNotEmpty() ? $project->assignedUsers->pluck('name')->implode(', ') : 'Unassigned' }}</td>
                             <td>
                                 <div class="table-actions">
                                     <a href="{{ route('admin.projects.show', $project->id) }}" class="btn btn-ghost btn-icon btn-sm" title="View">

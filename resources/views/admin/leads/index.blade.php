@@ -216,7 +216,7 @@
                                         ₹{{ number_format($lead->total_amount, 2) }}
                                     </span>
                                 </td>
-                                <td data-col="assigned">{{ $lead->assignedTo->name ?? 'Unassigned' }}</td>
+                                <td data-col="assigned">{{ $lead->assignedUsers->isNotEmpty() ? $lead->assignedUsers->pluck('name')->implode(', ') : 'Unassigned' }}</td>
                                 <td data-col="actions">
                                     <div style="display:flex;gap:6px;align-items:center">
                                         <button onclick='viewLead({{ $lead->id }})'
@@ -328,7 +328,7 @@
                                 <div
                                     style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:10px;border-top:1px solid #e5e7eb">
                                     <span
-                                        style="font-size:12px;color:#666;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">{{ $lead->assignedTo->name ?? 'Unassigned' }}</span>
+                                        style="font-size:12px;color:#666;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">{{ $lead->assignedUsers->isNotEmpty() ? $lead->assignedUsers->pluck('name')->implode(', ') : 'Unassigned' }}</span>
                                     <div style="display:flex;gap:6px">
 
                                         <button onclick='viewLead({{ $lead->id }})'

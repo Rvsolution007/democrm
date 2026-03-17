@@ -297,13 +297,13 @@
                             </div>
                         </div>
                     @endif
-                    @if($client->lead->assignedTo)
+                    @if($client->lead && $client->lead->assignedUsers->isNotEmpty())
                         <div
                             style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--muted);border-radius:8px;">
                             <i data-lucide="user" style="width:16px;height:16px;color:#888"></i>
                             <div>
                                 <p style="font-size:11px;color:#888;margin:0">Assigned To</p>
-                                <p style="font-size:14px;font-weight:500;margin:0">{{ $client->lead->assignedTo->name }}</p>
+                                <p style="font-size:14px;font-weight:500;margin:0">{{ $client->lead->assignedUsers->pluck('name')->implode(', ') }}</p>
                             </div>
                         </div>
                     @endif

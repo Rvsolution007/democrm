@@ -71,7 +71,7 @@
         </div>
         <div class="card" style="padding:20px">
             <p class="text-xs text-muted" style="margin-bottom:4px">Assigned To</p>
-            <p class="font-medium">{{ $project->assignedTo->name ?? 'Unassigned' }}</p>
+            <p class="font-medium">{{ $project->assignedUsers->isNotEmpty() ? $project->assignedUsers->pluck('name')->implode(', ') : 'Unassigned' }}</p>
         </div>
         <div class="card" style="padding:20px">
             <p class="text-xs text-muted" style="margin-bottom:4px">Budget</p>
@@ -152,7 +152,7 @@
                                     {{ ucfirst($task->priority) }}
                                 </span>
                             </td>
-                            <td>{{ $task->assignedTo->name ?? 'Unassigned' }}</td>
+                            <td>{{ $task->assignedUsers->isNotEmpty() ? $task->assignedUsers->pluck('name')->implode(', ') : 'Unassigned' }}</td>
                             <td class="{{ $task->isOverdue() ? 'text-destructive font-medium' : '' }}">
                                 {{ $task->due_at ? $task->due_at->format('d M Y') : '—' }}
                                 @if($task->isOverdue())

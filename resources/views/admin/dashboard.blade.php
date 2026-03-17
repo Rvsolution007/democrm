@@ -98,7 +98,7 @@
                             <p class="text-sm font-medium truncate">{{ $task->title }}</p>
                             <div class="flex items-center gap-2 mt-1">
                                 <span class="badge badge-{{ $task->priority }}">{{ $task->priority }}</span>
-                                <span class="text-xs text-muted">{{ $task->assignedTo->name ?? 'Unassigned' }}</span>
+                                <span class="text-xs text-muted">{{ $task->assignedUsers->isNotEmpty() ? $task->assignedUsers->pluck('name')->implode(', ') : 'Unassigned' }}</span>
                             </div>
                         </div>
                     </div>

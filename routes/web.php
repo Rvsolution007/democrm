@@ -64,7 +64,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
             ->groupBy('stage')->pluck('count', 'stage')->toArray();
 
         // Recent tasks
-        $tasks = \App\Models\Task::with('assignedTo')->latest()->take(5)->get();
+        $tasks = \App\Models\Task::with('assignedUsers')->latest()->take(5)->get();
 
         // Recent activities
         $activities = \App\Models\Activity::with('createdBy')->latest()->take(5)->get();
@@ -317,7 +317,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
         if (!can('tasks.read'))
             abort(403, 'Unauthorized action.');
 
-        $query = \App\Models\Task::with(['microTasks', 'activities.user', 'assignedTo', 'leadEntity', 'clientEntity', 'clientEntity.lead', 'project.client', 'project.client.lead', 'project.lead']);
+        $query = \App\Models\Task::with(['microTasks', 'activities.user', 'assignedUsers', 'leadEntity', 'clientEntity', 'clientEntity.lead', 'project.client', 'project.client.lead', 'project.lead']);
 
         // Global permission filter
         if (!can('tasks.global')) {
@@ -411,8 +411,8 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
                     'contact_number' => $t->contact_number,
                     'due_at' => $t->due_at ? $t->due_at->format('d M Y') : null,
                     'is_overdue' => $t->due_at ? $t->isOverdue() : false,
-                    'assigned_to' => $t->assignedTo->name ?? 'Unassigned',
-                    'assigned_initials' => isset($t->assignedTo) ? strtoupper(substr($t->assignedTo->name, 0, 2)) : '?',
+                    'assigned_to' => $t->assignedUsers->isNotEmpty() ? $t->assignedUsers->pluck('name')->implode(', ') : 'Unassigned',
+                    'assigned_initials' => $t->assignedUsers->isNotEmpty() ? strtoupper(substr($t->assignedUsers->first()->name, 0, 2)) : '?',
                     'entity_type' => $t->entity_type,
                     'client_name' => $clientName,
                     'description' => $t->description,

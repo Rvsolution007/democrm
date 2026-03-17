@@ -264,8 +264,8 @@
                             <div class="kb-card-footer">
                                 <div class="kb-avatar-row">
                                     <span
-                                        class="kb-avatar">{{ isset($task->assignedTo) ? strtoupper(substr($task->assignedTo->name, 0, 2)) : '?' }}</span>
-                                    <span class="kb-avatar-name">{{ $task->assignedTo->name ?? 'Unassigned' }}</span>
+                                        class="kb-avatar">{{ $task->assignedUsers->isNotEmpty() ? strtoupper(substr($task->assignedUsers->first()->name, 0, 2)) : '?' }}</span>
+                                    <span class="kb-avatar-name">{{ $task->assignedUsers->isNotEmpty() ? $task->assignedUsers->pluck('name')->implode(', ') : 'Unassigned' }}</span>
                                 </div>
                                 <div class="kb-card-actions" draggable="false" onmousedown="event.stopPropagation()">
                                     <button type="button" class="kb-action-btn kb-action-edit"
@@ -403,8 +403,8 @@
                         <td>
                             <div class="kb-avatar-row">
                                 <span
-                                    class="kb-avatar">{{ isset($task->assignedTo) ? strtoupper(substr($task->assignedTo->name, 0, 2)) : '?' }}</span>
-                                <span class="kb-avatar-name">{{ $task->assignedTo->name ?? 'Unassigned' }}</span>
+                                    class="kb-avatar">{{ $task->assignedUsers->isNotEmpty() ? strtoupper(substr($task->assignedUsers->first()->name, 0, 2)) : '?' }}</span>
+                                <span class="kb-avatar-name">{{ $task->assignedUsers->isNotEmpty() ? $task->assignedUsers->pluck('name')->implode(', ') : 'Unassigned' }}</span>
                             </div>
                         </td>
                         <td>
