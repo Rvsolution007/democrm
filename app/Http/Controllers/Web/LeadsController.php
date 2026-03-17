@@ -30,7 +30,9 @@ class LeadsController extends Controller
         // Global permission filter
         if (!can('leads.global')) {
             $query->where(function ($q) {
-                $q->where('assigned_to_user_id', auth()->id())
+                $q->whereHas('assignedUsers', function($q2) {
+                        $q2->where('user_id', auth()->id());
+                    })
                     ->orWhere('created_by_user_id', auth()->id());
             });
         }
@@ -61,9 +63,11 @@ class LeadsController extends Controller
         // Assigned filter
         if ($request->filled('assigned')) {
             if ($request->assigned === 'unassigned') {
-                $query->whereNull('assigned_to_user_id');
+                $query->doesntHave('assignedUsers');
             } else {
-                $query->where('assigned_to_user_id', $request->assigned);
+                $query->whereHas('assignedUsers', function ($q) use ($request) {
+                    $q->where('user_id', $request->assigned);
+                });
             }
         }
 
@@ -123,7 +127,9 @@ class LeadsController extends Controller
                 // Apply permission filter
                 if (!can('leads.global')) {
                     $phoneQuery->where(function ($q) {
-                        $q->where('assigned_to_user_id', auth()->id())
+                        $q->whereHas('assignedUsers', function($q2) {
+                                $q2->where('user_id', auth()->id());
+                            })
                             ->orWhere('created_by_user_id', auth()->id());
                     });
                 }
@@ -159,7 +165,9 @@ class LeadsController extends Controller
             // Apply permission filter
             if (!can('leads.global')) {
                 $nameQuery->where(function ($q) {
-                    $q->where('assigned_to_user_id', auth()->id())
+                    $q->whereHas('assignedUsers', function($q2) {
+                            $q2->where('user_id', auth()->id());
+                        })
                         ->orWhere('created_by_user_id', auth()->id());
                 });
             }
@@ -229,7 +237,8 @@ class LeadsController extends Controller
             'state' => 'nullable|string|max:255',
             'source' => $r('source', 'required') . '|string',
             'stage' => $r('stage', 'required') . '|string',
-            'assigned_to_user_id' => 'nullable|exists:users,id',
+            'assigned_to_users' => 'nullable|array',
+            'assigned_to_users.*' => 'exists:users,id',
             'notes' => 'nullable|string',
         ];
     }
@@ -245,12 +254,15 @@ class LeadsController extends Controller
         $validated['company_id'] = auth()->user()->company_id;
         $validated['created_by_user_id'] = auth()->id();
 
-        // Non-global users: auto-assign to self
-        if (!can('leads.global') && !auth()->user()->isAdmin()) {
-            $validated['assigned_to_user_id'] = auth()->id();
-        }
-
         $lead = Lead::create($validated);
+
+        $assignedUsers = [];
+        if (!can('leads.global') && !auth()->user()->isAdmin()) {
+            $assignedUsers = [auth()->id()];
+        } else {
+            $assignedUsers = $request->input('assigned_to_users', []);
+        }
+        $lead->assignedUsers()->sync($assignedUsers);
 
         // Sync products if provided
         if ($request->has('product_ids')) {
@@ -273,16 +285,18 @@ class LeadsController extends Controller
             $lead->products()->sync($productData);
         }
 
-        // Send assignment notification
-        if (!empty($lead->assigned_to_user_id) && $lead->assigned_to_user_id != auth()->id()) {
-            $assignedUser = \App\Models\User::find($lead->assigned_to_user_id);
-            if ($assignedUser) {
-                $assignedUser->notify(new \App\Notifications\AssignedNotification(
-                    'lead',
-                    $lead->id,
-                    $lead->name,
-                    auth()->user()->name
-                ));
+        // Send assignment notification to all assigned users
+        foreach ($assignedUsers as $userId) {
+            if ($userId != auth()->id()) {
+                $assignedUser = \App\Models\User::find($userId);
+                if ($assignedUser) {
+                    $assignedUser->notify(new \App\Notifications\AssignedNotification(
+                        'lead',
+                        $lead->id,
+                        $lead->name,
+                        auth()->user()->name
+                    ));
+                }
             }
         }
 
@@ -322,9 +336,9 @@ class LeadsController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $lead = Lead::with(['products', 'quotes', 'assignedTo', 'createdBy', 'followups.user'])->findOrFail($id);
+        $lead = Lead::with(['products', 'quotes', 'assignedUsers', 'createdBy', 'followups.user'])->findOrFail($id);
 
-        if (!can('leads.global') && $lead->created_by_user_id != auth()->id() && $lead->assigned_to_user_id != auth()->id()) {
+        if (!can('leads.global') && $lead->created_by_user_id != auth()->id() && !$lead->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only view your own leads.');
         }
 
@@ -340,18 +354,38 @@ class LeadsController extends Controller
         $lead = Lead::findOrFail($id);
 
         // Non-global users can only update their own leads
-        if (!can('leads.global') && $lead->created_by_user_id != auth()->id() && $lead->assigned_to_user_id != auth()->id()) {
+        if (!can('leads.global') && $lead->created_by_user_id != auth()->id() && !$lead->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only edit your own leads.');
         }
 
         $validated = $request->validate($this->getValidationRules());
 
-        // Non-global users: keep assigned to self
-        if (!can('leads.global') && !auth()->user()->isAdmin()) {
-            $validated['assigned_to_user_id'] = auth()->id();
-        }
-
         $lead->update($validated);
+
+        $assignedUsers = [];
+        if (!can('leads.global') && !auth()->user()->isAdmin()) {
+            $assignedUsers = [auth()->id()];
+        } else {
+            $assignedUsers = $request->input('assigned_to_users', []);
+        }
+        $syncResult = $lead->assignedUsers()->sync($assignedUsers);
+
+        // Notify newly assigned users
+        if (!empty($syncResult['attached'])) {
+            foreach ($syncResult['attached'] as $newUserId) {
+                if ($newUserId != auth()->id()) {
+                    $assignedUser = \App\Models\User::find($newUserId);
+                    if ($assignedUser) {
+                        $assignedUser->notify(new \App\Notifications\AssignedNotification(
+                            'lead',
+                            $lead->id,
+                            $lead->name,
+                            auth()->user()->name
+                        ));
+                    }
+                }
+            }
+        }
 
         // Sync products if provided
         if ($request->has('product_ids')) {
@@ -418,18 +452,7 @@ class LeadsController extends Controller
             $quote->save();
         }
 
-        // Send assignment notification if assignee changed
-        if (!empty($lead->assigned_to_user_id) && $lead->wasChanged('assigned_to_user_id')) {
-            $assignedUser = \App\Models\User::find($lead->assigned_to_user_id);
-            if ($assignedUser) {
-                $assignedUser->notify(new \App\Notifications\AssignedNotification(
-                    'lead',
-                    $lead->id,
-                    $lead->name,
-                    auth()->user()->name
-                ));
-            }
-        }
+        // Send assignment notification if assignee changed (Handled above in sync attached logic)
 
         return redirect()->route('admin.leads.index')
             ->with('success', 'Lead updated successfully');
@@ -488,7 +511,7 @@ class LeadsController extends Controller
             'lead_id' => $lead->id,
             'client_id' => $lead->client ? $lead->client->id : null,
             'created_by_user_id' => auth()->id(),
-            'assigned_to_user_id' => $lead->assigned_to_user_id ?? auth()->id(),
+            'created_by_user_id' => auth()->id(),
             'quote_no' => $quoteNumber,
             'date' => now()->toDateString(),
             'valid_till' => now()->addDays(30)->toDateString(),
@@ -499,6 +522,12 @@ class LeadsController extends Controller
             'status' => 'draft',
             'notes' => $lead->notes,
         ]);
+
+        if ($lead->assignedUsers()->exists()) {
+            $quote->assignedUsers()->sync($lead->assignedUsers->pluck('id'));
+        } else {
+            $quote->assignedUsers()->attach(auth()->id());
+        }
 
         // Copy lead products as QuoteItems
         foreach ($lead->products as $index => $product) {
@@ -532,13 +561,16 @@ class LeadsController extends Controller
         ]);
     }
 
-    public function convertToClient($id)
+    public function convertToClient(Request $request, $id)
     {
         if (!can('leads.write')) {
             abort(403, 'Unauthorized action.');
         }
 
         $lead = Lead::findOrFail($id);
+
+        // Get assigned users from request (from the convert modal)
+        $assignedUserIds = $request->input('assigned_to_users', []);
 
         // If lead already has a client, re-convert: add new product tasks to existing project
         if ($lead->client()->exists()) {
@@ -556,7 +588,7 @@ class LeadsController extends Controller
             }
 
             // Add new tasks to existing project (or create project if somehow missing)
-            $newTasksCount = $this->createProjectsAndTasks($lead, $existingClient);
+            $newTasksCount = $this->createProjectsAndTasks($lead, $existingClient, $assignedUserIds);
 
             $message = $newTasksCount > 0
                 ? "New products added to existing project ({$newTasksCount} new tasks created)."
@@ -596,7 +628,7 @@ class LeadsController extends Controller
             }
 
             // Auto-create projects and tasks from quotes
-            $newTasksCount = $this->createProjectsAndTasks($lead, $existingClient);
+            $newTasksCount = $this->createProjectsAndTasks($lead, $existingClient, $assignedUserIds);
 
             return response()->json([
                 'message' => 'An existing client was found. Lead has been successfully merged with the client.',
@@ -609,7 +641,7 @@ class LeadsController extends Controller
             'company_id' => $lead->company_id ?? auth()->user()->company_id,
             'lead_id' => $lead->id,
             'created_by_user_id' => auth()->id(),
-            'assigned_to_user_id' => $lead->assigned_to_user_id ?? auth()->id(),
+            'created_by_user_id' => auth()->id(),
             'type' => 'business',
             'business_name' => $lead->name,
             'contact_name' => $lead->name,
@@ -627,6 +659,14 @@ class LeadsController extends Controller
             'notes' => $lead->notes,
         ]);
 
+        if (!empty($assignedUserIds)) {
+            $client->assignedUsers()->sync($assignedUserIds);
+        } elseif ($lead->assignedUsers()->exists()) {
+            $client->assignedUsers()->sync($lead->assignedUsers->pluck('id'));
+        } else {
+            $client->assignedUsers()->attach(auth()->id());
+        }
+
         $lead->update(['stage' => 'won']);
 
         // Link all quotes from this lead to the new client, generate invoice numbers, and mark as accepted
@@ -641,7 +681,7 @@ class LeadsController extends Controller
         }
 
         // Auto-create projects and tasks from quotes
-        $newTasksCount = $this->createProjectsAndTasks($lead, $client);
+        $newTasksCount = $this->createProjectsAndTasks($lead, $client, $assignedUserIds);
 
         return response()->json([
             'message' => 'Lead converted to client successfully.',
@@ -657,7 +697,7 @@ class LeadsController extends Controller
      * If a project already exists for this lead+client, only add NEW tasks (no duplicates).
      * Returns the count of newly created tasks.
      */
-    private function createProjectsAndTasks(Lead $lead, Client $client): int
+    private function createProjectsAndTasks(Lead $lead, Client $client, array $assignedUserIds = []): int
     {
         $quotes = Quote::where('lead_id', $lead->id)->with('items')->get();
 
@@ -682,12 +722,20 @@ class LeadsController extends Controller
                 'quote_id' => $quotes->first()->id,
                 'lead_id' => $lead->id,
                 'created_by_user_id' => auth()->id(),
-                'assigned_to_user_id' => $lead->assigned_to_user_id ?? auth()->id(),
+                'created_by_user_id' => auth()->id(),
                 'name' => $client->display_name . ' - Project',
                 'status' => 'pending',
                 'start_date' => now()->toDateString(),
                 'budget' => $totalBudget,
             ]);
+
+            if (!empty($assignedUserIds)) {
+                $project->assignedUsers()->sync($assignedUserIds);
+            } elseif ($lead->assignedUsers()->exists()) {
+                $project->assignedUsers()->sync($lead->assignedUsers->pluck('id'));
+            } else {
+                $project->assignedUsers()->attach(auth()->id());
+            }
         }
 
         // Get existing task titles in this project to avoid duplicates
@@ -752,7 +800,7 @@ class LeadsController extends Controller
                 $task = Task::create([
                     'company_id' => $client->company_id ?? auth()->user()->company_id,
                     'project_id' => $project->id,
-                    'assigned_to_user_id' => $lead->assigned_to_user_id ?? auth()->id(),
+                    'created_by_user_id' => auth()->id(),
                     'created_by_user_id' => auth()->id(),
                     'entity_type' => 'project',
                     'entity_id' => $project->id,
@@ -762,6 +810,14 @@ class LeadsController extends Controller
                     'status' => 'todo',
                     'sort_order' => $sortOrder,
                 ]);
+
+                if (!empty($assignedUserIds)) {
+                    $task->assignedUsers()->sync($assignedUserIds);
+                } elseif ($lead->assignedUsers()->exists()) {
+                    $task->assignedUsers()->sync($lead->assignedUsers->pluck('id'));
+                } else {
+                    $task->assignedUsers()->attach(auth()->id());
+                }
 
                 $newTasksCount++;
                 $existingTaskTitles[] = strtolower(trim($taskTitle));
@@ -793,7 +849,7 @@ class LeadsController extends Controller
         $lead = Lead::findOrFail($id);
 
         // Non-global users can only delete their own leads
-        if (!can('leads.global') && $lead->created_by_user_id != auth()->id() && $lead->assigned_to_user_id != auth()->id()) {
+        if (!can('leads.global') && $lead->created_by_user_id != auth()->id() && !$lead->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only delete your own leads.');
         }
 

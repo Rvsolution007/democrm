@@ -19,7 +19,7 @@ class FollowupsController extends Controller
         // Get leads that have a follow-up date set, ordered by nearest follow-up
         // Load only the latest followup per lead
         $query = Lead::with([
-            'assignedTo',
+            'assignedUsers',
             'products',
             'followups' => function ($q) {
                 $q->with('user')->latest()->limit(1);
@@ -30,7 +30,9 @@ class FollowupsController extends Controller
         // Global permission filter
         if (!can('leads.global')) {
             $query->where(function ($q) {
-                $q->where('assigned_to_user_id', auth()->id())
+                $q->whereHas('assignedUsers', function($q2) {
+                        $q2->where('user_id', auth()->id());
+                    })
                     ->orWhere('created_by_user_id', auth()->id());
             });
         }

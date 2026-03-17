@@ -19,10 +19,11 @@ class ProjectsController extends Controller
 
         $query = Project::with(['client', 'assignedTo', 'tasks', 'lead', 'quote']);
 
-        // Global permission filter
         if (!can('projects.global')) {
             $query->where(function ($q) {
-                $q->where('assigned_to_user_id', auth()->id())
+                $q->whereHas('assignedUsers', function($q2) {
+                        $q2->where('user_id', auth()->id());
+                    })
                     ->orWhere('created_by_user_id', auth()->id());
             });
         }
@@ -56,7 +57,9 @@ class ProjectsController extends Controller
 
         // Assigned To filter
         if ($request->filled('assigned_to')) {
-            $query->where('assigned_to_user_id', $request->assigned_to);
+            $query->whereHas('assignedUsers', function ($q) use ($request) {
+                $q->where('user_id', $request->assigned_to);
+            });
         }
 
         // Start Date filter
@@ -87,7 +90,7 @@ class ProjectsController extends Controller
                     'tasks_total' => $p->tasks->count(),
                     'start_date' => $p->start_date ? $p->start_date->format('d M Y') : null,
                     'due_date' => $p->due_date ? $p->due_date->format('d M Y') : null,
-                    'assigned_to' => $p->assignedTo->name ?? 'Unassigned',
+                    'assigned_to' => $p->assignedUsers->isNotEmpty() ? $p->assignedUsers->pluck('name')->implode(', ') : 'Unassigned',
                     'quote_id' => $p->quote_id,
                     'raw' => $p->toArray(),
                 ];
@@ -115,9 +118,9 @@ class ProjectsController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $project = Project::with(['client', 'assignedTo', 'createdBy', 'quote', 'lead', 'tasks.assignedTo', 'tasks.activities.user'])->findOrFail($id);
+        $project = Project::with(['client', 'assignedUsers', 'createdBy', 'quote', 'lead', 'tasks.assignedUsers', 'tasks.activities.user'])->findOrFail($id);
 
-        if (!can('projects.global') && $project->created_by_user_id != auth()->id() && $project->assigned_to_user_id != auth()->id()) {
+        if (!can('projects.global') && $project->created_by_user_id != auth()->id() && !$project->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only view your own projects.');
         }
 
@@ -143,7 +146,7 @@ class ProjectsController extends Controller
 
         $project = Project::findOrFail($id);
 
-        if (!can('projects.global') && $project->created_by_user_id != auth()->id() && $project->assigned_to_user_id != auth()->id()) {
+        if (!can('projects.global') && $project->created_by_user_id != auth()->id() && !$project->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only edit your own projects.');
         }
 
@@ -153,21 +156,34 @@ class ProjectsController extends Controller
             'status' => 'required|in:pending,in_progress,completed,on_hold,cancelled',
             'start_date' => 'nullable|date',
             'due_date' => 'nullable|date',
-            'assigned_to_user_id' => 'nullable|exists:users,id',
+            'assigned_to_users' => 'nullable|array',
+            'assigned_to_users.*' => 'exists:users,id',
         ]);
 
         $project->update($validated);
 
-        // Send assignment notification if assignee changed
-        if (!empty($project->assigned_to_user_id) && $project->wasChanged('assigned_to_user_id') && $project->assigned_to_user_id != auth()->id()) {
-            $assignedUser = \App\Models\User::find($project->assigned_to_user_id);
-            if ($assignedUser) {
-                $assignedUser->notify(new \App\Notifications\AssignedNotification(
-                    'project',
-                    $project->id,
-                    $project->name,
-                    auth()->user()->name
-                ));
+        $assignedUsers = [];
+        if (!can('projects.global') && !auth()->user()->isAdmin()) {
+            $assignedUsers = [auth()->id()];
+        } else {
+            $assignedUsers = $request->input('assigned_to_users', []);
+        }
+        $syncResult = $project->assignedUsers()->sync($assignedUsers);
+
+        // Send assignment notification to new assignees
+        if (!empty($syncResult['attached'])) {
+            foreach ($syncResult['attached'] as $newUserId) {
+                if ($newUserId != auth()->id()) {
+                    $assignedUser = \App\Models\User::find($newUserId);
+                    if ($assignedUser) {
+                        $assignedUser->notify(new \App\Notifications\AssignedNotification(
+                            'project',
+                            $project->id,
+                            $project->name,
+                            auth()->user()->name
+                        ));
+                    }
+                }
             }
         }
 
@@ -182,7 +198,7 @@ class ProjectsController extends Controller
 
         $project = Project::findOrFail($id);
 
-        if (!can('projects.global') && $project->created_by_user_id != auth()->id() && $project->assigned_to_user_id != auth()->id()) {
+        if (!can('projects.global') && $project->created_by_user_id != auth()->id() && !$project->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only delete your own projects.');
         }
 
@@ -214,7 +230,8 @@ class ProjectsController extends Controller
             'priority' => 'required|in:low,medium,high',
             'due_at' => 'nullable|date',
             'contact_number' => 'nullable|string',
-            'assigned_to_user_id' => 'nullable|exists:users,id',
+            'assigned_to_users' => 'nullable|array',
+            'assigned_to_users.*' => 'exists:users,id',
         ]);
 
         if (!can('tasks.global') && !auth()->user()->isAdmin()) {
@@ -237,6 +254,14 @@ class ProjectsController extends Controller
         }
 
         $task->update($validated);
+
+        $assignedUsers = [];
+        if (!can('tasks.global') && !auth()->user()->isAdmin()) {
+            $assignedUsers = [auth()->id()];
+        } else {
+            $assignedUsers = $request->input('assigned_to_users', []);
+        }
+        $task->assignedUsers()->sync($assignedUsers);
 
         // Log status change activity
         if ($task->wasChanged('status')) {

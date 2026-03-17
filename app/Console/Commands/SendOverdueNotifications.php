@@ -21,12 +21,12 @@ class SendOverdueNotifications extends Command
         // Overdue Tasks (due_at < today AND status != done)
         $tasks = Task::where('due_at', '<', $today)
             ->where('status', '!=', 'done')
-            ->whereNotNull('assigned_to_user_id')
+            ->whereHas('assignedUsers')
+            ->with('assignedUsers')
             ->get();
 
         foreach ($tasks as $task) {
-            $user = User::find($task->assigned_to_user_id);
-            if ($user) {
+            foreach ($task->assignedUsers as $user) {
                 $exists = $user->notifications()
                     ->whereDate('created_at', $today)
                     ->where('type', OverdueNotification::class)
@@ -49,12 +49,12 @@ class SendOverdueNotifications extends Command
         // Overdue Projects (due_date < today AND status != completed)
         $projects = Project::where('due_date', '<', $today)
             ->where('status', '!=', 'completed')
-            ->whereNotNull('assigned_to_user_id')
+            ->whereHas('assignedUsers')
+            ->with('assignedUsers')
             ->get();
 
         foreach ($projects as $project) {
-            $user = User::find($project->assigned_to_user_id);
-            if ($user) {
+            foreach ($project->assignedUsers as $user) {
                 $exists = $user->notifications()
                     ->whereDate('created_at', $today)
                     ->where('type', OverdueNotification::class)

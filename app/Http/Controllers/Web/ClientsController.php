@@ -21,7 +21,9 @@ class ClientsController extends Controller
         if (!can('clients.global')) {
             $query->where(function ($q) {
                 $q->where('created_by_user_id', auth()->id())
-                    ->orWhere('assigned_to_user_id', auth()->id());
+                    ->orWhereHas('assignedUsers', function($q2) {
+                        $q2->where('user_id', auth()->id());
+                    });
             });
         }
 
@@ -49,10 +51,10 @@ class ClientsController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $client = Client::with(['quotes.items', 'lead.followups.user', 'lead.assignedTo'])->findOrFail($id);
+        $client = Client::with(['quotes.items', 'lead.followups.user', 'assignedUsers'])->findOrFail($id);
 
         // Non-global users can only view their own clients
-        if (!can('clients.global') && $client->created_by_user_id != auth()->id() && $client->assigned_to_user_id != auth()->id()) {
+        if (!can('clients.global') && $client->created_by_user_id != auth()->id() && !$client->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only view your own clients.');
         }
 
@@ -80,12 +82,15 @@ class ClientsController extends Controller
         $validated['company_id'] = auth()->user()->company_id;
         $validated['created_by_user_id'] = auth()->id();
 
-        // Non-global users: auto-assign to self
-        if (!can('clients.global') && !auth()->user()->isAdmin()) {
-            $validated['assigned_to_user_id'] = auth()->id();
-        }
+        $client = Client::create($validated);
 
-        Client::create($validated);
+        $assignedUsers = [];
+        if (!can('clients.global') && !auth()->user()->isAdmin()) {
+            $assignedUsers = [auth()->id()];
+        } else {
+            $assignedUsers = $request->input('assigned_to_users', []);
+        }
+        $client->assignedUsers()->sync($assignedUsers);
 
         return redirect()->route('admin.clients.index')
             ->with('success', 'Client created successfully');
@@ -100,7 +105,7 @@ class ClientsController extends Controller
         $client = Client::findOrFail($id);
 
         // Non-global users can only update their own clients
-        if (!can('clients.global') && $client->created_by_user_id != auth()->id() && $client->assigned_to_user_id != auth()->id()) {
+        if (!can('clients.global') && $client->created_by_user_id != auth()->id() && !$client->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only edit your own clients.');
         }
 
@@ -112,17 +117,21 @@ class ClientsController extends Controller
             'gstin' => 'nullable|string|max:15',
             'business_category' => 'nullable|string|max:255',
             'type' => 'required|in:business,individual',
-            'assigned_to_user_id' => 'nullable|exists:users,id',
+            'assigned_to_users' => 'nullable|array',
+            'assigned_to_users.*' => 'exists:users,id',
             'billing_address' => 'nullable|array',
             'shipping_address' => 'nullable|array',
         ]);
 
-        // Non-global users: keep assigned to self
-        if (!can('clients.global') && !auth()->user()->isAdmin()) {
-            $validated['assigned_to_user_id'] = auth()->id();
-        }
-
         $client->update($validated);
+
+        $assignedUsers = [];
+        if (!can('clients.global') && !auth()->user()->isAdmin()) {
+            $assignedUsers = [auth()->id()];
+        } else {
+            $assignedUsers = $request->input('assigned_to_users', []);
+        }
+        $client->assignedUsers()->sync($assignedUsers);
 
         return redirect()->route('admin.clients.index')
             ->with('success', 'Client updated successfully');
@@ -137,7 +146,7 @@ class ClientsController extends Controller
         $client = Client::findOrFail($id);
 
         // Non-global users can only delete their own clients
-        if (!can('clients.global') && $client->created_by_user_id != auth()->id() && $client->assigned_to_user_id != auth()->id()) {
+        if (!can('clients.global') && $client->created_by_user_id != auth()->id() && !$client->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only delete your own clients.');
         }
 

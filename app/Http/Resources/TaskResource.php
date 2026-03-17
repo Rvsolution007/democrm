@@ -15,17 +15,16 @@ class TaskResource extends JsonResource
             'description' => $this->description,
             'entity_type' => $this->entity_type,
             'entity_id' => $this->entity_id,
-            'assigned_to_user_id' => $this->assigned_to_user_id,
             'due_at' => $this->due_at?->toISOString(),
             'priority' => $this->priority,
             'status' => $this->status,
             'is_overdue' => $this->isOverdue(),
             'completed_at' => $this->completed_at?->toISOString(),
             'created_at' => $this->created_at?->toISOString(),
-            'assigned_to' => $this->whenLoaded('assignedTo', fn() => [
-                'id' => $this->assignedTo->id,
-                'name' => $this->assignedTo->name,
-            ]),
+            'assigned_to_users' => $this->whenLoaded('assignedUsers', fn() => $this->assignedUsers->map(fn($u) => [
+                'id' => $u->id,
+                'name' => $u->name,
+            ])),
             'created_by' => $this->whenLoaded('createdBy', fn() => [
                 'id' => $this->createdBy->id,
                 'name' => $this->createdBy->name,

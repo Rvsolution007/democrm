@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use App\Models\Traits\BelongsToCompany;
 
 class Task extends Model
@@ -78,9 +79,10 @@ class Task extends Model
         return $this->belongsTo(Company::class);
     }
 
-    public function assignedTo(): BelongsTo
+    // Changed from assignedTo (belongsTo) to assignedUsers (belongsToMany)
+    public function assignedUsers(): BelongsToMany
     {
-        return $this->belongsTo(User::class, 'assigned_to_user_id');
+        return $this->belongsToMany(User::class, 'task_user');
     }
 
     public function createdBy(): BelongsTo

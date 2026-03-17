@@ -150,7 +150,7 @@ class ReportsController extends Controller
         $totalBudget = Project::sum('budget') / 100;
 
         // Overdue projects
-        $overdueProjects = Project::with(['client', 'assignedTo'])
+        $overdueProjects = Project::with(['client', 'assignedUsers'])
             ->whereNotIn('status', ['completed', 'cancelled'])
             ->whereNotNull('due_date')
             ->where('due_date', '<', now())
@@ -171,7 +171,7 @@ class ReportsController extends Controller
             ->groupBy('priority')->pluck('count', 'priority')->toArray();
 
         // Overdue tasks
-        $overdueTasks = Task::with(['assignedTo', 'project'])
+        $overdueTasks = Task::with(['assignedUsers', 'project'])
             ->overdue()
             ->orderBy('due_at')
             ->take(10)
@@ -190,10 +190,10 @@ class ReportsController extends Controller
             $teamData[] = [
                 'id' => $user->id,
                 'name' => $user->name,
-                'leads_assigned' => Lead::where('assigned_to_user_id', $user->id)->count(),
-                'leads_won' => Lead::where('assigned_to_user_id', $user->id)->where('stage', 'won')->count(),
-                'tasks_assigned' => Task::where('assigned_to_user_id', $user->id)->count(),
-                'tasks_completed' => Task::where('assigned_to_user_id', $user->id)->where('status', 'done')->count(),
+                'leads_assigned' => Lead::whereHas('assignedUsers', fn($q) => $q->where('user_id', $user->id))->count(),
+                'leads_won' => Lead::whereHas('assignedUsers', fn($q) => $q->where('user_id', $user->id))->where('stage', 'won')->count(),
+                'tasks_assigned' => Task::whereHas('assignedUsers', fn($q) => $q->where('user_id', $user->id))->count(),
+                'tasks_completed' => Task::whereHas('assignedUsers', fn($q) => $q->where('user_id', $user->id))->where('status', 'done')->count(),
                 'activities_logged' => Activity::where('created_by_user_id', $user->id)->count(),
                 'quotes_created' => Quote::where('created_by_user_id', $user->id)->count(),
                 'revenue_generated' => Quote::where('created_by_user_id', $user->id)->where('status', 'accepted')->sum('grand_total') / 100,
@@ -287,7 +287,7 @@ class ReportsController extends Controller
         if (!can('reports.read'))
             abort(403);
 
-        $leads = Lead::with(['assignedTo', 'createdBy'])->latest()->get();
+        $leads = Lead::with(['assignedUsers', 'createdBy'])->latest()->get();
 
         return $this->streamCsv('leads_report.csv', [
             'SR No',
@@ -314,7 +314,7 @@ class ReportsController extends Controller
                 ucfirst($lead->source ?? '-'),
                 ucfirst($lead->stage ?? '-'),
                 $lead->expected_value ? number_format($lead->expected_value / 100, 2) : '0.00',
-                $lead->assignedTo->name ?? 'Unassigned',
+                $lead->assignedUsers->isNotEmpty() ? $lead->assignedUsers->pluck('name')->implode(', ') : 'Unassigned',
                 $lead->createdBy->name ?? '-',
                 $lead->next_follow_up_at ? $lead->next_follow_up_at->format('d/m/Y') : '-',
                 $lead->created_at->format('d/m/Y H:i'),
@@ -411,7 +411,7 @@ class ReportsController extends Controller
         if (!can('reports.read'))
             abort(403);
 
-        $projects = Project::with(['client', 'assignedTo', 'createdBy'])->latest()->get();
+        $projects = Project::with(['client', 'assignedUsers', 'createdBy'])->latest()->get();
 
         return $this->streamCsv('projects_report.csv', [
             'SR No',
@@ -434,7 +434,7 @@ class ReportsController extends Controller
                 number_format(($p->budget ?? 0) / 100, 2),
                 $p->start_date ? $p->start_date->format('d/m/Y') : '-',
                 $p->due_date ? $p->due_date->format('d/m/Y') : '-',
-                $p->assignedTo->name ?? 'Unassigned',
+                $p->assignedUsers->isNotEmpty() ? $p->assignedUsers->pluck('name')->implode(', ') : 'Unassigned',
                 $p->total_tasks_count,
                 $p->completed_tasks_count,
                 $p->progress_percent . '%',
@@ -450,7 +450,7 @@ class ReportsController extends Controller
         if (!can('reports.read'))
             abort(403);
 
-        $tasks = Task::with(['assignedTo', 'project'])->latest()->get();
+        $tasks = Task::with(['assignedUsers', 'project'])->latest()->get();
 
         return $this->streamCsv('tasks_report.csv', [
             'SR No',
@@ -470,7 +470,7 @@ class ReportsController extends Controller
                 ucfirst($t->status),
                 ucfirst($t->priority),
                 $t->due_at ? $t->due_at->format('d/m/Y') : '-',
-                $t->assignedTo->name ?? 'Unassigned',
+                $t->assignedUsers->isNotEmpty() ? $t->assignedUsers->pluck('name')->implode(', ') : 'Unassigned',
                 $t->completed_at ? $t->completed_at->format('d/m/Y H:i') : '-',
                 $t->created_at->format('d/m/Y H:i'),
             ];
@@ -492,10 +492,10 @@ class ReportsController extends Controller
                 $i + 1,
                 $user->name,
                 $user->email,
-                Lead::where('assigned_to_user_id', $user->id)->count(),
-                Lead::where('assigned_to_user_id', $user->id)->where('stage', 'won')->count(),
-                Task::where('assigned_to_user_id', $user->id)->count(),
-                Task::where('assigned_to_user_id', $user->id)->where('status', 'done')->count(),
+                Lead::whereHas('assignedUsers', fn($q) => $q->where('user_id', $user->id))->count(),
+                Lead::whereHas('assignedUsers', fn($q) => $q->where('user_id', $user->id))->where('stage', 'won')->count(),
+                Task::whereHas('assignedUsers', fn($q) => $q->where('user_id', $user->id))->count(),
+                Task::whereHas('assignedUsers', fn($q) => $q->where('user_id', $user->id))->where('status', 'done')->count(),
                 Activity::where('created_by_user_id', $user->id)->count(),
                 Quote::where('created_by_user_id', $user->id)->count(),
                 number_format(Quote::where('created_by_user_id', $user->id)->where('status', 'accepted')->sum('grand_total') / 100, 2),

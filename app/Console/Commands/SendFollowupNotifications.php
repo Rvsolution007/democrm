@@ -35,30 +35,28 @@ class SendFollowupNotifications extends Command
         // Get all leads where follow-up time has passed (or is right now)
         // and stage is not won/lost
         $leads = Lead::where('next_follow_up_at', '<=', $now)
-            ->whereNotNull('assigned_to_user_id')
+            ->whereHas('assignedUsers')
+            ->with('assignedUsers')
             ->whereNotIn('stage', ['won', 'lost'])
             ->get();
 
         $count = 0;
         foreach ($leads as $lead) {
-            $user = User::find($lead->assigned_to_user_id);
-            if (!$user)
-                continue;
+            foreach ($lead->assignedUsers as $user) {
+                $followUpTime = $lead->next_follow_up_at->format('h:i A');
 
-            $followUpTime = $lead->next_follow_up_at->format('h:i A');
+                $exists = $user->notifications()
+                    ->whereDate('created_at', now()->toDateString())
+                    ->where('type', FollowupTodayNotification::class)
+                    ->whereJsonContains('data->entity_type', 'lead')
+                    ->whereJsonContains('data->entity_id', $lead->id)
+                    ->whereJsonContains('data->time', $followUpTime)
+                    ->exists();
 
-            // Avoid duplicate: check if same notification already sent today for this exact follow-up time
-            $exists = $user->notifications()
-                ->whereDate('created_at', now()->toDateString())
-                ->where('type', FollowupTodayNotification::class)
-                ->whereJsonContains('data->entity_type', 'lead')
-                ->whereJsonContains('data->entity_id', $lead->id)
-                ->whereJsonContains('data->time', $followUpTime)
-                ->exists();
-
-            if (!$exists) {
-                $user->notify(new FollowupTodayNotification('lead', $lead->id, $lead->name, $followUpTime));
-                $count++;
+                if (!$exists) {
+                    $user->notify(new FollowupTodayNotification('lead', $lead->id, $lead->name, $followUpTime));
+                    $count++;
+                }
             }
         }
 
@@ -75,30 +73,28 @@ class SendFollowupNotifications extends Command
 
         $microTasks = MicroTask::whereDate('follow_up_date', '<=', $today)
             ->whereNot('status', 'done')
-            ->with('task')
+            ->with('task.assignedUsers')
             ->get();
 
         $count = 0;
         foreach ($microTasks as $microTask) {
             $task = $microTask->task;
-            if (!$task || !$task->assigned_to_user_id)
+            if (!$task || $task->assignedUsers->isEmpty())
                 continue;
 
-            $user = User::find($task->assigned_to_user_id);
-            if (!$user)
-                continue;
+            foreach ($task->assignedUsers as $user) {
+                // Avoid duplicate
+                $exists = $user->notifications()
+                    ->whereDate('created_at', $today)
+                    ->where('type', FollowupTodayNotification::class)
+                    ->whereJsonContains('data->entity_type', 'micro_task')
+                    ->whereJsonContains('data->entity_id', $microTask->id)
+                    ->exists();
 
-            // Avoid duplicate
-            $exists = $user->notifications()
-                ->whereDate('created_at', $today)
-                ->where('type', FollowupTodayNotification::class)
-                ->whereJsonContains('data->entity_type', 'micro_task')
-                ->whereJsonContains('data->entity_id', $microTask->id)
-                ->exists();
-
-            if (!$exists) {
-                $user->notify(new FollowupTodayNotification('micro_task', $microTask->id, $microTask->title));
-                $count++;
+                if (!$exists) {
+                    $user->notify(new FollowupTodayNotification('micro_task', $microTask->id, $microTask->title));
+                    $count++;
+                }
             }
         }
 

@@ -539,6 +539,39 @@
             </div>
         </div>
     </div>
+
+    <!-- Convert to Client Modal -->
+    <div id="convert-client-modal"
+        style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10001;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+        <div style="background:white;border-radius:12px;width:95%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.2);overflow:hidden">
+            <div style="padding:16px 20px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#f0fdf4,#fff)">
+                <h3 style="margin:0;font-size:16px;font-weight:600;color:#16a34a;display:flex;align-items:center;gap:8px">
+                    <i data-lucide="user-check" style="width:18px;height:18px"></i> Convert Lead to Client
+                </h3>
+                <button onclick="closeConvertModal()"
+                    style="background:#f1f5f9;border:none;font-size:18px;cursor:pointer;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#64748b">&times;</button>
+            </div>
+            <div style="padding:20px">
+                <p style="font-size:13px;color:#64748b;margin:0 0 16px 0;line-height:1.5">
+                    A new client, project, and tasks will be auto-created. Select a user to assign the project to.
+                </p>
+                <div class="form-group" style="margin-bottom:0">
+                    <label class="form-label" style="font-weight:600;font-size:13px;color:#334155;margin-bottom:6px">Assign Project To</label>
+                    <select id="convert-assign-user" class="form-select" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px">
+                        @foreach($projectGlobalUsers ?? [] as $pUser)
+                            <option value="{{ $pUser->id }}" {{ $pUser->id == auth()->id() ? 'selected' : '' }}>{{ $pUser->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+            <div style="padding:12px 20px;border-top:1px solid #f0f0f0;display:flex;justify-content:flex-end;gap:10px;background:#fafbfc">
+                <button type="button" onclick="closeConvertModal()"
+                    style="padding:8px 18px;border:1.5px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:13px;color:#64748b">Cancel</button>
+                <button type="button" id="btn-confirm-convert" onclick="submitConvertToClient()"
+                    style="padding:8px 18px;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 2px 8px rgba(22,163,74,0.3)">Convert & Assign</button>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -833,7 +866,21 @@
                 alert('Please select a lead first.');
                 return;
             }
-            if (!confirm('Convert this Lead to a Client?\n\nIf the client already exists, new products will be added to the existing project as tasks.\nIf this is a new conversion, a new client, project, and tasks will be created.')) return;
+            // Show assign modal instead of confirm dialog
+            document.getElementById('convert-client-modal').style.display = 'flex';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function closeConvertModal() {
+            document.getElementById('convert-client-modal').style.display = 'none';
+        }
+
+        function submitConvertToClient() {
+            var leadId = document.getElementById('quote-lead-id').value;
+            var assignUserId = document.getElementById('convert-assign-user').value;
+            var btn = document.getElementById('btn-confirm-convert');
+            btn.disabled = true;
+            btn.textContent = 'Converting...';
 
             fetch(`{{ url('admin/leads') }}/${leadId}/convert-to-client`, {
                 method: 'POST',
@@ -841,7 +888,8 @@
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                     'Accept': 'application/json',
                     'Content-Type': 'application/json'
-                }
+                },
+                body: JSON.stringify({ assigned_to_users: [assignUserId] })
             })
                 .then(response => response.json().then(data => ({ status: response.status, body: data })))
                 .then(res => {
@@ -850,11 +898,15 @@
                         window.location.reload();
                     } else {
                         alert(res.body.message || 'Error converting lead to client.');
+                        btn.disabled = false;
+                        btn.textContent = 'Convert & Assign';
                     }
                 })
                 .catch(err => {
                     console.error(err);
                     alert('An error occurred.');
+                    btn.disabled = false;
+                    btn.textContent = 'Convert & Assign';
                 });
         }
 

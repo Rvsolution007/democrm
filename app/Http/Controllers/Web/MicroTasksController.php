@@ -16,12 +16,14 @@ class MicroTasksController extends Controller
         }
 
         // Base query for MicroTasks with parent Task assigned user
-        $query = MicroTask::with(['task.assignedTo', 'task.project.client', 'task.project.lead', 'task.clientEntity', 'task.leadEntity', 'role']);
+        $query = MicroTask::with(['task.assignedUsers', 'task.project.client', 'task.project.lead', 'task.clientEntity', 'task.leadEntity', 'role']);
 
         // Global permission filter
         if (!can('tasks.global') && !auth()->user()->isAdmin()) {
             $query->whereHas('task', function ($q) {
-                $q->where('assigned_to_user_id', auth()->id())
+                $q->whereHas('assignedUsers', function($q2) {
+                        $q2->where('user_id', auth()->id());
+                    })
                     ->orWhere('created_by_user_id', auth()->id());
             });
         }
@@ -40,8 +42,8 @@ class MicroTasksController extends Controller
 
         // Assigned To filter
         if ($request->filled('assigned_to')) {
-            $query->whereHas('task', function ($q) use ($request) {
-                $q->where('assigned_to_user_id', $request->assigned_to);
+            $query->whereHas('task.assignedUsers', function ($q) use ($request) {
+                $q->where('user_id', $request->assigned_to);
             });
         }
 
@@ -121,8 +123,8 @@ class MicroTasksController extends Controller
                     'project_name' => $projectName,
                     'client_name' => $clientName,
                     'priority' => $task->priority ?? 'medium',
-                    'assigned_to' => $task->assignedTo->name ?? 'Unassigned',
-                    'assigned_initials' => isset($task->assignedTo) ? strtoupper(substr($task->assignedTo->name, 0, 2)) : '?',
+                    'assigned_to' => $task->assignedUsers->isNotEmpty() ? $task->assignedUsers->pluck('name')->implode(', ') : 'Unassigned',
+                    'assigned_initials' => $task->assignedUsers->isNotEmpty() ? $task->assignedUsers->map(function($u) { return strtoupper(substr($u->name, 0, 2)); })->implode(', ') : '?',
                 ];
             });
 
@@ -186,7 +188,7 @@ class MicroTasksController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $microTask = MicroTask::with(['task.assignedTo'])->findOrFail($id);
+        $microTask = MicroTask::with(['task.assignedUsers'])->findOrFail($id);
 
         // Role-based visibility: Normal users can only view matching roles or unassigned
         if (!auth()->user()->isAdmin() && $microTask->role_id !== null && $microTask->role_id != auth()->user()->role_id) {
@@ -195,7 +197,7 @@ class MicroTasksController extends Controller
 
         // Optional permission check for non-global users
         if (!can('tasks.global') && !auth()->user()->isAdmin()) {
-            if ($microTask->task->assigned_to_user_id !== auth()->id() && $microTask->task->created_by_user_id !== auth()->id()) {
+            if (!$microTask->task->assignedUsers->contains('id', auth()->id()) && $microTask->task->created_by_user_id !== auth()->id()) {
                 abort(403, 'Unauthorized action.');
             }
         }
@@ -224,7 +226,7 @@ class MicroTasksController extends Controller
 
         // Optional permission check for non-global users
         if (!can('tasks.global') && !auth()->user()->isAdmin()) {
-            if ($microTask->task->assigned_to_user_id !== auth()->id() && $microTask->task->created_by_user_id !== auth()->id()) {
+            if (!$microTask->task->assignedUsers->contains('id', auth()->id()) && $microTask->task->created_by_user_id !== auth()->id()) {
                 abort(403, 'Unauthorized action.');
             }
         }
@@ -279,7 +281,7 @@ class MicroTasksController extends Controller
 
         // Optional permission check for non-global users
         if (!can('tasks.global') && !auth()->user()->isAdmin()) {
-            if ($microTask->task->assigned_to_user_id !== auth()->id() && $microTask->task->created_by_user_id !== auth()->id()) {
+            if (!$microTask->task->assignedUsers->contains('id', auth()->id()) && $microTask->task->created_by_user_id !== auth()->id()) {
                 abort(403, 'Unauthorized action.');
             }
         }

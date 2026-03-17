@@ -25,11 +25,10 @@ class LeadResource extends JsonResource
             'query_type' => $this->query_type,
             'query_message' => $this->query_message,
             'product_name' => $this->product_name,
-            'assigned_to_user_id' => $this->assigned_to_user_id,
-            'assigned_to' => $this->whenLoaded('assignedTo', fn() => [
-                'id' => $this->assignedTo->id,
-                'name' => $this->assignedTo->name,
-            ]),
+            'assigned_to_users' => $this->whenLoaded('assignedUsers', fn() => $this->assignedUsers->map(fn($u) => [
+                'id' => $u->id,
+                'name' => $u->name,
+            ])),
             'has_overdue_follow_up' => $this->hasOverdueFollowUp(),
             'created_at' => $this->created_at?->toISOString(),
             'activities' => $this->whenLoaded('activities', fn() => ActivityResource::collection($this->activities)),

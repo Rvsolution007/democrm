@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use App\Models\Traits\BelongsToCompany;
 
 class Client extends Model
@@ -36,7 +37,6 @@ class Client extends Model
         'business_category',
         'lead_id',
         'created_by_user_id',
-        'assigned_to_user_id',
         'type',
         'business_name',
         'contact_name',
@@ -77,9 +77,10 @@ class Client extends Model
         return $this->belongsTo(User::class, 'created_by_user_id');
     }
 
-    public function assignedTo(): BelongsTo
+    // Changed from assignedTo (belongsTo) to assignedUsers (belongsToMany)
+    public function assignedUsers(): BelongsToMany
     {
-        return $this->belongsTo(User::class, 'assigned_to_user_id');
+        return $this->belongsToMany(User::class, 'client_user');
     }
 
     public function quotes(): HasMany

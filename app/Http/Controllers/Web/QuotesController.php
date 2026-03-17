@@ -32,7 +32,9 @@ class QuotesController extends Controller
         if (!can('quotes.global')) {
             $query->where(function ($q) {
                 $q->where('created_by_user_id', auth()->id())
-                    ->orWhere('assigned_to_user_id', auth()->id());
+                    ->orWhereHas('assignedUsers', function($q2) {
+                        $q2->where('user_id', auth()->id());
+                    });
             });
         }
 
@@ -53,7 +55,9 @@ class QuotesController extends Controller
 
         // User Filter
         if ($request->filled('assigned_to_user_id')) {
-            $query->where('assigned_to_user_id', $request->assigned_to_user_id);
+            $query->whereHas('assignedUsers', function($q) use($request) {
+                $q->where('user_id', $request->assigned_to_user_id);
+            });
         }
 
         // Status Filter
@@ -86,7 +90,9 @@ class QuotesController extends Controller
         if (!can('leads.global')) {
             $leadsQuery->where(function ($q) {
                 $q->where('created_by_user_id', auth()->id())
-                    ->orWhere('assigned_to_user_id', auth()->id());
+                    ->orWhereHas('assignedUsers', function($q2) {
+                        $q2->where('user_id', auth()->id());
+                    });
             });
         }
         $leads = $leadsQuery->orderBy('name')->get();
@@ -111,7 +117,19 @@ class QuotesController extends Controller
         })->values()->toArray();
         $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
 
-        return view('admin.quotes.index', compact('leadQuotes', 'clients', 'products', 'leads', 'users', 'quoteTaxes', 'paymentTypes', 'leadTotalAmount', 'leadDueAmount'));
+        // Users with projects.global permission (for convert-to-client assign dropdown)
+        $projectGlobalUsers = User::where('status', 'active')
+            ->where(function ($q) {
+                $q->whereHas('role', function ($rq) {
+                    $rq->whereJsonContains('permissions', 'projects.global');
+                })->orWhereHas('role', function ($rq) {
+                    $rq->whereJsonContains('permissions', 'all');
+                });
+            })
+            ->orderBy('name')
+            ->get();
+
+        return view('admin.quotes.index', compact('leadQuotes', 'clients', 'products', 'leads', 'users', 'quoteTaxes', 'paymentTypes', 'leadTotalAmount', 'leadDueAmount', 'projectGlobalUsers'));
     }
 
     public function store(Request $request)
@@ -126,7 +144,8 @@ class QuotesController extends Controller
             'lead_id' => 'required_if:client_type,lead|nullable|exists:leads,id',
             'quote_date' => 'required|date',
             'valid_until' => 'required|date|after_or_equal:quote_date',
-            'assigned_to_user_id' => 'nullable|exists:users,id',
+            'assigned_to_users' => 'nullable|array',
+            'assigned_to_users.*' => 'exists:users,id',
             'subtotal' => 'nullable|numeric|min:0',
             'discount' => 'nullable|numeric|min:0',
             'tax_amount' => 'nullable|numeric|min:0',
@@ -143,21 +162,11 @@ class QuotesController extends Controller
         $taxAmount = (int) (($validated['tax_amount'] ?? 0) * 100);
         $grandTotal = $subtotal - $discount + $taxAmount;
 
-        // Only global/admin users can assign quotes to others
-        $assignedTo = auth()->id();
-        if ((can('quotes.global') || auth()->user()->isAdmin()) && !empty($validated['assigned_to_user_id'])) {
-            $assignedTo = $validated['assigned_to_user_id'];
-        }
-
-        $clientId = $validated['client_type'] === 'client' ? $validated['client_id'] : null;
-        $leadId = $validated['client_type'] === 'lead' ? $validated['lead_id'] : null;
-
         Quote::create([
             'company_id' => auth()->user()->company_id,
             'client_id' => $clientId,
             'lead_id' => $leadId,
             'created_by_user_id' => auth()->id(),
-            'assigned_to_user_id' => $assignedTo,
             'quote_no' => $quoteNumber,
             'date' => $validated['quote_date'],
             'valid_till' => $validated['valid_until'],
@@ -170,6 +179,14 @@ class QuotesController extends Controller
         ]);
 
         $quote = Quote::latest()->first();
+
+        $assignedUsers = [];
+        if (!can('quotes.global') && !auth()->user()->isAdmin()) {
+            $assignedUsers = [auth()->id()];
+        } else {
+            $assignedUsers = $request->input('assigned_to_users', []);
+        }
+        $quote->assignedUsers()->sync($assignedUsers);
 
         // Create QuoteItems from selected products
         if ($request->has('product_ids')) {
@@ -246,9 +263,9 @@ class QuotesController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $quote = Quote::with(['items', 'lead', 'assignedTo'])->findOrFail($id);
+        $quote = Quote::with(['items', 'lead', 'assignedUsers'])->findOrFail($id);
 
-        if (!can('quotes.global') && $quote->created_by_user_id != auth()->id() && $quote->assigned_to_user_id != auth()->id()) {
+        if (!can('quotes.global') && $quote->created_by_user_id != auth()->id() && !$quote->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only edit your own quotes.');
         }
 
@@ -261,9 +278,9 @@ class QuotesController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $quote = Quote::with(['items', 'lead', 'client', 'assignedTo', 'createdBy'])->findOrFail($id);
+        $quote = Quote::with(['items', 'lead', 'client', 'assignedUsers', 'createdBy'])->findOrFail($id);
 
-        if (!can('quotes.global') && $quote->created_by_user_id != auth()->id() && $quote->assigned_to_user_id != auth()->id()) {
+        if (!can('quotes.global') && $quote->created_by_user_id != auth()->id() && !$quote->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only view your own quotes.');
         }
 
@@ -278,7 +295,7 @@ class QuotesController extends Controller
 
         $quote = Quote::with(['items', 'lead', 'client', 'company', 'createdBy'])->findOrFail($id);
 
-        if (!can('quotes.global') && $quote->created_by_user_id != auth()->id() && $quote->assigned_to_user_id != auth()->id()) {
+        if (!can('quotes.global') && $quote->created_by_user_id != auth()->id() && !$quote->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only download your own quotes.');
         }
 
@@ -294,7 +311,7 @@ class QuotesController extends Controller
         $quote = Quote::findOrFail($id);
 
         // Non-global users can only update their own quotes
-        if (!can('quotes.global') && $quote->created_by_user_id != auth()->id() && $quote->assigned_to_user_id != auth()->id()) {
+        if (!can('quotes.global') && $quote->created_by_user_id != auth()->id() && !$quote->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only edit your own quotes.');
         }
 
@@ -304,7 +321,8 @@ class QuotesController extends Controller
             'lead_id' => 'required_if:client_type,lead|nullable|exists:leads,id',
             'quote_date' => 'required|date',
             'valid_until' => 'required|date|after_or_equal:quote_date',
-            'assigned_to_user_id' => 'nullable|exists:users,id',
+            'assigned_to_users' => 'nullable|array',
+            'assigned_to_users.*' => 'exists:users,id',
             'subtotal' => 'nullable|numeric|min:0',
             'discount' => 'nullable|numeric|min:0',
             'tax_amount' => 'nullable|numeric|min:0',
@@ -318,11 +336,6 @@ class QuotesController extends Controller
         $taxAmount = (int) (($validated['tax_amount'] ?? 0) * 100);
         $grandTotal = $subtotal - $discount + $taxAmount;
 
-        $assignedTo = $quote->assigned_to_user_id;
-        if ((can('quotes.global') || auth()->user()->isAdmin()) && !empty($validated['assigned_to_user_id'])) {
-            $assignedTo = $validated['assigned_to_user_id'];
-        }
-
         $clientId = $validated['client_type'] === 'client' ? $validated['client_id'] : null;
         $leadId = $validated['client_type'] === 'lead' ? $validated['lead_id'] : null;
 
@@ -333,7 +346,6 @@ class QuotesController extends Controller
         $quote->update([
             'client_id' => $clientId,
             'lead_id' => $leadId,
-            'assigned_to_user_id' => $assignedTo,
             'date' => $validated['quote_date'],
             'valid_till' => $validated['valid_until'],
             'subtotal' => $subtotal,
@@ -343,6 +355,14 @@ class QuotesController extends Controller
             'status' => $validated['status'],
             'notes' => $validated['notes'] ?? null,
         ]);
+
+        $assignedUsers = [];
+        if (!can('quotes.global') && !auth()->user()->isAdmin()) {
+            $assignedUsers = [auth()->id()];
+        } else {
+            $assignedUsers = $request->input('assigned_to_users', []);
+        }
+        $quote->assignedUsers()->sync($assignedUsers);
 
         // Sync products: Delete old items and recreate new ones
         if ($request->has('product_ids')) {
@@ -531,12 +551,17 @@ class QuotesController extends Controller
                 'quote_id' => $quote->id,
                 'lead_id' => $quote->lead_id,
                 'created_by_user_id' => auth()->id(),
-                'assigned_to_user_id' => $quote->assigned_to_user_id ?? auth()->id(),
                 'name' => $client->display_name . ' - Project',
                 'status' => 'pending',
                 'start_date' => now()->toDateString(),
                 'budget' => $quote->grand_total,
             ]);
+
+            $quoteAssignedUsers = $quote->assignedUsers->pluck('id')->toArray();
+            if (empty($quoteAssignedUsers)) {
+                $quoteAssignedUsers = [auth()->id()];
+            }
+            $project->assignedUsers()->sync($quoteAssignedUsers);
         }
 
         // Get existing task titles to avoid duplicates
@@ -597,7 +622,6 @@ class QuotesController extends Controller
             $task = Task::create([
                 'company_id' => $companyId,
                 'project_id' => $project->id,
-                'assigned_to_user_id' => $quote->assigned_to_user_id ?? auth()->id(),
                 'created_by_user_id' => auth()->id(),
                 'entity_type' => 'project',
                 'entity_id' => $project->id,
@@ -607,6 +631,12 @@ class QuotesController extends Controller
                 'status' => 'todo',
                 'sort_order' => $sortOrder,
             ]);
+
+            $taskAssignedUsers = $quote->assignedUsers->pluck('id')->toArray();
+            if (empty($taskAssignedUsers)) {
+                $taskAssignedUsers = [auth()->id()];
+            }
+            $task->assignedUsers()->sync($taskAssignedUsers);
 
             $existingTaskTitles[] = strtolower(trim($taskTitle));
 
@@ -634,7 +664,7 @@ class QuotesController extends Controller
         $quote = Quote::findOrFail($id);
 
         // Non-global users can only delete their own quotes
-        if (!can('quotes.global') && $quote->created_by_user_id != auth()->id() && $quote->assigned_to_user_id != auth()->id()) {
+        if (!can('quotes.global') && $quote->created_by_user_id != auth()->id() && !$quote->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only delete your own quotes.');
         }
 

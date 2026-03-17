@@ -16,12 +16,14 @@ class TasksController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Task::forCompany($this->companyId())
-            ->with(['assignedTo', 'createdBy']);
+            ->with(['assignedUsers', 'createdBy']);
 
         // Global permission filter
         if (!can('tasks.global')) {
             $query->where(function ($q) {
-                $q->where('assigned_to_user_id', auth()->id())
+                $q->whereHas('assignedUsers', function($q2) {
+                        $q2->where('user_id', auth()->id());
+                    })
                     ->orWhere('created_by_user_id', auth()->id());
             });
         }
@@ -38,7 +40,7 @@ class TasksController extends Controller
 
         // Filter by assigned user
         if ($assignedTo = $request->get('assigned_to')) {
-            $query->where('assigned_to_user_id', $assignedTo);
+            $query->whereHas('assignedUsers', fn($q) => $q->where('user_id', $assignedTo));
         }
 
         // Filter by entity
@@ -84,7 +86,7 @@ class TasksController extends Controller
     {
         $tasks = Task::forCompany($this->companyId())
             ->forEntity($entityType, $entityId)
-            ->with(['assignedTo', 'createdBy'])
+            ->with(['assignedUsers', 'createdBy'])
             ->orderBy('due_at', 'asc')
             ->get();
 
@@ -99,7 +101,7 @@ class TasksController extends Controller
     public function show(int $id): JsonResponse
     {
         $task = Task::forCompany($this->companyId())
-            ->with(['assignedTo', 'createdBy'])
+            ->with(['assignedUsers', 'createdBy'])
             ->findOrFail($id);
 
         return response()->json([
@@ -117,21 +119,15 @@ class TasksController extends Controller
             'description' => 'nullable|string',
             'entity_type' => 'nullable|in:' . implode(',', Task::ENTITY_TYPES),
             'entity_id' => 'nullable|integer',
-            'assigned_to_user_id' => 'nullable|exists:users,id',
+            'assigned_to_users' => 'nullable|array',
+            'assigned_to_users.*' => 'exists:users,id',
             'due_at' => 'nullable|date',
             'priority' => 'nullable|in:' . implode(',', Task::PRIORITIES),
         ]);
 
-        // Non-global users: auto-assign to self
-        $assignedTo = auth()->id();
-        if ((can('tasks.global') || auth()->user()->isAdmin()) && $request->assigned_to_user_id) {
-            $assignedTo = $request->assigned_to_user_id;
-        }
-
         $task = Task::create([
             'company_id' => $this->companyId(),
             'created_by_user_id' => auth()->id(),
-            'assigned_to_user_id' => $assignedTo,
             'entity_type' => $request->entity_type,
             'entity_id' => $request->entity_id,
             'title' => $request->title,
@@ -141,9 +137,17 @@ class TasksController extends Controller
             'status' => 'todo',
         ]);
 
+        $assignedUsers = [];
+        if (!can('tasks.global') && !auth()->user()->isAdmin()) {
+            $assignedUsers = [auth()->id()];
+        } else {
+            $assignedUsers = $request->input('assigned_to_users', [auth()->id()]);
+        }
+        $task->assignedUsers()->sync($assignedUsers);
+
         return response()->json([
             'message' => 'Task created successfully',
-            'data' => new TaskResource($task->load(['assignedTo', 'createdBy'])),
+            'data' => new TaskResource($task->load(['assignedUsers', 'createdBy'])),
         ], 201);
     }
 
@@ -157,18 +161,14 @@ class TasksController extends Controller
         $request->validate([
             'title' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
-            'assigned_to_user_id' => 'nullable|exists:users,id',
+            'assigned_to_users' => 'nullable|array',
+            'assigned_to_users.*' => 'exists:users,id',
             'due_at' => 'nullable|date',
             'priority' => 'nullable|in:' . implode(',', Task::PRIORITIES),
             'status' => 'nullable|in:' . implode(',', Task::STATUSES),
         ]);
 
-        $data = $request->only(['title', 'description', 'assigned_to_user_id', 'due_at', 'priority', 'status']);
-
-        // Non-global users: keep assigned to self
-        if (!can('tasks.global') && !auth()->user()->isAdmin()) {
-            $data['assigned_to_user_id'] = auth()->id();
-        }
+        $data = $request->only(['title', 'description', 'due_at', 'priority', 'status']);
 
         // Set completed_at if marking as done
         if ($request->status === 'done' && !$task->isDone()) {
@@ -179,9 +179,19 @@ class TasksController extends Controller
 
         $task->update($data);
 
+        if ($request->has('assigned_to_users')) {
+            $assignedUsers = [];
+            if (!can('tasks.global') && !auth()->user()->isAdmin()) {
+                $assignedUsers = [auth()->id()];
+            } else {
+                $assignedUsers = $request->input('assigned_to_users', []);
+            }
+            $task->assignedUsers()->sync($assignedUsers);
+        }
+
         return response()->json([
             'message' => 'Task updated successfully',
-            'data' => new TaskResource($task->fresh(['assignedTo', 'createdBy'])),
+            'data' => new TaskResource($task->fresh(['assignedUsers', 'createdBy'])),
         ]);
     }
 

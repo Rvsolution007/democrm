@@ -22,7 +22,7 @@ class LeadsController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Lead::forCompany($this->companyId())
-            ->with('assignedTo');
+            ->with('assignedUsers');
 
         // Search
         if ($search = $request->get('search')) {
@@ -46,7 +46,7 @@ class LeadsController extends Controller
 
         // Filter by assigned user
         if ($assignedTo = $request->get('assigned_to')) {
-            $query->where('assigned_to_user_id', $assignedTo);
+            $query->whereHas('assignedUsers', fn($q) => $q->where('user_id', $assignedTo));
         }
 
         // Filter by date range
@@ -95,7 +95,7 @@ class LeadsController extends Controller
     public function show(int $id): JsonResponse
     {
         $lead = Lead::forCompany($this->companyId())
-            ->with(['assignedTo', 'activities', 'tasks', 'quotes'])
+            ->with(['assignedUsers', 'activities', 'tasks', 'quotes'])
             ->findOrFail($id);
 
         return response()->json([
@@ -110,7 +110,6 @@ class LeadsController extends Controller
     {
         $lead = Lead::create([
             'company_id' => $this->companyId(),
-            'assigned_to_user_id' => $request->assigned_to_user_id,
             'source' => $request->source ?? 'other',
             'name' => $request->name,
             'phone' => $request->phone,
@@ -118,14 +117,20 @@ class LeadsController extends Controller
             'city' => $request->city,
             'state' => $request->state,
             'stage' => $request->stage ?? 'new',
-            'expected_value' => ($request->expected_value ?? 0) * 100, // Convert to paise
+            'expected_value' => ($request->expected_value ?? 0) * 100,
             'next_follow_up_at' => $request->next_follow_up_at,
             'notes' => $request->notes,
         ]);
 
+        if ($request->has('assigned_to_user_id')) {
+            $lead->assignedUsers()->sync([$request->assigned_to_user_id]);
+        } elseif ($request->has('assigned_to_users')) {
+            $lead->assignedUsers()->sync($request->input('assigned_to_users', []));
+        }
+
         return response()->json([
             'message' => 'Lead created successfully',
-            'data' => new LeadResource($lead->load('assignedTo')),
+            'data' => new LeadResource($lead->load('assignedUsers')),
         ], 201);
     }
 
@@ -144,7 +149,6 @@ class LeadsController extends Controller
             'state',
             'stage',
             'source',
-            'assigned_to_user_id',
             'next_follow_up_at',
             'notes'
         ]);
@@ -155,9 +159,15 @@ class LeadsController extends Controller
 
         $lead->update($data);
 
+        if ($request->has('assigned_to_user_id')) {
+            $lead->assignedUsers()->sync([$request->assigned_to_user_id]);
+        } elseif ($request->has('assigned_to_users')) {
+            $lead->assignedUsers()->sync($request->input('assigned_to_users', []));
+        }
+
         return response()->json([
             'message' => 'Lead updated successfully',
-            'data' => new LeadResource($lead->fresh('assignedTo')),
+            'data' => new LeadResource($lead->fresh('assignedUsers')),
         ]);
     }
 
@@ -184,11 +194,11 @@ class LeadsController extends Controller
         ]);
 
         $lead = Lead::forCompany($this->companyId())->findOrFail($id);
-        $lead->update(['assigned_to_user_id' => $request->user_id]);
+        $lead->assignedUsers()->sync([$request->user_id]);
 
         return response()->json([
             'message' => 'Lead assigned successfully',
-            'data' => new LeadResource($lead->fresh('assignedTo')),
+            'data' => new LeadResource($lead->fresh('assignedUsers')),
         ]);
     }
 
@@ -285,19 +295,24 @@ class LeadsController extends Controller
                 'quote_id' => $quotes->first()->id,
                 'lead_id' => $lead->id,
                 'created_by_user_id' => auth()->id(),
-                'assigned_to_user_id' => $lead->assigned_to_user_id ?? auth()->id(),
                 'name' => $client->display_name . ' - Project',
                 'status' => 'pending',
                 'start_date' => now()->toDateString(),
                 'budget' => $totalBudget,
             ]);
 
+            $leadAssignedUsers = $lead->assignedUsers->pluck('id')->toArray();
+            if (empty($leadAssignedUsers)) {
+                $leadAssignedUsers = [auth()->id()];
+            }
+            $project->assignedUsers()->sync($leadAssignedUsers);
+            $client->assignedUsers()->sync($leadAssignedUsers);
+
             foreach ($quotes as $quote) {
                 foreach ($quote->items as $item) {
-                    Task::create([
+                    $task = Task::create([
                         'company_id' => $this->companyId(),
                         'project_id' => $project->id,
-                        'assigned_to_user_id' => $lead->assigned_to_user_id ?? auth()->id(),
                         'created_by_user_id' => auth()->id(),
                         'entity_type' => 'project',
                         'entity_id' => $project->id,
@@ -306,6 +321,7 @@ class LeadsController extends Controller
                         'priority' => 'medium',
                         'status' => 'todo',
                     ]);
+                    $task->assignedUsers()->sync($leadAssignedUsers);
                 }
             }
         }

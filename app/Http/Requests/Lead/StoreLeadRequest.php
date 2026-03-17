@@ -23,6 +23,8 @@ class StoreLeadRequest extends FormRequest
             'source' => 'nullable|in:' . implode(',', \App\Models\Lead::getDynamicSources()),
             'stage' => 'nullable|in:' . implode(',', Lead::STAGES),
             'assigned_to_user_id' => 'nullable|exists:users,id',
+            'assigned_to_users' => 'nullable|array',
+            'assigned_to_users.*' => 'exists:users,id',
             'expected_value' => 'nullable|numeric|min:0',
             'next_follow_up_at' => 'nullable|date',
             'notes' => 'nullable|string',

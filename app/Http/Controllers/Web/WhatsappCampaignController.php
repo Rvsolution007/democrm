@@ -35,7 +35,7 @@ class WhatsappCampaignController extends Controller
         $users = [];
         
         if (!can('leads.global')) {
-            $stageQuery->where('assigned_to_user_id', auth()->id());
+            $stageQuery->whereHas('assignedUsers', fn($q) => $q->where('user_id', auth()->id()));
         } else {
             $users = \App\Models\User::orderBy('name')->get();
         }
@@ -51,9 +51,9 @@ class WhatsappCampaignController extends Controller
         $query = Lead::query()->whereNotNull('phone')->where('phone', '!=', '');
 
         if (!can('leads.global')) {
-            $query->where('assigned_to_user_id', auth()->id());
+            $query->whereHas('assignedUsers', fn($q) => $q->where('user_id', auth()->id()));
         } elseif ($request->target_user_id) {
-            $query->where('assigned_to_user_id', $request->target_user_id);
+            $query->whereHas('assignedUsers', fn($q) => $q->where('user_id', $request->target_user_id));
         }
 
         if ($request->stage) {
@@ -157,9 +157,9 @@ class WhatsappCampaignController extends Controller
         $query = Lead::query()->whereNotNull('phone')->where('phone', '!=', '');
 
         if (!can('leads.global')) {
-            $query->where('assigned_to_user_id', auth()->id());
+            $query->whereHas('assignedUsers', fn($q) => $q->where('user_id', auth()->id()));
         } elseif ($request->target_user_id) {
-            $query->where('assigned_to_user_id', $request->target_user_id);
+            $query->whereHas('assignedUsers', fn($q) => $q->where('user_id', $request->target_user_id));
         }
 
         if ($request->target_stage) {

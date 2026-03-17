@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use App\Models\Traits\BelongsToCompany;
 
 class Lead extends Model
@@ -44,6 +45,19 @@ class Lead extends Model
         'raw_source_payload' => 'array',
     ];
 
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::updating(function ($lead) {
+            if ($lead->isDirty('stage') && in_array($lead->stage, ['won', 'lost'])) {
+                if ($lead->next_follow_up_at && $lead->next_follow_up_at >= now()->startOfDay()) {
+                    $lead->next_follow_up_at = null;
+                }
+            }
+        });
+    }
+
     // Relationships
     public function company(): BelongsTo
     {
@@ -55,9 +69,10 @@ class Lead extends Model
         return $this->belongsTo(User::class, 'created_by_user_id');
     }
 
-    public function assignedTo(): BelongsTo
+    // Changed from assignedTo (belongsTo) to assignedUsers (belongsToMany)
+    public function assignedUsers(): BelongsToMany
     {
-        return $this->belongsTo(User::class, 'assigned_to_user_id');
+        return $this->belongsToMany(User::class, 'lead_user');
     }
 
     public function client(): HasOne
