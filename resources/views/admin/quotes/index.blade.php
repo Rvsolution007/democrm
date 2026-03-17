@@ -193,8 +193,12 @@
                                         title="Download"><i data-lucide="download" style="width:16px;height:16px"></i></button>
                                     @if(can('quotes.write') && $quote->client_id)
                                         <button class="btn btn-ghost btn-icon btn-sm" style="color:#16a34a"
-                                            onclick="convertQuote({{ $quote->id }})" title="Convert Quote"><i
+                                            onclick="convertQuote({{ $quote->id }})" title="Convert to Invoice"><i
                                                 data-lucide="check-circle" style="width:16px;height:16px"></i></button>
+                                    @elseif(can('quotes.write') && $quote->lead_id)
+                                        <button class="btn btn-ghost btn-icon btn-sm" style="color:#16a34a"
+                                            onclick="convertLeadQuoteToClient({{ $quote->id }}, {{ $quote->lead_id }})" title="Convert to Client"><i
+                                                data-lucide="user-check" style="width:16px;height:16px"></i></button>
                                     @endif
                                     @if(can('quotes.write'))
                                         <button class="btn btn-ghost btn-icon btn-sm" onclick="editQuote({{ $quote->id }})"
@@ -918,6 +922,13 @@
                 return;
             }
             // Show assign modal instead of confirm dialog
+            document.getElementById('convert-client-modal').style.display = 'flex';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        // Action button handler for Lead Quotes from the table
+        function convertLeadQuoteToClient(quoteId, leadId) {
+            document.getElementById('quote-lead-id').value = leadId;
             document.getElementById('convert-client-modal').style.display = 'flex';
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
