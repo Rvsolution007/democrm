@@ -508,7 +508,7 @@
                         <i data-lucide="edit" style="width:16px;height:16px;margin-right:6px"></i> <span id="btn-edit-text">Edit Quote</span>
                     </button>
                 @endif
-                <button type="submit" form="quote-form" class="btn btn-primary" id="btn-save-quote">Save Quote</button>
+                <button type="button" onclick="submitQuoteForm()" class="btn btn-primary" id="btn-save-quote">Save Quote</button>
             </div>
         </div>
     </div>
@@ -1328,32 +1328,36 @@
                     'Accept': 'application/json'
                 }
             })
-                .then(response => {
-                    if (response.ok) {
-                        window.location.reload();
+                .then(response => response.json().then(data => ({ status: response.status, ok: response.ok, body: data })))
+                .then(res => {
+                    if (res.ok) {
+                        closeDrawer('quote-drawer');
+                        if (res.body.project_id) {
+                            showAssignProjectModal(res.body.project_id, res.body.project_name);
+                        } else {
+                            alert(res.body.message || 'Invoice saved successfully.');
+                            window.location.reload();
+                        }
                     } else {
-                        return response.json().then(data => {
-                            if (data.errors) {
-                                var list = document.getElementById('quote-error-list');
-                                Object.values(data.errors).forEach(errs => {
-                                    errs.forEach(err => {
-                                        var li = document.createElement('li');
-                                        li.textContent = err;
-                                        list.appendChild(li);
-                                    });
+                        if (res.body.errors) {
+                            var list = document.getElementById('quote-error-list');
+                            Object.values(res.body.errors).forEach(errs => {
+                                errs.forEach(err => {
+                                    var li = document.createElement('li');
+                                    li.textContent = err;
+                                    list.appendChild(li);
                                 });
-                                document.getElementById('quote-error-container').style.display = 'block';
-                                // Scroll to top of drawer
-                                document.querySelector('.drawer-body').scrollTop = 0;
-                            } else {
-                                alert(data.message || 'An error occurred');
-                            }
-                        });
+                            });
+                            document.getElementById('quote-error-container').style.display = 'block';
+                            document.querySelector('.drawer-body').scrollTop = 0;
+                        } else {
+                            alert(res.body.message || 'An error occurred');
+                        }
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('An error occurred while saving the quote.');
+                    alert('An error occurred while saving the invoice.');
                 });
         }
 
@@ -1560,59 +1564,6 @@
                 });
         }
 
-        // ====== Intercept Invoice Form Submit for AJAX (to show assign-project popup) ======
-        document.addEventListener('DOMContentLoaded', function() {
-            var quoteForm = document.getElementById('quote-form');
-            if (quoteForm) {
-                quoteForm.addEventListener('submit', function(e) {
-                    // Only intercept for new invoice creation (POST), not edit (PUT)
-                    var methodField = document.getElementById('quote-form-method');
-                    if (methodField && methodField.value !== 'POST') return;
-
-                    e.preventDefault();
-                    var formData = new FormData(quoteForm);
-                    var saveBtn = document.getElementById('btn-save-quote');
-                    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
-
-                    fetch(quoteForm.action, {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        body: formData
-                    })
-                        .then(response => response.json().then(data => ({ status: response.status, body: data })))
-                        .then(res => {
-                            if (res.status === 200 || res.status === 201) {
-                                closeDrawer('quote-drawer');
-                                if (res.body.project_id) {
-                                    showAssignProjectModal(res.body.project_id, res.body.project_name);
-                                } else {
-                                    alert(res.body.message || 'Invoice created successfully.');
-                                    window.location.reload();
-                                }
-                            } else {
-                                if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Quote'; }
-                                var errContainer = document.getElementById('quote-error-container');
-                                var errList = document.getElementById('quote-error-list');
-                                if (res.body.errors) {
-                                    errList.innerHTML = Object.values(res.body.errors).flat().map(e => '<li>' + e + '</li>').join('');
-                                } else {
-                                    errList.innerHTML = '<li>' + (res.body.message || 'An error occurred.') + '</li>';
-                                }
-                                errContainer.style.display = 'block';
-                            }
-                        })
-                        .catch(err => {
-                            console.error(err);
-                            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Quote'; }
-                            alert('An error occurred while saving the invoice.');
-                        });
-                });
-            }
-        });
     </script>
     <!-- Include Flatpickr for Date Range Selection -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">

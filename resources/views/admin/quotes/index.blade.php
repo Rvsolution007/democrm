@@ -515,7 +515,7 @@
                         <i data-lucide="edit" style="width:16px;height:16px;margin-right:6px"></i> <span id="btn-edit-text">Edit Quote</span>
                     </button>
                 @endif
-                <button type="submit" form="quote-form" class="btn btn-primary" id="btn-save-quote">Save Quote</button>
+                <button type="button" onclick="submitQuoteForm()" class="btn btn-primary" id="btn-save-quote">Save Quote</button>
             </div>
         </div>
     </div>
@@ -1278,27 +1278,31 @@
                     'Accept': 'application/json'
                 }
             })
-                .then(response => {
-                    if (response.ok) {
-                        window.location.reload();
+                .then(response => response.json().then(data => ({ status: response.status, ok: response.ok, body: data })))
+                .then(res => {
+                    if (res.ok) {
+                        closeDrawer('quote-drawer');
+                        if (res.body.project_id) {
+                            showAssignProjectModal(res.body.project_id, res.body.project_name);
+                        } else {
+                            alert(res.body.message || 'Quote saved successfully.');
+                            window.location.reload();
+                        }
                     } else {
-                        return response.json().then(data => {
-                            if (data.errors) {
-                                var list = document.getElementById('quote-error-list');
-                                Object.values(data.errors).forEach(errs => {
-                                    errs.forEach(err => {
-                                        var li = document.createElement('li');
-                                        li.textContent = err;
-                                        list.appendChild(li);
-                                    });
+                        if (res.body.errors) {
+                            var list = document.getElementById('quote-error-list');
+                            Object.values(res.body.errors).forEach(errs => {
+                                errs.forEach(err => {
+                                    var li = document.createElement('li');
+                                    li.textContent = err;
+                                    list.appendChild(li);
                                 });
-                                document.getElementById('quote-error-container').style.display = 'block';
-                                // Scroll to top of drawer
-                                document.querySelector('.drawer-body').scrollTop = 0;
-                            } else {
-                                alert(data.message || 'An error occurred');
-                            }
-                        });
+                            });
+                            document.getElementById('quote-error-container').style.display = 'block';
+                            document.querySelector('.drawer-body').scrollTop = 0;
+                        } else {
+                            alert(res.body.message || 'An error occurred');
+                        }
                     }
                 })
                 .catch(error => {
