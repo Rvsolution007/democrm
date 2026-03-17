@@ -25,7 +25,7 @@ class LeadsController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $query = Lead::with(['assignedTo', 'products']);
+        $query = Lead::with(['assignedUsers', 'products']);
 
         // Global permission filter
         if (!can('leads.global')) {
