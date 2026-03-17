@@ -78,7 +78,7 @@ class Purchase extends Model
         $lastPurchase = self::withTrashed()
             ->where('company_id', $company->id)
             ->where('purchase_no', 'like', $prefix . '%')
-            ->orderBy('id', 'desc')
+            ->orderBy('purchase_no', 'desc')
             ->first();
 
         if (!$lastPurchase) {

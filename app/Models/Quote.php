@@ -196,7 +196,7 @@ class Quote extends Model
         $lastQuote = static::withTrashed()
             ->where('company_id', $company->id)
             ->where('quote_no', 'like', $company->quote_prefix . '-' . $fy . '-%')
-            ->orderBy('id', 'desc')
+            ->orderBy('quote_no', 'desc')
             ->first();
 
         $sequence = 1;
@@ -229,7 +229,7 @@ class Quote extends Model
         $lastInvoice = static::withTrashed()
             ->where('company_id', $company->id)
             ->where('quote_no', 'like', 'I-' . $fy . '-%')
-            ->orderBy('id', 'desc')
+            ->orderBy('quote_no', 'desc')
             ->first();
 
         $sequence = 1;
