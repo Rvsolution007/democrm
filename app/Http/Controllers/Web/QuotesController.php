@@ -249,7 +249,7 @@ class QuotesController extends Controller
 
         // Auto-project/purchase creation is handled during explicit quote conversion
 
-        if ($request->wantsJson()) {
+        if ($request->ajax() || $request->wantsJson()) {
             return response()->json(['message' => 'Quote created successfully', 'redirect' => route('admin.quotes.index')]);
         }
 
@@ -466,7 +466,7 @@ class QuotesController extends Controller
 
         // Auto-project/purchase creation is handled during explicit quote conversion
 
-        if ($request->wantsJson()) {
+        if ($request->ajax() || $request->wantsJson()) {
             return response()->json(['message' => 'Quote updated successfully', 'redirect' => route('admin.quotes.index')]);
         }
 

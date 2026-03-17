@@ -246,7 +246,7 @@ class InvoicesController extends Controller
             $response['project_name'] = $project->name;
         }
 
-        if ($request->wantsJson()) {
+        if ($request->ajax() || $request->wantsJson()) {
             return response()->json($response);
         }
 
