@@ -23,7 +23,7 @@
             max-width: 850px;
             margin: 0 auto;
             background: #ffffff;
-            padding: 40px;
+            padding: 30px;
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
         }
@@ -288,7 +288,9 @@
     <div class="quote-container">
         <div class="header">
             <div>
-                <!-- Add company logo if it exists here optionally. For now, text format -->
+                @if($quote->company && $quote->company->logo)
+                    <img src="{{ asset('storage/' . $quote->company->logo) }}" alt="{{ $quote->company->name }}" style="max-width:120px;max-height:80px;object-fit:contain;">
+                @endif
             </div>
             <div class="quote-meta">
                 <h2>{{ $quote->status === 'accepted' ? 'Invoice' : 'Quotation' }}</h2>

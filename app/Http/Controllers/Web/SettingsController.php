@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\Lead;
 use App\Models\Task;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class SettingsController extends Controller
 {
@@ -159,5 +160,61 @@ class SettingsController extends Controller
         ], auth()->user()->company_id);
 
         return response()->json(['success' => true, 'message' => 'WhatsApp API configuration saved']);
+    }
+
+    /**
+     * Update Company Information
+     */
+    public function updateCompany(Request $request)
+    {
+        if (!can('settings.manage')) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'gstin' => 'nullable|string|max:50',
+            'phone' => 'nullable|string|max:20',
+            'address' => 'nullable|string',
+            'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+
+        $company = auth()->user()->company;
+        
+        if (!$company) {
+            return back()->with('error', 'Company not found.');
+        }
+
+        $company->name = $request->name;
+        $company->gstin = $request->gstin;
+        $company->phone = $request->phone;
+        
+        // Parse address from textarea (comma-separated) into structured array
+        if ($request->address) {
+            $parts = array_map('trim', explode(',', $request->address));
+            $address = [];
+            if (!empty($parts[0])) $address['street'] = $parts[0];
+            if (!empty($parts[1])) $address['city'] = $parts[1];
+            if (!empty($parts[2])) $address['state'] = $parts[2];
+            if (!empty($parts[3])) $address['postal_code'] = $parts[3];
+            if (!empty($parts[4])) $address['country'] = $parts[4];
+            $company->address = $address;
+        } else {
+            $company->address = null;
+        }
+
+        if ($request->hasFile('logo')) {
+            // Delete old logo if exists
+            if ($company->logo && Storage::disk('public')->exists($company->logo)) {
+                Storage::disk('public')->delete($company->logo);
+            }
+
+            $logoPath = $request->file('logo')->store('company_logos', 'public');
+            $company->logo = $logoPath;
+        }
+
+        $company->save();
+
+        return back()->with('success', 'Company information updated successfully.');
     }
 }

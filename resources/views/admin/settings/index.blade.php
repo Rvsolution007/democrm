@@ -129,25 +129,51 @@
                         <h3 class="card-title">Company Information</h3>
                     </div>
                     <div class="card-content">
-                        <form>
+                        <form method="POST" action="{{ route('admin.settings.company.update') }}" enctype="multipart/form-data">
+                            @csrf
+                            @method('PUT')
+
+                            {{-- Logo Upload --}}
+                            <div class="form-group" style="margin-bottom:20px">
+                                <label class="form-label">Company Logo</label>
+                                <div style="display:flex;align-items:center;gap:20px">
+                                    @if($company && $company->logo)
+                                        <div style="width:100px;height:100px;border:2px solid #e2e8f0;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#f8fafc;">
+                                            <img src="{{ asset('storage/' . $company->logo) }}" alt="Company Logo" style="max-width:100%;max-height:100%;object-fit:contain;">
+                                        </div>
+                                    @else
+                                        <div style="width:100px;height:100px;border:2px dashed #cbd5e1;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#f8fafc;color:#94a3b8;font-size:12px;text-align:center;padding:8px;">
+                                            No logo
+                                        </div>
+                                    @endif
+                                    <div>
+                                        <input type="file" name="logo" id="company-logo-input" accept="image/*" style="display:none" onchange="previewLogo(this)">
+                                        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('company-logo-input').click()">
+                                            <i data-lucide="upload" style="width:14px;height:14px"></i> {{ $company && $company->logo ? 'Change Logo' : 'Upload Logo' }}
+                                        </button>
+                                        <p style="font-size:12px;color:#94a3b8;margin-top:6px">JPEG, PNG, GIF — max 2MB</p>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="form-group">
                                 <label class="form-label">Company Name</label>
-                                <input type="text" class="form-input" value="{{ $company->name ?? 'RV CRM' }}">
+                                <input type="text" class="form-input" name="name" value="{{ $company->name ?? 'RV CRM' }}">
                             </div>
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
                                 <div>
                                     <label style="display:block;margin-bottom:4px;font-weight:500">GST Number</label>
-                                    <input type="text" class="form-input" value="{{ $company->gstin ?? '' }}">
+                                    <input type="text" class="form-input" name="gstin" value="{{ $company->gstin ?? '' }}">
                                 </div>
                                 <div>
                                     <label style="display:block;margin-bottom:4px;font-weight:500">Phone</label>
-                                    <input type="tel" class="form-input" value="{{ $company->phone ?? '' }}">
+                                    <input type="tel" class="form-input" name="phone" value="{{ $company->phone ?? '' }}">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Address</label>
-                                <textarea class="form-textarea"
-                                    rows="3">{{ is_array($company->address ?? null) ? implode(', ', array_filter($company->address)) : '' }}</textarea>
+                                <textarea class="form-textarea" name="address"
+                                    rows="3">{{ is_array($company->address ?? null) ? implode(', ', array_filter($company->address)) : ($company->address ?? '') }}</textarea>
                             </div>
                             <button type="submit" class="btn btn-primary">Save Changes</button>
                         </form>
@@ -1173,6 +1199,25 @@
                     btn.disabled = false;
                     lucide.createIcons();
                 });
+        }
+
+        // Preview logo when selected
+        function previewLogo(input) {
+            if (input.files && input.files[0]) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    // Find the logo preview container (first child of the flex container)
+                    var container = input.closest('.form-group').querySelector('div[style*="display:flex"] > div:first-child');
+                    if (container) {
+                        container.style.border = '2px solid #e2e8f0';
+                        container.style.borderStyle = 'solid';
+                        container.style.borderRadius = '12px';
+                        container.style.overflow = 'hidden';
+                        container.innerHTML = '<img src="' + e.target.result + '" alt="Logo Preview" style="max-width:100%;max-height:100%;object-fit:contain;">';
+                    }
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
         }
     </script>
 @endpush

@@ -419,15 +419,22 @@
         <div class="login-card">
             <div class="login-header">
                 <div class="login-logo">
-                    <!-- Adjusted generic logo loosely based on "ProApp" from image -->
-                    <div class="logo-icon">
-                        <div class="logo-icon-part2"></div>
-                        <div class="logo-icon-part1"></div>
-                    </div>
-                    <span class="logo-text">RV CRM</span>
+                    @php
+                        $loginCompany = \App\Models\Company::first();
+                    @endphp
+                    @if($loginCompany && $loginCompany->logo)
+                        <img src="{{ asset('storage/' . $loginCompany->logo) }}" alt="{{ $loginCompany->name ?? 'Company' }}" style="max-width:60px;max-height:60px;object-fit:contain;border-radius:8px;">
+                    @else
+                        <!-- Default generic logo -->
+                        <div class="logo-icon">
+                            <div class="logo-icon-part2"></div>
+                            <div class="logo-icon-part1"></div>
+                        </div>
+                    @endif
+                    <span class="logo-text">{{ $loginCompany->name ?? 'RV CRM' }}</span>
                 </div>
                 <h1 class="login-title">Welcome Back</h1>
-                <p class="login-subtitle">Sign in to your RV CRM account</p>
+                <p class="login-subtitle">Sign in to your {{ $loginCompany->name ?? 'RV CRM' }} account</p>
             </div>
 
             @if($errors->any())

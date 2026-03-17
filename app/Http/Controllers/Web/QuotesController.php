@@ -499,10 +499,12 @@ class QuotesController extends Controller
             'quote_no' => $invoiceNumber,
         ]);
 
+        $assignedUsers = $request->input('assigned_to_users', []);
+
         // Auto-create project and purchases
         $project = null;
         if ($quote->client_id) {
-            $project = $this->autoCreateProjectAndPurchases($quote);
+            $project = $this->autoCreateProjectAndPurchases($quote, $assignedUsers);
         }
 
         $response = [
@@ -523,13 +525,9 @@ class QuotesController extends Controller
      * This runs when a quote is created/updated with a client_id.
      * It mirrors the logic from LeadsController::createProjectsAndTasks.
      */
-    private function autoCreateProjectAndPurchases(Quote $quote): ?Project
+    private function autoCreateProjectAndPurchases(Quote $quote, array $assignedUsers = []): ?Project
     {
         $quote->load('items');
-
-        if ($quote->items->isEmpty()) {
-            return null;
-        }
 
         $client = Client::find($quote->client_id);
         if (!$client) {
@@ -565,7 +563,7 @@ class QuotesController extends Controller
                 'budget' => $quote->grand_total,
             ]);
 
-            $quoteAssignedUsers = $quote->assignedUsers->pluck('id')->toArray();
+            $quoteAssignedUsers = !empty($assignedUsers) ? $assignedUsers : $quote->assignedUsers->pluck('id')->toArray();
             if (empty($quoteAssignedUsers)) {
                 $quoteAssignedUsers = [auth()->id()];
             }
@@ -640,7 +638,7 @@ class QuotesController extends Controller
                 'sort_order' => $sortOrder,
             ]);
 
-            $taskAssignedUsers = $quote->assignedUsers->pluck('id')->toArray();
+            $taskAssignedUsers = !empty($assignedUsers) ? $assignedUsers : $quote->assignedUsers->pluck('id')->toArray();
             if (empty($taskAssignedUsers)) {
                 $taskAssignedUsers = [auth()->id()];
             }

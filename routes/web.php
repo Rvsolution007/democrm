@@ -882,6 +882,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
 
     // Settings
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+    Route::put('/settings/company', [SettingsController::class, 'updateCompany'])->name('settings.company.update');
     Route::post('/settings/column-visibility', [SettingsController::class, 'saveColumnVisibility'])->name('settings.column-visibility.save');
     Route::get('/settings/column-visibility/{module}', [SettingsController::class, 'getColumnVisibility'])->name('settings.column-visibility.get');
     Route::post('/settings/taxes', [SettingsController::class, 'saveTaxes'])->name('settings.taxes.save');

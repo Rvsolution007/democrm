@@ -1131,7 +1131,7 @@
         }
 
         function downloadQuote(id) {
-            window.open(`{{ url('admin/quotes') }}/${id}/download`, '_blank');
+            window.open(`{{ url('admin/invoices') }}/${id}/download`, '_blank');
         }
 
         function loadQuoteProducts(items) {

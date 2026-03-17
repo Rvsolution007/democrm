@@ -191,11 +191,11 @@
                                         title="View"><i data-lucide="eye" style="width:16px;height:16px"></i></button>
                                     <button class="btn btn-ghost btn-icon btn-sm" onclick="downloadQuote({{ $quote->id }})"
                                         title="Download"><i data-lucide="download" style="width:16px;height:16px"></i></button>
-                                    @if(can('quotes.write') && $quote->client_id)
+                                    @if(can('quotes.write') && $quote->client_id > 0)
                                         <button class="btn btn-ghost btn-icon btn-sm" style="color:#16a34a"
-                                            onclick="convertQuote({{ $quote->id }})" title="Convert to Invoice"><i
+                                            onclick="openConvertInvoiceModal({{ $quote->id }})" title="Convert to Invoice"><i
                                                 data-lucide="check-circle" style="width:16px;height:16px"></i></button>
-                                    @elseif(can('quotes.write') && $quote->lead_id)
+                                    @elseif(can('quotes.write') && $quote->lead_id > 0)
                                         <button class="btn btn-ghost btn-icon btn-sm" style="color:#16a34a"
                                             onclick="convertLeadQuoteToClient({{ $quote->id }}, {{ $quote->lead_id }})" title="Convert to Client"><i
                                                 data-lucide="user-check" style="width:16px;height:16px"></i></button>
@@ -563,22 +563,59 @@
                     style="background:#f1f5f9;border:none;font-size:18px;cursor:pointer;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#64748b">&times;</button>
             </div>
             <div style="padding:20px">
+                <input type="hidden" id="convert-lead-id">
                 <p style="font-size:13px;color:#64748b;margin:0 0 16px 0;line-height:1.5">
-                    A new client, project, and tasks will be auto-created. Select a user to assign the project to.  
+                    A new client, project, and tasks will be auto-created. Select team members to assign the project to.
                 </p>
                 <div class="form-group" style="margin-bottom:0">
                     <label class="form-label" style="font-weight:600;font-size:13px;color:#334155;margin-bottom:6px">Assign Project To</label>
-                    <select id="convert-assign-user" class="form-select" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px">
-                        @foreach($projectGlobalUsers ?? [] as $pUser)
-                            <option value="{{ $pUser->id }}" {{ $pUser->id == auth()->id() ? 'selected' : '' }}>{{ $pUser->name }}</option>
+                    <select id="convert-assign-user" class="form-select" multiple style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px">
+                        @foreach($users as $user)
+                            <option value="{{ $user->id }}" {{ $user->id == auth()->id() ? 'selected' : '' }}>{{ $user->name }}</option>
                         @endforeach
                     </select>
+                    <small style="color:#94a3b8;font-size:11px;margin-top:4px;display:block">Hold Ctrl/Cmd to select multiple users</small>
                 </div>
             </div>
             <div style="padding:12px 20px;border-top:1px solid #f0f0f0;display:flex;justify-content:flex-end;gap:10px;background:#fafbfc">
                 <button type="button" onclick="closeConvertModal()"
                     style="padding:8px 18px;border:1.5px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:13px;color:#64748b">Cancel</button>
                 <button type="button" id="btn-confirm-convert" onclick="submitConvertToClient()"
+                    style="padding:8px 18px;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 2px 8px rgba(22,163,74,0.3)">Convert & Assign</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Convert to Invoice Modal -->
+    <div id="convert-invoice-modal"
+        style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10001;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+        <div style="background:white;border-radius:12px;width:95%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.2);overflow:hidden">
+            <div style="padding:16px 20px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#f0fdf4,#fff)">
+                <h3 style="margin:0;font-size:16px;font-weight:600;color:#16a34a;display:flex;align-items:center;gap:8px">
+                    <i data-lucide="file-check" style="width:18px;height:18px"></i> Convert to Invoice
+                </h3>
+                <button onclick="closeConvertInvoiceModal()"
+                    style="background:#f1f5f9;border:none;font-size:18px;cursor:pointer;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#64748b">&times;</button>
+            </div>
+            <div style="padding:20px">
+                <input type="hidden" id="convert-invoice-quote-id">
+                <p style="font-size:13px;color:#64748b;margin:0 0 16px 0;line-height:1.5">
+                    This will convert the quote to an invoice and auto-create a project. Select team members to assign the project to.
+                </p>
+                <div class="form-group" style="margin-bottom:0">
+                    <label class="form-label" style="font-weight:600;font-size:13px;color:#334155;margin-bottom:6px">Assign Project To</label>
+                    <select id="convert-invoice-assign-user" class="form-select" multiple style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px">
+                        @foreach($users as $user)
+                            <option value="{{ $user->id }}" {{ $user->id == auth()->id() ? 'selected' : '' }}>{{ $user->name }}</option>
+                        @endforeach
+                    </select>
+                    <small style="color:#94a3b8;font-size:11px;margin-top:4px;display:block">Hold Ctrl/Cmd to select multiple users</small>
+                </div>
+            </div>
+            <div style="padding:12px 20px;border-top:1px solid #f0f0f0;display:flex;justify-content:flex-end;gap:10px;background:#fafbfc">
+                <button type="button" onclick="closeConvertInvoiceModal()"
+                    style="padding:8px 18px;border:1.5px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:13px;color:#64748b">Cancel</button>
+                <button type="button" id="btn-confirm-convert-invoice" onclick="submitConvertInvoice()"
                     style="padding:8px 18px;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 2px 8px rgba(22,163,74,0.3)">Convert & Assign</button>
             </div>
         </div>
@@ -1247,28 +1284,62 @@
         }
 
         function convertQuote(id) {
-            if (!confirm('Are you sure you want to convert this quote to an Invoice? This will create a project and auto-purchase entries.')) return;
+            // Keep this for backward compatibility or direct calls if needed, 
+            // but the UI main button now calls openConvertInvoiceModal directly.
+            openConvertInvoiceModal(id);
+        }
 
-            fetch(`{{ url('admin/quotes') }}/${id}/convert`, {
+        function openConvertInvoiceModal(quoteId) {
+            document.getElementById('convert-invoice-quote-id').value = quoteId;
+            document.getElementById('convert-invoice-modal').style.display = 'flex';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function closeConvertInvoiceModal() {
+            document.getElementById('convert-invoice-modal').style.display = 'none';
+        }
+
+        function submitConvertInvoice() {
+            var quoteId = document.getElementById('convert-invoice-quote-id').value;
+            // Use jQuery to get Select2 multiple selected values
+            var assignedUsers = $('#convert-invoice-assign-user').val() || [];
+
+            if (assignedUsers.length === 0) {
+                alert('Please select at least one user.');
+                return;
+            }
+
+            var btn = document.getElementById('btn-confirm-convert-invoice');
+            btn.disabled = true;
+            btn.textContent = 'Converting...';
+
+            fetch(`{{ url('admin/quotes') }}/${quoteId}/convert`, {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                     'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
-                }
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ assigned_to_users: assignedUsers })
             })
-                .then(response => response.json())
-                .then(data => {
-                    alert(data.message || 'Quote converted successfully.');
-                    if (data.project_id) {
-                        showAssignProjectModal(data.project_id, data.project_name);
-                    } else {
+                .then(response => response.json().then(data => ({ status: response.status, body: data })))
+                .then(res => {
+                    if (res.status === 200) {
+                        alert(res.body.message || 'Quote converted successfully.');
+                        closeConvertInvoiceModal();
                         window.location.reload();
+                    } else {
+                        alert(res.body.message || 'An error occurred while converting the quote.');
+                        btn.disabled = false;
+                        btn.textContent = 'Convert & Assign';
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
                     alert('An error occurred while converting the quote.');
+                    btn.disabled = false;
+                    btn.textContent = 'Convert & Assign';
                 });
         }
 
@@ -1342,6 +1413,64 @@
         });
 
         // ====== Payment Modal Functions ======
+        document.addEventListener('DOMContentLoaded', function () {
+            var pmodal = document.getElementById('payment-modal-overlay');
+            if (pmodal) {
+                pmodal.addEventListener('click', function (e) {
+                    if (e.target === pmodal) closePaymentModal();
+                });
+            }
+        });
+
+        // ====== Convert Lead Quote To Client ======
+        function convertLeadQuoteToClient(quoteId, leadId) {
+            document.getElementById('convert-lead-id').value = leadId;
+            document.getElementById('convert-client-modal').style.display = 'flex';
+        }
+
+        function closeConvertModal() {
+            document.getElementById('convert-client-modal').style.display = 'none';
+        }
+
+        function submitConvertToClient() {
+            var leadId = document.getElementById('convert-lead-id').value;
+            // Use jQuery to get Select2 multiple selected values
+            var assignedUsers = $('#convert-assign-user').val() || [];
+
+            if (assignedUsers.length === 0) {
+                alert('Please select at least one user.');
+                return;
+            }
+
+            var btn = document.getElementById('btn-confirm-convert');
+            btn.disabled = true;
+            btn.textContent = 'Converting...';
+
+            fetch(`{{ url('admin/leads') }}/${leadId}/convert-to-client`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    assigned_to_users: assignedUsers
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    closeConvertModal();
+                    alert(data.message || 'Lead converted successfully.');
+                    window.location.reload();
+                })
+                .catch(err => {
+                    console.error('Error converting lead:', err);
+                    alert('An error occurred during conversion.');
+                    btn.disabled = false;
+                    btn.textContent = 'Convert & Assign';
+                });
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
             let startDt = document.getElementById('start-date').value;
             let dueDt = document.getElementById('due-date').value;
@@ -1555,6 +1684,66 @@
         .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
             background-color: #3b82f6;
         }
+
+        /* Modern Select2 Multi-Select Styling (Professional Pill Design) */
+        .select2-container {
+            width: 100% !important;
+        }
+        .select2-container--default .select2-selection--multiple {
+            border: 1.5px solid #e2e8f0;
+            border-radius: 8px;
+            min-height: 44px;
+            padding: 2px 4px;
+            background-color: #fff;
+            transition: all 0.2s ease;
+        }
+        .select2-container--default.select2-container--focus .select2-selection--multiple {
+            border-color: #16a34a; /* CRM Green Theme */
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+        }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice {
+            background-color: #f0fdf4; /* Light green bg */
+            border: 1px solid #bbf7d0; /* Soft green border */
+            border-radius: 20px; /* Fully rounded pill shape */
+            color: #166534; /* Dark green text */
+            padding: 4px 12px 4px 26px; /* 26px left padding to provide space for the absolute X */
+            margin: 4px;
+            font-size: 13.5px;
+            font-weight: 500;
+            position: relative; /* For absolute positioning of the remove icon */
+            display: inline-flex;
+            align-items: center;
+        }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+            color: #166534;
+            position: absolute;
+            left: 8px;
+            top: 50%;
+            transform: translateY(-50%); /* Centers the X vertically perfectly */
+            border: none;
+            background: transparent;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0;
+            margin: 0;
+            line-height: 1;
+        }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
+            color: #dc2626; /* Turn red when hovered */
+            background: transparent;
+        }
+        .select2-container--default .select2-selection--multiple .select2-selection__choice__display {
+            padding: 0;
+            margin: 0;
+            cursor: default;
+        }
+        .select2-search--inline .select2-search__field {
+            margin-top: 6px;
+            margin-left: 8px;
+            font-family: inherit;
+            color: #334155;
+        }
     </style>
     <script>
         $(document).ready(function () {
@@ -1567,6 +1756,21 @@
                 placeholder: "Select lead",
                 allowClear: true,
                 dropdownParent: $('#quote-drawer')
+            });
+
+            // Professional assignment multiselect
+            $('#convert-invoice-assign-user').select2({
+                placeholder: "Search and select team members",
+                allowClear: true,
+                width: '100%',
+                dropdownParent: $('#convert-invoice-modal')
+            });
+
+            $('#convert-assign-user').select2({
+                placeholder: "Search and select team members",
+                allowClear: true,
+                width: '100%',
+                dropdownParent: $('#convert-client-modal')
             });
         });
     </script>

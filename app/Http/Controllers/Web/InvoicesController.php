@@ -290,13 +290,22 @@ class InvoicesController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $quote = Quote::with(['items', 'lead', 'client', 'company', 'createdBy'])->findOrFail($id);
+        $quote = Quote::with(['items', 'lead', 'client', 'company', 'createdBy', 'payments'])->findOrFail($id);
 
         if (!can('quotes.global') && $quote->created_by_user_id != auth()->id() && !$quote->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only download your own quotes.');
         }
 
-        return view('admin.quotes.download', compact('quote'));
+        // Fetch tax configuration
+        $companyId = auth()->check() ? auth()->user()->company_id : 1;
+        $companyTaxes = Setting::getValue('quotes', 'taxes', [], $companyId);
+        $globalTaxes = $companyId !== 1 ? Setting::getValue('quotes', 'taxes', [], 1) : [];
+        $allTaxes = array_merge($globalTaxes, $companyTaxes);
+        $quoteTaxes = collect($allTaxes)->unique(function ($item) {
+            return ($item['name'] ?? '') . '_' . ($item['rate'] ?? 0);
+        })->values()->toArray();
+
+        return view('admin.invoices.download', compact('quote', 'quoteTaxes'));
     }
 
     public function update(Request $request, $id)
