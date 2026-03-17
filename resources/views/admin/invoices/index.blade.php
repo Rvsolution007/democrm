@@ -309,7 +309,7 @@
                     </ul>
                 </div>
             @endif
-            <form id="quote-form" method="POST" action="{{ route('admin.invoices.store') }}">
+            <form id="quote-form" method="POST" action="{{ route('admin.invoices.store') }}" data-turbo="false">
                 @csrf
                 <input type="hidden" name="_method" id="quote-form-method" value="POST">
                 <input type="hidden" name="client_type" id="quote-client-type" value="client">
