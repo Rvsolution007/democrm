@@ -26,7 +26,7 @@ class InvoicesController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $query = Quote::with(['client', 'lead', 'assignedTo', 'items']);
+        $query = Quote::with(['client', 'lead', 'assignedUsers', 'items']);
 
         // Global permission filter
         if (!can('quotes.global')) {
