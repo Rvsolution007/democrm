@@ -235,12 +235,19 @@ class InvoicesController extends Controller
         }
 
         // If directly creating an Invoice for a client, we may want to auto-create projects.
+        $project = null;
         if ($quote->client_id && $quote->status === 'accepted') {
-            $this->autoCreateProjectAndPurchases($quote);
+            $project = $this->autoCreateProjectAndPurchases($quote);
+        }
+
+        $response = ['message' => 'Invoice created successfully', 'redirect' => route('admin.invoices.index')];
+        if ($project) {
+            $response['project_id'] = $project->id;
+            $response['project_name'] = $project->name;
         }
 
         if ($request->wantsJson()) {
-            return response()->json(['message' => 'Invoice created successfully', 'redirect' => route('admin.invoices.index')]);
+            return response()->json($response);
         }
 
         return redirect()->route('admin.invoices.index')
@@ -451,17 +458,17 @@ class InvoicesController extends Controller
      * This runs when a quote is created/updated with a client_id.
      * It mirrors the logic from LeadsController::createProjectsAndTasks.
      */
-    private function autoCreateProjectAndPurchases(Quote $quote): void
+    private function autoCreateProjectAndPurchases(Quote $quote): ?Project
     {
         $quote->load('items');
 
         if ($quote->items->isEmpty()) {
-            return;
+            return null;
         }
 
         $client = Client::find($quote->client_id);
         if (!$client) {
-            return;
+            return null;
         }
 
         $companyId = $client->company_id ?? auth()->user()->company_id;
@@ -589,6 +596,8 @@ class InvoicesController extends Controller
                 }
             }
         }
+
+        return $project;
     }
 
     public function destroy($id)

@@ -588,17 +588,25 @@ class LeadsController extends Controller
             }
 
             // Add new tasks to existing project (or create project if somehow missing)
-            $newTasksCount = $this->createProjectsAndTasks($lead, $existingClient, $assignedUserIds);
+            $result = $this->createProjectsAndTasks($lead, $existingClient, $assignedUserIds);
+            $newTasksCount = $result['task_count'];
+            $project = $result['project'];
 
             $message = $newTasksCount > 0
                 ? "New products added to existing project ({$newTasksCount} new tasks created)."
                 : 'No new products to add. All products already exist in the project.';
 
-            return response()->json([
+            $response = [
                 'message' => $message,
                 'client_id' => $existingClient->id,
                 'new_tasks' => $newTasksCount,
-            ]);
+            ];
+            if ($project) {
+                $response['project_id'] = $project->id;
+                $response['project_name'] = $project->name;
+            }
+
+            return response()->json($response);
         }
 
         // Check if a client with the same email or phone already exists
@@ -628,13 +636,19 @@ class LeadsController extends Controller
             }
 
             // Auto-create projects and tasks from quotes
-            $newTasksCount = $this->createProjectsAndTasks($lead, $existingClient, $assignedUserIds);
+            $result = $this->createProjectsAndTasks($lead, $existingClient, $assignedUserIds);
 
-            return response()->json([
+            $response = [
                 'message' => 'An existing client was found. Lead has been successfully merged with the client.',
                 'client_id' => $existingClient->id,
-                'new_tasks' => $newTasksCount,
-            ]);
+                'new_tasks' => $result['task_count'],
+            ];
+            if ($result['project']) {
+                $response['project_id'] = $result['project']->id;
+                $response['project_name'] = $result['project']->name;
+            }
+
+            return response()->json($response);
         }
 
         $client = Client::create([
@@ -681,13 +695,19 @@ class LeadsController extends Controller
         }
 
         // Auto-create projects and tasks from quotes
-        $newTasksCount = $this->createProjectsAndTasks($lead, $client, $assignedUserIds);
+        $result = $this->createProjectsAndTasks($lead, $client, $assignedUserIds);
 
-        return response()->json([
+        $response = [
             'message' => 'Lead converted to client successfully.',
             'client_id' => $client->id,
-            'new_tasks' => $newTasksCount,
-        ]);
+            'new_tasks' => $result['task_count'],
+        ];
+        if ($result['project']) {
+            $response['project_id'] = $result['project']->id;
+            $response['project_name'] = $result['project']->name;
+        }
+
+        return response()->json($response);
     }
 
     /**
@@ -697,12 +717,12 @@ class LeadsController extends Controller
      * If a project already exists for this lead+client, only add NEW tasks (no duplicates).
      * Returns the count of newly created tasks.
      */
-    private function createProjectsAndTasks(Lead $lead, Client $client, array $assignedUserIds = []): int
+    private function createProjectsAndTasks(Lead $lead, Client $client, array $assignedUserIds = []): array
     {
         $quotes = Quote::where('lead_id', $lead->id)->with('items')->get();
 
         if ($quotes->isEmpty()) {
-            return 0;
+            return ['task_count' => 0, 'project' => null];
         }
 
         // Calculate total budget from all quotes
@@ -837,7 +857,7 @@ class LeadsController extends Controller
             }
         }
 
-        return $newTasksCount;
+        return ['task_count' => $newTasksCount, 'project' => $project];
     }
 
     public function destroy($id)

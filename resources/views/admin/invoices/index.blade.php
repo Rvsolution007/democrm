@@ -572,6 +572,44 @@
             </div>
         </div>
     </div>
+
+    <!-- Assign Project Modal (shown after auto-project creation) -->
+    <div id="assign-project-modal"
+        style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10002;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+        <div style="background:white;border-radius:12px;width:95%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.2);overflow:hidden">
+            <div style="padding:16px 20px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#eff6ff,#fff)">
+                <h3 style="margin:0;font-size:16px;font-weight:600;color:#2563eb;display:flex;align-items:center;gap:8px">
+                    <i data-lucide="folder-check" style="width:18px;height:18px"></i> Project Created
+                </h3>
+                <button onclick="closeAssignProjectModal()"
+                    style="background:#f1f5f9;border:none;font-size:18px;cursor:pointer;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#64748b">&times;</button>
+            </div>
+            <div style="padding:20px">
+                <p style="font-size:13px;color:#64748b;margin:0 0 8px 0;line-height:1.5">
+                    A project has been auto-created. Assign team members below:
+                </p>
+                <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;margin-bottom:16px">
+                    <span style="font-size:13px;font-weight:600;color:#0369a1" id="assign-project-name"></span>
+                </div>
+                <input type="hidden" id="assign-project-id">
+                <div class="form-group" style="margin-bottom:0">
+                    <label class="form-label" style="font-weight:600;font-size:13px;color:#334155;margin-bottom:6px">Assign To</label>
+                    <select id="assign-project-users" class="form-select" multiple style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;min-height:80px">
+                        @foreach($projectGlobalUsers ?? [] as $pUser)
+                            <option value="{{ $pUser->id }}" {{ $pUser->id == auth()->id() ? 'selected' : '' }}>{{ $pUser->name }}</option>
+                        @endforeach
+                    </select>
+                    <small style="color:#94a3b8;font-size:11px;margin-top:4px;display:block">Hold Ctrl/Cmd to select multiple users</small>
+                </div>
+            </div>
+            <div style="padding:12px 20px;border-top:1px solid #f0f0f0;display:flex;justify-content:space-between;gap:10px;background:#fafbfc">
+                <button type="button" onclick="skipAssignProject()"
+                    style="padding:8px 18px;border:1.5px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:13px;color:#64748b">Skip</button>
+                <button type="button" id="btn-assign-project" onclick="submitAssignProject()"
+                    style="padding:8px 18px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 2px 8px rgba(37,99,235,0.3)">Assign & Continue</button>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -895,7 +933,12 @@
                 .then(res => {
                     if (res.status === 200) {
                         alert(res.body.message);
-                        window.location.reload();
+                        closeConvertModal();
+                        if (res.body.project_id) {
+                            showAssignProjectModal(res.body.project_id, res.body.project_name);
+                        } else {
+                            window.location.reload();
+                        }
                     } else {
                         alert(res.body.message || 'Error converting lead to client.');
                         btn.disabled = false;
@@ -1458,6 +1501,118 @@
                     errContainer.style.display = 'block';
                 });
         }
+
+        // ====== Assign Project Modal Functions ======
+        function showAssignProjectModal(projectId, projectName) {
+            document.getElementById('assign-project-id').value = projectId;
+            document.getElementById('assign-project-name').textContent = projectName || 'New Project';
+            document.getElementById('assign-project-modal').style.display = 'flex';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function closeAssignProjectModal() {
+            document.getElementById('assign-project-modal').style.display = 'none';
+        }
+
+        function skipAssignProject() {
+            closeAssignProjectModal();
+            window.location.reload();
+        }
+
+        function submitAssignProject() {
+            var projectId = document.getElementById('assign-project-id').value;
+            var select = document.getElementById('assign-project-users');
+            var selectedUsers = Array.from(select.selectedOptions).map(o => o.value);
+
+            if (selectedUsers.length === 0) {
+                alert('Please select at least one user.');
+                return;
+            }
+
+            var btn = document.getElementById('btn-assign-project');
+            btn.disabled = true;
+            btn.textContent = 'Assigning...';
+
+            fetch(`{{ url('admin/projects') }}/${projectId}/assign`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ assigned_to_users: selectedUsers })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message || 'Project assigned successfully.');
+                    } else {
+                        alert(data.message || 'Failed to assign project.');
+                    }
+                    closeAssignProjectModal();
+                    window.location.reload();
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('An error occurred.');
+                    btn.disabled = false;
+                    btn.textContent = 'Assign & Continue';
+                });
+        }
+
+        // ====== Intercept Invoice Form Submit for AJAX (to show assign-project popup) ======
+        document.addEventListener('DOMContentLoaded', function() {
+            var quoteForm = document.getElementById('quote-form');
+            if (quoteForm) {
+                quoteForm.addEventListener('submit', function(e) {
+                    // Only intercept for new invoice creation (POST), not edit (PUT)
+                    var methodField = document.getElementById('quote-form-method');
+                    if (methodField && methodField.value !== 'POST') return;
+
+                    e.preventDefault();
+                    var formData = new FormData(quoteForm);
+                    var saveBtn = document.getElementById('btn-save-quote');
+                    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+
+                    fetch(quoteForm.action, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: formData
+                    })
+                        .then(response => response.json().then(data => ({ status: response.status, body: data })))
+                        .then(res => {
+                            if (res.status === 200 || res.status === 201) {
+                                closeDrawer('quote-drawer');
+                                if (res.body.project_id) {
+                                    showAssignProjectModal(res.body.project_id, res.body.project_name);
+                                } else {
+                                    alert(res.body.message || 'Invoice created successfully.');
+                                    window.location.reload();
+                                }
+                            } else {
+                                if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Quote'; }
+                                var errContainer = document.getElementById('quote-error-container');
+                                var errList = document.getElementById('quote-error-list');
+                                if (res.body.errors) {
+                                    errList.innerHTML = Object.values(res.body.errors).flat().map(e => '<li>' + e + '</li>').join('');
+                                } else {
+                                    errList.innerHTML = '<li>' + (res.body.message || 'An error occurred.') + '</li>';
+                                }
+                                errContainer.style.display = 'block';
+                            }
+                        })
+                        .catch(err => {
+                            console.error(err);
+                            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Quote'; }
+                            alert('An error occurred while saving the invoice.');
+                        });
+                });
+            }
+        });
     </script>
     <!-- Include Flatpickr for Date Range Selection -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">

@@ -414,4 +414,45 @@ class ProjectsController extends Controller
 
         return response()->json(['success' => true]);
     }
+
+    /**
+     * Update project assignment (AJAX endpoint for the assign-project popup).
+     */
+    public function updateAssignment(Request $request, $id)
+    {
+        if (!can('projects.write')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized action.'], 403);
+        }
+
+        $project = Project::findOrFail($id);
+
+        $validated = $request->validate([
+            'assigned_to_users' => 'required|array|min:1',
+            'assigned_to_users.*' => 'exists:users,id',
+        ]);
+
+        $syncResult = $project->assignedUsers()->sync($validated['assigned_to_users']);
+
+        // Send assignment notification to new assignees
+        if (!empty($syncResult['attached'])) {
+            foreach ($syncResult['attached'] as $newUserId) {
+                if ($newUserId != auth()->id()) {
+                    $assignedUser = User::find($newUserId);
+                    if ($assignedUser) {
+                        $assignedUser->notify(new \App\Notifications\AssignedNotification(
+                            'project',
+                            $project->id,
+                            $project->name,
+                            auth()->user()->name
+                        ));
+                    }
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Project assigned successfully.',
+        ]);
+    }
 }

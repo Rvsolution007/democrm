@@ -238,6 +238,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::get('/projects/{id}', [ProjectsController::class, 'show'])->name('projects.show');
     Route::put('/projects/{id}', [ProjectsController::class, 'update'])->name('projects.update');
     Route::delete('/projects/{id}', [ProjectsController::class, 'destroy'])->name('projects.destroy');
+    Route::post('/projects/{id}/assign', [ProjectsController::class, 'updateAssignment'])->name('projects.assign');
     Route::put('/projects/{projectId}/tasks/{taskId}', [ProjectsController::class, 'updateTask'])->name('projects.tasks.update');
     Route::delete('/projects/{projectId}/tasks/{taskId}', [ProjectsController::class, 'destroyTask'])->name('projects.tasks.destroy');
     Route::post('/projects/{projectId}/tasks/{taskId}/activities', [ProjectsController::class, 'storeTaskActivity'])->name('projects.tasks.activities.store');
