@@ -6,6 +6,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -22,6 +23,20 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Storage::extend('google', function($app, $config) {
+            $client = new \Google\Client();
+            $client->setClientId($config['clientId']);
+            $client->setClientSecret($config['clientSecret']);
+            $client->refreshToken($config['refreshToken']);
+            $service = new \Google\Service\Drive($client);
+            $adapter = new \Masbug\Flysystem\GoogleDriveAdapter($service, $config['folderId']);
+            return new \Illuminate\Filesystem\FilesystemAdapter(
+                new \League\Flysystem\Filesystem($adapter),
+                $adapter,
+                $config
+            );
+        });
+
         \Illuminate\Pagination\Paginator::useBootstrapFive();
         if (config('app.env') === 'production') {
             \Illuminate\Support\Facades\URL::forceScheme('https');

@@ -41,7 +41,17 @@ Schedule::command('notifications:overdue')
     ->withoutOverlapping();
 
 // Daily CRM Data Backup at midnight
-Schedule::command('backup:crm')
-    ->dailyAt('00:00')
-    ->name('crm-data-backup')
+// Schedule::command('backup:crm')->dailyAt('00:00')->name('crm-data-backup')->withoutOverlapping();
+
+// Spatie Backup: Only database (Every night at 1:00 AM)
+Schedule::command('backup:run --only-db')
+    ->dailyAt('01:00')
+    ->name('daily-db-backup-to-drive')
     ->withoutOverlapping();
+
+// Clean up old backups automatically (Every night at 2:00 AM)
+Schedule::command('backup:clean')
+    ->dailyAt('02:00')
+    ->name('daily-db-backup-clean')
+    ->withoutOverlapping();
+
