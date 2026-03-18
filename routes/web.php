@@ -897,6 +897,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::post('/backups/run', [\App\Http\Controllers\Web\BackupController::class, 'runBackup'])->name('backups.run');
     Route::get('/backups/download/{fileName}', [\App\Http\Controllers\Web\BackupController::class, 'download'])->name('backups.download');
     Route::post('/backups/import', [\App\Http\Controllers\Web\BackupController::class, 'import'])->name('backups.import');
+    Route::post('/backups/restore', [\App\Http\Controllers\Web\BackupController::class, 'restore'])->name('backups.restore');
 
     // Reports
     Route::get('/reports', [\App\Http\Controllers\Web\ReportsController::class, 'index'])->name('reports.index');

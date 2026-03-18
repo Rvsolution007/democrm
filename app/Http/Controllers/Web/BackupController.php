@@ -226,4 +226,67 @@ class BackupController extends Controller
             }
         }
     }
+
+    /**
+     * Restore database from an uploaded Spatie backup (.zip) or .sql file.
+     */
+    public function restore(Request $request)
+    {
+        $request->validate([
+            'backup_file' => 'required|file|mimes:zip,sql|max:512000', // 500MB max
+        ]);
+
+        $file = $request->file('backup_file');
+        $extension = $file->getClientOriginalExtension();
+        $tempDir = storage_path('app/temp_restore_' . time());
+
+        try {
+            if ($extension === 'zip') {
+                $zip = new \ZipArchive;
+                if ($zip->open($file->getRealPath()) === true) {
+                    \Illuminate\Support\Facades\File::makeDirectory($tempDir, 0755, true);
+                    $zip->extractTo($tempDir);
+                    $zip->close();
+
+                    // Find the .sql file
+                    $sqlFiles = \Illuminate\Support\Facades\File::allFiles($tempDir);
+                    $sqlPath = null;
+                    foreach ($sqlFiles as $f) {
+                        if ($f->getExtension() === 'sql') {
+                            $sqlPath = $f->getRealPath();
+                            break;
+                        }
+                    }
+
+                    if (!$sqlPath) {
+                        \Illuminate\Support\Facades\File::deleteDirectory($tempDir);
+                        return back()->with('error', 'No .sql file found inside the zip.');
+                    }
+                } else {
+                    return back()->with('error', 'Failed to open the zip file.');
+                }
+            } else {
+                $sqlPath = $file->getRealPath();
+                $tempDir = null; 
+            }
+
+            // Execute SQL
+            \Illuminate\Support\Facades\DB::unprepared('SET FOREIGN_KEY_CHECKS=0;');
+            \Illuminate\Support\Facades\DB::unprepared(file_get_contents($sqlPath));
+            \Illuminate\Support\Facades\DB::unprepared('SET FOREIGN_KEY_CHECKS=1;');
+
+            if ($tempDir) {
+                \Illuminate\Support\Facades\File::deleteDirectory($tempDir);
+            }
+
+            return back()->with('success', 'Database restored successfully!');
+
+        } catch (\Exception $e) {
+            if (isset($tempDir) && $tempDir) {
+                \Illuminate\Support\Facades\File::deleteDirectory($tempDir);
+            }
+            \Illuminate\Support\Facades\DB::unprepared('SET FOREIGN_KEY_CHECKS=1;'); // Failsafe
+            return back()->with('error', 'Restore failed: ' . $e->getMessage());
+        }
+    }
 }

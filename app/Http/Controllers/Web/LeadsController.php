@@ -584,6 +584,7 @@ class LeadsController extends Controller
                     'client_id' => $existingClient->id,
                     'status' => 'accepted',
                     'quote_no' => \App\Models\Quote::generateInvoiceNumber($company),
+                    'date' => now()->toDateString(),
                 ]);
             }
 
@@ -632,6 +633,7 @@ class LeadsController extends Controller
                     'client_id' => $existingClient->id,
                     'status' => 'accepted',
                     'quote_no' => \App\Models\Quote::generateInvoiceNumber($company),
+                    'date' => now()->toDateString(),
                 ]);
             }
 
@@ -691,6 +693,7 @@ class LeadsController extends Controller
                 'client_id' => $client->id,
                 'status' => 'accepted',
                 'quote_no' => \App\Models\Quote::generateInvoiceNumber($company),
+                'date' => now()->toDateString(),
             ]);
         }
 

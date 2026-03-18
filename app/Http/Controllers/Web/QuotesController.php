@@ -493,10 +493,11 @@ class QuotesController extends Controller
         $company = auth()->user()->company;
         $invoiceNumber = Quote::generateInvoiceNumber($company);
 
-        // Mark as accepted and assign invoice number
+        // Mark as accepted and assign invoice number, updating the date to today
         $quote->update([
             'status' => 'accepted',
             'quote_no' => $invoiceNumber,
+            'date' => now()->toDateString(),
         ]);
 
         $assignedUsers = $request->input('assigned_to_users', []);

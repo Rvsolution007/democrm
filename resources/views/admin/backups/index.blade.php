@@ -19,7 +19,7 @@
 
         .bk-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
             gap: 20px;
             margin-bottom: 24px;
         }
@@ -361,15 +361,43 @@
             </div>
         </div>
 
-        <!-- Import Backup -->
+        <!-- Restore Full Database -->
+        <div class="bk-card">
+            <h3>
+                <div class="icon-box" style="background:linear-gradient(135deg,#fef08a,#fde047);color:#ca8a04;">
+                    <i data-lucide="database-zap" style="width:16px;height:16px;"></i>
+                </div>
+                Restore Full Database
+            </h3>
+            <p class="sub">Upload a Spatie .zip backup file to restore the entire database instantly.</p>
+
+            <form method="POST" action="{{ route('admin.backups.restore') }}" enctype="multipart/form-data" id="restore-form">
+                @csrf
+                <div class="bk-upload-zone" id="restore-upload-zone" onclick="document.getElementById('restore-file').click();">
+                    <i data-lucide="upload-cloud" class="upload-icon" style="width:36px;height:36px;"></i>
+                    <p><strong>Click to browse</strong> for a .zip backup file</p>
+                    <p style="margin-top:4px;font-size:11px;color:#94a3b8;">.zip or .sql only • Replaces all data</p>
+                </div>
+                <input type="file" name="backup_file" id="restore-file" accept=".zip,.sql" style="display:none;"
+                    onchange="document.getElementById('restore-btn').style.display = this.files.length ? 'inline-flex' : 'none';">
+
+                <div style="margin-top:14px;">
+                    <button type="submit" class="bk-btn bk-btn-green" style="display:none;background:linear-gradient(135deg,#ca8a04,#a16207);box-shadow:0 4px 14px rgba(202,138,4,0.3);" id="restore-btn" onclick="return confirm('WARNING: This will overwrite your entire database with the backup data. Are you sure you want to proceed?');">
+                        <i data-lucide="alert-triangle" style="width:14px;height:14px;"></i> Restore Now
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Import Partial Backup -->
         <div class="bk-card">
             <h3>
                 <div class="icon-box" style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);color:#16a34a;">
                     <i data-lucide="upload" style="width:16px;height:16px;"></i>
                 </div>
-                Import & Restore
+                Partial JSON Import
             </h3>
-            <p class="sub">Upload backup files to restore data (multiple files supported, processed in date order)</p>
+            <p class="sub">Upload JSON partial backup files to merge specific module data</p>
 
             <form method="POST" action="{{ route('admin.backups.import') }}" enctype="multipart/form-data" id="import-form">
                 @csrf

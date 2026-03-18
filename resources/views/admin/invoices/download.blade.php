@@ -22,11 +22,13 @@
         }
 
         .invoice-wrapper {
-            max-width: 780px;
+            width: 780px;
+            min-height: 950px;
             margin: 0 auto;
             background: #fff;
             border: 1px solid #bbb;
-            padding: 30px;
+            padding: 40px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
 
         /* Tax Invoice Title Bar */
@@ -329,7 +331,14 @@
         @media print {
             .print-btn { display: none !important; }
             body { padding: 0; background: #fff; }
-            .invoice-wrapper { border: 1px solid #bbb; max-width: 100%; }
+            .invoice-wrapper { 
+                border: none; 
+                box-shadow: none; 
+                width: 100%; 
+                min-height: auto; 
+                padding: 0; 
+                margin: 0;
+            }
             @page { margin: 8mm; size: A4; }
         }
     </style>
