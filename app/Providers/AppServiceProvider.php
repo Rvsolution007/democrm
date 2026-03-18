@@ -24,6 +24,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Storage::extend('google', function($app, $config) {
+            if (empty($config['clientId']) || empty($config['clientSecret']) || empty($config['refreshToken'])) {
+                throw new \Exception('Google Drive credentials not configured. Please set GOOGLE_DRIVE_CLIENT_ID, GOOGLE_DRIVE_CLIENT_SECRET, and GOOGLE_DRIVE_REFRESH_TOKEN in your .env file.');
+            }
             $client = new \Google\Client();
             $client->setClientId($config['clientId']);
             $client->setClientSecret($config['clientSecret']);

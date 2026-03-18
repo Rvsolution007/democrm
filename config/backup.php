@@ -20,7 +20,7 @@ return [
         'destination' => [
             'filename_prefix' => 'db-backup-',
             'disks' => [
-                'google',
+                'local',
             ],
         ],
         'temporary_directory' => storage_path('app/backup-temp'),
@@ -42,12 +42,12 @@ return [
     ],
     'notifications' => [
         'notifications' => [
-            \Spatie\Backup\Notifications\Notifications\BackupHasFailedNotification::class => ['log'],
-            \Spatie\Backup\Notifications\Notifications\UnhealthyBackupWasFoundNotification::class => ['log'],
-            \Spatie\Backup\Notifications\Notifications\CleanupHasFailedNotification::class => ['log'],
-            \Spatie\Backup\Notifications\Notifications\BackupWasSuccessfulNotification::class => ['log'],
-            \Spatie\Backup\Notifications\Notifications\HealthyBackupWasFoundNotification::class => ['log'],
-            \Spatie\Backup\Notifications\Notifications\CleanupWasSuccessfulNotification::class => ['log'],
+            \Spatie\Backup\Notifications\Notifications\BackupHasFailedNotification::class => [],
+            \Spatie\Backup\Notifications\Notifications\UnhealthyBackupWasFoundNotification::class => [],
+            \Spatie\Backup\Notifications\Notifications\CleanupHasFailedNotification::class => [],
+            \Spatie\Backup\Notifications\Notifications\BackupWasSuccessfulNotification::class => [],
+            \Spatie\Backup\Notifications\Notifications\HealthyBackupWasFoundNotification::class => [],
+            \Spatie\Backup\Notifications\Notifications\CleanupWasSuccessfulNotification::class => [],
         ],
         'notifiable' => \Spatie\Backup\Notifications\Notifiable::class,
         'mail' => [
@@ -72,7 +72,7 @@ return [
     'monitor_backups' => [
         [
             'name' => env('APP_NAME', 'rvcrm-backup'),
-            'disks' => ['google'],
+            'disks' => ['local'],
             'health_checks' => [
                 \Spatie\Backup\Tasks\Monitor\HealthChecks\MaximumAgeInDays::class => 1,
                 \Spatie\Backup\Tasks\Monitor\HealthChecks\MaximumStorageInMegabytes::class => 5000,
