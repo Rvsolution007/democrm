@@ -19,7 +19,6 @@ class Task extends Model
 
     protected $fillable = [
         'company_id',
-        'assigned_to_user_id',
         'created_by_user_id',
         'project_id',
         'entity_type',

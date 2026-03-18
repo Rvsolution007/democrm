@@ -43,37 +43,51 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
 
     // Dashboard
     Route::get('/', function () {
-        $stats = [
-            'total_leads' => \App\Models\Lead::count(),
-            'total_clients' => \App\Models\Client::count(),
-            'total_quotes' => \App\Models\Quote::count(),
-            'total_products' => \App\Models\Product::count(),
-            'new_leads_today' => \App\Models\Lead::whereDate('created_at', today())->count(),
-            'new_leads_7days' => \App\Models\Lead::where('created_at', '>=', now()->subDays(7))->count(),
-            'open_leads' => \App\Models\Lead::whereNotIn('stage', ['won', 'lost'])->count(),
-            'quotes_sent' => \App\Models\Quote::where('status', '!=', 'draft')->count(),
-            'quotes_accepted' => \App\Models\Quote::where('status', 'accepted')->count(),
-            'revenue' => \App\Models\Quote::where('status', 'accepted')->sum('grand_total'),
-            'overdue_followups' => \App\Models\Lead::whereNotNull('next_follow_up_at')
-                ->where('next_follow_up_at', '<', now())
-                ->whereNotIn('stage', ['won', 'lost'])->count(),
-        ];
+        $now = now();
+        $currentMonth = $now->month;
+        $currentYear = $now->year;
 
-        // Leads by stage for chart
-        $leadsByStage = \App\Models\Lead::selectRaw('stage, count(*) as count')
-            ->groupBy('stage')->pluck('count', 'stage')->toArray();
+        // Current month stats
+        $newLeads = \App\Models\Lead::whereMonth('created_at', $currentMonth)
+            ->whereYear('created_at', $currentYear)->count();
 
-        // Recent tasks
-        $tasks = \App\Models\Task::with('assignedUsers')->latest()->take(5)->get();
+        $wonLeads = \App\Models\Lead::where('stage', 'won')
+            ->whereMonth('updated_at', $currentMonth)
+            ->whereYear('updated_at', $currentYear)->count();
 
-        // Recent activities
-        $activities = \App\Models\Activity::with('createdBy')->latest()->take(5)->get();
+        $totalOrderValue = \App\Models\Quote::whereNotNull('client_id')
+            ->whereMonth('created_at', $currentMonth)
+            ->whereYear('created_at', $currentYear)
+            ->sum('grand_total') / 100;
+
+        $totalPaymentReceived = \App\Models\QuotePayment::whereMonth('payment_date', $currentMonth)
+            ->whereYear('payment_date', $currentYear)
+            ->sum('amount') / 100;
+
+        // Monthly order values for current year (Jan-Dec)
+        $monthlyOrders = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $monthlyOrders[] = \App\Models\Quote::whereNotNull('client_id')
+                ->whereMonth('created_at', $m)
+                ->whereYear('created_at', $currentYear)
+                ->sum('grand_total') / 100;
+        }
+
+        // Lead source data (all time counts + values)
+        $leadSources = \App\Models\Lead::selectRaw('source, count(*) as count')
+            ->whereNotNull('source')
+            ->groupBy('source')
+            ->pluck('count', 'source')
+            ->toArray();
 
         return view('admin.dashboard', compact(
-            'stats',
-            'leadsByStage',
-            'tasks',
-            'activities'
+            'newLeads',
+            'wonLeads',
+            'totalOrderValue',
+            'totalPaymentReceived',
+            'monthlyOrders',
+            'leadSources',
+            'currentYear'
         ));
     })->name('dashboard');
 
@@ -322,8 +336,9 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
         // Global permission filter
         if (!can('tasks.global')) {
             $query->where(function ($q) {
-                $q->where('assigned_to_user_id', auth()->id())
-                    ->orWhere('created_by_user_id', auth()->id());
+                $q->whereHas('assignedUsers', function($q2) {
+                    $q2->where('users.id', auth()->id());
+                })->orWhere('created_by_user_id', auth()->id());
             });
         }
 
@@ -381,7 +396,9 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
 
         // Assigned To filter
         if ($request->filled('assigned_to')) {
-            $query->where('assigned_to_user_id', $request->assigned_to);
+            $query->whereHas('assignedUsers', function($q) use ($request) {
+                $q->where('users.id', $request->assigned_to);
+            });
         }
 
         // Get all tasks
@@ -411,6 +428,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
                     'contact_number' => $t->contact_number,
                     'due_at' => $t->due_at ? $t->due_at->format('d M Y') : null,
                     'is_overdue' => $t->due_at ? $t->isOverdue() : false,
+                    'assigned_to_user_id' => $t->assignedUsers->isNotEmpty() ? $t->assignedUsers->first()->id : null,
                     'assigned_to' => $t->assignedUsers->isNotEmpty() ? $t->assignedUsers->pluck('name')->implode(', ') : 'Unassigned',
                     'assigned_initials' => $t->assignedUsers->isNotEmpty() ? strtoupper(substr($t->assignedUsers->first()->name, 0, 2)) : '?',
                     'entity_type' => $t->entity_type,
@@ -487,10 +505,6 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
         $task->company_id = auth()->user()->company_id ?? 1;
         $task->created_by_user_id = auth()->id();
 
-        if (!empty($validated['assigned_to_user_id'])) {
-            $task->assigned_to_user_id = $validated['assigned_to_user_id'];
-        }
-
         if (!empty($validated['client_id'])) {
             $task->entity_type = 'client';
             $task->entity_id = $validated['client_id'];
@@ -498,9 +512,13 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
 
         $task->save();
 
+        if (!empty($validated['assigned_to_user_id'])) {
+            $task->assignedUsers()->sync([$validated['assigned_to_user_id']]);
+        }
+
         // Send assignment notification
-        if (!empty($task->assigned_to_user_id) && $task->assigned_to_user_id != auth()->id()) {
-            $assignedUser = \App\Models\User::find($task->assigned_to_user_id);
+        if (!empty($validated['assigned_to_user_id']) && $validated['assigned_to_user_id'] != auth()->id()) {
+            $assignedUser = \App\Models\User::find($validated['assigned_to_user_id']);
             if ($assignedUser) {
                 $assignedUser->notify(new \App\Notifications\AssignedNotification(
                     'task',
@@ -586,11 +604,20 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
             unset($validated['client_id']);
         }
 
+        $oldAssignedUsers = $task->assignedUsers->pluck('id')->toArray();
         $task->update($validated);
 
+        if (array_key_exists('assigned_to_user_id', $validated)) {
+            if (!empty($validated['assigned_to_user_id'])) {
+                $task->assignedUsers()->sync([$validated['assigned_to_user_id']]);
+            } else {
+                $task->assignedUsers()->detach();
+            }
+        }
+
         // Send assignment notification if assignee changed
-        if (!empty($task->assigned_to_user_id) && $task->wasChanged('assigned_to_user_id') && $task->assigned_to_user_id != auth()->id()) {
-            $assignedUser = \App\Models\User::find($task->assigned_to_user_id);
+        if (!empty($validated['assigned_to_user_id']) && !in_array($validated['assigned_to_user_id'], $oldAssignedUsers) && $validated['assigned_to_user_id'] != auth()->id()) {
+            $assignedUser = \App\Models\User::find($validated['assigned_to_user_id']);
             if ($assignedUser) {
                 $assignedUser->notify(new \App\Notifications\AssignedNotification(
                     'task',

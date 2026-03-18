@@ -232,8 +232,8 @@ class MicroTasksController extends Controller
         }
 
         $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'status' => 'required|in:todo,doing,done',
+            'title' => 'sometimes|required|string|max:255',
+            'status' => 'sometimes|required|in:todo,doing,done',
             'follow_up_date' => 'nullable|date',
             'note' => 'nullable|string',
         ]);
@@ -242,7 +242,7 @@ class MicroTasksController extends Controller
         $microTask->update($validated);
 
         // Log status change activity
-        if ($oldStatus !== $validated['status'] && $microTask->task) {
+        if (isset($validated['status']) && $oldStatus !== $validated['status'] && $microTask->task) {
             \App\Models\TaskActivity::create([
                 'task_id' => $microTask->task_id,
                 'user_id' => auth()->id(),
@@ -261,6 +261,10 @@ class MicroTasksController extends Controller
                 'type' => 'note',
                 'message' => "Note on Micro Task '{$microTask->title}': " . $validated['note'],
             ]);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Micro Task updated successfully.']);
         }
 
         return redirect()->back()->with('success', 'Micro Task updated successfully.');

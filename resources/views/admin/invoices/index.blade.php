@@ -13,10 +13,10 @@
             </div>
 
             <div style="flex:4;min-width:500px;max-width:900px">
-                <div style="display:flex;gap:20px;">
+                <div style="display:flex;gap:20px;flex-wrap:wrap">
                     <!-- Total Amount Card -->
                     <div
-                        style="flex:1;background:linear-gradient(135deg,#4f46e5 0%,#3b82f6 100%);padding:14px 24px;border-radius:12px;box-shadow:0 4px 10px rgba(59,130,246,0.3);color:white;display:flex;align-items:center;justify-content:space-between">
+                        style="flex:1;min-width:200px;background:linear-gradient(135deg,#4f46e5 0%,#3b82f6 100%);padding:14px 24px;border-radius:12px;box-shadow:0 4px 10px rgba(59,130,246,0.3);color:white;display:flex;align-items:center;justify-content:space-between">
                         <div>
                             <p id="summary-total-label"
                                 style="margin:0 0 4px 0;font-size:12px;font-weight:600;color:#e0e7ff;text-transform:uppercase;letter-spacing:0.05em">
@@ -32,7 +32,7 @@
 
                     <!-- Due Amount Card -->
                     <div
-                        style="flex:1;background:linear-gradient(135deg,#ec4899 0%,#f43f5e 100%);padding:14px 24px;border-radius:12px;box-shadow:0 4px 10px rgba(244,63,94,0.3);color:white;display:flex;align-items:center;justify-content:space-between">
+                        style="flex:1;min-width:200px;background:linear-gradient(135deg,#ec4899 0%,#f43f5e 100%);padding:14px 24px;border-radius:12px;box-shadow:0 4px 10px rgba(244,63,94,0.3);color:white;display:flex;align-items:center;justify-content:space-between">
                         <div>
                             <p id="summary-due-label"
                                 style="margin:0 0 4px 0;font-size:12px;font-weight:600;color:#fce7f3;text-transform:uppercase;letter-spacing:0.05em">
@@ -43,6 +43,22 @@
                         <div
                             style="width:44px;height:44px;background:rgba(255,255,255,0.2);backdrop-filter:blur(4px);border-radius:12px;display:flex;align-items:center;justify-content:center">
                             <i data-lucide="clock" style="width:24px;height:24px;stroke-width:2.5px;"></i>
+                        </div>
+                    </div>
+
+                    <!-- Purchase Amount Card -->
+                    <div
+                        style="flex:1;min-width:200px;background:linear-gradient(135deg,#f59e0b 0%,#ea580c 100%);padding:14px 24px;border-radius:12px;box-shadow:0 4px 10px rgba(245,158,11,0.3);color:white;display:flex;align-items:center;justify-content:space-between">
+                        <div>
+                            <p id="summary-purchase-label"
+                                style="margin:0 0 4px 0;font-size:12px;font-weight:600;color:#fef3c7;text-transform:uppercase;letter-spacing:0.05em">
+                                Purchase Amount</p>
+                            <h3 id="summary-purchase" style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px">
+                                ₹{{ number_format($clientPurchaseAmount, 2) }}</h3>
+                        </div>
+                        <div
+                            style="width:44px;height:44px;background:rgba(255,255,255,0.2);backdrop-filter:blur(4px);border-radius:12px;display:flex;align-items:center;justify-content:center">
+                            <i data-lucide="shopping-bag" style="width:24px;height:24px;stroke-width:2.5px;"></i>
                         </div>
                     </div>
                 </div>

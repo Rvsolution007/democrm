@@ -25,12 +25,16 @@
 
     .stat-card {
         background: white; border-radius: 16px; padding: 1.5rem;
-        border: 1px solid #e2e8f0; text-align: center;
-        box-shadow: 0 2px 10px -5px rgba(0,0,0,0.05);
+        border: 1px solid #e2e8f0; text-align: left;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+        display: flex; align-items: center; justify-content: space-between;
+        transition: transform 0.2s, box-shadow 0.2s;
     }
-    .stat-card .stat-icon { width: 50px; height: 50px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 0.75rem; font-size: 1.5rem; }
-    .stat-card .stat-value { font-size: 2.2rem; font-weight: 800; color: #0f172a; }
-    .stat-card .stat-label { font-size: 0.78rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04); }
+    .stat-card-info { display: flex; flex-direction: column; }
+    .stat-card .stat-value { font-size: 1.8rem; font-weight: 800; color: #0f172a; line-height: 1.2; margin-bottom: 0.25rem; }
+    .stat-card .stat-label { font-size: 0.85rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-card .stat-icon { width: 56px; height: 56px; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.8rem; }
 
     .analytics-card {
         background: white; border-radius: 20px; padding: 1.5rem;
@@ -93,33 +97,41 @@
     </div>
 
     <!-- Stats Cards -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3">
+    <div style="display: flex; gap: 15px; margin-bottom: 24px;">
+        <div style="flex: 1;">
             <div class="stat-card">
-                <div class="stat-icon" style="background: #eff6ff; color: #3b82f6;">📨</div>
-                <div class="stat-value">{{ $stats['total_received'] }}</div>
-                <div class="stat-label">Total Triggered</div>
+                <div class="stat-card-info">
+                    <div class="stat-value">{{ $stats['total_received'] }}</div>
+                    <div class="stat-label">Total Triggered</div>
+                </div>
+                <div class="stat-icon" style="background: linear-gradient(135deg, #eff6ff, #dbeafe); color: #2563eb; box-shadow: 0 4px 10px rgba(37,99,235,0.15);">📨</div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div style="flex: 1;">
             <div class="stat-card">
-                <div class="stat-icon" style="background: #ecfdf5; color: #22c55e;">✅</div>
-                <div class="stat-value">{{ $stats['total_sent'] }}</div>
-                <div class="stat-label">Replies Sent</div>
+                <div class="stat-card-info">
+                    <div class="stat-value">{{ $stats['total_sent'] }}</div>
+                    <div class="stat-label">Replies Sent</div>
+                </div>
+                <div class="stat-icon" style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); color: #059669; box-shadow: 0 4px 10px rgba(5,150,105,0.15);">✅</div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div style="flex: 1;">
             <div class="stat-card">
-                <div class="stat-icon" style="background: #fffbeb; color: #f59e0b;">⏭️</div>
-                <div class="stat-value">{{ $stats['total_skipped'] }}</div>
-                <div class="stat-label">Skipped</div>
+                <div class="stat-card-info">
+                    <div class="stat-value">{{ $stats['total_skipped'] }}</div>
+                    <div class="stat-label">Skipped</div>
+                </div>
+                <div class="stat-icon" style="background: linear-gradient(135deg, #fffbeb, #fef3c7); color: #d97706; box-shadow: 0 4px 10px rgba(217,119,6,0.15);">⏭️</div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div style="flex: 1;">
             <div class="stat-card">
-                <div class="stat-icon" style="background: #fef2f2; color: #ef4444;">❌</div>
-                <div class="stat-value">{{ $stats['total_failed'] }}</div>
-                <div class="stat-label">Failed</div>
+                <div class="stat-card-info">
+                    <div class="stat-value">{{ $stats['total_failed'] }}</div>
+                    <div class="stat-label">Failed</div>
+                </div>
+                <div class="stat-icon" style="background: linear-gradient(135deg, #fef2f2, #fee2e2); color: #dc2626; box-shadow: 0 4px 10px rgba(220,38,38,0.15);">❌</div>
             </div>
         </div>
     </div>

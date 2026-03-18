@@ -79,10 +79,14 @@ class InvoicesController extends Controller
         $query->where('status', 'accepted');
 
         $clientSummaryQuery = clone $query;
-        $clientTotalAmount = $clientSummaryQuery->sum('grand_total') / 100;
-
-        $clientDueQuery = clone $query;
-        $clientDueAmount = $clientDueQuery->sum('grand_total') / 100;
+        $filteredIds = $clientSummaryQuery->pluck('quotes.id')->toArray();
+        
+        $clientTotalAmount = \App\Models\Quote::whereIn('id', $filteredIds)->sum('grand_total') / 100;
+        
+        $totalPaid = \App\Models\QuotePayment::whereIn('quote_id', $filteredIds)->sum('amount') / 100;
+        $clientDueAmount = $clientTotalAmount - $totalPaid;
+        
+        $clientPurchaseAmount = \App\Models\QuoteItem::whereIn('quote_id', $filteredIds)->sum('purchase_amount') / 100;
 
         $invoices = $query->with(['payments', 'items'])->latest()->paginate(20)->withQueryString();
         $clients = Client::all();
@@ -131,7 +135,7 @@ class InvoicesController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('admin.invoices.index', compact('invoices', 'clients', 'products', 'leads', 'users', 'quoteTaxes', 'paymentTypes', 'clientTotalAmount', 'clientDueAmount', 'projectGlobalUsers'));
+        return view('admin.invoices.index', compact('invoices', 'clients', 'products', 'leads', 'users', 'quoteTaxes', 'paymentTypes', 'clientTotalAmount', 'clientDueAmount', 'clientPurchaseAmount', 'projectGlobalUsers'));
     }
 
     public function store(Request $request)
