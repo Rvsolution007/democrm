@@ -70,12 +70,33 @@ class BackupController extends Controller
     {
         $type = $request->input('type', 'auto'); // 'full' or 'auto'
 
-        $exitCode = Artisan::call('backup:crm', $type === 'full' ? ['--full' => true] : []);
+        if ($type === 'full') {
+            // Run Spatie backup for full DB
+            $exitCode = Artisan::call('backup:run', ['--only-db' => true]);
+        } else {
+            // Run custom JSON incremental
+            $exitCode = Artisan::call('backup:crm');
+        }
 
         if ($exitCode === 0) {
-            return back()->with('success', 'Backup completed successfully!');
+            return back()->withFragment('backup-restore')->with('success', 'Backup completed successfully!');
         }
-        return back()->with('error', 'Backup failed. Check logs for details.');
+        return back()->withFragment('backup-restore')->with('error', 'Backup failed. Check logs for details.');
+    }
+
+    private function getBackupPath(string $fileName): ?string
+    {
+        $path1 = "backups/{$fileName}";
+        $spatieDir = config('backup.backup.name', 'Laravel');
+        $path2 = "{$spatieDir}/{$fileName}";
+
+        if (Storage::disk('local')->exists($path1)) {
+            return $path1;
+        }
+        if (Storage::disk('local')->exists($path2)) {
+            return $path2;
+        }
+        return null;
     }
 
     /**
@@ -83,11 +104,26 @@ class BackupController extends Controller
      */
     public function download(string $fileName)
     {
-        $path = "backups/{$fileName}";
-        if (!Storage::disk('local')->exists($path)) {
+        $path = $this->getBackupPath($fileName);
+        
+        if (!$path) {
             abort(404, 'Backup file not found.');
         }
         return Storage::disk('local')->download($path, $fileName);
+    }
+
+    /**
+     * Delete a backup file.
+     */
+    public function destroy(string $fileName)
+    {
+        $path = $this->getBackupPath($fileName);
+        
+        if ($path) {
+            Storage::disk('local')->delete($path);
+            return back()->withFragment('backup-restore')->with('success', 'Backup file deleted successfully.');
+        }
+        return back()->withFragment('backup-restore')->with('error', 'Backup file not found.');
     }
 
     /**
@@ -110,7 +146,7 @@ class BackupController extends Controller
         foreach ($files as $file) {
             $content = json_decode(file_get_contents($file->getRealPath()), true);
             if (!$content || !isset($content['meta']['date'])) {
-                return back()->with('error', 'Invalid backup file: ' . $file->getClientOriginalName());
+                return back()->withFragment('backup-restore')->with('error', 'Invalid backup file: ' . $file->getClientOriginalName());
             }
             $backups[] = $content;
         }
@@ -123,7 +159,7 @@ class BackupController extends Controller
             $this->processBackup($backup, $stats);
         }
 
-        return back()->with(
+        return back()->withFragment('backup-restore')->with(
             'success',
             "Import complete! {$stats['files']} files processed. " .
             "{$stats['imported']} records imported/updated, {$stats['deleted']} records deleted."
@@ -260,10 +296,10 @@ class BackupController extends Controller
 
                     if (!$sqlPath) {
                         \Illuminate\Support\Facades\File::deleteDirectory($tempDir);
-                        return back()->with('error', 'No .sql file found inside the zip.');
+                        return back()->withFragment('backup-restore')->with('error', 'No .sql file found inside the zip.');
                     }
                 } else {
-                    return back()->with('error', 'Failed to open the zip file.');
+                    return back()->withFragment('backup-restore')->with('error', 'Failed to open the zip file.');
                 }
             } else {
                 $sqlPath = $file->getRealPath();
@@ -279,14 +315,14 @@ class BackupController extends Controller
                 \Illuminate\Support\Facades\File::deleteDirectory($tempDir);
             }
 
-            return back()->with('success', 'Database restored successfully!');
+            return back()->withFragment('backup-restore')->with('success', 'Database restored successfully!');
 
         } catch (\Exception $e) {
             if (isset($tempDir) && $tempDir) {
                 \Illuminate\Support\Facades\File::deleteDirectory($tempDir);
             }
             \Illuminate\Support\Facades\DB::unprepared('SET FOREIGN_KEY_CHECKS=1;'); // Failsafe
-            return back()->with('error', 'Restore failed: ' . $e->getMessage());
+            return back()->withFragment('backup-restore')->with('error', 'Restore failed: ' . $e->getMessage());
         }
     }
 }

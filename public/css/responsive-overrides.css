@@ -623,3 +623,418 @@
     opacity: 1;
     visibility: visible;
 }
+
+/* =============================================
+   FOLLOW-UP PAGE — Mobile Responsive Kanban
+   ============================================= */
+
+/* Tablet: stack kanban columns */
+@media (max-width: 1023px) {
+    /* Follow-up kanban grid → 1 column */
+    div[style*="grid-template-columns:repeat(3,1fr)"] {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+    }
+
+    /* Follow-up date filter bar compact */
+    div[style*="display:flex"][style*="flex-wrap:wrap"][style*="gap:12px"] {
+        gap: 8px !important;
+    }
+}
+
+@media (max-width: 767px) {
+    /* Follow-up kanban: stack to single scrollable column */
+    div[style*="grid-template-columns:repeat(3,1fr)"] {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+    }
+
+    /* Reduce kanban card heights on mobile */
+    div[style*="max-height:70vh"] {
+        max-height: 50vh !important;
+    }
+
+    /* Follow-up filter button sizes */
+    a[style*="padding:8px 16px"][style*="border-radius:20px"] {
+        padding: 6px 12px !important;
+        font-size: 12px !important;
+    }
+
+    /* Follow-up date input compact */
+    input[id="followup-date-filter"] {
+        width: 140px !important;
+        font-size: 12px !important;
+        padding: 6px 10px 6px 30px !important;
+    }
+
+    /* Follow-up filter separator hide on mobile */
+    span[style*="width:1px"][style*="height:24px"][style*="background:#e2e8f0"] {
+        display: none !important;
+    }
+
+    /* Follow-up "Showing" date text wrap */
+    div[style*="display:flex"][style*="align-items:center"][style*="gap:10px"] span[style*="font-size:13px"] {
+        font-size: 11px !important;
+    }
+}
+
+/* =============================================
+   QUOTE / INVOICE / PAYMENT PAGES — 
+   Compact Mobile Filter Toolbar
+   ============================================= */
+
+/* Tablet: make filters compact 2-col grid */
+@media (max-width: 1023px) {
+    /* Page header stat cards — force full width on small screens */
+    .page-header-content > div[style*="min-width:500px"],
+    .page-header-content > div[style*="min-width:300px"] {
+        min-width: 0 !important;
+        flex: 1 1 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Stat cards within flex */
+    .page-header-content > div[style*="min-width:500px"] > div[style*="display:flex"],
+    .page-header-content > div[style*="min-width:300px"] > div[style*="display:flex"] {
+        flex-wrap: wrap !important;
+    }
+
+    /* Summary amount cards compact */
+    div[style*="background:linear-gradient"][style*="padding:14px 24px"][style*="border-radius:12px"] {
+        padding: 10px 14px !important;
+    }
+
+    div[style*="background:linear-gradient"][style*="padding:14px 24px"] h3[style*="font-size:24px"] {
+        font-size: 18px !important;
+    }
+
+    div[style*="background:linear-gradient"][style*="padding:14px 24px"] p[style*="font-size:12px"] {
+        font-size: 10px !important;
+    }
+
+    /* Smaller icon box in stat cards */
+    div[style*="width:44px"][style*="height:44px"][style*="backdrop-filter"] {
+        width: 36px !important;
+        height: 36px !important;
+    }
+
+    div[style*="width:44px"][style*="height:44px"][style*="backdrop-filter"] i {
+        width: 18px !important;
+        height: 18px !important;
+    }
+}
+
+@media (max-width: 767px) {
+    /* ---- Filter Toolbar: Bulletproof Stacked Layout ---- */
+    .table-toolbar {
+        padding: 12px 16px !important;
+    }
+
+    /* ============================================ */
+    /* UNIFIED: 2-Column Grid for ALL filter forms  */
+    /* ============================================ */
+
+    .table-toolbar {
+        padding: 12px 16px !important;
+    }
+
+    /* ALL toolbar forms + leads filter form = 2-column grid */
+    .table-toolbar form,
+    #filter-form > div[style*="display:flex"] {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 10px !important;
+        width: 100% !important;
+        align-items: start !important;
+        flex-wrap: unset !important;
+        flex-direction: unset !important;
+    }
+
+    /* All direct children take full cell width (exclude icons) */
+    .table-toolbar form > *:not(svg):not(i):not(.table-search-icon),
+    #filter-form > div[style*="display:flex"] > * {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        flex: unset !important;
+        height: auto !important;
+    }
+
+    /* Search icon inside toolbar forms: stay small & absolute */
+    .table-toolbar form > svg,
+    .table-toolbar form > i,
+    .table-toolbar form > .table-search-icon {
+        position: absolute !important;
+        width: 16px !important;
+        height: 16px !important;
+        left: 12px !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        z-index: 10 !important;
+        pointer-events: none !important;
+    }
+
+    /* Make sure toolbar form has position context for the icon */
+    .table-toolbar form {
+        position: relative !important;
+    }
+
+    /* Wrapper divs inside forms: stack label + input vertically */
+    .table-toolbar form > div,
+    #filter-form > div[style*="display:flex"] > div {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    /* Inputs and Selects: uniform height */
+    .table-toolbar .form-select,
+    .table-toolbar .form-input,
+    .table-toolbar input[type="text"],
+    .table-toolbar select,
+    #filter-form .form-input,
+    #filter-form select,
+    #filter-form input[type="text"] {
+        width: 100% !important;
+        height: 40px !important;
+        min-height: 40px !important;
+        max-height: 40px !important;
+        font-size: 13px !important;
+        border-radius: 8px !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Keep correct padding for inputs with icons */
+    .table-toolbar .table-search-input {
+        padding: 8px 12px 8px 36px !important;
+    }
+
+    .table-toolbar input[id*="date-range"],
+    #filter-form input[id*="date-range"] {
+        padding: 8px 12px 8px 36px !important;
+    }
+
+    /* Standard padding for selects */
+    .table-toolbar .form-select,
+    .table-toolbar select,
+    #filter-form select {
+        padding: 8px 12px !important;
+    }
+
+    /* Search wrapper (table-search class) */
+    .table-toolbar .table-search {
+        position: relative !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-end !important;
+    }
+
+    .table-toolbar .table-search .table-search-input {
+        height: 40px !important;
+        min-height: 40px !important;
+    }
+
+    /* Date container height fix */
+    .table-toolbar div[style*="position:relative"],
+    #filter-form div[style*="position:relative"] {
+        height: 40px !important;
+    }
+
+    /* Icons position fix */
+    .table-toolbar .table-search-icon,
+    .table-toolbar i[data-lucide="calendar"],
+    .table-toolbar i[data-lucide="search"],
+    #filter-form i[data-lucide="calendar"],
+    #filter-form i[data-lucide="filter"] {
+        left: 12px !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        position: absolute !important;
+        z-index: 10;
+        margin: 0 !important;
+    }
+
+    /* Clear button styling */
+    .table-toolbar form > a.btn {
+        justify-content: center !important;
+        height: 40px !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+
+    /* Labels */
+    .table-toolbar label[style*="font-size:10px"],
+    #filter-form label {
+        font-size: 11px !important;
+        margin-bottom: 4px !important;
+        display: block !important;
+    }
+
+    /* Leads filter: the parent container also needs full width */
+    #filter-form > div[style*="display:flex"] {
+        flex-wrap: unset !important;
+    }
+
+    /* Leads page results bar below filters */
+    #filter-form > div[style*="justify-content:space-between"] {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+
+    /* ============================================ */
+    /* PAGE HEADER: Title + Stats Row + Button      */
+    /* ============================================ */
+
+    .page-header-content {
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        gap: 10px !important;
+        justify-content: center !important;
+    }
+
+    .page-header {
+        overflow: visible !important;
+    }
+
+    /* Title section: full width, left aligned */
+    .page-header-content > div:first-child {
+        min-width: 0 !important;
+        flex: 0 0 100% !important;
+        text-align: left !important;
+    }
+
+    /* Stat cards wrapper: force one row */
+    .page-header-content > div[style*="min-width:500px"],
+    .page-header-content > div[style*="min-width:300px"],
+    .page-header-content > div[style*="min-width:240px"] {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        flex: 1 1 0 !important;
+        overflow: visible !important;
+    }
+
+    /* Stat cards inner flex: STAY IN ONE ROW */
+    .page-header-content > div[style*="min-width:500px"] > div[style*="display:flex"],
+    .page-header-content > div[style*="min-width:300px"] > div[style*="display:flex"],
+    .page-header-content > div[style*="min-width:240px"] > div[style*="display:flex"] {
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 8px !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    /* Each individual stat card: compact */
+    div[style*="background:linear-gradient"][style*="padding:14px 24px"][style*="border-radius:12px"],
+    div[style*="background:linear-gradient"][style*="padding:10px 14px"][style*="border-radius:12px"] {
+        padding: 8px 10px !important;
+        border-radius: 10px !important;
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+    }
+
+    /* Stat card text sizes - compact */
+    div[style*="background:linear-gradient"][style*="border-radius:12px"] h3[style*="font-size:24px"],
+    div[style*="background:linear-gradient"][style*="border-radius:12px"] h3[style*="font-size:20px"],
+    div[style*="background:linear-gradient"][style*="border-radius:12px"] h3[style*="font-size:18px"] {
+        font-size: 14px !important;
+        letter-spacing: -0.3px !important;
+    }
+
+    div[style*="background:linear-gradient"][style*="border-radius:12px"] p[style*="font-size:12px"],
+    div[style*="background:linear-gradient"][style*="border-radius:12px"] p[style*="font-size:11px"],
+    div[style*="background:linear-gradient"][style*="border-radius:12px"] p[style*="font-size:10px"] {
+        font-size: 8px !important;
+        letter-spacing: 0 !important;
+    }
+
+    /* Stat card icon - smaller */
+    div[style*="width:44px"][style*="height:44px"][style*="backdrop-filter"],
+    div[style*="width:36px"][style*="height:36px"][style*="backdrop-filter"] {
+        width: 28px !important;
+        height: 28px !important;
+        border-radius: 6px !important;
+    }
+
+    div[style*="backdrop-filter"] i[style*="width:24px"],
+    div[style*="backdrop-filter"] i[style*="width:18px"] {
+        width: 14px !important;
+        height: 14px !important;
+    }
+
+    /* Leads page specific: total product amount card */
+    .page-header-content > div[style*="display:flex"][style*="justify-content:flex-end"] {
+        justify-content: center !important;
+    }
+
+    .page-header-content > div[style*="min-width:240px"] {
+        min-width: 0 !important;
+        max-width: 100% !important;
+    }
+
+    /* ============================================ */
+    /* CREATE / ADD BUTTON: Right-aligned, compact  */
+    /* ============================================ */
+    .page-actions {
+        margin-bottom: 0 !important;
+        flex: 0 0 auto !important;
+        width: auto !important;
+        align-self: center !important;
+    }
+
+    .page-actions .btn-primary {
+        white-space: nowrap !important;
+        padding: 8px 16px !important;
+        font-size: 13px !important;
+    }
+
+    /* ---- Payments count badge and clear filters row compact ---- */
+    div[style*="display:flex"][style*="justify-content:space-between"][style*="margin-top:12px"] {
+        margin-top: 8px !important;
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+    }
+
+    #payments-count-badge {
+        padding: 4px 8px !important;
+        font-size: 11px !important;
+    }
+
+    /* ---- Follow-up kanban even more compact ---- */
+    div[style*="grid-template-columns:repeat(3,1fr)"] {
+        gap: 8px !important;
+    }
+
+    /* Kanban column headers compact */
+    div[style*="padding:14px 16px"][style*="border-bottom:1px solid #f5f5f5"] {
+        padding: 10px 12px !important;
+    }
+
+    /* Kanban column body compact */
+    div[style*="padding:8px"][style*="display:flex"][style*="flex-direction:column"][style*="max-height"] {
+        padding: 6px !important;
+        gap: 6px !important;
+    }
+}
+
+/* ---- Very small mobile (<480px) ---- */
+@media (max-width: 480px) {
+    /* Stat cards stack fully on very small screens */
+    div[style*="background:linear-gradient"][style*="border-radius:12px"],
+    div[style*="background:linear-gradient"][style*="border-radius:10px"] {
+        min-width: 100% !important;
+        flex: 1 1 100% !important;
+    }
+
+    /* Filter toolbar: single column on very small */
+    .table-toolbar form {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Even more compact stats */
+    div[style*="background:linear-gradient"][style*="border-radius"] h3 {
+        font-size: 14px !important;
+    }
+}

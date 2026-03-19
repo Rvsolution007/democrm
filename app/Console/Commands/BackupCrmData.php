@@ -123,7 +123,8 @@ class BackupCrmData extends Command
         }
 
         // Save JSON to storage/app/backups/
-        $fileName = "rvcrm_backup_{$today}.json";
+        $timestamp = now()->format('Y-m-d_H-i-s');
+        $fileName = "rvcrm_backup_{$timestamp}.json";
         $path = "backups/{$fileName}";
 
         Storage::disk('local')->put($path, json_encode($backup, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));

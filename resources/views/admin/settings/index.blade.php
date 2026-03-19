@@ -106,6 +106,17 @@
                         </button>
                     </div>
 
+                    <!-- Backup & Restore Section -->
+                    <div style="margin-bottom:16px">
+                        <div
+                            style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#999;padding:8px 12px">
+                            Data</div>
+                        <button class="settings-nav-btn" data-tab="backup-restore"
+                            onclick="switchSettingsTab('backup-restore', this)">
+                            <i data-lucide="database" style="width:16px;height:16px"></i> Backup & Restore
+                        </button>
+                    </div>
+
                     <!-- WhatsApp Section -->
                     <div style="margin-bottom:16px">
                         <div
@@ -686,6 +697,212 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Backup & Restore Tab -->
+            <div class="settings-tab" id="tab-backup-restore" style="display:none">
+                @if(session('error'))
+                    <div
+                        style="background:#fee2e2;color:#dc2626;padding:14px 20px;border-radius:12px;margin-bottom:20px;font-size:13px;font-weight:600;border:1px solid #fecaca;display:flex;align-items:center;gap:8px;">
+                        <i data-lucide="alert-circle" style="width:16px;height:16px;"></i>
+                        {{ session('error') }}
+                    </div>
+                @endif
+
+                <!-- Full Database Restore -->
+                <div class="card" style="margin-bottom:24px">
+                    <div class="card-header" style="display:flex;align-items:center;gap:12px">
+                        <div
+                            style="width:38px;height:38px;background:linear-gradient(135deg,#fef08a,#fde047);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+                            <i data-lucide="database-zap" style="width:18px;height:18px;color:#ca8a04;"></i>
+                        </div>
+                        <div>
+                            <h3 class="card-title" style="margin:0">Restore Full Database</h3>
+                            <p class="text-sm text-muted" style="margin:2px 0 0">Upload the .zip backup file (from Google Drive) to restore all data</p>
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <div
+                            style="background:linear-gradient(135deg,#fef9c3,#fef3c7);border:1px solid #fde68a;border-radius:10px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px">
+                            <i data-lucide="alert-triangle"
+                                style="width:18px;height:18px;color:#d97706;flex-shrink:0;margin-top:1px"></i>
+                            <div style="font-size:13px;color:#92400e;line-height:1.5">
+                                <strong>Warning:</strong> Ye backup upload karne se <strong>purana saara data replace</strong> ho jayega naaye backup data se. Sirf tabhi karo jab confirm ho ki ye sahi backup file hai.
+                            </div>
+                        </div>
+
+                        <form method="POST" action="{{ route('admin.backups.restore') }}" enctype="multipart/form-data" id="settings-restore-form">
+                            @csrf
+                            <div id="settings-restore-zone" onclick="document.getElementById('settings-restore-file').click();"
+                                style="border:2px dashed #cbd5e1;border-radius:14px;padding:32px;text-align:center;transition:all 0.3s;cursor:pointer;background:#fafbfc;"
+                                onmouseover="this.style.borderColor='#ca8a04';this.style.background='#fffbeb'"
+                                onmouseout="this.style.borderColor='#cbd5e1';this.style.background='#fafbfc'">
+                                <i data-lucide="upload-cloud" style="width:40px;height:40px;color:#94a3b8;margin-bottom:8px;"></i>
+                                <p style="margin:0;font-size:14px;color:#64748b;"><strong style="color:#ca8a04">Click to browse</strong> for backup file</p>
+                                <p style="margin:6px 0 0;font-size:12px;color:#94a3b8;">.zip or .sql file — Google Drive se downloaded backup</p>
+                            </div>
+                            <input type="file" name="backup_file" id="settings-restore-file" accept=".zip,.sql" style="display:none;"
+                                onchange="settingsShowRestoreFile(this)">
+
+                            <div id="settings-restore-selected" style="margin-top:12px;"></div>
+
+                            <div style="margin-top:16px;">
+                                <button type="submit" class="btn btn-primary" style="display:none;background:linear-gradient(135deg,#ca8a04,#a16207);border:none;padding:10px 24px;" id="settings-restore-btn"
+                                    onclick="return confirm('⚠️ WARNING: Is se puura database overwrite ho jayega backup data se. Kya aap sure hain?');">
+                                    <i data-lucide="alert-triangle" style="width:14px;height:14px;margin-right:6px;"></i> Restore Database
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Partial JSON Import -->
+                <div class="card" style="margin-bottom:24px">
+                    <div class="card-header" style="display:flex;align-items:center;gap:12px">
+                        <div
+                            style="width:38px;height:38px;background:linear-gradient(135deg,#dcfce7,#bbf7d0);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+                            <i data-lucide="upload" style="width:18px;height:18px;color:#16a34a;"></i>
+                        </div>
+                        <div>
+                            <h3 class="card-title" style="margin:0">Import JSON Backup</h3>
+                            <p class="text-sm text-muted" style="margin:2px 0 0">Upload JSON backup files to merge/sync specific module data</p>
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <div
+                            style="background:linear-gradient(135deg,#dcfce7,#f0fdf4);border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px">
+                            <i data-lucide="info"
+                                style="width:18px;height:18px;color:#16a34a;flex-shrink:0;margin-top:1px"></i>
+                            <div style="font-size:13px;color:#166534;line-height:1.5">
+                                Ye method safer hai — ye existing data ke saath <strong>merge</strong> karta hai. Naya data add hota hai, existing data update hota hai.
+                            </div>
+                        </div>
+
+                        <form method="POST" action="{{ route('admin.backups.import') }}" enctype="multipart/form-data" id="settings-import-form">
+                            @csrf
+                            <div id="settings-import-zone" onclick="document.getElementById('settings-import-files').click();"
+                                style="border:2px dashed #cbd5e1;border-radius:14px;padding:32px;text-align:center;transition:all 0.3s;cursor:pointer;background:#fafbfc;"
+                                onmouseover="this.style.borderColor='#16a34a';this.style.background='#f0fdf4'"
+                                onmouseout="this.style.borderColor='#cbd5e1';this.style.background='#fafbfc'">
+                                <i data-lucide="file-json" style="width:40px;height:40px;color:#94a3b8;margin-bottom:8px;"></i>
+                                <p style="margin:0;font-size:14px;color:#64748b;"><strong style="color:#16a34a">Click to browse</strong> for JSON backup files</p>
+                                <p style="margin:6px 0 0;font-size:12px;color:#94a3b8;">JSON files only • Multiple files allowed • Max 50MB each</p>
+                            </div>
+                            <input type="file" name="backup_files[]" id="settings-import-files" multiple accept=".json" style="display:none;"
+                                onchange="settingsShowImportFiles(this)">
+
+                            <div id="settings-import-selected" style="margin-top:12px;"></div>
+
+                            <div style="margin-top:16px;">
+                                <button type="submit" class="btn btn-primary" style="display:none;background:linear-gradient(135deg,#059669,#10b981);border:none;padding:10px 24px;" id="settings-import-btn">
+                                    <i data-lucide="database" style="width:14px;height:14px;margin-right:6px;"></i> Import Files
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Download Backup Files -->
+                <div class="card" style="margin-bottom:24px">
+                    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+                        <div style="display:flex;align-items:center;gap:12px">
+                            <div
+                                style="width:38px;height:38px;background:linear-gradient(135deg,#e0e7ff,#c7d2fe);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+                                <i data-lucide="download" style="width:18px;height:18px;color:#4f46e5;"></i>
+                            </div>
+                            <div>
+                                <h3 class="card-title" style="margin:0">Manage Backup Files</h3>
+                                <p class="text-sm text-muted" style="margin:2px 0 0">JSON, ZIP aur SQL backup files jo server pe saved hain — download ya delete karo</p>
+                            </div>
+                        </div>
+                        @if(count($backupFiles ?? []) > 0)
+                            <span style="background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;font-size:11px;padding:4px 12px;border-radius:12px;font-weight:700;">
+                                {{ count($backupFiles) }} Files
+                            </span>
+                        @endif
+                    </div>
+                    <div class="card-content" style="padding:0;">
+                        @if(empty($backupFiles))
+                            <div style="padding:40px;text-align:center;color:#94a3b8;">
+                                <i data-lucide="inbox" style="width:36px;height:36px;display:block;margin:0 auto 8px;opacity:0.4;"></i>
+                                <p style="margin:0;font-size:13px;">Abhi koi backup file nahi hai — pehle ek backup run karo.</p>
+                            </div>
+                        @else
+                            <div style="max-height:400px;overflow-y:auto;">
+                                @foreach($backupFiles as $file)
+                                    @php
+                                        $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+                                        $icon = $ext === 'zip' ? 'package' : ($ext === 'sql' ? 'database' : 'file-json');
+                                        $iconColor = $ext === 'zip' ? '#f59e0b' : ($ext === 'sql' ? '#10b981' : '#4f46e5');
+                                        $bgGradient = $ext === 'zip' ? 'linear-gradient(135deg,#fef3c7,#fde68a)' : ($ext === 'sql' ? 'linear-gradient(135deg,#d1fae5,#a7f3d0)' : 'linear-gradient(135deg,#e0e7ff,#c7d2fe)');
+                                    @endphp
+                                    <div style="display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:1px solid rgba(0,0,0,0.04);transition:all 0.15s;"
+                                        onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                                        <div style="width:38px;height:38px;border-radius:10px;background:{{ $bgGradient }};color:{{ $iconColor }};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                            <i data-lucide="{{ $icon }}" style="width:16px;height:16px;"></i>
+                                        </div>
+                                        <div style="flex:1;min-width:0;">
+                                            <p style="margin:0;font-size:13px;font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $file['name'] }}</p>
+                                            <p style="margin:2px 0 0;font-size:11px;color:#94a3b8;">{{ strtoupper($ext) }} File • {{ $file['size'] }} KB • {{ $file['date'] }}</p>
+                                        </div>
+                                        <div style="display:flex; gap:8px; flex-shrink:0;">
+                                            <a href="{{ route('admin.backups.download', $file['name']) }}" class="btn btn-outline btn-sm"
+                                                style="padding:6px 14px;font-size:12px;display:flex;align-items:center;gap:4px;">
+                                                <i data-lucide="download" style="width:13px;height:13px;"></i> Download
+                                            </a>
+                                            <form action="{{ route('admin.backups.destroy', $file['name']) }}" method="POST" style="margin:0;display:inline-block;"
+                                                onsubmit="return confirm('Kya aap sach mein is backup file ({{ $file['name'] }}) ko delete karna chahte hain? Yeh operation undo nahi ho sakta!');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-outline btn-sm"
+                                                    style="padding:6px 14px;font-size:12px;display:flex;align-items:center;gap:4px;color:#ef4444;border-color:#fca5a5;background:transparent;"
+                                                    onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='transparent'">
+                                                    <i data-lucide="trash-2" style="width:13px;height:13px;"></i> Delete
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+                </div>
+
+                <!-- Run Manual Backup -->
+                <div class="card">
+                    <div class="card-header" style="display:flex;align-items:center;gap:12px">
+                        <div
+                            style="width:38px;height:38px;background:linear-gradient(135deg,#e0e7ff,#c7d2fe);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+                            <i data-lucide="hard-drive" style="width:18px;height:18px;color:#4f46e5;"></i>
+                        </div>
+                        <div>
+                            <h3 class="card-title" style="margin:0">Create Backup</h3>
+                            <p class="text-sm text-muted" style="margin:2px 0 0">Manually run a backup to export all data</p>
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                            <form method="POST" action="{{ route('admin.backups.run') }}" style="display:inline;">
+                                @csrf
+                                <input type="hidden" name="type" value="auto">
+                                <button type="submit" class="btn btn-primary" style="padding:10px 22px;">
+                                    <i data-lucide="play" style="width:14px;height:14px;margin-right:6px;"></i> Smart Backup
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ route('admin.backups.run') }}" style="display:inline;">
+                                @csrf
+                                <input type="hidden" name="type" value="full">
+                                <button type="submit" class="btn btn-outline" style="padding:10px 22px;">
+                                    <i data-lucide="refresh-cw" style="width:14px;height:14px;margin-right:6px;"></i> Full Backup
+                                </button>
+                            </form>
+                        </div>
+                        <p style="font-size:12px;color:#94a3b8;margin-top:12px;">
+                            <i data-lucide="info" style="width:12px;height:12px;display:inline;vertical-align:middle;"></i>
+                            Smart backup sirf changed data backup karta hai. Full backup sab data export karta hai.
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 @endsection
@@ -785,7 +1002,13 @@
             document.querySelectorAll('.settings-tab').forEach(tab => tab.style.display = 'none');
             document.querySelectorAll('.settings-nav-btn').forEach(b => b.classList.remove('active'));
             document.getElementById('tab-' + tabName).style.display = 'block';
-            btn.classList.add('active');
+            if (btn) {
+                btn.classList.add('active');
+            } else {
+                let targetBtn = document.querySelector(`.settings-nav-btn[data-tab="${tabName}"]`);
+                if (targetBtn) targetBtn.classList.add('active');
+            }
+            window.location.hash = tabName;
         }
 
         // --- Lead Stages, Lead Sources, Task Statuses, Payment Types ---
@@ -1090,6 +1313,14 @@
         }
 
         document.addEventListener('DOMContentLoaded', function () {
+            // Restore tab from hash if present
+            if (window.location.hash) {
+                let hashTab = window.location.hash.substring(1);
+                if (document.getElementById('tab-' + hashTab)) {
+                    switchSettingsTab(hashTab, null);
+                }
+            }
+
             // Load saved settings from DB (passed from controller) and apply to checkboxes
             document.querySelectorAll('input[data-module][data-column]').forEach(function (cb) {
                 var module = cb.dataset.module;
@@ -1219,5 +1450,84 @@
                 reader.readAsDataURL(input.files[0]);
             }
         }
+    </script>
+
+    <script>
+        // ─── Backup & Restore Tab Handlers ───
+        function settingsShowRestoreFile(input) {
+            var container = document.getElementById('settings-restore-selected');
+            var btn = document.getElementById('settings-restore-btn');
+            if (input.files.length === 0) {
+                container.innerHTML = '';
+                btn.style.display = 'none';
+                return;
+            }
+            var f = input.files[0];
+            var sizeMB = (f.size / 1024 / 1024).toFixed(2);
+            container.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;">' +
+                '<i data-lucide="file-archive" style="width:20px;height:20px;color:#ca8a04;"></i>' +
+                '<div style="flex:1;min-width:0;">' +
+                '<p style="margin:0;font-size:13px;font-weight:600;color:#92400e;">' + f.name + '</p>' +
+                '<p style="margin:2px 0 0;font-size:11px;color:#a16207;">' + sizeMB + ' MB</p>' +
+                '</div>' +
+                '<button type="button" onclick="clearRestoreFile()" style="background:none;border:none;cursor:pointer;color:#dc2626;padding:4px;">' +
+                '<i data-lucide="x" style="width:16px;height:16px;"></i></button>' +
+                '</div>';
+            btn.style.display = 'inline-flex';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function clearRestoreFile() {
+            document.getElementById('settings-restore-file').value = '';
+            document.getElementById('settings-restore-selected').innerHTML = '';
+            document.getElementById('settings-restore-btn').style.display = 'none';
+        }
+
+        function settingsShowImportFiles(input) {
+            var container = document.getElementById('settings-import-selected');
+            var btn = document.getElementById('settings-import-btn');
+            if (input.files.length === 0) {
+                container.innerHTML = '';
+                btn.style.display = 'none';
+                return;
+            }
+            var html = '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+            for (var i = 0; i < input.files.length; i++) {
+                html += '<span style="background:#dcfce7;color:#166534;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;">' +
+                    '<i data-lucide="file-json" style="width:12px;height:12px;"></i> ' + input.files[i].name + '</span>';
+            }
+            html += '</div>';
+            container.innerHTML = html;
+            btn.style.display = 'inline-flex';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        // Drag-drop for restore zone
+        (function() {
+            var rzone = document.getElementById('settings-restore-zone');
+            if (rzone) {
+                rzone.addEventListener('dragover', function(e) { e.preventDefault(); rzone.style.borderColor = '#ca8a04'; rzone.style.background = '#fffbeb'; });
+                rzone.addEventListener('dragleave', function() { rzone.style.borderColor = '#cbd5e1'; rzone.style.background = '#fafbfc'; });
+                rzone.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    rzone.style.borderColor = '#cbd5e1'; rzone.style.background = '#fafbfc';
+                    var inp = document.getElementById('settings-restore-file');
+                    inp.files = e.dataTransfer.files;
+                    settingsShowRestoreFile(inp);
+                });
+            }
+            var izone = document.getElementById('settings-import-zone');
+            if (izone) {
+                izone.addEventListener('dragover', function(e) { e.preventDefault(); izone.style.borderColor = '#16a34a'; izone.style.background = '#f0fdf4'; });
+                izone.addEventListener('dragleave', function() { izone.style.borderColor = '#cbd5e1'; izone.style.background = '#fafbfc'; });
+                izone.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    izone.style.borderColor = '#cbd5e1'; izone.style.background = '#fafbfc';
+                    var inp = document.getElementById('settings-import-files');
+                    inp.files = e.dataTransfer.files;
+                    settingsShowImportFiles(inp);
+                });
+            }
+        })();
     </script>
 @endpush

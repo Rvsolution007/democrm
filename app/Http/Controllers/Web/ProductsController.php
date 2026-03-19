@@ -33,7 +33,7 @@ class ProductsController extends Controller
      * Build validation rules based on column visibility settings.
      * Hidden (unchecked) columns become nullable instead of required.
      */
-    private function getValidationRules(): array
+    private function getValidationRules(?int $productId = null): array
     {
         $vis = Setting::getValue('column_visibility', 'products', []);
 
@@ -42,10 +42,15 @@ class ProductsController extends Controller
             return (isset($vis[$col]) && $vis[$col] === false) ? 'nullable' : $default;
         };
 
+        $companyId = auth()->user()->company_id;
+        $skuRule = $r('sku', 'required') . '|string|max:50';
+        // Add unique validation scoped to company_id, ignoring current product on update
+        $skuRule .= '|unique:products,sku,' . ($productId ?? 'NULL') . ',id,company_id,' . $companyId;
+
         return [
             'category_id' => $r('category', 'required') . '|exists:categories,id',
             'name' => 'required|string|max:255',  // always required (name column is locked)
-            'sku' => $r('sku', 'required') . '|string|max:50',
+            'sku' => $skuRule,
             'description' => 'nullable|string',
             'unit' => $r('unit', 'required') . '|string',
             'mrp' => $r('mrp', 'required') . '|numeric|min:0',
@@ -100,7 +105,7 @@ class ProductsController extends Controller
             abort(403, 'You can only edit your own products.');
         }
 
-        $validated = $request->validate($this->getValidationRules());
+        $validated = $request->validate($this->getValidationRules((int) $id));
 
         // Convert rupees to paise
         if (isset($validated['mrp'])) {

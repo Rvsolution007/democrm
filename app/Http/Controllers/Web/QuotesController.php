@@ -162,6 +162,9 @@ class QuotesController extends Controller
         $taxAmount = (int) (($validated['tax_amount'] ?? 0) * 100);
         $grandTotal = $subtotal - $discount + $taxAmount;
 
+        $clientId = $validated['client_type'] === 'client' ? $validated['client_id'] : null;
+        $leadId = $validated['client_type'] === 'lead' ? $validated['lead_id'] : null;
+
         Quote::create([
             'company_id' => auth()->user()->company_id,
             'client_id' => $clientId,

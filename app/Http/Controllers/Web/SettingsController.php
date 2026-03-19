@@ -37,7 +37,33 @@ class SettingsController extends Controller
         $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
         $whatsappApiConfig = Setting::getValue('whatsapp', 'api_config', ['api_url' => '', 'api_key' => '', 'webhook_base_url' => '']);
 
-        return view('admin.settings.index', compact('company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources', 'taskStatuses', 'paymentTypes', 'whatsappApiConfig'));
+        // Load backup files for Backup & Restore tab
+        $backupFiles = [];
+        
+        $spatieDir = config('backup.backup.name', 'Laravel');
+        
+        $files = [];
+        if (Storage::disk('local')->exists('backups')) {
+            $files = array_merge($files, Storage::disk('local')->files('backups'));
+        }
+        if (Storage::disk('local')->exists($spatieDir)) {
+            $files = array_merge($files, Storage::disk('local')->files($spatieDir));
+        }
+        
+        $files = array_unique($files);
+        
+        foreach ($files as $f) {
+            if (str_ends_with($f, '.json') || str_ends_with($f, '.zip') || str_ends_with($f, '.sql')) {
+                $backupFiles[] = [
+                    'name' => basename($f),
+                    'size' => round(Storage::disk('local')->size($f) / 1024, 1),
+                    'date' => date('d M Y, h:i A', Storage::disk('local')->lastModified($f)),
+                ];
+            }
+        }
+        usort($backupFiles, fn($a, $b) => strcmp($b['name'], $a['name']));
+
+        return view('admin.settings.index', compact('company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources', 'taskStatuses', 'paymentTypes', 'whatsappApiConfig', 'backupFiles'));
     }
 
     /**

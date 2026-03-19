@@ -1,0 +1,93 @@
+{
+    "meta": {
+        "date": "2026-03-19",
+        "type": "incremental",
+        "previous_date": "2026-03-19",
+        "version": "1.0",
+        "generated_at": "2026-03-19T05:31:10.413361Z"
+    },
+    "data": {
+        "companies": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "roles": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "users": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "categories": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "products": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "leads": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "lead_followups": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "clients": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "quotes": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "quote_items": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "quote_payments": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "activities": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "projects": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "tasks": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "task_activities": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "micro_tasks": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "service_templates": {
+            "upsert": [],
+            "deleted_ids": []
+        },
+        "settings": {
+            "upsert": [
+                {
+                    "id": 1,
+                    "company_id": 1,
+                    "group": "system",
+                    "key": "last_backup_date",
+                    "value": "2026-03-19",
+                    "created_at": "2026-03-19T05:14:05.000000Z",
+                    "updated_at": "2026-03-19T05:14:05.000000Z"
+                }
+            ],
+            "deleted_ids": []
+        }
+    }
+}
