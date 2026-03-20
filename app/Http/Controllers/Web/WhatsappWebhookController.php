@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
-use App\Services\AutoReplyService;
+use App\Jobs\ProcessAutoReplyJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -12,67 +12,68 @@ class WhatsappWebhookController extends Controller
     /**
      * Handle incoming WhatsApp message webhook from Evolution API
      * Route: POST /webhook/whatsapp/incoming/{instanceName}
+     * 
+     * IMPORTANT: Returns 200 OK immediately, then processes auto-reply AFTER response.
+     * This prevents shared hosting timeout when many webhooks arrive simultaneously.
      */
     public function handleIncoming(Request $request, string $instanceName)
     {
         $event = $request->input('event');
 
-        // Log full payload for debugging (helps trace message format issues)
+        // Log webhook receipt (minimal — detailed logging happens in background)
         Log::info("Webhook received for instance: {$instanceName}", [
             'event' => $event,
-            'full_payload' => $request->all(),
         ]);
 
         // Evolution API sends different event types — we only care about incoming messages
-        // Handle MESSAGES_UPSERT event (incoming message)
-        if ($event === 'messages.upsert') {
-            $data = $request->input('data', []);
-
-            // Get the message details
-            $key = $data['key'] ?? [];
-            $messageContent = $data['message'] ?? [];
-
-            // Only process incoming messages (not our own sent messages)
-            $fromMe = $key['fromMe'] ?? false;
-            if ($fromMe) {
-                return response()->json(['status' => 'ignored', 'reason' => 'own_message']);
-            }
-
-            // Extract sender phone (remoteJid format: 919876543210@s.whatsapp.net)
-            $remoteJid = $key['remoteJid'] ?? '';
-            if (empty($remoteJid) || str_contains($remoteJid, '@g.us')) {
-                // Ignore group messages
-                return response()->json(['status' => 'ignored', 'reason' => 'group_or_empty']);
-            }
-
-            // Extract phone number from JID
-            $senderPhone = explode('@', $remoteJid)[0] ?? '';
-            if (empty($senderPhone)) {
-                return response()->json(['status' => 'ignored', 'reason' => 'no_phone']);
-            }
-
-            // Extract message text
-            $messageText = $this->extractMessageText($messageContent);
-
-            // Log extracted text for debugging
-            Log::info("AutoReply: Extracted message text from {$senderPhone}", [
-                'extracted_text' => $messageText,
-                'message_keys' => array_keys($messageContent),
-            ]);
-
-            if (empty($messageText)) {
-                $messageText = '[media]'; // Media message without text
-            }
-
-            // Process through auto-reply service
-            $service = new AutoReplyService();
-            $result = $service->processIncomingMessage($instanceName, $senderPhone, $messageText);
-
-            return response()->json($result);
+        if ($event !== 'messages.upsert') {
+            return response()->json(['status' => 'ok', 'event' => $event]);
         }
 
-        // For other events, just acknowledge
-        return response()->json(['status' => 'ok', 'event' => $event]);
+        $data = $request->input('data', []);
+        $key = $data['key'] ?? [];
+        $messageContent = $data['message'] ?? [];
+
+        // Only process incoming messages (not our own sent messages)
+        $fromMe = $key['fromMe'] ?? false;
+        if ($fromMe) {
+            return response()->json(['status' => 'ignored', 'reason' => 'own_message']);
+        }
+
+        // Extract sender phone (remoteJid format: 919876543210@s.whatsapp.net)
+        $remoteJid = $key['remoteJid'] ?? '';
+        if (empty($remoteJid) || str_contains($remoteJid, '@g.us')) {
+            return response()->json(['status' => 'ignored', 'reason' => 'group_or_empty']);
+        }
+
+        $senderPhone = explode('@', $remoteJid)[0] ?? '';
+        if (empty($senderPhone)) {
+            return response()->json(['status' => 'ignored', 'reason' => 'no_phone']);
+        }
+
+        // Extract message text BEFORE dispatching (we need the full message object)
+        $messageText = $this->extractMessageText($messageContent);
+
+        Log::info("AutoReply: Extracted message text from {$senderPhone}", [
+            'extracted_text' => $messageText,
+            'message_keys' => array_keys($messageContent),
+        ]);
+
+        if (empty($messageText)) {
+            $messageText = '[media]';
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // DISPATCH TO QUEUE — Process auto-reply in background via queued job
+        // This is the key fix: webhook returns 200 OK instantly,
+        // auto-reply processing happens via queue worker (cron-driven).
+        // Evolution API won't timeout, shared hosting won't drop requests.
+        // Jobs are stored in DB and retried automatically if they fail.
+        // ═══════════════════════════════════════════════════════════
+        ProcessAutoReplyJob::dispatch($instanceName, $senderPhone, $messageText);
+
+        // Return 200 OK immediately — Evolution API is happy, no timeout
+        return response()->json(['status' => 'queued', 'message' => 'Processing in background']);
     }
 
     /**

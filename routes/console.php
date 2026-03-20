@@ -29,6 +29,13 @@ Schedule::command('whatsapp:process-campaigns')
     ->name('whatsapp-bulk-sender')
     ->withoutOverlapping();
 
+// Process queued jobs (auto-reply, etc.) — runs every minute, processes all pending jobs, then stops
+// This is required because shared hosting doesn't support persistent queue workers
+Schedule::command('queue:work --stop-when-empty --tries=2 --backoff=10 --timeout=120')
+    ->everyMinute()
+    ->name('queue-worker')
+    ->withoutOverlapping();
+
 // Daily Notification Commands
 Schedule::command('notifications:followups')
     ->everyMinute()
