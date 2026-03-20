@@ -243,4 +243,39 @@ class SettingsController extends Controller
 
         return back()->with('success', 'Company information updated successfully.');
     }
+
+    /**
+     * Check how many leads are on a specific stage (for delete protection)
+     */
+    public function checkStageLeads(Request $request)
+    {
+        $request->validate(['stage' => 'required|string']);
+
+        $count = Lead::where('stage', $request->stage)->count();
+
+        return response()->json([
+            'success' => true,
+            'count' => $count,
+            'stage' => $request->stage,
+        ]);
+    }
+
+    /**
+     * Transfer all leads from one stage to another, then remove old stage from settings
+     */
+    public function transferStageLeads(Request $request)
+    {
+        $request->validate([
+            'from_stage' => 'required|string',
+            'to_stage' => 'required|string|different:from_stage',
+        ]);
+
+        $count = Lead::where('stage', $request->from_stage)
+            ->update(['stage' => $request->to_stage]);
+
+        return response()->json([
+            'success' => true,
+            'transferred' => $count,
+        ]);
+    }
 }

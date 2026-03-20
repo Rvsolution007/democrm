@@ -51,9 +51,11 @@ class Lead extends Model
 
         static::updating(function ($lead) {
             if ($lead->isDirty('stage') && in_array($lead->stage, ['won', 'lost'])) {
-                if ($lead->next_follow_up_at && $lead->next_follow_up_at >= now()->startOfDay()) {
-                    $lead->next_follow_up_at = null;
-                }
+                // Always clear follow-up date so lead disappears from Follow-ups page
+                $lead->next_follow_up_at = null;
+
+                // Soft-delete all follow-up records for this lead
+                LeadFollowup::where('lead_id', $lead->id)->delete();
             }
         });
     }

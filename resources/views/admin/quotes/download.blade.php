@@ -336,10 +336,10 @@
                 box-shadow: none; 
                 width: 100%; 
                 min-height: auto; 
-                padding: 0; 
+                padding: 30px; 
                 margin: 0;
             }
-            @page { margin: 8mm; size: A4; }
+            @page { margin: 5mm; size: A4; }
         }
     </style>
 </head>

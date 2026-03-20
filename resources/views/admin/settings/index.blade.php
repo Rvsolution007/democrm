@@ -1080,9 +1080,58 @@
 
         function removeStageRow(type, idx) {
             syncInputsToArray(type);
+
+            // For lead stages, check if any leads are connected to this stage
             if (type === 'lead') {
-                leadStages.splice(idx, 1);
-            } else if (type === 'source') {
+                const stageName = leadStages[idx];
+                if (!stageName) {
+                    // Empty stage name, just remove
+                    leadStages.splice(idx, 1);
+                    renderStages(type);
+                    return;
+                }
+
+                // Check server for leads on this stage
+                fetch('{{ route("admin.settings.lead-stages.check") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': CSRF_TOKEN,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ stage: stageName })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.count > 0) {
+                        // Build transfer options (all other stages)
+                        let otherStages = leadStages.filter((s, i) => i !== idx && s.trim() !== '');
+                        if (otherStages.length === 0) {
+                            alert('इस stage में ' + data.count + ' lead(s) हैं। कम से कम एक और stage होना चाहिए जिसमें leads को transfer किया जा सके।');
+                            return;
+                        }
+
+                        let optionsHtml = otherStages.map(s => `<option value="${s}">${s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>`).join('');
+
+                        // Show transfer modal
+                        showStageTransferModal(stageName, data.count, optionsHtml, idx);
+                    } else {
+                        // No leads, safe to remove
+                        if (confirm('Are you sure you want to remove this stage?')) {
+                            leadStages.splice(idx, 1);
+                            renderStages(type);
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error('Error checking stage leads:', err);
+                    alert('Error checking stage. Please try again.');
+                });
+                return;
+            }
+
+            // For non-lead types, just remove directly
+            if (type === 'source') {
                 leadSources.splice(idx, 1);
             } else if (type === 'task') {
                 taskStatuses.splice(idx, 1);
@@ -1090,6 +1139,94 @@
                 paymentTypes.splice(idx, 1);
             }
             renderStages(type);
+        }
+
+        function showStageTransferModal(stageName, leadCount, optionsHtml, stageIdx) {
+            // Remove existing modal if any
+            let existingModal = document.getElementById('stage-transfer-modal');
+            if (existingModal) existingModal.remove();
+
+            let displayName = stageName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+            let modalHtml = `
+                <div id="stage-transfer-modal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+                    <div style="background:white;border-radius:16px;width:95%;max-width:480px;box-shadow:0 25px 60px rgba(0,0,0,0.2);overflow:hidden">
+                        <div style="padding:20px 24px;border-bottom:1px solid #f0f0f0;background:linear-gradient(135deg,#fef2f2,#fff)">
+                            <div style="display:flex;align-items:center;gap:10px">
+                                <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#fca5a5,#f87171);display:flex;align-items:center;justify-content:center">
+                                    <i data-lucide="alert-triangle" style="width:20px;height:20px;color:white"></i>
+                                </div>
+                                <div>
+                                    <h3 style="margin:0;font-size:16px;font-weight:700;color:#1e293b">Stage Delete — Leads Found</h3>
+                                    <p style="margin:2px 0 0;font-size:13px;color:#64748b">"${displayName}" stage me <b>${leadCount}</b> lead(s) hain</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="padding:24px">
+                            <p style="font-size:14px;color:#475569;margin:0 0 16px;line-height:1.6">
+                                In leads ko kisi aur stage me transfer karna hoga, tab hi ye stage delete hoga.
+                            </p>
+                            <div>
+                                <label style="display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:#374151">Transfer to Stage <span style="color:#ef4444">*</span></label>
+                                <select id="transfer-stage-select" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;background:white">
+                                    ${optionsHtml}
+                                </select>
+                            </div>
+                        </div>
+                        <div style="padding:16px 24px;border-top:1px solid #f0f0f0;display:flex;justify-content:flex-end;gap:10px;background:#fafbfc">
+                            <button type="button" onclick="closeStageTransferModal()" style="padding:9px 20px;border:1.5px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;color:#64748b">Cancel</button>
+                            <button type="button" onclick="executeStageTransfer('${stageName}', ${stageIdx})" id="btn-transfer-stage" style="padding:9px 20px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;box-shadow:0 2px 8px rgba(239,68,68,0.3)">Transfer & Delete</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function closeStageTransferModal() {
+            let modal = document.getElementById('stage-transfer-modal');
+            if (modal) modal.remove();
+        }
+
+        function executeStageTransfer(fromStage, stageIdx) {
+            let toStage = document.getElementById('transfer-stage-select').value;
+            let btn = document.getElementById('btn-transfer-stage');
+            btn.textContent = 'Transferring...';
+            btn.disabled = true;
+
+            fetch('{{ route("admin.settings.lead-stages.transfer") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': CSRF_TOKEN,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ from_stage: fromStage, to_stage: toStage })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    closeStageTransferModal();
+                    // Remove the stage from local array
+                    leadStages.splice(stageIdx, 1);
+                    renderStages('lead');
+                    
+                    let displayTo = toStage.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    showSavedToast();
+                    alert(data.transferred + ' lead(s) successfully transferred to "' + displayTo + '". Don\'t forget to click "Save Stages" to save the changes.');
+                } else {
+                    alert('Error transferring leads. Please try again.');
+                    btn.textContent = 'Transfer & Delete';
+                    btn.disabled = false;
+                }
+            })
+            .catch(err => {
+                console.error('Error transferring:', err);
+                alert('Error transferring leads. Please try again.');
+                btn.textContent = 'Transfer & Delete';
+                btn.disabled = false;
+            });
         }
 
         function saveLeadStages(event) {

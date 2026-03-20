@@ -155,8 +155,16 @@ class BackupController extends Controller
 
         $stats = ['imported' => 0, 'updated' => 0, 'deleted' => 0, 'files' => count($backups)];
 
-        foreach ($backups as $backup) {
-            $this->processBackup($backup, $stats);
+        // Disable foreign key checks to avoid constraint errors during import
+        \DB::statement('SET FOREIGN_KEY_CHECKS=0');
+
+        try {
+            foreach ($backups as $backup) {
+                $this->processBackup($backup, $stats);
+            }
+        } finally {
+            // Always re-enable foreign key checks
+            \DB::statement('SET FOREIGN_KEY_CHECKS=1');
         }
 
         return back()->withFragment('backup-restore')->with(
@@ -213,8 +221,12 @@ class BackupController extends Controller
                             $existing->restore();
                         }
                         $existing->fill($record);
-                        $existing->save();
-                        $stats['updated']++;
+                        try {
+                            $existing->save();
+                            $stats['updated']++;
+                        } catch (\Exception $e) {
+                            continue;
+                        }
                     } else {
                         try {
                             $modelClass::create($record);
