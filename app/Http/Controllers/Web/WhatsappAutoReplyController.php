@@ -327,7 +327,26 @@ class WhatsappAutoReplyController extends Controller
             ->take(50)
             ->get();
 
-        // Hourly breakdown for chart
+        // ── Daily breakdown chart ──
+        $dailyData = WhatsappAutoReplyLog::where('user_id', $user->id)
+            ->where('status', 'sent')
+            ->where('created_at', '>=', $startDate)
+            ->selectRaw('DATE(created_at) as day, COUNT(*) as count')
+            ->groupByRaw('DATE(created_at)')
+            ->orderBy('day')
+            ->pluck('count', 'day')
+            ->toArray();
+
+        // Build daily chart with all dates in range
+        $dailyChartData = [];
+        $daysCursor = $startDate->copy();
+        while ($daysCursor->lte(today())) {
+            $key = $daysCursor->format('Y-m-d');
+            $dailyChartData[$key] = $dailyData[$key] ?? 0;
+            $daysCursor->addDay();
+        }
+
+        // ── Hourly breakdown chart ──
         $hourlyData = WhatsappAutoReplyLog::where('user_id', $user->id)
             ->where('status', 'sent')
             ->where('created_at', '>=', $startDate)
@@ -343,8 +362,36 @@ class WhatsappAutoReplyController extends Controller
             $chartData[$i] = $hourlyData[$i] ?? 0;
         }
 
+        // ── Queue Jobs Section ──
+        $queueQuery = \DB::table('jobs')->where('queue', 'default');
+
+        // Apply queue filters
+        if ($request->filled('queue_date')) {
+            $queueQuery->whereRaw('DATE(FROM_UNIXTIME(created_at)) = ?', [$request->queue_date]);
+        }
+        if ($request->filled('queue_hour')) {
+            $queueQuery->whereRaw('HOUR(FROM_UNIXTIME(created_at)) = ?', [(int)$request->queue_hour]);
+        }
+
+        $queueJobs = $queueQuery->orderByDesc('id')->limit(100)->get()->map(function ($job) {
+            $payload = json_decode($job->payload, true);
+            $command = isset($payload['data']['command']) ? unserialize($payload['data']['command']) : null;
+            return (object)[
+                'id' => $job->id,
+                'queue' => $job->queue,
+                'attempts' => $job->attempts,
+                'created_at' => \Carbon\Carbon::createFromTimestamp($job->created_at),
+                'available_at' => \Carbon\Carbon::createFromTimestamp($job->available_at),
+                'reserved_at' => $job->reserved_at ? \Carbon\Carbon::createFromTimestamp($job->reserved_at) : null,
+                'job_name' => $payload['displayName'] ?? class_basename($payload['data']['commandName'] ?? 'Unknown'),
+            ];
+        });
+
+        $totalQueueCount = \DB::table('jobs')->count();
+
         return view('admin.whatsapp-auto-reply.analytics', compact(
-            'stats', 'rulePerformance', 'recentLogs', 'chartData', 'period'
+            'stats', 'rulePerformance', 'recentLogs', 'chartData', 'dailyChartData', 'period',
+            'queueJobs', 'totalQueueCount'
         ));
     }
 

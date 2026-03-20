@@ -77,6 +77,43 @@
     .chart-labels span {
         flex: 1; text-align: center; font-size: 0.65rem; color: #94a3b8; font-weight: 500;
     }
+
+    .chart-bar-green {
+        flex: 1; background: linear-gradient(180deg, #22c55e 0%, #4ade80 100%);
+        border-radius: 4px 4px 0 0; min-height: 2px; transition: all 0.3s; position: relative;
+    }
+    .chart-bar-green:hover { background: linear-gradient(180deg, #16a34a 0%, #22c55e 100%); }
+    .chart-bar-green:hover::after {
+        content: attr(data-count); position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
+        background: #0f172a; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem;
+    }
+
+    .queue-filter-form {
+        display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;
+    }
+    .queue-filter-form input, .queue-filter-form select {
+        padding: 0.5rem 0.75rem; border-radius: 10px; border: 1px solid #e2e8f0;
+        font-size: 0.85rem; color: #334155; background: white; outline: none;
+    }
+    .queue-filter-form input:focus, .queue-filter-form select:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,0.1); }
+    .queue-filter-btn {
+        padding: 0.5rem 1.25rem; border-radius: 10px; border: none;
+        background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white;
+        font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;
+    }
+    .queue-filter-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(124,58,237,0.3); }
+    .queue-reset-btn {
+        padding: 0.5rem 1rem; border-radius: 10px; border: 1px solid #e2e8f0;
+        background: white; color: #64748b; font-weight: 600; font-size: 0.85rem;
+        cursor: pointer; text-decoration: none; transition: all 0.2s;
+    }
+    .queue-reset-btn:hover { background: #f1f5f9; color: #0f172a; }
+    .queue-badge {
+        display: inline-flex; align-items: center; gap: 4px; padding: 0.3rem 0.7rem;
+        border-radius: 20px; font-size: 0.75rem; font-weight: 700;
+    }
+    .queue-badge-waiting { background: #eff6ff; color: #2563eb; }
+    .queue-badge-processing { background: #fef3c7; color: #d97706; }
 </style>
 @endpush
 
@@ -97,8 +134,8 @@
     </div>
 
     <!-- Stats Cards -->
-    <div style="display: flex; gap: 15px; margin-bottom: 24px;">
-        <div style="flex: 1;">
+    <div style="display: flex; gap: 15px; margin-bottom: 24px; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 180px;">
             <div class="stat-card">
                 <div class="stat-card-info">
                     <div class="stat-value">{{ $stats['total_received'] }}</div>
@@ -107,7 +144,7 @@
                 <div class="stat-icon" style="background: linear-gradient(135deg, #eff6ff, #dbeafe); color: #2563eb; box-shadow: 0 4px 10px rgba(37,99,235,0.15);">📨</div>
             </div>
         </div>
-        <div style="flex: 1;">
+        <div style="flex: 1; min-width: 180px;">
             <div class="stat-card">
                 <div class="stat-card-info">
                     <div class="stat-value">{{ $stats['total_sent'] }}</div>
@@ -116,7 +153,7 @@
                 <div class="stat-icon" style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); color: #059669; box-shadow: 0 4px 10px rgba(5,150,105,0.15);">✅</div>
             </div>
         </div>
-        <div style="flex: 1;">
+        <div style="flex: 1; min-width: 180px;">
             <div class="stat-card">
                 <div class="stat-card-info">
                     <div class="stat-value">{{ $stats['total_skipped'] }}</div>
@@ -125,7 +162,7 @@
                 <div class="stat-icon" style="background: linear-gradient(135deg, #fffbeb, #fef3c7); color: #d97706; box-shadow: 0 4px 10px rgba(217,119,6,0.15);">⏭️</div>
             </div>
         </div>
-        <div style="flex: 1;">
+        <div style="flex: 1; min-width: 180px;">
             <div class="stat-card">
                 <div class="stat-card-info">
                     <div class="stat-value">{{ $stats['total_failed'] }}</div>
@@ -134,7 +171,34 @@
                 <div class="stat-icon" style="background: linear-gradient(135deg, #fef2f2, #fee2e2); color: #dc2626; box-shadow: 0 4px 10px rgba(220,38,38,0.15);">❌</div>
             </div>
         </div>
+        <div style="flex: 1; min-width: 180px;">
+            <div class="stat-card">
+                <div class="stat-card-info">
+                    <div class="stat-value">{{ $totalQueueCount }}</div>
+                    <div class="stat-label">In Queue</div>
+                </div>
+                <div class="stat-icon" style="background: linear-gradient(135deg, #f5f3ff, #ede9fe); color: #7c3aed; box-shadow: 0 4px 10px rgba(124,58,237,0.15);">⏳</div>
+            </div>
+        </div>
     </div>
+
+    <!-- Daily Chart -->
+    @if(count($dailyChartData) > 1)
+    <div class="analytics-card">
+        <div class="card-title">📅 Replies Sent by Day</div>
+        @php $maxDayVal = max(1, max($dailyChartData)); @endphp
+        <div class="chart-bar-container">
+            @foreach($dailyChartData as $day => $count)
+                <div class="chart-bar-green" style="height: {{ ($count / $maxDayVal) * 100 }}%;" data-count="{{ $count }}" title="{{ \Carbon\Carbon::parse($day)->format('d M') }} — {{ $count }} replies"></div>
+            @endforeach
+        </div>
+        <div class="chart-labels">
+            @foreach($dailyChartData as $day => $count)
+                <span>{{ \Carbon\Carbon::parse($day)->format('d M') }}</span>
+            @endforeach
+        </div>
+    </div>
+    @endif
 
     <!-- Hourly Chart -->
     <div class="analytics-card">
@@ -150,6 +214,77 @@
                 <span>{{ $i }}</span>
             @endfor
         </div>
+    </div>
+
+    <!-- Queue Status Section -->
+    <div class="analytics-card">
+        <div class="card-title" style="justify-content: space-between;">
+            <span>⏳ Replies in Queue ({{ $totalQueueCount }})</span>
+        </div>
+
+        <!-- Queue Filters -->
+        <form method="GET" action="{{ route('admin.whatsapp-auto-reply.analytics') }}" class="queue-filter-form" style="margin-bottom: 1.25rem;">
+            <input type="hidden" name="period" value="{{ $period }}">
+            <div>
+                <label style="font-size: 0.75rem; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px;">DATE</label>
+                <input type="date" name="queue_date" value="{{ request('queue_date') }}" placeholder="Filter by date">
+            </div>
+            <div>
+                <label style="font-size: 0.75rem; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px;">HOUR</label>
+                <select name="queue_hour">
+                    <option value="">All Hours</option>
+                    @for($h = 0; $h < 24; $h++)
+                        <option value="{{ $h }}" {{ request('queue_hour') == (string)$h ? 'selected' : '' }}>{{ str_pad($h, 2, '0', STR_PAD_LEFT) }}:00</option>
+                    @endfor
+                </select>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: flex-end; padding-top: 18px;">
+                <button type="submit" class="queue-filter-btn">🔍 Filter</button>
+                <a href="{{ route('admin.whatsapp-auto-reply.analytics', ['period' => $period]) }}" class="queue-reset-btn">Reset</a>
+            </div>
+        </form>
+
+        <!-- Queue Jobs Table -->
+        @if($queueJobs->count() > 0)
+        <div class="table-responsive">
+            <table class="table modern-table mb-0">
+                <thead>
+                    <tr>
+                        <th>#ID</th>
+                        <th>Job</th>
+                        <th>Attempts</th>
+                        <th>Status</th>
+                        <th>Created At</th>
+                        <th>Available At</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($queueJobs as $job)
+                    <tr>
+                        <td style="font-weight: 600;">{{ $job->id }}</td>
+                        <td>{{ $job->job_name }}</td>
+                        <td>{{ $job->attempts }}</td>
+                        <td>
+                            @if($job->reserved_at)
+                                <span class="queue-badge queue-badge-processing">🔄 Processing</span>
+                            @else
+                                <span class="queue-badge queue-badge-waiting">⏳ Waiting</span>
+                            @endif
+                        </td>
+                        <td style="color: #64748b; font-size: 0.85rem;">{{ $job->created_at->format('d M Y, h:i A') }}</td>
+                        <td style="color: #64748b; font-size: 0.85rem;">{{ $job->available_at->format('d M Y, h:i A') }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        @else
+        <div style="text-align: center; padding: 2.5rem 1rem; color: #94a3b8;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">✅</div>
+            <div style="font-weight: 600;">Queue is empty — all replies processed!</div>
+            <div style="font-size: 0.85rem; margin-top: 0.25rem;">New auto-reply jobs will appear here when messages arrive</div>
+        </div>
+        @endif
     </div>
 
     <div class="row g-3">
