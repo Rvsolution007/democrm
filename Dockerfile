@@ -48,4 +48,4 @@ RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 EXPOSE 80
 
-CMD sh -c "rm -f bootstrap/cache/*.php && php artisan optimize:clear && apache2-foreground"
+CMD sh -c "rm -f bootstrap/cache/*.php 2>/dev/null; apache2-foreground"
