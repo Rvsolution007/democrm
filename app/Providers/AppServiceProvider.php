@@ -41,9 +41,6 @@ class AppServiceProvider extends ServiceProvider
         });
 
         \Illuminate\Pagination\Paginator::useBootstrapFive();
-        if (config('app.env') === 'production') {
-            \Illuminate\Support\Facades\URL::forceScheme('https');
-        }
 
         // Configure rate limiters
         RateLimiter::for('api', function (Request $request) {
