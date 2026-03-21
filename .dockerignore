@@ -10,3 +10,4 @@ mobile_app_flutter
 .vscode
 .idea
 .agent
+bootstrap/cache/*.php
