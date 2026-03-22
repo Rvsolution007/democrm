@@ -98,7 +98,7 @@ Route::get('/seed-users', function () {
             'email' => 'rvsolution696@gmail.com',
             'phone' => '9876543210',
             'email_verified_at' => now(),
-            'password' => \Illuminate\Support\Facades\Hash::make('Rvsolution@1415'),
+            'password' => \Illuminate\Support\Facades\Hash::make('RVsolution@1415'),
             'status' => 'active',
             'created_at' => now(),
             'updated_at' => now(),
@@ -121,6 +121,18 @@ Route::get('/seed-users', function () {
     } catch (\Exception $e) {
         return 'ERROR: ' . $e->getMessage();
     }
+});
+
+// Temporary Route to safely reset the admin password without truncating tables
+Route::get('/reset-admin', function () {
+    $user = \Illuminate\Support\Facades\DB::table('users')->where('email', 'rvsolution696@gmail.com')->first();
+    if ($user) {
+        \Illuminate\Support\Facades\DB::table('users')
+            ->where('email', 'rvsolution696@gmail.com')
+            ->update(['password' => \Illuminate\Support\Facades\Hash::make('RVsolution@1415')]);
+        return 'Admin password reset to RVsolution@1415 successfully. Go to /login';
+    }
+    return 'Admin user not found!';
 });
 
 // Temporary Route to seed ALL demo data (leads, clients, quotes, etc.)
