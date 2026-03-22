@@ -30,10 +30,46 @@ Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-// Temporary Route to seed users
+// Temporary Route to seed users — inline logic, no class dependency
 Route::get('/seed-users', function () {
-    \Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'UsersTableSeeder']);
-    return 'Users table seeded successfully! You can now go to /login';
+    try {
+        // Delete existing users to start fresh
+        \Illuminate\Support\Facades\DB::table('users')->truncate();
+
+        // Insert Admin
+        \Illuminate\Support\Facades\DB::table('users')->insert([
+            'id' => 1,
+            'company_id' => 1,
+            'role_id' => 1,
+            'name' => 'Admin User',
+            'email' => 'rvsolution696@gmail.com',
+            'phone' => '9876543210',
+            'email_verified_at' => now(),
+            'password' => \Illuminate\Support\Facades\Hash::make('Rvsolution@1415'),
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Insert Sales User
+        \Illuminate\Support\Facades\DB::table('users')->insert([
+            'id' => 2,
+            'company_id' => 1,
+            'role_id' => 2,
+            'name' => 'Sales User',
+            'email' => 'sales@rvcrm.local',
+            'phone' => '9876543211',
+            'email_verified_at' => now(),
+            'password' => \Illuminate\Support\Facades\Hash::make('password123'),
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return 'SUCCESS! 2 users seeded with fresh passwords. Go to /login now.';
+    } catch (\Exception $e) {
+        return 'ERROR: ' . $e->getMessage();
+    }
 });
 
 
