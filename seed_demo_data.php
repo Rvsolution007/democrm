@@ -195,12 +195,10 @@ for ($i = 0; $i < 10; $i++) {
     $quote = DB::table('quotes')->where('id', $qId)->first();
     if (!$quote) continue;
     DB::table('quote_payments')->insert([
-        'company_id' => 1,
         'quote_id' => $qId,
         'amount' => intval($quote->grand_total * (rand(20, 60) / 100)),
         'payment_date' => $now->copy()->subDays(rand(0, 10))->toDateString(),
         'payment_type' => ['bank_transfer','upi','cash','cheque','card'][$i % 5],
-        'reference_no' => 'REF-' . strtoupper(substr(md5(rand()), 0, 8)),
         'notes' => 'Demo payment #' . ($i + 1),
         'created_at' => $now,
         'updated_at' => $now,
@@ -249,11 +247,10 @@ for ($i = 0; $i < 10; $i++) {
     $purchase = DB::table('purchases')->where('id', $i + 1)->first();
     if (!$purchase || $purchase->paid_amount <= 0) continue;
     DB::table('purchase_payments')->insert([
-        'company_id' => 1,
         'purchase_id' => $i + 1,
         'amount' => $purchase->paid_amount,
         'payment_date' => $now->copy()->subDays(rand(0, 10))->toDateString(),
-        'payment_type' => ['bank_transfer','upi','cash','cheque','card'][$i % 5],
+        'payment_method' => ['bank_transfer','upi','cash','cheque','card'][$i % 5],
         'reference_no' => 'PREF-' . strtoupper(substr(md5(rand()), 0, 8)),
         'notes' => 'Payment for ' . $purchase->purchase_no,
         'created_at' => $now,
