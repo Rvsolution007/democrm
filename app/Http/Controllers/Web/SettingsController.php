@@ -198,8 +198,31 @@ class SettingsController extends Controller
             'api_key' => $request->api_key,
             'webhook_base_url' => rtrim($request->webhook_base_url ?? '', '/'),
         ], auth()->user()->company_id);
+        // Try to register webhook for the current user's instance if it exists
+        $user = auth()->user();
+        $cleanName = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $user->name));
+        $instanceName = 'rvcrm_' . $cleanName . '_' . $user->id;
+        
+        $baseUrl = !empty($request->webhook_base_url) ? $request->webhook_base_url : url('');
+        $webhookUrl = rtrim($baseUrl, '/') . "/webhook/whatsapp/incoming/{$instanceName}";
+        
+        try {
+            \Illuminate\Support\Facades\Http::withHeaders([
+                'apikey' => $request->api_key,
+                'Content-Type' => 'application/json',
+            ])->post(rtrim($request->api_url, '/') . "/webhook/set/{$instanceName}", [
+                'webhook' => [
+                    'enabled' => true,
+                    'url' => $webhookUrl,
+                    'webhookByEvents' => false,
+                    'events' => ['MESSAGES_UPSERT'],
+                ],
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to set webhook on save config: " . $e->getMessage());
+        }
 
-        return response()->json(['success' => true, 'message' => 'WhatsApp API configuration saved']);
+        return response()->json(['success' => true, 'message' => 'WhatsApp API configuration saved and webhook refreshed.']);
     }
 
     /**
@@ -353,7 +376,35 @@ class SettingsController extends Controller
         if ($enabled) {
             \App\Models\WhatsappAutoReplyRule::where('company_id', auth()->user()->company_id)
                 ->update(['is_active' => false]);
+                
+            // Register webhook to ensure it wasn't lost
+            $config = Setting::getValue('whatsapp', 'api_config', ['api_url' => '', 'api_key' => '', 'webhook_base_url' => ''], auth()->user()->company_id);
+            if (!empty($config['api_url']) && !empty($config['api_key'])) {
+                $user = auth()->user();
+                $cleanName = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $user->name));
+                $instanceName = 'rvcrm_' . $cleanName . '_' . $user->id;
+                
+                $baseUrl = !empty($config['webhook_base_url']) ? $config['webhook_base_url'] : url('');
+                $webhookUrl = rtrim($baseUrl, '/') . "/webhook/whatsapp/incoming/{$instanceName}";
+                
+                try {
+                    \Illuminate\Support\Facades\Http::withHeaders([
+                        'apikey' => $config['api_key'],
+                        'Content-Type' => 'application/json',
+                    ])->post(rtrim($config['api_url'], '/') . "/webhook/set/{$instanceName}", [
+                        'webhook' => [
+                            'enabled' => true,
+                            'url' => $webhookUrl,
+                            'webhookByEvents' => false,
+                            'events' => ['MESSAGES_UPSERT'],
+                        ],
+                    ]);
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error("Failed to set webhook on AI toggle: " . $e->getMessage());
+                }
+            }
         }
+
 
         return response()->json([
             'success' => true,

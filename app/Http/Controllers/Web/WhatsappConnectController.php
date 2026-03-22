@@ -228,8 +228,31 @@ class WhatsappConnectController extends Controller
                         'integration' => 'WHATSAPP-BAILEYS',
                         'qrcode' => true,
                     ]);
+            $success = $response->successful();
+            
+            if ($success) {
+                // Register webhook immediately
+                $baseUrl = !empty($config['webhook_base_url']) ? $config['webhook_base_url'] : url('');
+                $webhookUrl = rtrim($baseUrl, '/') . "/webhook/whatsapp/incoming/{$instanceName}";
 
-            return $response->successful();
+                try {
+                    Http::withHeaders([
+                        'apikey' => $config['api_key'],
+                        'Content-Type' => 'application/json',
+                    ])->post("{$config['api_url']}/webhook/set/{$instanceName}", [
+                        'webhook' => [
+                            'enabled' => true,
+                            'url' => $webhookUrl,
+                            'webhookByEvents' => false,
+                            'events' => ['MESSAGES_UPSERT'],
+                        ],
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error("Failed to set webhook during instance creation: " . $e->getMessage());
+                }
+            }
+
+            return $success;
         } catch (\Exception $e) {
             Log::error('WhatsApp Create Instance Error: ' . $e->getMessage());
             return false;
