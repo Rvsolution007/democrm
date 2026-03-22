@@ -23,7 +23,7 @@ class UsersTableSeeder extends Seeder
                 'name' => 'Admin User',
                 'phone' => '9876543210',
                 'email_verified_at' => now(),
-                'password' => \Illuminate\Support\Facades\Hash::make('RVsolution@1415'),
+                'password' => \Illuminate\Support\Facades\Hash::make('Rvsolution@1415'),
                 'status' => 'active',
                 'created_at' => now(),
                 'updated_at' => now(),

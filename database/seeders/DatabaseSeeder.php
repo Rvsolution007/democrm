@@ -96,7 +96,7 @@ class DatabaseSeeder extends Seeder
             'name' => 'Admin User',
             'email' => 'rvsolution696@gmail.com',
             'phone' => '9876543210',
-            'password' => Hash::make('RVsolution@1415'),
+            'password' => Hash::make('Rvsolution@1415'),
             'status' => 'active',
             'email_verified_at' => now(),
         ]);
@@ -114,6 +114,6 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->command->info('Demo company, roles, and users created successfully!');
-        $this->command->info('Admin login: rvsolution696@gmail.com / RVsolution@1415');
+        $this->command->info('Admin login: rvsolution696@gmail.com / Rvsolution@1415');
     }
 }

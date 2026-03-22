@@ -98,7 +98,7 @@ Route::get('/seed-users', function () {
             'email' => 'rvsolution696@gmail.com',
             'phone' => '9876543210',
             'email_verified_at' => now(),
-            'password' => \Illuminate\Support\Facades\Hash::make('RVsolution@1415'),
+            'password' => \Illuminate\Support\Facades\Hash::make('Rvsolution@1415'),
             'status' => 'active',
             'created_at' => now(),
             'updated_at' => now(),
@@ -129,8 +129,8 @@ Route::get('/reset-admin', function () {
     if ($user) {
         \Illuminate\Support\Facades\DB::table('users')
             ->where('email', 'rvsolution696@gmail.com')
-            ->update(['password' => \Illuminate\Support\Facades\Hash::make('RVsolution@1415')]);
-        return 'Admin password reset to RVsolution@1415 successfully. Go to /login';
+            ->update(['password' => \Illuminate\Support\Facades\Hash::make('Rvsolution@1415')]);
+        return 'Admin password reset to Rvsolution@1415 successfully. Go to /login';
     }
     return 'Admin user not found!';
 });
