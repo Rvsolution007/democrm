@@ -57,6 +57,9 @@ RUN composer install --no-dev --optimize-autoloader --no-scripts --no-interactio
 # Copy application files
 COPY . .
 
+# Generate optimized autoload files now that all classes (like seeders) are present
+RUN composer dump-autoload --optimize
+
 # Copy and set up entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
