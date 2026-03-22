@@ -97,20 +97,21 @@ class ProductsController extends Controller
      */
     private function injectSystemDefaults(array &$validated)
     {
-        $companyId = auth()->user()->company_id;
-        $systemColumns = \App\Models\CatalogueCustomColumn::where('company_id', $companyId)
-            ->where('is_system', true)
-            ->get();
-            
-        foreach ($systemColumns as $col) {
-            if (!$col->is_active && !array_key_exists($col->slug, $validated)) {
-                if ($col->type === 'number') {
-                    $validated[$col->slug] = 0;
-                } elseif ($col->slug === 'name') {
-                    $validated[$col->slug] = 'Unnamed Product';
-                } else {
-                    $validated[$col->slug] = null;
-                }
+        // These DB columns must ALWAYS have values, regardless of DFM configuration
+        $coreDefaults = [
+            'name'        => $validated['name'] ?? 'Unnamed Product',
+            'sku'         => $validated['sku'] ?? 'AUTO-' . strtoupper(uniqid()),
+            'description' => $validated['description'] ?? null,
+            'sale_price'  => $validated['sale_price'] ?? 0,
+            'mrp'         => $validated['mrp'] ?? 0,
+            'gst_percent'  => $validated['gst_percent'] ?? 0,
+            'hsn_code'    => $validated['hsn_code'] ?? null,
+            'unit'        => $validated['unit'] ?? null,
+        ];
+        
+        foreach ($coreDefaults as $key => $default) {
+            if (!array_key_exists($key, $validated)) {
+                $validated[$key] = $default;
             }
         }
     }

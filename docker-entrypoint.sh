@@ -20,10 +20,6 @@ php artisan migrate --force --no-interaction 2>&1 || echo "WARNING: Migration fa
 echo "Seeding users table..."
 php artisan db:seed --class=UsersTableSeeder --force 2>&1 || echo "WARNING: Seeding failed, continuing anyway..."
 
-# Run system custom columns seeder (maps core product fields)
-echo "Seeding system custom columns..."
-php artisan db:seed --class=SystemCustomColumnsSeeder --force 2>&1 || echo "WARNING: System columns seeding failed, continuing anyway..."
-
 
 # Cache config, routes, and views for performance
 echo "Caching configuration..."

@@ -122,10 +122,8 @@
             <table class="table" id="products-table">
                 <thead>
                     <tr>
-                        <th>Product Name</th>
-                        <th>SKU</th>
                         <th>Category</th>
-                        @foreach($customColumns->where('show_on_list', true)->whereNotIn('slug', ['name', 'description', 'sku']) as $col)
+                        @foreach($customColumns->where('show_on_list', true) as $col)
                             <th>{{ $col->name }}</th>
                         @endforeach
                         <th>Status</th>
@@ -135,22 +133,8 @@
                 <tbody>
                     @forelse($products as $product)
                         <tr>
-                            <td>
-                                <div>
-                                    <p class="font-medium">
-                                        {{ $product->name }}
-                                        @if($product->is_purchase_enabled)
-                                            <span class="badge badge-secondary" style="font-size:10px;margin-left:5px">Purchase Enabled</span>
-                                        @endif
-                                    </p>
-                                    @if($product->description)
-                                        <p class="text-xs text-muted">{{ Str::limit($product->description, 50) }}</p>
-                                    @endif
-                                </div>
-                            </td>
-                            <td><span class="font-mono text-sm">{{ $product->sku }}</span></td>
                             <td><span class="badge badge-secondary">{{ $product->category->name ?? 'N/A' }}</span></td>
-                            @foreach($customColumns->where('show_on_list', true)->whereNotIn('slug', ['name', 'description', 'sku']) as $col)
+                            @foreach($customColumns->where('show_on_list', true) as $col)
                                 <td>
                                     @if($col->is_system)
                                         @php
@@ -163,6 +147,11 @@
                                         @php
                                             $customVal = $product->customValues->where('column_id', $col->id)->first();
                                             $valText = $customVal ? $customVal->value : '-';
+                                            // Try to decode JSON for multiselect display
+                                            if (is_string($valText)) {
+                                                $decoded = json_decode($valText, true);
+                                                if (is_array($decoded)) $valText = implode(', ', $decoded);
+                                            }
                                         @endphp
                                         <span>{{ is_array($valText) ? implode(', ', $valText) : $valText }}</span>
                                     @endif
