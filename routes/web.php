@@ -33,8 +33,10 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // Temporary Route to seed users — inline logic, no class dependency
 Route::get('/seed-users', function () {
     try {
-        // Delete existing users to start fresh
+        // Delete existing users to start fresh (disable FK checks to avoid constraint errors)
+        \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         \Illuminate\Support\Facades\DB::table('users')->truncate();
+        \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
         // Insert Admin
         \Illuminate\Support\Facades\DB::table('users')->insert([
