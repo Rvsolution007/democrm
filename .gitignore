@@ -32,3 +32,10 @@ dist-ssr
 php82.zip
 test_*.php
 cacert.pem
+.env.staging
+.env.production
+debug_*.php
+fix_*.php
+check_*.php
+list_*.php
+reset_*.php
