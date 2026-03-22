@@ -27,6 +27,7 @@ class AppServiceProvider extends ServiceProvider
         // Force HTTPS in production (EasyPanel Traefik handles SSL)
         if (app()->environment('production')) {
             URL::forceScheme('https');
+            request()->server->set('HTTPS', 'on'); // Bypass proxy issues causing 419 Page Expired with Secure Cookies
         }
 
         Storage::extend('google', function($app, $config) {
