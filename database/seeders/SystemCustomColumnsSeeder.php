@@ -17,6 +17,20 @@ class SystemCustomColumnsSeeder extends Seeder
         foreach ($companies as $company) {
             $systemColumns = [
                 [
+                    'name' => 'SKU',
+                    'slug' => 'sku',
+                    'type' => 'text',
+                    'is_system' => true,
+                    'is_active' => true,
+                    'is_combo' => false,
+                    'options' => [],
+                    'is_required' => true,
+                    'is_unique' => true,
+                    'sort_order' => 5,
+                    'show_on_list' => true,
+                    'connected_modules' => ['Quotes', 'Invoices', 'AI Bot'],
+                ],
+                [
                     'name' => 'Product Name',
                     'slug' => 'name',
                     'type' => 'text',

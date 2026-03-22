@@ -27,7 +27,6 @@ class ProductsController extends Controller
         $categories = Category::orderBy('name')->get();
         
         $customColumns = \App\Models\CatalogueCustomColumn::where('company_id', auth()->user()->company_id)
-            ->where('is_combo', false)
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->get();
@@ -41,16 +40,13 @@ class ProductsController extends Controller
     private function getValidationRules(?int $productId = null): array
     {
         $companyId = auth()->user()->company_id;
-        $skuRule = 'required|string|max:50|unique:products,sku,' . ($productId ?? 'NULL') . ',id,company_id,' . $companyId;
 
         $rules = [
             'category_id' => 'required|exists:categories,id',
-            'sku' => $skuRule,
             'is_purchase_enabled' => 'nullable|boolean',
         ];
         
         $customColumns = \App\Models\CatalogueCustomColumn::where('company_id', $companyId)
-            ->where('is_combo', false)
             ->where('is_active', true)
             ->get();
             
@@ -63,12 +59,32 @@ class ProductsController extends Controller
             if ($col->type === 'boolean') $rule[] = 'boolean';
 
             if ($col->slug === 'name') $rule[] = 'max:255';
+            
+            if ($col->slug === 'sku') {
+                $rule[] = 'max:50';
+                $rule[] = "unique:products,sku," . ($productId ?? 'NULL') . ",id,company_id," . $companyId;
+            }
+            
             if ($col->is_system) {
                 if (in_array($col->slug, ['mrp', 'sale_price', 'gst_percent'])) {
                     $rule[] = 'min:0';
                 }
                 $rules[$col->slug] = implode('|', $rule);
             } else {
+                if ($col->is_unique) {
+                    $rule[] = function ($attribute, $value, $fail) use ($col, $productId, $companyId) {
+                        $query = \App\Models\CatalogueCustomValue::where('column_id', $col->id)->where('value', $value)
+                            ->whereHas('product', function($q) use ($companyId) {
+                                $q->where('company_id', $companyId);
+                            });
+                        if ($productId) {
+                            $query->where('product_id', '!=', $productId);
+                        }
+                        if ($query->exists()) {
+                            $fail("The {$col->name} has already been taken.");
+                        }
+                    };
+                }
                 $rules['custom_data.' . $col->id] = implode('|', $rule);
             }
         }

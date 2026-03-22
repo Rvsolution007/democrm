@@ -45,7 +45,7 @@
                         <th>Product Name</th>
                         <th>SKU</th>
                         <th>Category</th>
-                        @foreach($customColumns->where('show_on_list', true)->whereNotIn('slug', ['name', 'description']) as $col)
+                        @foreach($customColumns->where('show_on_list', true)->whereNotIn('slug', ['name', 'description', 'sku']) as $col)
                             <th>{{ $col->name }}</th>
                         @endforeach
                         <th>Status</th>
@@ -72,7 +72,7 @@
                             <td><span class="font-mono text-sm">{{ $product->sku }}</span></td>
                             <td><span class="badge badge-secondary">{{ $product->category->name ?? 'N/A' }}</span></td>
                             
-                            @foreach($customColumns->where('show_on_list', true)->whereNotIn('slug', ['name', 'description']) as $col)
+                            @foreach($customColumns->where('show_on_list', true)->whereNotIn('slug', ['name', 'description', 'sku']) as $col)
                                 <td>
                                     @if($col->is_system)
                                         @php
@@ -186,12 +186,6 @@
                             @endforeach
                         </select>
                     </div>
-
-                    <div>
-                        <label style="display:block;margin-bottom:4px;font-weight:500">SKU *</label>
-                        <input type="text" class="form-input" name="sku" id="prod-sku" required placeholder="SKU-001"
-                            style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
-                    </div>
                 </div>
 
                 <div style="padding:20px;padding-top:0;display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -296,7 +290,6 @@
             document.getElementById('product-form').reset();
             
             // Core Top-Level Fields
-            document.getElementById('prod-sku').value = product.sku || '';
             document.getElementById('prod-category_id').value = product.category_id || '';
             document.getElementById('prod-purchase-enabled').checked = product.is_purchase_enabled == 1;
 
