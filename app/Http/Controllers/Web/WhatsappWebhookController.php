@@ -86,10 +86,10 @@ class WhatsappWebhookController extends Controller
         $aiBotEnabled = Setting::getValue('ai_bot', 'enabled', false, $companyId);
 
         if ($aiBotEnabled) {
-            ProcessAIChatJob::dispatch($instanceName, $senderPhone, $messageText, $replyContext, $imageUrl);
+            ProcessAIChatJob::dispatch($instanceName, $senderPhone, $messageText, $replyContext, $imageUrl)->onConnection('sync');
             Log::info("Webhook: Dispatched AI Chat Job for {$senderPhone}");
         } else {
-            ProcessAutoReplyJob::dispatch($instanceName, $senderPhone, $messageText);
+            ProcessAutoReplyJob::dispatch($instanceName, $senderPhone, $messageText)->onConnection('sync');
             Log::info("Webhook: Dispatched Auto-Reply Job for {$senderPhone}");
         }
 
