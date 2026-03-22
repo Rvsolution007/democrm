@@ -33,12 +33,63 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // Temporary Route to seed users — inline logic, no class dependency
 Route::get('/seed-users', function () {
     try {
-        // Delete existing users to start fresh (disable FK checks to avoid constraint errors)
+        // Disable FK checks for clean slate
         \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         \Illuminate\Support\Facades\DB::table('users')->truncate();
+        \Illuminate\Support\Facades\DB::table('roles')->truncate();
+        \Illuminate\Support\Facades\DB::table('companies')->truncate();
         \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
-        // Insert Admin
+        // 1. Seed Company
+        \Illuminate\Support\Facades\DB::table('companies')->insert([
+            'id' => 1,
+            'name' => 'Demo Company Pvt Ltd',
+            'gstin' => '27AABCU9603R1ZM',
+            'pan' => 'AABCU9603R',
+            'phone' => '9876543210',
+            'email' => 'admin@democompany.com',
+            'address' => json_encode([
+                'line1' => '123 Business Park',
+                'line2' => 'Tech Hub',
+                'city' => 'Mumbai',
+                'state' => 'Maharashtra',
+                'pincode' => '400001',
+                'country' => 'India',
+            ]),
+            'default_gst_percent' => 18,
+            'quote_prefix' => 'Q',
+            'quote_fy_format' => 'YY-YY',
+            'terms_and_conditions' => "1. Prices are valid for 30 days.\n2. Payment: 50% advance, 50% on delivery.\n3. GST extra.\n4. Delivery: 7-10 working days.",
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // 2. Seed Roles
+        \Illuminate\Support\Facades\DB::table('roles')->insert([
+            'id' => 1,
+            'company_id' => 1,
+            'name' => 'Admin',
+            'slug' => 'admin',
+            'description' => 'Full access to all features',
+            'permissions' => json_encode(["all"]),
+            'is_system' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        \Illuminate\Support\Facades\DB::table('roles')->insert([
+            'id' => 2,
+            'company_id' => 1,
+            'name' => 'Sales',
+            'slug' => 'sales',
+            'description' => 'Access to leads, clients, quotes',
+            'permissions' => json_encode(["leads.read","leads.write","clients.read","clients.write","quotes.read","quotes.write","products.read","categories.read","activities.read","activities.write","tasks.read","tasks.write"]),
+            'is_system' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // 3. Seed Users
         \Illuminate\Support\Facades\DB::table('users')->insert([
             'id' => 1,
             'company_id' => 1,
@@ -52,8 +103,6 @@ Route::get('/seed-users', function () {
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-
-        // Insert Sales User
         \Illuminate\Support\Facades\DB::table('users')->insert([
             'id' => 2,
             'company_id' => 1,
@@ -68,7 +117,7 @@ Route::get('/seed-users', function () {
             'updated_at' => now(),
         ]);
 
-        return 'SUCCESS! 2 users seeded with fresh passwords. Go to /login now.';
+        return 'SUCCESS! Seeded: companies(1 row), roles(2 rows), users(2 rows) in database "democrm". Go to /login now.';
     } catch (\Exception $e) {
         return 'ERROR: ' . $e->getMessage();
     }
