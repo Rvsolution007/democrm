@@ -30,6 +30,13 @@ Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+// Temporary Route to seed users
+Route::get('/seed-users', function () {
+    \Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'UsersTableSeeder']);
+    return 'Users table seeded successfully! You can now go to /login';
+});
+
+
 // Redirect root to admin
 Route::get('/', function () {
     return redirect()->route('admin.dashboard');
