@@ -760,7 +760,7 @@
                             </div>
                             <div>
                                 <label style="display:block;margin-bottom:4px;font-weight:500">Model</label>
-                                <input type="text" class="form-input" id="ai-model" value="{{ $aiVertexConfig['model'] ?? 'gemini-2.0-flash' }}" placeholder="gemini-2.0-flash">
+                                <input type="text" class="form-input" id="ai-model" value="{{ $aiVertexConfig['model'] ?? 'gemini-1.5-flash-001' }}" placeholder="gemini-1.5-flash-001">
                             </div>
                         </div>
 
