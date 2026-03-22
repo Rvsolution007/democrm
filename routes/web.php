@@ -123,6 +123,14 @@ Route::get('/seed-users', function () {
     }
 });
 
+// Temporary Route to seed ALL demo data (leads, clients, quotes, etc.)
+Route::get('/seed-demo', function () {
+    try {
+        return require base_path('seed_demo_data.php');
+    } catch (\Exception $e) {
+        return 'ERROR: ' . $e->getMessage() . ' at line ' . $e->getLine();
+    }
+});
 
 // Redirect root to admin
 Route::get('/', function () {
