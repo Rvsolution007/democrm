@@ -770,7 +770,7 @@
                             <small style="color:#999;font-size:12px;margin-top:4px;display:block">Google Cloud Console → IAM & Admin → Service Accounts → Keys → Add Key → JSON</small>
                         </div>
 
-                        <button class="btn btn-primary" onclick="saveAiConfig()">
+                        <button type="button" class="btn btn-primary" onclick="saveAiConfig()">
                             <i data-lucide="save" style="width:16px;height:16px"></i> Save AI Config
                         </button>
                     </div>
@@ -788,9 +788,15 @@
                             <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: Batao ki bot Hindi/English me baat kare, customer ko kaise greet kare, products ke baare me kya bataye</small>
                         </div>
 
-                        <button class="btn btn-primary" onclick="saveAiPrompt()">
-                            <i data-lucide="save" style="width:16px;height:16px"></i> Save Prompt
-                        </button>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <button type="button" class="btn btn-primary" onclick="saveAiPrompt()">
+                                <i data-lucide="save" style="width:16px;height:16px"></i> Save Prompt
+                            </button>
+                            
+                            <a href="{{ route('admin.system-logs.index') }}" class="btn btn-outline" style="display:flex; align-items:center; gap:6px;">
+                                <i data-lucide="terminal" style="width:16px;height:16px"></i> System Error Logs
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>

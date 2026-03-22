@@ -1042,6 +1042,10 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::post('/settings/ai-prompt', [SettingsController::class, 'saveAiPrompt'])->name('settings.ai-prompt.save');
     Route::post('/settings/ai-toggle', [SettingsController::class, 'toggleAiBot'])->name('settings.ai-toggle');
 
+    // System Logs
+    Route::get('/settings/system-logs', [SettingsController::class, 'systemLogsIndex'])->name('system-logs.index');
+    Route::delete('/settings/system-logs/clear', [SettingsController::class, 'systemLogsClear'])->name('system-logs.clear');
+
     // Catalogue Custom Columns
     Route::get('/catalogue-columns', [App\Http\Controllers\Web\CatalogueColumnController::class, 'index'])->name('catalogue-columns.index');
     Route::post('/catalogue-columns', [App\Http\Controllers\Web\CatalogueColumnController::class, 'store'])->name('catalogue-columns.store');

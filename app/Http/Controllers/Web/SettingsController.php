@@ -363,4 +363,34 @@ class SettingsController extends Controller
                 : 'AI Bot disabled. You can now enable auto-reply rules.',
         ]);
     }
+    /**
+     * View the trailing applications logs
+     */
+    public function systemLogsIndex()
+    {
+        $logFile = storage_path('logs/laravel.log');
+        $logs = [];
+        
+        if (file_exists($logFile)) {
+            // Read last 500 lines efficiently
+            $lines = file($logFile);
+            $logs = array_slice($lines, -500);
+        }
+
+        return view('admin.system_logs', compact('logs'));
+    }
+
+    /**
+     * Clear application logs
+     */
+    public function systemLogsClear()
+    {
+        $logFile = storage_path('logs/laravel.log');
+        
+        if (file_exists($logFile)) {
+            file_put_contents($logFile, ''); // Empty file
+        }
+
+        return redirect()->route('admin.system-logs.index')->with('success', 'System error logs have been cleared.');
+    }
 }
