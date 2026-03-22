@@ -22,14 +22,21 @@ class CatalogueCustomColumn extends Model
         'is_required',
         'is_unique',
         'is_combo',
-        'sort_order',
+        'is_system',
+        'is_active',
+        'connected_modules',
+        'show_on_list',
     ];
 
     protected $casts = [
         'options' => 'array',
+        'connected_modules' => 'array',
         'is_required' => 'boolean',
         'is_unique' => 'boolean',
         'is_combo' => 'boolean',
+        'is_system' => 'boolean',
+        'is_active' => 'boolean',
+        'show_on_list' => 'boolean',
         'sort_order' => 'integer',
     ];
 

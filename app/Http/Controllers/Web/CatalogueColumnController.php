@@ -33,6 +33,7 @@ class CatalogueColumnController extends Controller
             'is_required' => 'nullable',
             'is_unique' => 'nullable',
             'is_combo' => 'nullable',
+            'show_on_list' => 'nullable|boolean',
         ]);
 
         $companyId = auth()->user()->company_id;
@@ -88,6 +89,8 @@ class CatalogueColumnController extends Controller
             'is_required' => $request->boolean('is_required'),
             'is_unique' => $request->boolean('is_unique'),
             'is_combo' => $request->boolean('is_combo'),
+            'show_on_list' => $request->boolean('show_on_list'),
+            'is_active' => true,
             'sort_order' => $maxOrder + 1,
         ]);
 
@@ -112,6 +115,7 @@ class CatalogueColumnController extends Controller
             'is_required' => 'nullable',
             'is_unique' => 'nullable',
             'is_combo' => 'nullable',
+            'show_on_list' => 'nullable|boolean',
         ]);
 
         // Parse options
@@ -130,6 +134,16 @@ class CatalogueColumnController extends Controller
                 ->update(['is_unique' => false]);
         }
 
+        // If it is a system column, restrict what can be updated
+        if ($column->is_system) {
+            $column->update([
+                'name' => $request->name,
+                'is_active' => $request->has('is_active') ? $request->boolean('is_active') : $column->is_active,
+                'show_on_list' => $request->boolean('show_on_list'),
+            ]);
+            return response()->json(['success' => true, 'message' => 'System field updated successfully', 'column' => $column]);
+        }
+
         $column->update([
             'name' => $request->name,
             'type' => $request->type,
@@ -137,6 +151,7 @@ class CatalogueColumnController extends Controller
             'is_required' => $request->boolean('is_required'),
             'is_unique' => $request->boolean('is_unique'),
             'is_combo' => $request->boolean('is_combo'),
+            'show_on_list' => $request->boolean('show_on_list'),
         ]);
 
         return response()->json([
@@ -152,6 +167,14 @@ class CatalogueColumnController extends Controller
     public function destroy($id)
     {
         $column = CatalogueCustomColumn::where('company_id', auth()->user()->company_id)->findOrFail($id);
+        
+        if ($column->is_system) {
+            return response()->json([
+                'success' => false,
+                'message' => 'System columns cannot be deleted. You can disable them instead.',
+            ], 403);
+        }
+        
         $column->delete();
 
         return response()->json([
@@ -177,5 +200,19 @@ class CatalogueColumnController extends Controller
         }
 
         return response()->json(['success' => true, 'message' => 'Order updated']);
+    }
+    
+    /**
+     * Toggle active state (AJAX)
+     */
+    public function toggleActive($id, Request $request)
+    {
+        $column = CatalogueCustomColumn::where('company_id', auth()->user()->company_id)->findOrFail($id);
+        $column->update(['is_active' => $request->boolean('is_active')]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Column visibility updated successfully',
+        ]);
     }
 }

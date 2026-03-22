@@ -16,7 +16,7 @@ class ProductsController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $query = Product::with('category');
+        $query = Product::with(['category', 'customValues']);
 
         // Global permission filter
         if (!can('products.global')) {
@@ -25,39 +25,78 @@ class ProductsController extends Controller
 
         $products = $query->latest()->paginate(20);
         $categories = Category::orderBy('name')->get();
-        $columnVisibility = Setting::getValue('column_visibility', 'products', []);
-        return view('admin.products.index', compact('products', 'categories', 'columnVisibility'));
+        
+        $customColumns = \App\Models\CatalogueCustomColumn::where('company_id', auth()->user()->company_id)
+            ->where('is_combo', false)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get();
+
+        return view('admin.products.index', compact('products', 'categories', 'customColumns'));
     }
 
     /**
-     * Build validation rules based on column visibility settings.
-     * Hidden (unchecked) columns become nullable instead of required.
+     * Build validation rules based on dynamic Catalogue Custom Columns.
      */
     private function getValidationRules(?int $productId = null): array
     {
-        $vis = Setting::getValue('column_visibility', 'products', []);
-
-        // Helper: returns 'nullable' if column is hidden, otherwise the given rule
-        $r = function (string $col, string $default) use ($vis) {
-            return (isset($vis[$col]) && $vis[$col] === false) ? 'nullable' : $default;
-        };
-
         $companyId = auth()->user()->company_id;
-        $skuRule = $r('sku', 'required') . '|string|max:50';
-        // Add unique validation scoped to company_id, ignoring current product on update
-        $skuRule .= '|unique:products,sku,' . ($productId ?? 'NULL') . ',id,company_id,' . $companyId;
+        $skuRule = 'required|string|max:50|unique:products,sku,' . ($productId ?? 'NULL') . ',id,company_id,' . $companyId;
 
-        return [
-            'category_id' => $r('category', 'required') . '|exists:categories,id',
-            'name' => 'required|string|max:255',  // always required (name column is locked)
+        $rules = [
+            'category_id' => 'required|exists:categories,id',
             'sku' => $skuRule,
-            'description' => 'nullable|string',
-            'unit' => $r('unit', 'required') . '|string',
-            'mrp' => $r('mrp', 'required') . '|numeric|min:0',
-            'sale_price' => $r('sale_price', 'required') . '|numeric|min:0',
-            'gst_percent' => 'nullable|numeric|min:0|max:100',
             'is_purchase_enabled' => 'nullable|boolean',
         ];
+        
+        $customColumns = \App\Models\CatalogueCustomColumn::where('company_id', $companyId)
+            ->where('is_combo', false)
+            ->where('is_active', true)
+            ->get();
+            
+        foreach ($customColumns as $col) {
+            $rule = [];
+            if ($col->is_required) $rule[] = 'required';
+            else $rule[] = 'nullable';
+
+            if ($col->type === 'number') $rule[] = 'numeric';
+            if ($col->type === 'boolean') $rule[] = 'boolean';
+
+            if ($col->slug === 'name') $rule[] = 'max:255';
+            if ($col->is_system) {
+                if (in_array($col->slug, ['mrp', 'sale_price', 'gst_percent'])) {
+                    $rule[] = 'min:0';
+                }
+                $rules[$col->slug] = implode('|', $rule);
+            } else {
+                $rules['custom_data.' . $col->id] = implode('|', $rule);
+            }
+        }
+
+        return $rules;
+    }
+    
+    /**
+     * Inject default values for inactive system columns to satisfy DB constraints
+     */
+    private function injectSystemDefaults(array &$validated)
+    {
+        $companyId = auth()->user()->company_id;
+        $systemColumns = \App\Models\CatalogueCustomColumn::where('company_id', $companyId)
+            ->where('is_system', true)
+            ->get();
+            
+        foreach ($systemColumns as $col) {
+            if (!$col->is_active && !array_key_exists($col->slug, $validated)) {
+                if ($col->type === 'number') {
+                    $validated[$col->slug] = 0;
+                } elseif ($col->slug === 'name') {
+                    $validated[$col->slug] = 'Unnamed Product';
+                } else {
+                    $validated[$col->slug] = null;
+                }
+            }
+        }
     }
 
     public function store(Request $request)
@@ -67,26 +106,31 @@ class ProductsController extends Controller
         }
 
         $validated = $request->validate($this->getValidationRules());
+        
+        $this->injectSystemDefaults($validated);
 
         // Convert rupees to paise
-        if (isset($validated['mrp'])) {
-            $validated['mrp'] = $validated['mrp'] * 100;
-        }
-        if (isset($validated['sale_price'])) {
-            $validated['sale_price'] = $validated['sale_price'] * 100;
-        }
+        if (isset($validated['mrp'])) $validated['mrp'] = $validated['mrp'] * 100;
+        if (isset($validated['sale_price'])) $validated['sale_price'] = $validated['sale_price'] * 100;
+
         $validated['company_id'] = auth()->user()->company_id;
         $validated['created_by_user_id'] = auth()->id();
         $validated['is_purchase_enabled'] = $request->has('is_purchase_enabled');
 
-        // Filter out empty micro tasks
-        if (isset($validated['micro_tasks']) && is_array($validated['micro_tasks'])) {
-            $validated['micro_tasks'] = array_values(array_filter($validated['micro_tasks'], function ($task) {
-                return !empty(trim($task));
-            }));
+        $product = Product::create($validated);
+        
+        // Save Custom Data
+        if ($request->has('custom_data')) {
+            foreach ($request->custom_data as $columnId => $value) {
+                if ($value !== null && $value !== '') {
+                    \App\Models\CatalogueCustomValue::create([
+                        'product_id' => $product->id,
+                        'column_id' => $columnId,
+                        'value' => is_array($value) ? json_encode($value) : $value,
+                    ]);
+                }
+            }
         }
-
-        Product::create($validated);
 
         return redirect()->route('admin.products.index')
             ->with('success', 'Product created successfully');
@@ -106,27 +150,32 @@ class ProductsController extends Controller
         }
 
         $validated = $request->validate($this->getValidationRules((int) $id));
+        
+        $this->injectSystemDefaults($validated);
 
         // Convert rupees to paise
-        if (isset($validated['mrp'])) {
-            $validated['mrp'] = $validated['mrp'] * 100;
-        }
-        if (isset($validated['sale_price'])) {
-            $validated['sale_price'] = $validated['sale_price'] * 100;
-        }
+        if (isset($validated['mrp'])) $validated['mrp'] = $validated['mrp'] * 100;
+        if (isset($validated['sale_price'])) $validated['sale_price'] = $validated['sale_price'] * 100;
 
         $validated['is_purchase_enabled'] = $request->has('is_purchase_enabled');
 
-        // Filter out empty micro tasks
-        if (isset($validated['micro_tasks']) && is_array($validated['micro_tasks'])) {
-            $validated['micro_tasks'] = array_values(array_filter($validated['micro_tasks'], function ($task) {
-                return !empty(trim($task));
-            }));
-        } else {
-            $validated['micro_tasks'] = null;
-        }
-
         $product->update($validated);
+        
+        // Update Custom Data
+        if ($request->has('custom_data')) {
+            foreach ($request->custom_data as $columnId => $value) {
+                if ($value === null || $value === '') {
+                    \App\Models\CatalogueCustomValue::where('product_id', $product->id)
+                        ->where('column_id', $columnId)
+                        ->delete();
+                } else {
+                    \App\Models\CatalogueCustomValue::updateOrCreate(
+                        ['product_id' => $product->id, 'column_id' => $columnId],
+                        ['value' => is_array($value) ? json_encode($value) : $value]
+                    );
+                }
+            }
+        }
 
         return redirect()->route('admin.products.index')
             ->with('success', 'Product updated successfully');

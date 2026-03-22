@@ -1052,6 +1052,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::put('/catalogue-columns/{id}', [App\Http\Controllers\Web\CatalogueColumnController::class, 'update'])->name('catalogue-columns.update');
     Route::delete('/catalogue-columns/{id}', [App\Http\Controllers\Web\CatalogueColumnController::class, 'destroy'])->name('catalogue-columns.destroy');
     Route::post('/catalogue-columns/reorder', [App\Http\Controllers\Web\CatalogueColumnController::class, 'reorder'])->name('catalogue-columns.reorder');
+    Route::post('/catalogue-columns/{id}/toggle-active', [App\Http\Controllers\Web\CatalogueColumnController::class, 'toggleActive'])->name('catalogue-columns.toggle-active');
 
     // Chatflow Builder
     Route::get('/chatflow', [App\Http\Controllers\Web\ChatflowController::class, 'index'])->name('chatflow.index');
