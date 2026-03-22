@@ -12,6 +12,7 @@ class ProductVariation extends Model
         'combination',
         'combination_key',
         'price',
+        'discount',
         'description',
         'status',
     ];
@@ -19,6 +20,7 @@ class ProductVariation extends Model
     protected $casts = [
         'combination' => 'array',
         'price' => 'integer',
+        'discount' => 'decimal:2',
     ];
 
     // Relationships

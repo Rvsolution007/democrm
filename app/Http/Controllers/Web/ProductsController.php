@@ -16,7 +16,7 @@ class ProductsController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $query = Product::with(['category', 'customValues']);
+        $query = Product::with(['category', 'customValues', 'variations']);
 
         // Global permission filter
         if (!can('products.global')) {
@@ -147,6 +147,12 @@ class ProductsController extends Controller
                 }
             }
         }
+        
+        // Save Combo Data (selected options per combo column)
+        $this->saveComboData($request, $product);
+        
+        // Save Variations from the combo matrix
+        $this->saveVariations($request, $product);
 
         return redirect()->route('admin.products.index')
             ->with('success', 'Product created successfully');
@@ -192,9 +198,74 @@ class ProductsController extends Controller
                 }
             }
         }
+        
+        // Update Combo Data
+        $this->saveComboData($request, $product);
+        
+        // Update Variations
+        $this->saveVariations($request, $product);
 
         return redirect()->route('admin.products.index')
             ->with('success', 'Product updated successfully');
+    }
+    
+    /**
+     * Save combo selections as CatalogueCustomValues (JSON arrays)
+     */
+    private function saveComboData(Request $request, Product $product)
+    {
+        if (!$request->has('combo_data')) return;
+        
+        foreach ($request->combo_data as $columnId => $values) {
+            $values = array_filter((array) $values);
+            if (count($values) > 0) {
+                \App\Models\CatalogueCustomValue::updateOrCreate(
+                    ['product_id' => $product->id, 'column_id' => $columnId],
+                    ['value' => json_encode(array_values($values))]
+                );
+                
+                // Also save to product_combos for structured access
+                \App\Models\ProductCombo::updateOrCreate(
+                    ['product_id' => $product->id, 'column_id' => $columnId],
+                    ['selected_values' => array_values($values)]
+                );
+            } else {
+                \App\Models\CatalogueCustomValue::where('product_id', $product->id)
+                    ->where('column_id', $columnId)->delete();
+                \App\Models\ProductCombo::where('product_id', $product->id)
+                    ->where('column_id', $columnId)->delete();
+            }
+        }
+    }
+    
+    /**
+     * Save variations from the combo matrix
+     */
+    private function saveVariations(Request $request, Product $product)
+    {
+        if (!$request->has('variations')) {
+            return;
+        }
+        
+        // Remove old variations
+        $product->variations()->delete();
+        
+        foreach ($request->variations as $varData) {
+            if (!isset($varData['combination']) || empty($varData['combination'])) continue;
+            
+            $combination = $varData['combination'];
+            $key = \App\Models\ProductVariation::generateKey($combination);
+            $price = isset($varData['price']) && $varData['price'] !== '' ? round($varData['price'] * 100) : 0;
+            $discount = isset($varData['discount']) && $varData['discount'] !== '' ? $varData['discount'] : 0;
+            
+            \App\Models\ProductVariation::create([
+                'product_id' => $product->id,
+                'combination' => $combination,
+                'combination_key' => $key,
+                'price' => $price,
+                'discount' => $discount,
+            ]);
+        }
     }
 
     public function destroy($id)
