@@ -79,6 +79,13 @@ class VendorController extends Controller
         $vendor = Vendor::findOrFail($id);
         $vendor->delete();
 
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Vendor deleted successfully'
+            ]);
+        }
+
         return redirect()->route('admin.vendors.index')->with('success', 'Vendor deleted successfully');
     }
 

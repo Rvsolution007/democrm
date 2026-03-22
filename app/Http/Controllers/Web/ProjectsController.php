@@ -206,6 +206,13 @@ class ProjectsController extends Controller
         Task::where('project_id', $project->id)->delete();
         $project->delete();
 
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Project deleted successfully'
+            ]);
+        }
+
         return redirect()->route('admin.projects.index')
             ->with('success', 'Project deleted successfully');
     }
@@ -343,6 +350,13 @@ class ProjectsController extends Controller
         $task = Task::where('project_id', $project->id)->findOrFail($taskId);
         $task->forceDelete();
 
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Task deleted successfully'
+            ]);
+        }
+
         return redirect()->route('admin.projects.show', $project->id)
             ->with('success', 'Task deleted successfully');
     }
@@ -411,6 +425,13 @@ class ProjectsController extends Controller
         $microTask = \App\Models\MicroTask::where('task_id', $task->id)->findOrFail($microTaskId);
 
         $microTask->delete();
+
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Micro Task deleted successfully'
+            ]);
+        }
 
         return response()->json(['success' => true]);
     }

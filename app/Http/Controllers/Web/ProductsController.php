@@ -69,7 +69,7 @@ class ProductsController extends Controller
                 if (in_array($col->slug, ['mrp', 'sale_price', 'gst_percent'])) {
                     $rule[] = 'min:0';
                 }
-                $rules[$col->slug] = implode('|', $rule);
+                $rules[$col->slug] = $rule;
             } else {
                 if ($col->is_unique) {
                     $rule[] = function ($attribute, $value, $fail) use ($col, $productId, $companyId) {
@@ -85,7 +85,7 @@ class ProductsController extends Controller
                         }
                     };
                 }
-                $rules['custom_data.' . $col->id] = implode('|', $rule);
+                $rules['custom_data.' . $col->id] = $rule;
             }
         }
 
@@ -101,12 +101,12 @@ class ProductsController extends Controller
         $coreDefaults = [
             'name'        => $validated['name'] ?? 'Unnamed Product',
             'sku'         => $validated['sku'] ?? 'AUTO-' . strtoupper(uniqid()),
-            'description' => $validated['description'] ?? null,
+            'description' => $validated['description'] ?? '',
             'sale_price'  => $validated['sale_price'] ?? 0,
             'mrp'         => $validated['mrp'] ?? 0,
             'gst_percent'  => $validated['gst_percent'] ?? 0,
-            'hsn_code'    => $validated['hsn_code'] ?? null,
-            'unit'        => $validated['unit'] ?? null,
+            'hsn_code'    => $validated['hsn_code'] ?? '',
+            'unit'        => $validated['unit'] ?? '',
         ];
         
         foreach ($coreDefaults as $key => $default) {
@@ -283,6 +283,13 @@ class ProductsController extends Controller
         }
 
         $product->delete();
+
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Product deleted successfully'
+            ]);
+        }
 
         return redirect()->route('admin.products.index')
             ->with('success', 'Product deleted successfully');

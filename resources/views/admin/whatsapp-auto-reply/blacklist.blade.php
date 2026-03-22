@@ -90,10 +90,7 @@
                             <td style="color: #64748b;">{{ $entry->reason ?? '—' }}</td>
                             <td style="color: #94a3b8; font-size: 0.85rem;">{{ $entry->created_at->format('d M Y, h:i A') }}</td>
                             <td class="text-end">
-                                <form action="{{ route('admin.whatsapp-auto-reply.blacklist.destroy', $entry->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Unblock this number?')">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" class="btn-unblock">✅ Unblock</button>
-                                </form>
+                                <button type="button" onclick="ajaxDelete('{{ route('admin.whatsapp-auto-reply.blacklist.destroy', $entry->id) }}')" class="btn-unblock">✅ Unblock</button>
                             </td>
                         </tr>
                     @empty

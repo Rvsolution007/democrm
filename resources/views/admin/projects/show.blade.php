@@ -25,14 +25,10 @@
                     </button>
                 @endif
                 @if(can('projects.delete'))
-                    <form method="POST" action="{{ route('admin.projects.destroy', $project->id) }}"
-                        onsubmit="return confirm('Delete this project and all tasks?')">
-                        @csrf @method('DELETE')
-                        <button type="submit" class="btn btn-outline"
+                    <button type="button" onclick="ajaxDelete('{{ route('admin.projects.destroy', $project->id) }}')" class="btn btn-outline"
                             style="color:var(--destructive);border-color:var(--destructive)">
                             <i data-lucide="trash-2" style="width:16px;height:16px"></i> Delete
                         </button>
-                    </form>
                 @endif
             </div>
         </div>
@@ -172,15 +168,10 @@
                                         </button>
                                     @endif
                                     @if(can('tasks.delete'))
-                                        <form method="POST"
-                                            action="{{ route('admin.projects.tasks.destroy', [$project->id, $task->id]) }}"
-                                            style="display:inline" onsubmit="return confirm('Delete this task?')">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" class="btn btn-ghost btn-icon btn-sm"
+                                        <button type="button" onclick="ajaxDelete('{{ route('admin.projects.tasks.destroy', [$project->id, $task->id]) }}')" class="btn btn-ghost btn-icon btn-sm"
                                                 style="color:var(--destructive)" title="Delete">
                                                 <i data-lucide="trash-2" style="width:16px;height:16px"></i>
                                             </button>
-                                        </form>
                                     @endif
                                 </div>
                             </td>

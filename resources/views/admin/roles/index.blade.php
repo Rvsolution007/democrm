@@ -71,15 +71,10 @@
                                 <i data-lucide="edit" style="width:16px;height:16px"></i>
                             </button>
                             @if($role->users_count == 0)
-                                <form method="POST" action="{{ route('admin.roles.destroy', $role->id) }}" style="display:inline"
-                                    onsubmit="return confirm('Are you sure you want to delete this role?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-ghost btn-icon btn-sm" style="color:var(--destructive)"
+                                <button type="button" onclick="ajaxDelete('{{ route('admin.roles.destroy', $role->id) }}')" class="btn btn-ghost btn-icon btn-sm" style="color:var(--destructive)"
                                         title="Delete">
                                         <i data-lucide="trash-2" style="width:16px;height:16px"></i>
                                     </button>
-                                </form>
                             @endif
                         </div>
                     </div>

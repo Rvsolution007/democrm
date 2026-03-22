@@ -20,13 +20,9 @@
                 <a href="{{ route('admin.system-logs.index') }}" class="btn btn-outline btn-sm" style="display: flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; border: 1px solid #e2e8f0; background: white; color: #475569; font-weight: 500; text-decoration: none; transition: all 0.2s;">
                     <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh
                 </a>
-                <form action="{{ route('admin.system-logs.clear') }}" method="POST" onsubmit="return confirm('Are you sure you want to delete all logs?');" style="margin:0;">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-danger btn-sm" style="display: flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; background: #ef4444; border: none; color: white; font-weight: 500; cursor: pointer; transition: background 0.2s;">
+                <button type="button" onclick="ajaxDelete('{{ route('admin.system-logs.clear') }}')" class="btn btn-danger btn-sm" style="display: flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; background: #ef4444; border: none; color: white; font-weight: 500; cursor: pointer; transition: background 0.2s;">
                         <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Clear Logs
                     </button>
-                </form>
             </div>
         </div>
 

@@ -281,15 +281,10 @@
                                         </button>
                                     @endif
                                     @if(can('tasks.delete'))
-                                        <form method="POST" action="{{ route('admin.tasks.destroy', $task->id) }}"
-                                            style="display:inline;margin:0" draggable="false"
-                                            onsubmit="event.stopPropagation(); return confirm('Delete this task?')">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" class="kb-action-btn kb-action-delete" draggable="false"
+                                        <button type="button" onclick="ajaxDelete('{{ route('admin.tasks.destroy', $task->id) }}')" class="kb-action-btn kb-action-delete" draggable="false"
                                                 onclick="event.stopPropagation()" title="Delete">
                                                 <i data-lucide="trash-2" style="width:13px;height:13px"></i>
                                             </button>
-                                        </form>
                                     @endif
                                 </div>
                             </div>
@@ -420,13 +415,9 @@
                                     </button>
                                 @endif
                                 @if(can('tasks.delete'))
-                                    <form method="POST" action="{{ route('admin.tasks.destroy', $task->id) }}"
-                                        style="display:inline;margin:0" onsubmit="return confirm('Delete this task?')">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="kb-action-btn kb-action-delete" title="Delete">
+                                    <button type="button" onclick="ajaxDelete('{{ route('admin.tasks.destroy', $task->id) }}')" class="kb-action-btn kb-action-delete" title="Delete">
                                             <i data-lucide="trash-2" style="width:14px;height:14px"></i>
                                         </button>
-                                    </form>
                                 @endif
                             </div>
                         </td>

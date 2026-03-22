@@ -186,14 +186,9 @@
                                         </button>
                                     @endif
                                     @if(can('products.delete'))
-                                        <form action="{{ route('admin.products.destroy', $product->id) }}" method="POST"
-                                            style="display:inline;margin:0"
-                                            onsubmit="return confirm('Are you sure you want to delete this product?')">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" class="btn btn-ghost btn-icon btn-sm" style="color:var(--destructive)" title="Delete">
+                                        <button type="button" onclick="ajaxDelete('{{ route('admin.products.destroy', $product->id) }}')" class="btn btn-ghost btn-icon btn-sm" style="color:var(--destructive)" title="Delete">
                                                 <i data-lucide="trash-2" style="width:16px;height:16px"></i>
                                             </button>
-                                        </form>
                                     @endif
                                 </div>
                             </td>

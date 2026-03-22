@@ -83,14 +83,10 @@
                                         </button>
                                     @endif
                                     @if(can('settings.delete'))
-                                        <form method="POST" action="{{ route('admin.service-templates.destroy', $template->id) }}"
-                                            style="display:inline" onsubmit="return confirm('Delete this template?')">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" class="btn btn-ghost btn-icon btn-sm"
+                                        <button type="button" onclick="ajaxDelete('{{ route('admin.service-templates.destroy', $template->id) }}')" class="btn btn-ghost btn-icon btn-sm"
                                                 style="color:var(--destructive)" title="Delete">
                                                 <i data-lucide="trash-2" style="width:16px;height:16px"></i>
                                             </button>
-                                        </form>
                                     @endif
                                 </div>
                             </td>

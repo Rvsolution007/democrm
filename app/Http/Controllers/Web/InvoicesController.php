@@ -628,6 +628,13 @@ class InvoicesController extends Controller
 
         $quote->delete();
 
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Invoice deleted successfully'
+            ]);
+        }
+
         return redirect()->route('admin.quotes.index')
             ->with('success', 'Quote deleted successfully');
     }

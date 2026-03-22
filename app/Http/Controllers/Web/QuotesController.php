@@ -682,6 +682,13 @@ class QuotesController extends Controller
 
         $quote->delete();
 
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Quote deleted successfully'
+            ]);
+        }
+
         return redirect()->route('admin.quotes.index')
             ->with('success', 'Quote deleted successfully');
     }

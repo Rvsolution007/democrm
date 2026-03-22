@@ -952,16 +952,11 @@
                                                 style="padding:6px 14px;font-size:12px;display:flex;align-items:center;gap:4px;">
                                                 <i data-lucide="download" style="width:13px;height:13px;"></i> Download
                                             </a>
-                                            <form action="{{ route('admin.backups.destroy', $file['name']) }}" method="POST" style="margin:0;display:inline-block;"
-                                                onsubmit="return confirm('Kya aap sach mein is backup file ({{ $file['name'] }}) ko delete karna chahte hain? Yeh operation undo nahi ho sakta!');">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-outline btn-sm"
+                                            <button type="button" onclick="ajaxDelete('{{ route('admin.backups.destroy', $file['name']) }}')" class="btn btn-outline btn-sm"
                                                     style="padding:6px 14px;font-size:12px;display:flex;align-items:center;gap:4px;color:#ef4444;border-color:#fca5a5;background:transparent;"
                                                     onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='transparent'">
                                                     <i data-lucide="trash-2" style="width:13px;height:13px;"></i> Delete
                                                 </button>
-                                            </form>
                                         </div>
                                     </div>
                                 @endforeach

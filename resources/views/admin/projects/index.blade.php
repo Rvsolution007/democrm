@@ -196,12 +196,9 @@
                                         </button>
                                     @endif
                                     @if(can('projects.delete'))
-                                        <form method="POST" action="{{ route('admin.projects.destroy', $project->id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this project and all its tasks?')">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" class="btn btn-ghost btn-icon btn-sm" style="color:var(--destructive)" title="Delete">
+                                        <button type="button" onclick="ajaxDelete('{{ route('admin.projects.destroy', $project->id) }}')" class="btn btn-ghost btn-icon btn-sm" style="color:var(--destructive)" title="Delete">
                                                 <i data-lucide="trash-2" style="width:16px;height:16px"></i>
                                             </button>
-                                        </form>
                                     @endif
                                 </div>
                             </td>
@@ -553,10 +550,7 @@
                     actionsBtns += '<button class="btn btn-ghost btn-icon btn-sm" title="Edit" onclick=\'openEditModal(' + JSON.stringify(p.raw).replace(/'/g, "\\'") + ')\'><i data-lucide="edit" style="width:16px;height:16px"></i></button>';
                 }
                 if (canDelete) {
-                    actionsBtns += '<form method="POST" action="/admin/projects/' + p.id + '" style="display:inline" onsubmit="return confirm(\'Delete this project?\')">' +
-                        '<input type="hidden" name="_token" value="' + csrfToken + '">' +
-                        '<input type="hidden" name="_method" value="DELETE">' +
-                        '<button type="submit" class="btn btn-ghost btn-icon btn-sm" style="color:var(--destructive)" title="Delete"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button></form>';
+                    actionsBtns += '<button type="button" class="btn btn-ghost btn-icon btn-sm" style="color:var(--destructive)" onclick="ajaxDelete(\'/admin/projects/' + p.id + '\')" title="Delete"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button>';
                 }
 
                 return '<tr>' +

@@ -418,13 +418,9 @@
                                         <a href="{{ route('admin.whatsapp-campaigns.show', $campaign->id) }}" class="btn btn-sm" style="background:#eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.4rem 0.6rem; color: #3b82f6; transition: all 0.2s;" title="View Details & Errors">
                                             <i data-lucide="eye" style="width: 16px; height: 16px;"></i>
                                         </a>
-                                        <form action="{{ route('admin.whatsapp-campaigns.destroy', $campaign->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this campaign permanently? This action cannot be undone.');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-sm text-danger" style="background:#fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.4rem 0.6rem; transition: all 0.2s;" title="Delete Campaign">
+                                        <button type="button" onclick="ajaxDelete('{{ route('admin.whatsapp-campaigns.destroy', $campaign->id) }}')" class="btn btn-sm text-danger" style="background:#fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 0.4rem 0.6rem; transition: all 0.2s;" title="Delete Campaign">
                                                 <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
                                             </button>
-                                        </form>
                                     </div>
                                 </td>
                             </tr>

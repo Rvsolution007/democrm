@@ -201,15 +201,10 @@
                                         </button>
                                     @endif
                                     @if(can('tasks.delete') && $canEditThisMt)
-                                        <form method="POST" action="{{ route('admin.micro-tasks.destroy', $mt->id) }}"
-                                            style="display:inline;margin:0" draggable="false"
-                                            onsubmit="event.stopPropagation(); return confirm('Delete this micro task?')">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" class="kb-action-btn kb-action-delete" draggable="false"
+                                        <button type="button" onclick="ajaxDelete('{{ route('admin.micro-tasks.destroy', $mt->id) }}')" class="kb-action-btn kb-action-delete" draggable="false"
                                                 onclick="event.stopPropagation()" title="Delete">
                                                 <i data-lucide="trash-2" style="width:13px;height:13px"></i>
                                             </button>
-                                        </form>
                                     @endif
                                 </div>
                             </div>

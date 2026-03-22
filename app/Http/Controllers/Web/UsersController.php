@@ -88,6 +88,13 @@ class UsersController extends Controller
         $user = User::findOrFail($id);
         $user->delete();
 
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'User deleted successfully'
+            ]);
+        }
+
         return redirect()->route('admin.users.index')
             ->with('success', 'User deleted successfully');
     }

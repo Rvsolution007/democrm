@@ -102,16 +102,10 @@
                                             data-purchase-section="{{ $vendor->has_purchase_section ? '1' : '0' }}">
                                             <i data-lucide="edit" style="width:16px;height:16px"></i>
                                         </button>
-                                        <form action="{{ route('admin.vendors.destroy', $vendor->id) }}" method="POST"
-                                            style="display:inline;margin:0"
-                                            onsubmit="return confirm('Are you sure you want to delete this vendor?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-ghost btn-icon btn-sm"
+                                        <button type="button" onclick="ajaxDelete('{{ route('admin.vendors.destroy', $vendor->id) }}')" class="btn btn-ghost btn-icon btn-sm"
                                                 style="color:var(--destructive)" title="Delete">
                                                 <i data-lucide="trash-2" style="width:16px;height:16px"></i>
                                             </button>
-                                        </form>
                                     @endif
                                 </div>
                             </td>

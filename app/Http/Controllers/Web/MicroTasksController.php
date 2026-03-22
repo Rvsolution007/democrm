@@ -292,6 +292,13 @@ class MicroTasksController extends Controller
 
         $microTask->delete();
 
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Micro Task deleted successfully'
+            ]);
+        }
+
         return redirect()->back()->with('success', 'Micro Task deleted successfully.');
     }
 }

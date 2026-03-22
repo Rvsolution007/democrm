@@ -878,6 +878,13 @@ class LeadsController extends Controller
 
         $lead->delete();
 
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Lead deleted successfully'
+            ]);
+        }
+
         return redirect()->route('admin.leads.index')
             ->with('success', 'Lead deleted successfully');
     }
@@ -951,6 +958,13 @@ class LeadsController extends Controller
 
         $followup = LeadFollowup::where('lead_id', $id)->findOrFail($followupId);
         $followup->delete();
+
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Followup deleted successfully'
+            ]);
+        }
 
         return response()->json(['success' => true]);
     }

@@ -87,6 +87,13 @@ class RolesController extends Controller
 
         $role->delete();
 
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Role deleted successfully'
+            ]);
+        }
+
         return redirect()->route('admin.roles.index')
             ->with('success', 'Role deleted successfully');
     }

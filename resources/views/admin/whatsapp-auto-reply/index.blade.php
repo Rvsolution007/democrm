@@ -289,12 +289,9 @@
                                 <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
                             </button>
                         </form>
-                        <form action="{{ route('admin.whatsapp-auto-reply.destroy', $rule->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Delete this rule?')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="action-btn btn-del" title="Delete">
+                        <button type="button" onclick="ajaxDelete('{{ route('admin.whatsapp-auto-reply.destroy', $rule->id) }}')" class="action-btn btn-del" title="Delete">
                                 <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
                             </button>
-                        </form>
                     </div>
                 </div>
             </div>

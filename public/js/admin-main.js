@@ -648,6 +648,73 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// ==================== GLOBAL AJAX DELETE ====================
+function ajaxDelete(url, btnOrEvent, itemName) {
+    // Auto-detect the button element when called via onclick="ajaxDelete('/url')"
+    var btn = null;
+    if (btnOrEvent && btnOrEvent instanceof HTMLElement) {
+        btn = btnOrEvent;
+    } else if (typeof event !== 'undefined' && event && event.currentTarget instanceof HTMLElement) {
+        btn = event.currentTarget;
+    }
+    if (!itemName) itemName = 'item';
+
+    if (!confirm('Are you sure you want to delete this ' + itemName.toLowerCase() + '?')) {
+        return;
+    }
+
+    var row = btn ? btn.closest('tr') : null;
+    var originalHtml = btn ? btn.innerHTML : '';
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+    if (btn) {
+        btn.innerHTML = '<span style="width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;animation:spin 0.75s linear infinite"></span>';
+        btn.disabled = true;
+    }
+
+    fetch(url, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json'
+        }
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.success || data.status === 'success') {
+            if (row) {
+                row.style.transition = 'all 0.35s cubic-bezier(.4,0,.2,1)';
+                row.style.opacity = '0';
+                row.style.transform = 'scale(0.96) translateY(-8px)';
+                
+                setTimeout(function() {
+                    var tbody = row.parentElement;
+                    row.remove();
+                    if (tbody && tbody.querySelectorAll('tr').length === 0) {
+                        location.reload(); 
+                    }
+                }, 350);
+            } else {
+                setTimeout(function() { location.reload(); }, 500);
+            }
+            showToast(data.message || (itemName + ' deleted successfully'), 'success');
+        } else {
+            if (btn) {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+            showToast(data.message || ('Failed to delete ' + itemName.toLowerCase()), 'error');
+        }
+    }).catch(function(err) {
+        if (btn) {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+        showToast('Request failed. Please try again.', 'error');
+    });
+}
+
 // ==================== INITIALIZE ====================
 
 document.addEventListener('DOMContentLoaded', () => {

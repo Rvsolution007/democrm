@@ -103,16 +103,10 @@
                                         </button>
                                     @endif
                                     @if(can('users.delete'))
-                                        <form method="POST" action="{{ route('admin.users.destroy', $user->id) }}"
-                                            style="display:inline"
-                                            onsubmit="return confirm('Are you sure you want to delete this user?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-ghost btn-icon btn-sm"
+                                        <button type="button" onclick="ajaxDelete('{{ route('admin.users.destroy', $user->id) }}')" class="btn btn-ghost btn-icon btn-sm"
                                                 style="color:var(--destructive)" title="Delete">
                                                 <i data-lucide="trash-2" style="width:16px;height:16px"></i>
                                             </button>
-                                        </form>
                                     @endif
                                 </div>
                             </td>

@@ -1261,26 +1261,8 @@
         }
 
         function deleteQuote(id) {
-            if (confirm('Are you sure you want to delete this quote?')) {
-                var form = document.createElement('form');
-                form.method = 'POST';
-                form.action = `{{ url('admin/quotes') }}/${id}`;
-
-                var csrf = document.createElement('input');
-                csrf.type = 'hidden';
-                csrf.name = '_token';
-                csrf.value = '{{ csrf_token() }}';
-                form.appendChild(csrf);
-
-                var method = document.createElement('input');
-                method.type = 'hidden';
-                method.name = '_method';
-                method.value = 'DELETE';
-                form.appendChild(method);
-
-                document.body.appendChild(form);
-                form.submit();
-            }
+            var btn = event ? event.currentTarget : null;
+            ajaxDelete('{{ url("admin/quotes") }}/' + id, btn, 'Quote');
         }
 
         function convertQuote(id) {

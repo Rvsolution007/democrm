@@ -96,16 +96,10 @@
                                         </button>
                                     @endif
                                     @if(can('categories.delete'))
-                                        <form action="{{ route('admin.categories.destroy', $category->id) }}" method="POST"
-                                            style="display:inline;margin:0"
-                                            onsubmit="return confirm('Delete this category and all its subcategories?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-ghost btn-sm"
+                                        <button type="button" onclick="ajaxDelete('{{ route('admin.categories.destroy', $category->id) }}')" class="btn btn-ghost btn-sm"
                                                 style="color:var(--destructive);padding:4px 10px;font-size:12px">
                                                 <i data-lucide="trash-2" style="width:13px;height:13px"></i>
                                             </button>
-                                        </form>
                                     @endif
                                 </div>
                             </td>
@@ -148,15 +142,10 @@
                                             </button>
                                         @endif
                                         @if(can('categories.delete'))
-                                            <form action="{{ route('admin.categories.destroy', $child->id) }}" method="POST"
-                                                style="display:inline;margin:0" onsubmit="return confirm('Delete this subcategory?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-ghost btn-sm"
+                                            <button type="button" onclick="ajaxDelete('{{ route('admin.categories.destroy', $child->id) }}')" class="btn btn-ghost btn-sm"
                                                     style="color:var(--destructive);padding:4px 10px;font-size:12px">
                                                     <i data-lucide="trash-2" style="width:13px;height:13px"></i>
                                                 </button>
-                                            </form>
                                         @endif
                                     </div>
                                 </td>

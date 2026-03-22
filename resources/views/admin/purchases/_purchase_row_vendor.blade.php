@@ -49,17 +49,11 @@
                     <i data-lucide="indian-rupee" style="width:16px;height:16px"></i>
                 </button>
                 @if(can('projects.delete'))
-                    <form action="{{ route('admin.purchases.destroy', $purchase->id) }}" method="POST"
-                        style="display:inline;margin:0"
-                        onsubmit="return confirm('Are you sure you want to delete this purchase?')">
-                        @csrf @method('DELETE')
-                        <button type="submit"
-                            style="width:32px;height:32px;border-radius:8px;background:#fef2f2;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#ef4444;transition:all 0.15s"
+                    <button type="button" onclick="ajaxDelete('{{ route('admin.purchases.destroy', $purchase->id) }}')" style="width:32px;height:32px;border-radius:8px;background:#fef2f2;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#ef4444;transition:all 0.15s"
                             title="Delete" onmouseover="this.style.background='#fee2e2'"
                             onmouseout="this.style.background='#fef2f2'">
                             <i data-lucide="trash-2" style="width:16px;height:16px"></i>
                         </button>
-                    </form>
                 @endif
             @endif
         </div>

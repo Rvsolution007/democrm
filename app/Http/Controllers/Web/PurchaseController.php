@@ -207,6 +207,13 @@ class PurchaseController extends Controller
         $purchase = Purchase::findOrFail($id);
         $purchase->delete();
 
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Purchase deleted successfully'
+            ]);
+        }
+
         return redirect()->route('admin.purchases.index')->with('success', 'Purchase deleted successfully');
     }
 

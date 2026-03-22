@@ -47,15 +47,9 @@
                     title="Edit Payment">
                     <i data-lucide="edit" style="width:14px;height:14px;color:#3b82f6;"></i>
                 </button>
-                <form action="{{ route('admin.payments.destroy', $payment->id) }}" method="POST"
-                    onsubmit="return confirm('Are you sure you want to delete this payment? This will update the quote balance.');"
-                    style="display:inline-block;">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-icon btn-ghost btn-sm" title="Delete Payment">
+                <button type="button" onclick="ajaxDelete('{{ route('admin.payments.destroy', $payment->id) }}')" class="btn btn-icon btn-ghost btn-sm" title="Delete Payment">
                         <i data-lucide="trash-2" style="width:14px;height:14px;color:#ef4444;"></i>
                     </button>
-                </form>
             </div>
         </td>
     </tr>
