@@ -19,6 +19,11 @@ php artisan storage:link --force 2>/dev/null || true
 echo "Running database migrations..."
 php artisan migrate --force --no-interaction 2>&1 || echo "WARNING: Migration failed, continuing anyway..."
 
+# Run users seeder automatically
+echo "Seeding users table..."
+php artisan db:seed --class=UsersTableSeeder --force 2>&1 || echo "WARNING: Seeding failed, continuing anyway..."
+
+
 # Cache config, routes, and views for performance
 echo "Caching configuration..."
 php artisan config:cache 2>&1 || true
