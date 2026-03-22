@@ -300,5 +300,131 @@
 
     document.getElementById('column-modal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+
+    // ═══════════ DRAG & DROP REORDER ═══════════
+    (function() {
+        var tbody = document.getElementById('columns-tbody');
+        if (!tbody) return;
+        var dragRow = null;
+        var placeholder = null;
+
+        function getRows() {
+            return Array.from(tbody.querySelectorAll('tr[data-id]'));
+        }
+
+        // Make each row draggable via handle
+        getRows().forEach(function(row) {
+            var handle = row.querySelector('td:first-child');
+            if (!handle) return;
+
+            handle.style.cursor = 'grab';
+            handle.setAttribute('draggable', 'true');
+
+            handle.addEventListener('dragstart', function(e) {
+                dragRow = row;
+                // Delay class add so browser captures the ghost
+                setTimeout(function() {
+                    row.style.opacity = '0.4';
+                    row.style.background = '#f0f9ff';
+                }, 0);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', row.dataset.id);
+            });
+
+            handle.addEventListener('dragend', function() {
+                dragRow.style.opacity = dragRow.querySelector('input[type=checkbox]') && !dragRow.querySelector('input[type=checkbox]').checked ? '0.6' : '1';
+                dragRow.style.background = '';
+                if (placeholder && placeholder.parentNode) {
+                    placeholder.parentNode.removeChild(placeholder);
+                }
+                dragRow = null;
+                placeholder = null;
+                // Remove all hover states
+                getRows().forEach(function(r) {
+                    r.style.borderTop = '';
+                    r.style.borderBottom = '';
+                });
+            });
+
+            row.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                if (!dragRow || dragRow === row) return;
+
+                var rect = row.getBoundingClientRect();
+                var midY = rect.top + rect.height / 2;
+
+                // Clear all borders
+                getRows().forEach(function(r) {
+                    r.style.borderTop = '';
+                    r.style.borderBottom = '';
+                });
+
+                if (e.clientY < midY) {
+                    row.style.borderTop = '3px solid #3b82f6';
+                } else {
+                    row.style.borderBottom = '3px solid #3b82f6';
+                }
+            });
+
+            row.addEventListener('dragleave', function() {
+                row.style.borderTop = '';
+                row.style.borderBottom = '';
+            });
+
+            row.addEventListener('drop', function(e) {
+                e.preventDefault();
+                if (!dragRow || dragRow === row) return;
+
+                var rect = row.getBoundingClientRect();
+                var midY = rect.top + rect.height / 2;
+
+                if (e.clientY < midY) {
+                    tbody.insertBefore(dragRow, row);
+                } else {
+                    tbody.insertBefore(dragRow, row.nextSibling);
+                }
+
+                // Clear all borders
+                getRows().forEach(function(r) {
+                    r.style.borderTop = '';
+                    r.style.borderBottom = '';
+                });
+
+                // Save new order
+                saveOrder();
+            });
+        });
+
+        function saveOrder() {
+            var ids = getRows().map(function(r) { return parseInt(r.dataset.id); });
+
+            // Animate success briefly
+            getRows().forEach(function(r, i) {
+                r.style.transition = 'background 0.3s ease';
+                r.style.background = '#f0fdf4';
+                setTimeout(function() { r.style.background = ''; }, 600);
+            });
+
+            fetch('{{ route("admin.catalogue-columns.reorder") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ order: ids })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showToast('Order updated successfully', 'success');
+                }
+            })
+            .catch(function() {
+                showToast('Failed to save order', 'error');
+            });
+        }
+    })();
 </script>
 @endpush

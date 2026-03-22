@@ -26,6 +26,7 @@ class CatalogueCustomColumn extends Model
         'is_active',
         'connected_modules',
         'show_on_list',
+        'sort_order',
     ];
 
     protected $casts = [
