@@ -127,6 +127,17 @@
                             <i data-lucide="message-circle" style="width:16px;height:16px"></i> WhatsApp API
                         </button>
                     </div>
+
+                    <!-- AI Bot Section -->
+                    <div style="margin-bottom:16px">
+                        <div
+                            style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#999;padding:8px 12px">
+                            AI Bot</div>
+                        <button class="settings-nav-btn" data-tab="ai-bot"
+                            onclick="switchSettingsTab('ai-bot', this)">
+                            <i data-lucide="brain" style="width:16px;height:16px"></i> AI Bot Config
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -693,6 +704,92 @@
 
                         <button class="btn btn-primary" id="wa-save-btn" onclick="saveWhatsappApiConfig()">
                             <i data-lucide="save" style="width:16px;height:16px"></i> Save Configuration
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Bot Configuration Tab -->
+            <div class="settings-tab" id="tab-ai-bot" style="display:none">
+                <!-- AI Bot Toggle -->
+                <div class="card" style="margin-bottom:24px">
+                    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+                        <div>
+                            <h3 class="card-title" style="display:flex;align-items:center;gap:8px">
+                                <i data-lucide="brain" style="width:20px;height:20px;color:#8b5cf6"></i>
+                                AI Bot Status
+                            </h3>
+                            <p class="text-sm text-muted" style="margin-top:4px">AI Bot ON hone pe Auto-Reply rules auto disable ho jayenge</p>
+                        </div>
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                            <span id="ai-bot-label" style="font-weight:600;font-size:14px;color:{{ $aiBotEnabled ? '#16a34a' : '#dc2626' }}">{{ $aiBotEnabled ? 'ON' : 'OFF' }}</span>
+                            <div style="position:relative;width:50px;height:28px">
+                                <input type="checkbox" id="ai-bot-toggle" {{ $aiBotEnabled ? 'checked' : '' }}
+                                    onchange="toggleAiBot(this.checked)"
+                                    style="opacity:0;width:0;height:0;position:absolute">
+                                <div id="ai-bot-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $aiBotEnabled ? '#22c55e' : '#ccc' }};border-radius:28px;transition:0.3s" onclick="document.getElementById('ai-bot-toggle').click()">
+                                    <div style="position:absolute;content:'';height:22px;width:22px;left:{{ $aiBotEnabled ? '25px' : '3px' }};bottom:3px;background:white;border-radius:50%;transition:0.3s" id="ai-bot-knob"></div>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Vertex AI Configuration -->
+                <div class="card" style="margin-bottom:24px">
+                    <div class="card-header">
+                        <h3 class="card-title">Google Vertex AI Configuration</h3>
+                        <p class="text-sm text-muted" style="margin-top:4px">Service Account credentials for Vertex AI (Gemini) API</p>
+                    </div>
+                    <div class="card-content">
+                        <div style="background:linear-gradient(135deg,#ede9fe,#f5f3ff);border:1px solid #c4b5fd;border-radius:8px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px">
+                            <i data-lucide="info" style="width:18px;height:18px;color:#7c3aed;flex-shrink:0;margin-top:1px"></i>
+                            <div style="font-size:13px;color:#5b21b6;line-height:1.5">
+                                Google Cloud Console se Service Account ka JSON file download karke niche paste karo. Project ID, Location aur Model bhi dal do.
+                            </div>
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">
+                            <div>
+                                <label style="display:block;margin-bottom:4px;font-weight:500">Project ID *</label>
+                                <input type="text" class="form-input" id="ai-project-id" value="{{ $aiVertexConfig['project_id'] ?? '' }}" placeholder="my-gcp-project">
+                            </div>
+                            <div>
+                                <label style="display:block;margin-bottom:4px;font-weight:500">Location</label>
+                                <input type="text" class="form-input" id="ai-location" value="{{ $aiVertexConfig['location'] ?? 'us-central1' }}" placeholder="us-central1">
+                            </div>
+                            <div>
+                                <label style="display:block;margin-bottom:4px;font-weight:500">Model</label>
+                                <input type="text" class="form-input" id="ai-model" value="{{ $aiVertexConfig['model'] ?? 'gemini-2.0-flash' }}" placeholder="gemini-2.0-flash">
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom:16px">
+                            <label style="display:block;margin-bottom:4px;font-weight:500">Service Account JSON *</label>
+                            <textarea class="form-textarea" id="ai-service-account" rows="8" placeholder='{ "type": "service_account", "project_id": "...", "client_email": "...", "private_key": "..." }' style="font-family:monospace;font-size:12px">{{ !empty($aiVertexConfig['service_account']) ? json_encode($aiVertexConfig['service_account'], JSON_PRETTY_PRINT) : '' }}</textarea>
+                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Google Cloud Console → IAM & Admin → Service Accounts → Keys → Add Key → JSON</small>
+                        </div>
+
+                        <button class="btn btn-primary" onclick="saveAiConfig()">
+                            <i data-lucide="save" style="width:16px;height:16px"></i> Save AI Config
+                        </button>
+                    </div>
+                </div>
+
+                <!-- System Prompt -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">AI System Prompt</h3>
+                        <p class="text-sm text-muted" style="margin-top:4px">Ye prompt AI ko batata hai ki wo kaise behave kare</p>
+                    </div>
+                    <div class="card-content">
+                        <div style="margin-bottom:16px">
+                            <textarea class="form-textarea" id="ai-system-prompt" rows="12" placeholder="Tum ek helpful WhatsApp AI assistant ho...">{{ $aiSystemPrompt ?? '' }}</textarea>
+                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: Batao ki bot Hindi/English me baat kare, customer ko kaise greet kare, products ke baare me kya bataye</small>
+                        </div>
+
+                        <button class="btn btn-primary" onclick="saveAiPrompt()">
+                            <i data-lucide="save" style="width:16px;height:16px"></i> Save Prompt
                         </button>
                     </div>
                 </div>
@@ -1666,5 +1763,54 @@
                 });
             }
         })();
+
+        // ═══════════════════════════════════════
+        // AI Bot Settings Functions
+        // ═══════════════════════════════════════
+        function toggleAiBot(enabled) {
+            var label = document.getElementById('ai-bot-label');
+            var slider = document.getElementById('ai-bot-slider');
+            var knob = document.getElementById('ai-bot-knob');
+            label.textContent = enabled ? 'ON' : 'OFF';
+            label.style.color = enabled ? '#16a34a' : '#dc2626';
+            slider.style.background = enabled ? '#22c55e' : '#ccc';
+            knob.style.left = enabled ? '25px' : '3px';
+
+            fetch('{{ route("admin.settings.ai-toggle") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({ enabled: enabled })
+            }).then(r => r.json()).then(data => {
+                if (data.success) alert(data.message);
+                else alert('Error toggling AI bot');
+            }).catch(() => alert('Request failed'));
+        }
+
+        function saveAiConfig() {
+            fetch('{{ route("admin.settings.ai-config.save") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    project_id: document.getElementById('ai-project-id').value,
+                    location: document.getElementById('ai-location').value,
+                    model: document.getElementById('ai-model').value,
+                    service_account_json: document.getElementById('ai-service-account').value,
+                })
+            }).then(r => r.json()).then(data => {
+                alert(data.message || 'Saved');
+            }).catch(() => alert('Request failed'));
+        }
+
+        function saveAiPrompt() {
+            fetch('{{ route("admin.settings.ai-prompt.save") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    system_prompt: document.getElementById('ai-system-prompt').value,
+                })
+            }).then(r => r.json()).then(data => {
+                alert(data.message || 'Saved');
+            }).catch(() => alert('Request failed'));
+        }
     </script>
 @endpush

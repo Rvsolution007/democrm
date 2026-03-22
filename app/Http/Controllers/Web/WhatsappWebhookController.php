@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessAutoReplyJob;
+use App\Jobs\ProcessAIChatJob;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -54,7 +56,7 @@ class WhatsappWebhookController extends Controller
         // Extract message text BEFORE dispatching (we need the full message object)
         $messageText = $this->extractMessageText($messageContent);
 
-        Log::info("AutoReply: Extracted message text from {$senderPhone}", [
+        Log::info("Webhook: Extracted message text from {$senderPhone}", [
             'extracted_text' => $messageText,
             'message_keys' => array_keys($messageContent),
         ]);
@@ -63,14 +65,33 @@ class WhatsappWebhookController extends Controller
             $messageText = '[media]';
         }
 
+        // Extract reply context (quoted message) if user replied to a specific message
+        $replyContext = $this->extractReplyContext($data);
+
+        // Extract image URL if user sent an image
+        $imageUrl = $this->extractImageUrl($data, $instanceName);
+
         // ═══════════════════════════════════════════════════════════
-        // DISPATCH TO QUEUE — Process auto-reply in background via queued job
-        // This is the key fix: webhook returns 200 OK instantly,
-        // auto-reply processing happens via queue worker (cron-driven).
-        // Evolution API won't timeout, shared hosting won't drop requests.
-        // Jobs are stored in DB and retried automatically if they fail.
+        // ROUTING: AI Bot or Auto-Reply?
+        // If AI Bot is enabled → ProcessAIChatJob (with full context)
+        // If AI Bot is disabled → ProcessAutoReplyJob (existing behavior)
         // ═══════════════════════════════════════════════════════════
-        ProcessAutoReplyJob::dispatch($instanceName, $senderPhone, $messageText);
+        $userId = $this->getUserIdFromInstance($instanceName);
+        $companyId = 1;
+        if ($userId) {
+            $user = \App\Models\User::find($userId);
+            $companyId = $user->company_id ?? 1;
+        }
+
+        $aiBotEnabled = Setting::getValue('ai_bot', 'enabled', false, $companyId);
+
+        if ($aiBotEnabled) {
+            ProcessAIChatJob::dispatch($instanceName, $senderPhone, $messageText, $replyContext, $imageUrl);
+            Log::info("Webhook: Dispatched AI Chat Job for {$senderPhone}");
+        } else {
+            ProcessAutoReplyJob::dispatch($instanceName, $senderPhone, $messageText);
+            Log::info("Webhook: Dispatched Auto-Reply Job for {$senderPhone}");
+        }
 
         // Return 200 OK immediately — Evolution API is happy, no timeout
         return response()->json(['status' => 'queued', 'message' => 'Processing in background']);
@@ -240,6 +261,135 @@ class WhatsappWebhookController extends Controller
         }
 
         return '';
+    }
+
+    /**
+     * Extract reply context (quoted message) from Evolution API data
+     * When a user replies to a specific message, contextInfo contains the quoted message
+     */
+    private function extractReplyContext(array $data): ?array
+    {
+        $message = $data['message'] ?? [];
+        $contextInfo = null;
+
+        // contextInfo can be at different levels depending on message type
+        $contextInfo = $message['extendedTextMessage']['contextInfo'] ?? null;
+
+        if (!$contextInfo) {
+            $contextInfo = $message['imageMessage']['contextInfo'] ?? null;
+        }
+        if (!$contextInfo) {
+            $contextInfo = $message['videoMessage']['contextInfo'] ?? null;
+        }
+        if (!$contextInfo) {
+            $contextInfo = $message['documentMessage']['contextInfo'] ?? null;
+        }
+        if (!$contextInfo) {
+            // Check wrapper messages
+            foreach (['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2'] as $wrapper) {
+                if (isset($message[$wrapper]['message'])) {
+                    $inner = $message[$wrapper]['message'];
+                    foreach (['extendedTextMessage', 'imageMessage', 'conversation'] as $type) {
+                        if (isset($inner[$type]['contextInfo'])) {
+                            $contextInfo = $inner[$type]['contextInfo'];
+                            break 2;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!$contextInfo || empty($contextInfo['quotedMessage'])) {
+            return null;
+        }
+
+        // Extract quoted message text
+        $quotedMessage = $contextInfo['quotedMessage'];
+        $quotedText = $this->extractMessageText($quotedMessage);
+
+        return [
+            'quoted_text' => $quotedText,
+            'stanza_id' => $contextInfo['stanzaId'] ?? null,
+            'participant' => $contextInfo['participant'] ?? null,
+        ];
+    }
+
+    /**
+     * Extract image URL from Evolution API data
+     * Downloads image via Evolution API if needed
+     */
+    private function extractImageUrl(array $data, string $instanceName): ?string
+    {
+        $message = $data['message'] ?? [];
+
+        // Check for image message
+        $imageMessage = $message['imageMessage'] ?? null;
+
+        // Check in wrapper messages
+        if (!$imageMessage) {
+            foreach (['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2'] as $wrapper) {
+                if (isset($message[$wrapper]['message']['imageMessage'])) {
+                    $imageMessage = $message[$wrapper]['message']['imageMessage'];
+                    break;
+                }
+            }
+        }
+
+        if (!$imageMessage) {
+            return null;
+        }
+
+        // Evolution API v2 provides direct URL in some cases
+        if (!empty($imageMessage['url'])) {
+            return $imageMessage['url'];
+        }
+
+        // For base64, we'd need to save it — skip for now, use mediaUrl if available
+        if (!empty($data['mediaUrl'])) {
+            return $data['mediaUrl'];
+        }
+
+        // Try to get media URL from Evolution API's media endpoint
+        $messageId = $data['key']['id'] ?? null;
+        if ($messageId) {
+            try {
+                $config = Setting::getValue('whatsapp', 'api_config', ['api_url' => '', 'api_key' => '']);
+                if (!empty($config['api_url']) && !empty($config['api_key'])) {
+                    $response = \Illuminate\Support\Facades\Http::withHeaders([
+                        'apikey' => $config['api_key'],
+                    ])->post("{$config['api_url']}/chat/getBase64FromMediaMessage/{$instanceName}", [
+                        'message' => ['key' => $data['key']],
+                    ]);
+
+                    if ($response->successful()) {
+                        $base64 = $response->json('base64') ?? '';
+                        if ($base64) {
+                            // Save to storage and return URL
+                            $filename = 'ai_chat_images/' . uniqid() . '.jpg';
+                            \Illuminate\Support\Facades\Storage::disk('public')->put($filename, base64_decode($base64));
+                            return url('storage/' . $filename);
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('Webhook: Failed to extract image: ' . $e->getMessage());
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract user_id from instance name (format: rvcrm_{username}_{id})
+     */
+    private function getUserIdFromInstance(string $instanceName): ?int
+    {
+        $parts = explode('_', $instanceName);
+        if (count($parts) >= 3) {
+            $id = (int) end($parts);
+            if ($id > 0) return $id;
+        }
+        return null;
     }
 }
 

@@ -10,6 +10,8 @@ class QuoteItem extends Model
     protected $fillable = [
         'quote_id',
         'product_id',
+        'variation_id',
+        'selected_combination',
         'product_name',
         'description',
         'hsn_code',
@@ -35,6 +37,7 @@ class QuoteItem extends Model
         'gst_amount' => 'integer',
         'line_total' => 'integer',
         'sort_order' => 'integer',
+        'selected_combination' => 'array',
     ];
 
     protected static function boot()

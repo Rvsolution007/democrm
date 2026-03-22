@@ -37,6 +37,16 @@ class SettingsController extends Controller
         $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
         $whatsappApiConfig = Setting::getValue('whatsapp', 'api_config', ['api_url' => '', 'api_key' => '', 'webhook_base_url' => '']);
 
+        // AI Bot Configuration
+        $aiBotEnabled = Setting::getValue('ai_bot', 'enabled', false);
+        $aiVertexConfig = Setting::getValue('ai_bot', 'vertex_config', [
+            'project_id' => '',
+            'location' => 'us-central1',
+            'model' => 'gemini-2.0-flash',
+            'service_account' => [],
+        ]);
+        $aiSystemPrompt = Setting::getValue('ai_bot', 'system_prompt', '');
+
         // Load backup files for Backup & Restore tab
         $backupFiles = [];
         
@@ -63,7 +73,11 @@ class SettingsController extends Controller
         }
         usort($backupFiles, fn($a, $b) => strcmp($b['name'], $a['name']));
 
-        return view('admin.settings.index', compact('company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources', 'taskStatuses', 'paymentTypes', 'whatsappApiConfig', 'backupFiles'));
+        return view('admin.settings.index', compact(
+            'company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources',
+            'taskStatuses', 'paymentTypes', 'whatsappApiConfig', 'backupFiles',
+            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt'
+        ));
     }
 
     /**
@@ -276,6 +290,77 @@ class SettingsController extends Controller
         return response()->json([
             'success' => true,
             'transferred' => $count,
+        ]);
+    }
+
+    /**
+     * Save AI Bot Vertex AI configuration
+     */
+    public function saveAiConfig(Request $request)
+    {
+        $request->validate([
+            'project_id' => 'required|string',
+            'location' => 'required|string',
+            'model' => 'required|string',
+            'service_account_json' => 'required|string',
+        ]);
+
+        // Parse service account JSON
+        $serviceAccount = json_decode($request->service_account_json, true);
+        if (!$serviceAccount || !isset($serviceAccount['client_email']) || !isset($serviceAccount['private_key'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid service account JSON. Must contain client_email and private_key.',
+            ], 422);
+        }
+
+        Setting::setValue('ai_bot', 'vertex_config', [
+            'project_id' => $request->project_id,
+            'location' => $request->location,
+            'model' => $request->model,
+            'service_account' => $serviceAccount,
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'AI configuration saved']);
+    }
+
+    /**
+     * Save AI Bot system prompt
+     */
+    public function saveAiPrompt(Request $request)
+    {
+        $request->validate([
+            'system_prompt' => 'required|string',
+        ]);
+
+        Setting::setValue('ai_bot', 'system_prompt', $request->system_prompt);
+
+        return response()->json(['success' => true, 'message' => 'AI system prompt saved']);
+    }
+
+    /**
+     * Toggle AI Bot on/off
+     * When ON: auto-reply rules are automatically disabled
+     * When OFF: auto-reply rules are re-enabled
+     */
+    public function toggleAiBot(Request $request)
+    {
+        $enabled = $request->boolean('enabled');
+
+        Setting::setValue('ai_bot', 'enabled', $enabled);
+
+        // Auto-disable/enable all auto-reply rules for this company
+        if ($enabled) {
+            \App\Models\WhatsappAutoReplyRule::where('company_id', auth()->user()->company_id)
+                ->update(['is_active' => false]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'enabled' => $enabled,
+            'message' => $enabled
+                ? 'AI Bot enabled. Auto-reply rules have been disabled.'
+                : 'AI Bot disabled. You can now enable auto-reply rules.',
         ]);
     }
 }

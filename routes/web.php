@@ -1037,6 +1037,25 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::post('/settings/payment-types', [SettingsController::class, 'savePaymentTypes'])->name('settings.payment-types.save');
     Route::post('/settings/whatsapp-api', [SettingsController::class, 'saveWhatsappApi'])->name('settings.whatsapp-api.save');
 
+    // AI Bot Settings
+    Route::post('/settings/ai-config', [SettingsController::class, 'saveAiConfig'])->name('settings.ai-config.save');
+    Route::post('/settings/ai-prompt', [SettingsController::class, 'saveAiPrompt'])->name('settings.ai-prompt.save');
+    Route::post('/settings/ai-toggle', [SettingsController::class, 'toggleAiBot'])->name('settings.ai-toggle');
+
+    // Catalogue Custom Columns
+    Route::get('/catalogue-columns', [App\Http\Controllers\Web\CatalogueColumnController::class, 'index'])->name('catalogue-columns.index');
+    Route::post('/catalogue-columns', [App\Http\Controllers\Web\CatalogueColumnController::class, 'store'])->name('catalogue-columns.store');
+    Route::put('/catalogue-columns/{id}', [App\Http\Controllers\Web\CatalogueColumnController::class, 'update'])->name('catalogue-columns.update');
+    Route::delete('/catalogue-columns/{id}', [App\Http\Controllers\Web\CatalogueColumnController::class, 'destroy'])->name('catalogue-columns.destroy');
+    Route::post('/catalogue-columns/reorder', [App\Http\Controllers\Web\CatalogueColumnController::class, 'reorder'])->name('catalogue-columns.reorder');
+
+    // Chatflow Builder
+    Route::get('/chatflow', [App\Http\Controllers\Web\ChatflowController::class, 'index'])->name('chatflow.index');
+    Route::post('/chatflow', [App\Http\Controllers\Web\ChatflowController::class, 'store'])->name('chatflow.store');
+    Route::put('/chatflow/{id}', [App\Http\Controllers\Web\ChatflowController::class, 'update'])->name('chatflow.update');
+    Route::delete('/chatflow/{id}', [App\Http\Controllers\Web\ChatflowController::class, 'destroy'])->name('chatflow.destroy');
+    Route::post('/chatflow/reorder', [App\Http\Controllers\Web\ChatflowController::class, 'reorder'])->name('chatflow.reorder');
+
     // WhatsApp Connect
     Route::get('/whatsapp-connect', [App\Http\Controllers\Web\WhatsappConnectController::class, 'index'])->name('whatsapp-connect.index');
     Route::get('/whatsapp-connect/qr', [App\Http\Controllers\Web\WhatsappConnectController::class, 'getQrCode'])->name('whatsapp-connect.qr');

@@ -81,18 +81,40 @@
                     </a>
                 @endif
                 @if(can('whatsapp-auto-reply.read'))
+                    @php $aiBotOn = \App\Models\Setting::getValue('ai_bot', 'enabled', false); @endphp
+                    @if(!$aiBotOn)
                     <a href="{{ route('admin.whatsapp-auto-reply.index') }}"
                         class="nav-link {{ request()->routeIs('admin.whatsapp-auto-reply.*') && !request()->routeIs('admin.whatsapp-auto-reply.analytics') ? 'active' : '' }}">
                         <i data-lucide="bot" style="color:#f59e0b"></i> <span>Auto-Reply Rules</span>
                     </a>
+                    @endif
                 @endif
                 @if(can('whatsapp-analytics.read'))
+                    @if(!($aiBotOn ?? false))
                     <a href="{{ route('admin.whatsapp-auto-reply.analytics') }}"
                         class="nav-link {{ request()->routeIs('admin.whatsapp-auto-reply.analytics') ? 'active' : '' }}">
                         <i data-lucide="bar-chart-3" style="color:#8b5cf6"></i> <span>Reply Analytics</span>
                     </a>
+                    @endif
                 @endif
 
+            </div>
+        @endif
+
+        {{-- AI Bot Section --}}
+        @if(can('settings.manage'))
+            <div class="nav-section">
+                <div class="nav-section-title"
+                    style="margin-top: 15px; font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.8;">
+                    AI Bot</div>
+                <a href="{{ route('admin.catalogue-columns.index') }}"
+                    class="nav-link {{ request()->routeIs('admin.catalogue-columns.*') ? 'active' : '' }}">
+                    <i data-lucide="columns" style="color:#06b6d4"></i> <span>Catalogue Columns</span>
+                </a>
+                <a href="{{ route('admin.chatflow.index') }}"
+                    class="nav-link {{ request()->routeIs('admin.chatflow.*') ? 'active' : '' }}">
+                    <i data-lucide="git-branch" style="color:#10b981"></i> <span>Chatflow Builder</span>
+                </a>
             </div>
         @endif
         @if(can('products.read') || can('categories.read') || can('projects.global') || can('quotes.global'))

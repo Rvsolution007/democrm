@@ -37,12 +37,14 @@ class Lead extends Model
         'query_type',
         'query_message',
         'product_name',
+        'ai_custom_data',
     ];
 
     protected $casts = [
         'expected_value' => 'integer',
         'next_follow_up_at' => 'datetime',
         'raw_source_payload' => 'array',
+        'ai_custom_data' => 'array',
     ];
 
     protected static function boot()
