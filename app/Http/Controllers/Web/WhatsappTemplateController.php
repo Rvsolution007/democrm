@@ -157,6 +157,10 @@ class WhatsappTemplateController extends Controller
         }
         $template->delete();
 
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Template deleted successfully']);
+        }
+
         return redirect()->back()->with('success', 'Template deleted successfully.');
     }
 }

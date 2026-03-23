@@ -270,6 +270,10 @@ class WhatsappCampaignController extends Controller
         $campaign->recipients()->delete();
         $campaign->delete();
 
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Campaign deleted successfully']);
+        }
+
         return redirect()->back()->with('success', 'Campaign deleted successfully.');
     }
 }

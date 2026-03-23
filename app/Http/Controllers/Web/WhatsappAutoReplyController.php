@@ -236,6 +236,10 @@ class WhatsappAutoReplyController extends Controller
         $rule = WhatsappAutoReplyRule::where('user_id', auth()->id())->findOrFail($id);
         $rule->delete();
 
+        if (request()->wantsJson() || request()->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Rule deleted successfully']);
+        }
+
         return redirect()->route('admin.whatsapp-auto-reply.index')
             ->with('success', 'Rule deleted successfully.');
     }
