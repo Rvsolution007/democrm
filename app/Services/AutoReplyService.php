@@ -263,7 +263,8 @@ class AutoReplyService
                         if (!empty($mediaPath) && \Illuminate\Support\Facades\Storage::disk('public')->exists($mediaPath)) {
                             $mediaContent = \Illuminate\Support\Facades\Storage::disk('public')->get($mediaPath);
                             if ($mediaContent) {
-                                $mediaData = "data:{$mimeType};base64," . base64_encode($mediaContent);
+                                // Evolution API expects raw base64 string WITHOUT data:image/jpeg;base64, prefix
+                                $mediaData = base64_encode($mediaContent);
                             }
                         } else {
                             \Illuminate\Support\Facades\Log::error("AutoReply: Media file missing on disk: {$mediaPath}");
