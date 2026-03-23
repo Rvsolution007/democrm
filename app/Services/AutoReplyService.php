@@ -256,8 +256,8 @@ class AutoReplyService
                     $isLast = ($index === $totalMedia - 1);
                     $caption = ($isLast && !empty($textMsg)) ? $textMsg : '';
 
-                    // IMPORTANT FIX: Convert file to Base64 locally to avoid AxiosError (Network/Cloudflare/NAT block) inside Evolution API
-                    $mediaData = $mediaUrl; // Fallback to URL
+                    // IMPORTANT FIX: Convert file to Base64 locally to avoid AxiosError
+                    $mediaData = null;
                     $mimeType = $this->getMimeType($mediaType, $media['path']);
                     try {
                         if (!empty($mediaPath) && \Illuminate\Support\Facades\Storage::disk('public')->exists($mediaPath)) {
@@ -265,9 +265,13 @@ class AutoReplyService
                             if ($mediaContent) {
                                 $mediaData = "data:{$mimeType};base64," . base64_encode($mediaContent);
                             }
+                        } else {
+                            \Illuminate\Support\Facades\Log::error("AutoReply: Media file missing on disk: {$mediaPath}");
+                            return ['success' => false, 'error' => "missing_media_file: The uploaded image is missing from the server storage. Please edit your auto-reply template and re-upload the image."];
                         }
                     } catch (\Exception $e) {
                          \Illuminate\Support\Facades\Log::warning("AutoReply: Failed to base64 encode media: " . $e->getMessage());
+                         $mediaData = $mediaUrl; // Fallback to URL
                     }
 
                     $response = Http::withHeaders([
@@ -278,7 +282,7 @@ class AutoReplyService
                         'mediatype' => $mediaType,
                         'mimetype' => $mimeType,
                         'caption' => $caption,
-                        'media' => $mediaData,
+                        'media' => $mediaData ?? $mediaUrl,
                         'fileName' => basename($media['path']),
                     ]);
 
