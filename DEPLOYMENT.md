@@ -55,6 +55,11 @@ git checkout main
 3. **Environment Tab:**
    - Copy all variables from `.env.staging` file
    - Paste into EasyPanel environment variables
+4. **Volumes Tab (CRITICAL FOR UPLOADS):**
+   - Click "Add Volume"
+   - Type: `Volume`
+   - Name: `git_crm_storage`
+   - Mount Path: `/app/storage`
 
 ### Step 3: Configure EasyPanel — git_crm_live (Production 2)
 
@@ -68,6 +73,11 @@ git checkout main
    - Copy variables from `.env.production` file
    - Update `DB_PASSWORD` with live database password
    - Update any other live-specific values
+4. **Volumes Tab (CRITICAL FOR UPLOADS):**
+   - Click "Add Volume"
+   - Type: `Volume`
+   - Name: `git_crm_live_storage`
+   - Mount Path: `/app/storage`
 
 ### Step 4: MySQL Service in EasyPanel
 
