@@ -151,6 +151,7 @@ Route::get('/', function () {
 
 // WhatsApp Webhook (public — no auth, Evolution API calls this)
 Route::post('/webhook/whatsapp/incoming/{instanceName}', [App\Http\Controllers\Web\WhatsappWebhookController::class, 'handleIncoming']);
+Route::get('/webhook/whatsapp/incoming/{instanceName}', [App\Http\Controllers\Web\WhatsappWebhookController::class, 'testWebhook']);
 
 // Admin Panel Routes (protected by auth)
 Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {

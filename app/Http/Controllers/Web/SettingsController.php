@@ -193,17 +193,26 @@ class SettingsController extends Controller
             'webhook_base_url' => 'nullable|url',
         ]);
 
+        $webhookBase = $request->webhook_base_url ?? '';
+        // Automatically convert http:// to https:// for production domains (avoid 301 POST body drop)
+        if (!empty($webhookBase) && !str_contains($webhookBase, 'localhost') && !str_contains($webhookBase, '127.0.0.1')) {
+            $webhookBase = str_replace('http://', 'https://', rtrim($webhookBase, '/'));
+        } else {
+            $webhookBase = rtrim($webhookBase, '/');
+        }
+
         Setting::setValue('whatsapp', 'api_config', [
             'api_url' => rtrim($request->api_url, '/'),
             'api_key' => $request->api_key,
-            'webhook_base_url' => rtrim($request->webhook_base_url ?? '', '/'),
+            'webhook_base_url' => $webhookBase,
         ], auth()->user()->company_id);
-        // Try to register webhook for the current user's instance if it exists
+        
+        // Register webhook for the current user's instance
         $user = auth()->user();
         $cleanName = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $user->name));
         $instanceName = 'rvcrm_' . $cleanName . '_' . $user->id;
         
-        $baseUrl = !empty($request->webhook_base_url) ? $request->webhook_base_url : url('');
+        $baseUrl = !empty($webhookBase) ? $webhookBase : secure_url('');
         $webhookUrl = rtrim($baseUrl, '/') . "/webhook/whatsapp/incoming/{$instanceName}";
         
         try {
@@ -218,6 +227,7 @@ class SettingsController extends Controller
                     'events' => ['MESSAGES_UPSERT'],
                 ],
             ]);
+            \Illuminate\Support\Facades\Log::info("Settings: Registered webhook for {$instanceName} -> {$webhookUrl}");
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error("Failed to set webhook on save config: " . $e->getMessage());
         }

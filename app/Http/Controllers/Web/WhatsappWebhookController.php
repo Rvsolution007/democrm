@@ -22,9 +22,11 @@ class WhatsappWebhookController extends Controller
     {
         $event = $request->input('event');
 
-        // Log webhook receipt (minimal — detailed logging happens in background)
+        // Log webhook receipt (detailed for debugging)
         Log::info("Webhook received for instance: {$instanceName}", [
             'event' => $event,
+            'method' => $request->method(),
+            'payload_preview' => substr(json_encode($request->all()), 0, 500)
         ]);
 
         // Evolution API sends different event types — we only care about incoming messages
@@ -390,6 +392,22 @@ class WhatsappWebhookController extends Controller
             if ($id > 0) return $id;
         }
         return null;
+    }
+
+    /**
+     * Test endpoint for webhook (GET request)
+     * Used to verify that the webhook URL is reachable and HTTPS redirects are working
+     */
+    public function testWebhook(Request $request, string $instanceName)
+    {
+        return response()->json([
+            'status' => 'ok',
+            'message' => 'Webhook endpoint is reachable',
+            'instance' => $instanceName,
+            'method' => $request->method(),
+            'url' => $request->url(),
+            'is_secure' => $request->secure(),
+        ]);
     }
 }
 
