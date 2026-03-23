@@ -377,7 +377,11 @@ class AutoReplyService
             'webhook_base_url' => '',
         ], $this->getCompanyId($userId));
         
-        $baseUrl = !empty($config['webhook_base_url']) ? $config['webhook_base_url'] : url('');
+        $baseUrl = !empty($config['webhook_base_url']) ? $config['webhook_base_url'] : secure_url('');
+        // Force HTTPS for production domains
+        if (!str_contains($baseUrl, 'localhost') && !str_contains($baseUrl, '127.0.0.1')) {
+            $baseUrl = str_replace('http://', 'https://', $baseUrl);
+        }
         return rtrim($baseUrl, '/') . '/storage/' . $mediaPath;
     }
 

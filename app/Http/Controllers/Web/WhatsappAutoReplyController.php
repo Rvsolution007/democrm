@@ -457,7 +457,11 @@ class WhatsappAutoReplyController extends Controller
 
         // Use webhook_base_url from settings (the server's public URL)
         // Falls back to APP_URL if not set, but that may be localhost
-        $baseUrl = !empty($config['webhook_base_url']) ? $config['webhook_base_url'] : url('');
+        $baseUrl = !empty($config['webhook_base_url']) ? $config['webhook_base_url'] : secure_url('');
+        // Force HTTPS for production domains
+        if (!str_contains($baseUrl, 'localhost') && !str_contains($baseUrl, '127.0.0.1')) {
+            $baseUrl = str_replace('http://', 'https://', $baseUrl);
+        }
         $webhookUrl = rtrim($baseUrl, '/') . "/webhook/whatsapp/incoming/{$instanceName}";
 
         try {

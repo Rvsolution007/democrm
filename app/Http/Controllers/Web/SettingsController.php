@@ -394,7 +394,11 @@ class SettingsController extends Controller
                 $cleanName = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $user->name));
                 $instanceName = 'rvcrm_' . $cleanName . '_' . $user->id;
                 
-                $baseUrl = !empty($config['webhook_base_url']) ? $config['webhook_base_url'] : url('');
+                $baseUrl = !empty($config['webhook_base_url']) ? $config['webhook_base_url'] : secure_url('');
+                // Force HTTPS for production domains
+                if (!str_contains($baseUrl, 'localhost') && !str_contains($baseUrl, '127.0.0.1')) {
+                    $baseUrl = str_replace('http://', 'https://', $baseUrl);
+                }
                 $webhookUrl = rtrim($baseUrl, '/') . "/webhook/whatsapp/incoming/{$instanceName}";
                 
                 try {

@@ -232,7 +232,7 @@ class WhatsappConnectController extends Controller
             
             if ($success) {
                 // Register webhook immediately
-                $baseUrl = !empty($config['webhook_base_url']) ? $config['webhook_base_url'] : url('');
+                $baseUrl = !empty($config['webhook_base_url']) ? $config['webhook_base_url'] : secure_url('');
                 $webhookUrl = rtrim($baseUrl, '/') . "/webhook/whatsapp/incoming/{$instanceName}";
 
                 try {
