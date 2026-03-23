@@ -256,15 +256,29 @@ class AutoReplyService
                     $isLast = ($index === $totalMedia - 1);
                     $caption = ($isLast && !empty($textMsg)) ? $textMsg : '';
 
+                    // IMPORTANT FIX: Convert file to Base64 locally to avoid AxiosError (Network/Cloudflare/NAT block) inside Evolution API
+                    $mediaData = $mediaUrl; // Fallback to URL
+                    $mimeType = $this->getMimeType($mediaType, $media['path']);
+                    try {
+                        if (!empty($mediaPath) && \Illuminate\Support\Facades\Storage::disk('public')->exists($mediaPath)) {
+                            $mediaContent = \Illuminate\Support\Facades\Storage::disk('public')->get($mediaPath);
+                            if ($mediaContent) {
+                                $mediaData = "data:{$mimeType};base64," . base64_encode($mediaContent);
+                            }
+                        }
+                    } catch (\Exception $e) {
+                         \Illuminate\Support\Facades\Log::warning("AutoReply: Failed to base64 encode media: " . $e->getMessage());
+                    }
+
                     $response = Http::withHeaders([
                         'apikey' => $config['api_key'],
                         'Content-Type' => 'application/json',
                     ])->post("{$config['api_url']}/message/sendMedia/{$instanceName}", [
                         'number' => $formattedPhone,
                         'mediatype' => $mediaType,
-                        'mimetype' => $this->getMimeType($mediaType, $media['path']),
+                        'mimetype' => $mimeType,
                         'caption' => $caption,
-                        'media' => $mediaUrl,
+                        'media' => $mediaData,
                         'fileName' => basename($media['path']),
                     ]);
 
