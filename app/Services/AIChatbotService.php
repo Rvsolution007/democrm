@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AiChatSession;
 use App\Models\AiChatMessage;
+use App\Models\AiTokenLog;
 use App\Models\ChatflowStep;
 use App\Models\CatalogueCustomColumn;
 use App\Models\Product;
@@ -20,24 +21,20 @@ class AIChatbotService
     private int $companyId;
     private int $userId;
     private VertexAIService $vertexAI;
+    private string $replyLanguage;
 
     public function __construct(int $companyId, int $userId)
     {
         $this->companyId = $companyId;
         $this->userId = $userId;
         $this->vertexAI = new VertexAIService($companyId);
+        $this->replyLanguage = Setting::getValue('ai_bot', 'reply_language', 'auto', $companyId);
     }
 
-    /**
-     * Main entry point: process an incoming WhatsApp message
-     *
-     * @param string      $instanceName  WhatsApp instance
-     * @param string      $phone         Sender phone number (normalized)
-     * @param string      $messageText   Message text content
-     * @param array|null  $replyContext   Quoted message data (if reply)
-     * @param string|null $imageUrl       Image URL (if image sent)
-     * @return array  Result with 'status', 'response', etc.
-     */
+    // ═══════════════════════════════════════════════════════
+    // MAIN ENTRY POINT
+    // ═══════════════════════════════════════════════════════
+
     public function processMessage(
         string $instanceName,
         string $phone,
@@ -45,14 +42,12 @@ class AIChatbotService
         ?array $replyContext = null,
         ?string $imageUrl = null
     ): array {
-        // Use DB lock to prevent race conditions from rapid messages
         return DB::transaction(function () use ($instanceName, $phone, $messageText, $replyContext, $imageUrl) {
 
-            // 1. Find or create session
             $session = AiChatSession::findOrCreateForPhone($this->companyId, $phone, $instanceName);
             $session->update(['last_message_at' => now()]);
 
-            // 2. Save incoming user message
+            // Save incoming user message
             AiChatMessage::create([
                 'session_id' => $session->id,
                 'role' => 'user',
@@ -62,23 +57,14 @@ class AIChatbotService
                 'reply_context' => $replyContext,
             ]);
 
-            // 3. Build AI prompt with full context
-            $systemPrompt = $this->buildSystemPrompt($session);
-            $chatHistory = $this->buildChatHistory($session, $messageText, $replyContext, $imageUrl);
+            // Get quoted text if reply
+            $quotedText = $replyContext['quoted_text'] ?? null;
+            $fullMessage = $quotedText ? "[Replying to: \"{$quotedText}\"]\n{$messageText}" : $messageText;
 
-            // 4. Call Vertex AI
-            $aiResponse = $this->vertexAI->generateContent($systemPrompt, $chatHistory, $imageUrl);
+            // ═══ SMART ROUTER — decide Tier 1, Tier 2, or PHP Direct ═══
+            $responseText = $this->routeMessage($session, $fullMessage, $messageText, $imageUrl);
 
-            // 5. Parse structured data from AI response
-            $parsedData = $this->parseAIResponse($aiResponse, $session);
-
-            // 6. Update session state, create/update lead & quote
-            $this->updateSessionState($session, $parsedData);
-
-            // 7. Get the clean response text (without JSON markers)
-            $responseText = $parsedData['response_text'] ?? $aiResponse;
-
-            // 8. Save bot response message
+            // Save bot response
             AiChatMessage::create([
                 'session_id' => $session->id,
                 'role' => 'bot',
@@ -86,7 +72,7 @@ class AIChatbotService
                 'message_type' => 'text',
             ]);
 
-            // 9. Send via Evolution API
+            // Send via WhatsApp
             $sendResult = $this->sendWhatsAppMessage($instanceName, $phone, $responseText);
 
             return [
@@ -99,391 +85,186 @@ class AIChatbotService
         });
     }
 
-    /**
-     * Build the system prompt with chatflow context, memory, and catalogue data
-     */
-    private function buildSystemPrompt(AiChatSession $session): string
+    // ═══════════════════════════════════════════════════════
+    // MESSAGE ROUTER — Core logic
+    // ═══════════════════════════════════════════════════════
+
+    private function routeMessage(AiChatSession $session, string $fullMessage, string $rawMessage, ?string $imageUrl): string
     {
-        // Get admin-defined system prompt
-        $basePrompt = Setting::getValue('ai_bot', 'system_prompt', '', $this->companyId);
+        $steps = ChatflowStep::where('company_id', $this->companyId)->orderBy('sort_order')->get();
+        $currentStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
+        $answers = $session->collected_answers ?? [];
 
-        // Get chatflow steps
-        $chatflowContext = $this->buildChatflowContext($session);
-
-        // Get memory context (existing lead + quote data)
-        $memoryContext = $this->buildMemoryContext($session);
-
-        // Get catalogue data relevant to current state
-        $catalogueContext = $this->buildCatalogueContext($session);
-
-        $fullPrompt = $basePrompt . "\n\n";
-        $fullPrompt .= "---\n## CURRENT SESSION CONTEXT\n\n";
-        $fullPrompt .= $chatflowContext . "\n\n";
-
-        if (!empty($memoryContext)) {
-            $fullPrompt .= "## MEMORY (Previous data from this customer)\n";
-            $fullPrompt .= $memoryContext . "\n\n";
+        // If no chatflow steps defined, always use Tier 2
+        if ($steps->isEmpty()) {
+            return $this->handleTier2($session, $fullMessage, $imageUrl);
         }
 
-        if (!empty($catalogueContext)) {
-            $fullPrompt .= "## CATALOGUE DATA\n";
-            $fullPrompt .= $catalogueContext . "\n\n";
+        // ══ CASE 1: No product selected yet ══
+        if (!isset($answers['product_id'])) {
+            return $this->handlePreProductPhase($session, $steps, $fullMessage, $rawMessage, $imageUrl);
         }
 
-        // Add structured response instruction
-        $fullPrompt .= "## RESPONSE FORMAT INSTRUCTION\n";
-        $fullPrompt .= "You MUST respond with a JSON block followed by your message text.\n";
-        $fullPrompt .= "JSON format: ```json\n{\"action\":\"<action>\",\"data\":{...}}\n```\n";
-        $fullPrompt .= "Then on a new line, write the message to send to the customer.\n\n";
-        $fullPrompt .= "Possible actions:\n";
-        $fullPrompt .= "- `greeting` — casual/greeting response, no data needed\n";
-        $fullPrompt .= "- `select_product` — user selected a product. data: {\"product_id\": <id>}\n";
-        $fullPrompt .= "- `select_combo` — user selected a combo value. data: {\"column_slug\": \"<slug>\", \"value\": \"<selected_value>\"}\n";
-        $fullPrompt .= "- `answer_optional` — user answered optional question. data: {\"field_key\": \"<key>\", \"value\": \"<answer>\"}\n";
-        $fullPrompt .= "- `skip_optional` — user didn't answer optional, skip it. data: {}\n";
-        $fullPrompt .= "- `complete` — all steps done. data: {}\n";
-        $fullPrompt .= "- `escalate` — user needs human support. data: {\"reason\": \"<why>\"}\n";
-        $fullPrompt .= "- `continue` — general conversation, no state change. data: {}\n\n";
-        $fullPrompt .= "IMPORTANT: Always include the JSON block even for casual greetings.\n";
+        // ══ CASE 2: Product selected, in chatflow ══
+        if ($currentStep) {
+            switch ($currentStep->step_type) {
+                case 'ask_combo':
+                    return $this->handleComboStep($session, $currentStep, $rawMessage, $steps);
 
-        return $fullPrompt;
+                case 'ask_optional':
+                case 'ask_custom':
+                    return $this->handleCustomStep($session, $currentStep, $rawMessage, $steps);
+
+                case 'send_summary':
+                    return $this->handleSummaryStep($session);
+            }
+        }
+
+        // ══ CASE 3: Fallback — Tier 2 ══
+        return $this->handleTier2($session, $fullMessage, $imageUrl);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // PRE-PRODUCT PHASE (Catalogue)
+    // ═══════════════════════════════════════════════════════
+
+    private function handlePreProductPhase(AiChatSession $session, $steps, string $fullMessage, string $rawMessage, ?string $imageUrl): string
+    {
+        // Check if catalogue has been sent already
+        if ($session->catalogue_sent) {
+            // User has seen catalogue — try to match their reply to a product (Tier 1)
+            return $this->matchProductFromMessage($session, $rawMessage, $steps);
+        }
+
+        // Catalogue not sent yet — check if user is asking about products (Tier 1)
+        $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user asking about products, catalogue, what you sell, or showing interest in buying something? Reply with ONLY 'YES' or 'NO'.";
+
+        $intentResult = $this->vertexAI->classifyContent($intentPrompt);
+        $this->logTokens($session, 1, $intentResult);
+
+        $isProductIntent = str_contains(strtoupper($intentResult['text']), 'YES');
+
+        if ($isProductIntent) {
+            // Send catalogue
+            return $this->sendCatalogue($session);
+        }
+
+        // Not product-related — use Tier 2 for general conversation
+        return $this->handleTier2($session, $fullMessage, $imageUrl);
     }
 
     /**
-     * Build chatflow context for the AI prompt
+     * Send product catalogue message (PHP built — no AI)
      */
-    private function buildChatflowContext(AiChatSession $session): string
+    private function sendCatalogue(AiChatSession $session): string
     {
-        $steps = ChatflowStep::where('company_id', $this->companyId)
-            ->orderBy('sort_order')
+        $products = Product::where('company_id', $this->companyId)
+            ->where('status', 'active')
             ->get();
 
-        if ($steps->isEmpty()) {
-            return "No chatflow defined. Have a natural conversation and help the customer.";
+        if ($products->isEmpty()) {
+            return "Sorry, we don't have any products available right now.";
         }
 
-        $context = "### Chatflow Steps (follow this sequence):\n";
+        // Get AI-visible columns
+        $visibleColumns = $this->getAiVisibleColumns();
+        $showPrice = $visibleColumns->contains('slug', 'sale_price') || $visibleColumns->contains('slug', 'mrp');
 
-        foreach ($steps as $step) {
-            $status = '⬜'; // Not started
-            $currentStepId = $session->current_step_id;
-
-            // Check if this step is completed (earlier in order than current)
-            if ($currentStepId) {
-                $currentStep = $steps->firstWhere('id', $currentStepId);
-                if ($currentStep && $step->sort_order < $currentStep->sort_order) {
-                    $status = '✅'; // Completed
-                } elseif ($step->id == $currentStepId) {
-                    $status = '🔄'; // Current step (retries: {$session->current_step_retries})
-                }
+        $msg = "🛍️ *Our Products:*\n\n";
+        foreach ($products as $i => $product) {
+            $num = $i + 1;
+            $msg .= "{$num}️⃣ *{$product->name}*";
+            if ($showPrice && $product->sale_price > 0) {
+                $msg .= " — ₹" . number_format($product->sale_price / 100, 2);
             }
-
-            $optional = $step->is_optional ? ' (OPTIONAL - ask only once)' : '';
-            $context .= "{$status} Step {$step->sort_order}: [{$step->step_type}] {$step->name}{$optional}\n";
-
-            if ($step->question_text) {
-                $context .= "   Question: \"{$step->question_text}\"\n";
-            }
-            if ($step->step_type === 'ask_combo' && $step->linkedColumn) {
-                $context .= "   Column: {$step->linkedColumn->name}\n";
-            }
-            if ($step->field_key) {
-                $context .= "   Save answer to: {$step->field_key}\n";
+            $msg .= "\n";
+            if ($product->description && $visibleColumns->contains('slug', 'description')) {
+                $msg .= "   {$product->description}\n";
             }
         }
+        $msg .= "\nReply with product number or name! 👆";
 
-        // Collected answers so far
-        $answers = $session->collected_answers ?? [];
-        if (!empty($answers)) {
-            $context .= "\n### Already collected answers:\n";
-            foreach ($answers as $key => $value) {
-                $context .= "- {$key}: {$value}\n";
-            }
-        }
+        // Update session state
+        $session->catalogue_sent = true;
+        $session->conversation_state = 'awaiting_product';
 
-        // Optional questions already asked
-        $optionalAsked = $session->optional_asked ?? [];
-        if (!empty($optionalAsked)) {
-            $context .= "\n### Optional questions already asked (DO NOT ask again):\n";
-            foreach ($optionalAsked as $field) {
-                $context .= "- {$field}\n";
-            }
-        }
-
-        // Current step retries
-        if ($session->current_step_retries > 0) {
-            $currentStep = $steps->firstWhere('id', $session->current_step_id);
-            $maxRetries = $currentStep->max_retries ?? 2;
-            $context .= "\n⚠️ Current step has been retried {$session->current_step_retries}/{$maxRetries} times.";
-            if ($session->current_step_retries >= $maxRetries) {
-                if ($currentStep && $currentStep->isOptionalStep()) {
-                    $context .= " SKIP this step and move to next.";
-                } else {
-                    $context .= " ESCALATE to human support.";
-                }
-            }
-        }
-
-        return $context;
-    }
-
-    /**
-     * Build memory context from existing lead and quote data
-     */
-    private function buildMemoryContext(AiChatSession $session): string
-    {
-        $context = '';
-
-        if ($session->lead_id) {
-            $lead = Lead::with('products')->find($session->lead_id);
-            if ($lead) {
-                $context .= "### Existing Lead:\n";
-                $context .= "- Name: " . ($lead->name ?: 'Not provided') . "\n";
-                $context .= "- Phone: {$lead->phone}\n";
-                if ($lead->city) $context .= "- City: {$lead->city}\n";
-                if ($lead->ai_custom_data) {
-                    foreach ($lead->ai_custom_data as $key => $val) {
-                        $context .= "- {$key}: {$val}\n";
-                    }
-                }
-            }
-        }
-
-        if ($session->quote_id) {
-            $quote = Quote::with('items.product')->find($session->quote_id);
-            if ($quote) {
-                $context .= "\n### Existing Quote (#{$quote->quote_no}):\n";
-                foreach ($quote->items as $item) {
-                    $context .= "- Product: {$item->product_name}";
-                    if ($item->selected_combination) {
-                        $combos = collect($item->selected_combination)->map(fn($v, $k) => "{$k}: {$v}")->implode(', ');
-                        $context .= " ({$combos})";
-                    }
-                    if ($item->rate > 0) {
-                        $context .= " — ₹" . number_format($item->rate / 100, 2);
-                    }
-                    $context .= "\n";
-                }
-            }
-        }
-
-        return $context;
-    }
-
-    /**
-     * Build catalogue context relevant to current session state
-     */
-    private function buildCatalogueContext(AiChatSession $session): string
-    {
-        $answers = $session->collected_answers ?? [];
-        $context = '';
-
-        // If no product selected yet, list available products
-        if (!isset($answers['product_id'])) {
-            $products = Product::where('company_id', $this->companyId)
-                ->where('status', 'active')
-                ->get(['id', 'name', 'description', 'sale_price']);
-
-            if ($products->isNotEmpty()) {
-                $context .= "### Available Products:\n";
-                foreach ($products as $product) {
-                    $price = $product->sale_price > 0 ? " — ₹" . number_format($product->sale_price / 100, 2) : '';
-                    $context .= "- ID:{$product->id} | {$product->name}{$price}\n";
-                    if ($product->description) {
-                        $context .= "  Description: {$product->description}\n";
-                    }
-                }
-            }
-            return $context;
-        }
-
-        // Product is selected — show combo options for current step
-        $productId = $answers['product_id'];
-        $product = Product::with(['combos.column', 'activeVariations'])->find($productId);
-
-        if (!$product) return $context;
-
-        $context .= "### Selected Product: {$product->name}\n";
-        if ($product->description) {
-            $context .= "Description: {$product->description}\n";
-        }
-
-        // Show combo options
-        foreach ($product->combos as $combo) {
-            $column = $combo->column;
-            $selectedValue = $answers[$column->slug] ?? null;
-            $values = $combo->selected_values ?? [];
-
-            if ($selectedValue) {
-                $context .= "- {$column->name}: {$selectedValue} ✅\n";
-            } else {
-                $context .= "- {$column->name}: [" . implode(', ', $values) . "] ⬜ (pending)\n";
-            }
-        }
-
-        // If all combos are selected, show variation price
-        $allCombosSelected = true;
-        $combination = [];
-        foreach ($product->combos as $combo) {
-            $slug = $combo->column->slug;
-            if (!isset($answers[$slug])) {
-                $allCombosSelected = false;
-                break;
-            }
-            $combination[$slug] = $answers[$slug];
-        }
-
-        if ($allCombosSelected && !empty($combination)) {
-            $key = ProductVariation::generateKey($combination);
-            $variation = $product->activeVariations->firstWhere('combination_key', $key);
-            if ($variation) {
-                $context .= "\n### Matched Variation:\n";
-                $context .= "Price: ₹" . number_format($variation->price / 100, 2) . "\n";
-                if ($variation->description) {
-                    $context .= "Details: {$variation->description}\n";
-                }
-            }
-        }
-
-        return $context;
-    }
-
-    /**
-     * Build chat history in Vertex AI format
-     */
-    private function buildChatHistory(
-        AiChatSession $session,
-        string $currentMessage,
-        ?array $replyContext,
-        ?string $imageUrl
-    ): array {
-        $history = [];
-
-        // Get recent messages from DB
-        $messages = $session->getRecentMessages(10);
-
-        foreach ($messages as $msg) {
-            $role = $msg->role === 'user' ? 'user' : 'model';
-            $text = $msg->message;
-
-            // Add reply context info if present
-            if ($msg->reply_context) {
-                $quotedText = $msg->reply_context['quoted_text'] ?? '';
-                if ($quotedText) {
-                    $text = "[Replying to: \"{$quotedText}\"]\n{$text}";
-                }
-            }
-
-            $history[] = ['role' => $role, 'text' => $text];
-        }
-
-        // Add current message (if not already in the history — it was just saved)
-        $currentText = $currentMessage;
-        if ($replyContext) {
-            $quotedText = $replyContext['quoted_text'] ?? '';
-            if ($quotedText) {
-                $currentText = "[Replying to: \"{$quotedText}\"]\n{$currentMessage}";
-            }
-        }
-
-        // The last message in history should be the current one we just saved
-        // If not (edge case), add it
-        if (empty($history) || end($history)['text'] !== $currentText) {
-            $history[] = ['role' => 'user', 'text' => $currentText];
-        }
-
-        return $history;
-    }
-
-    /**
-     * Parse the AI response for structured action data
-     * Expected format: ```json\n{...}\n```\nMessage text
-     */
-    private function parseAIResponse(string $response, AiChatSession $session): array
-    {
-        $result = [
-            'action' => 'continue',
-            'data' => [],
-            'response_text' => $response,
-        ];
-
-        // Try to extract JSON block from response
-        if (preg_match('/```json\s*(.*?)\s*```/s', $response, $matches)) {
-            $jsonStr = $matches[1];
-            $parsed = json_decode($jsonStr, true);
-
-            if ($parsed && isset($parsed['action'])) {
-                $result['action'] = $parsed['action'];
-                $result['data'] = $parsed['data'] ?? [];
-            }
-
-            // Remove JSON block from response text (send only human-readable part)
-            $result['response_text'] = trim(preg_replace('/```json\s*.*?\s*```/s', '', $response));
-        }
-
-        return $result;
-    }
-
-    /**
-     * Update session state based on parsed AI response
-     */
-    private function updateSessionState(AiChatSession $session, array $parsedData): void
-    {
-        $action = $parsedData['action'];
-        $data = $parsedData['data'];
-
-        switch ($action) {
-            case 'select_product':
-                $this->handleProductSelection($session, $data);
-                break;
-
-            case 'select_combo':
-                $this->handleComboSelection($session, $data);
-                break;
-
-            case 'answer_optional':
-                $this->handleOptionalAnswer($session, $data);
-                break;
-
-            case 'skip_optional':
-                $this->handleSkipOptional($session);
-                break;
-
-            case 'complete':
-                $session->update(['status' => 'completed']);
-                break;
-
-            case 'escalate':
-                $this->handleEscalation($session, $data);
-                break;
-
-            case 'greeting':
-            case 'continue':
-            default:
-                // Check if we need to advance the chatflow
-                $this->advanceChatflowIfNeeded($session);
-                break;
+        // Set current step to first product step (if exists)
+        $productStep = $steps = ChatflowStep::where('company_id', $this->companyId)
+            ->where('step_type', 'ask_product')
+            ->orderBy('sort_order')
+            ->first();
+        if ($productStep) {
+            $session->current_step_id = $productStep->id;
         }
 
         $session->save();
+
+        Log::info("AIChatbot: Catalogue sent (PHP Direct)", ['session' => $session->id]);
+        return $msg;
     }
 
     /**
-     * Handle product selection — create lead and quote
+     * Match user's message to a product (Tier 1)
      */
-    private function handleProductSelection(AiChatSession $session, array $data): void
+    private function matchProductFromMessage(AiChatSession $session, string $rawMessage, $steps): string
     {
-        $productId = $data['product_id'] ?? null;
-        if (!$productId) return;
+        $products = Product::where('company_id', $this->companyId)
+            ->where('status', 'active')
+            ->get(['id', 'name']);
 
-        $product = Product::find($productId);
-        if (!$product || $product->company_id !== $this->companyId) return;
+        if ($products->isEmpty()) {
+            return "Sorry, no products available right now.";
+        }
+
+        // Build product list for prompt
+        $productList = $products->map(fn($p, $i) => ($i + 1) . ". {$p->name} (ID:{$p->id})")->implode("\n");
+
+        $prompt = "User said: \"{$rawMessage}\"\n\nAvailable products:\n{$productList}\n\nWhich product number did user select or which product name matches? Reply with ONLY the ID number. If unclear or no match, reply NONE.";
+
+        $matchResult = $this->vertexAI->classifyContent($prompt);
+        $this->logTokens($session, 1, $matchResult);
+
+        $matchText = trim($matchResult['text']);
+
+        // Extract number from response
+        preg_match('/(\d+)/', $matchText, $matches);
+        $matchedId = $matches[1] ?? null;
+
+        // Check if it's a valid product ID or list number
+        $selectedProduct = null;
+        if ($matchedId) {
+            // First try as product ID
+            $selectedProduct = $products->firstWhere('id', (int)$matchedId);
+            // Then try as list number
+            if (!$selectedProduct && (int)$matchedId <= $products->count()) {
+                $selectedProduct = $products->values()[(int)$matchedId - 1] ?? null;
+            }
+        }
+
+        if (!$selectedProduct || strtoupper($matchText) === 'NONE') {
+            return "Sorry, I couldn't match that to a product. Please reply with the product number or name from the list above. 🙏";
+        }
+
+        // Product matched — proceed
+        return $this->selectProduct($session, $selectedProduct->id, $steps);
+    }
+
+    /**
+     * Select product — create Lead, Quote, send details (PHP built)
+     */
+    private function selectProduct(AiChatSession $session, int $productId, $steps): string
+    {
+        $product = Product::with(['combos.column', 'activeVariations'])->find($productId);
+        if (!$product || $product->company_id !== $this->companyId) {
+            return "Product not found. Please try again.";
+        }
 
         // Save to session
         $session->setAnswer('product_id', $productId);
         $session->setAnswer('product_name', $product->name);
+        $session->conversation_state = 'product_selected';
 
-        // Create Lead if not exists
+        // Create Lead
         if (!$session->lead_id) {
             $lead = Lead::create([
                 'company_id' => $this->companyId,
@@ -495,15 +276,10 @@ class AIChatbotService
                 'product_name' => $product->name,
             ]);
             $session->lead_id = $lead->id;
-
-            // Attach product to lead
-            $lead->products()->attach($productId, [
-                'quantity' => 1,
-                'price' => $product->sale_price,
-            ]);
+            $lead->products()->attach($productId, ['quantity' => 1, 'price' => $product->sale_price]);
         }
 
-        // Create Quote if not exists
+        // Create Quote
         if (!$session->quote_id) {
             $company = \App\Models\Company::find($this->companyId);
             $quote = Quote::create([
@@ -519,7 +295,6 @@ class AIChatbotService
                 'grand_total' => $product->sale_price,
                 'status' => 'draft',
             ]);
-
             QuoteItem::create([
                 'quote_id' => $quote->id,
                 'product_id' => $productId,
@@ -533,57 +308,567 @@ class AIChatbotService
                 'gst_percent' => $product->gst_percent,
                 'sort_order' => 1,
             ]);
-
             $session->quote_id = $quote->id;
         }
 
-        // Move to next chatflow step
-        $this->advanceChatflow($session);
+        // Build product details message
+        $msg = $this->buildProductDetailsMessage($product);
+
+        // Advance to next step after ask_product
+        $this->advanceChatflow($session, $steps);
+        $session->save();
+
+        // Append next step question if it's a combo step
+        $nextStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
+        if ($nextStep && $nextStep->step_type === 'ask_combo' && $nextStep->linkedColumn) {
+            $comboValues = $this->getComboValuesForProduct($product, $nextStep->linkedColumn);
+            if (!empty($comboValues)) {
+                $msg .= "\n\n" . ($nextStep->question_text ?: "Which {$nextStep->linkedColumn->name}?") . " 👇\n";
+                $msg .= implode(' | ', $comboValues);
+            }
+        }
+
+        Log::info("AIChatbot: Product selected (PHP Direct)", ['session' => $session->id, 'product' => $product->name]);
+        return $msg;
     }
 
     /**
-     * Handle combo value selection — update quote variation
+     * Build formatted product details message
      */
-    private function handleComboSelection(AiChatSession $session, array $data): void
+    private function buildProductDetailsMessage(Product $product): string
     {
-        $columnSlug = $data['column_slug'] ?? null;
-        $value = $data['value'] ?? null;
-        if (!$columnSlug || !$value) return;
+        $visibleColumns = $this->getAiVisibleColumns();
+        $msg = "✅ *{$product->name}* 🛍️\n\n";
 
-        // Save to session answers
-        $session->setAnswer($columnSlug, $value);
+        // Description
+        if ($product->description && $visibleColumns->contains('slug', 'description')) {
+            $msg .= "📋 {$product->description}\n";
+        }
+
+        // Price
+        if ($visibleColumns->contains('slug', 'sale_price') && $product->sale_price > 0) {
+            $msg .= "💰 Price: ₹" . number_format($product->sale_price / 100, 2) . "\n";
+        }
+
+        // HSN
+        if ($visibleColumns->contains('slug', 'hsn_code') && $product->hsn_code) {
+            $msg .= "🏷️ HSN: {$product->hsn_code}\n";
+        }
+
+        // GST
+        if ($visibleColumns->contains('slug', 'gst_percent') && $product->gst_percent > 0) {
+            $msg .= "📊 GST: {$product->gst_percent}%\n";
+        }
+
+        // Custom column values
+        $customValues = \App\Models\CatalogueCustomValue::where('product_id', $product->id)->get();
+        foreach ($customValues as $cv) {
+            $col = $visibleColumns->firstWhere('id', $cv->column_id);
+            if ($col && !$col->is_combo) {
+                $msg .= "📌 {$col->name}: {$cv->value}\n";
+            }
+        }
+
+        // Combo options
+        foreach ($product->combos as $combo) {
+            $col = $combo->column;
+            if ($col && $visibleColumns->contains('id', $col->id)) {
+                $values = $combo->selected_values ?? [];
+                if (!empty($values)) {
+                    $msg .= "📏 {$col->name}: " . implode(', ', $values) . "\n";
+                }
+            }
+        }
+
+        return $msg;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // COMBO STEP — Tier 1 matching
+    // ═══════════════════════════════════════════════════════
+
+    private function handleComboStep(AiChatSession $session, ChatflowStep $step, string $rawMessage, $steps): string
+    {
+        $column = $step->linkedColumn;
+        if (!$column) {
+            $this->advanceChatflow($session, $steps);
+            $session->save();
+            return "Moving to next step...";
+        }
+
+        // Get available combo values for this product
+        $productId = $session->getAnswer('product_id');
+        $product = Product::with('combos.column')->find($productId);
+        $comboValues = $product ? $this->getComboValuesForProduct($product, $column) : [];
+
+        if (empty($comboValues)) {
+            $this->advanceChatflow($session, $steps);
+            $session->save();
+            return $this->buildNextStepPrompt($session, $steps);
+        }
+
+        // Tier 1: Match user message to combo option
+        $optionsList = implode(', ', $comboValues);
+        $prompt = "User said: \"{$rawMessage}\"\n\nAvailable options: [{$optionsList}]\n\nWhich option matches user's choice? Reply with the EXACT option text from the list. If no clear match, reply NONE.";
+
+        $matchResult = $this->vertexAI->classifyContent($prompt);
+        $this->logTokens($session, 1, $matchResult);
+
+        $matchedText = trim($matchResult['text']);
+
+        // Verify match is in options (case-insensitive)
+        $matchedOption = null;
+        foreach ($comboValues as $opt) {
+            if (strtolower($opt) === strtolower($matchedText)) {
+                $matchedOption = $opt;
+                break;
+            }
+        }
+
+        if (!$matchedOption || strtoupper($matchedText) === 'NONE') {
+            // Retry
+            $session->current_step_retries = ($session->current_step_retries ?? 0) + 1;
+
+            if ($session->current_step_retries >= ($step->max_retries ?? 2)) {
+                if ($step->isOptionalStep()) {
+                    $session->markOptionalAsked($column->slug);
+                    $this->advanceChatflow($session, $steps);
+                    $session->save();
+                    return $this->buildNextStepPrompt($session, $steps);
+                }
+            }
+
+            $session->save();
+            return "Sorry, I didn't understand. Please choose from:\n" . implode(' | ', $comboValues);
+        }
+
+        // Matched! Save to session
+        $session->setAnswer($column->slug, $matchedOption);
         $session->current_step_retries = 0;
 
-        // Check if all combos are now selected
-        $productId = $session->getAnswer('product_id');
-        if (!$productId) return;
+        // Update quote variation if all combos selected
+        $this->updateQuoteVariation($session, $product);
 
-        $product = Product::with('combos.column')->find($productId);
-        if (!$product) return;
+        // Advance chatflow
+        $this->advanceChatflow($session, $steps);
+        $session->save();
 
+        // Build response
+        $msg = "✅ {$column->name}: *{$matchedOption}* selected!";
+
+        // Append next step
+        $nextPrompt = $this->buildNextStepPrompt($session, $steps);
+        if ($nextPrompt) {
+            $msg .= "\n\n" . $nextPrompt;
+        }
+
+        Log::info("AIChatbot: Combo matched (Tier 1)", ['session' => $session->id, 'column' => $column->slug, 'value' => $matchedOption]);
+        return $msg;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // CUSTOM / OPTIONAL STEP — Tier 1 extraction
+    // ═══════════════════════════════════════════════════════
+
+    private function handleCustomStep(AiChatSession $session, ChatflowStep $step, string $rawMessage, $steps): string
+    {
+        $fieldKey = $step->field_key;
+        if (!$fieldKey) {
+            $this->advanceChatflow($session, $steps);
+            $session->save();
+            return $this->buildNextStepPrompt($session, $steps);
+        }
+
+        // Tier 1: Extract answer
+        $question = $step->question_text ?: "What is your {$fieldKey}?";
+        $prompt = "Question asked: \"{$question}\"\nUser replied: \"{$rawMessage}\"\n\nExtract the user's answer. Reply with ONLY the extracted answer text. If user seems to skip or says 'no' / 'skip', reply SKIP.";
+
+        $extractResult = $this->vertexAI->classifyContent($prompt);
+        $this->logTokens($session, 1, $extractResult);
+
+        $extractedText = trim($extractResult['text']);
+
+        if (strtoupper($extractedText) === 'SKIP' || empty($extractedText)) {
+            if ($step->isOptionalStep()) {
+                $session->markOptionalAsked($fieldKey);
+                $this->advanceChatflow($session, $steps);
+                $session->save();
+                return $this->buildNextStepPrompt($session, $steps);
+            }
+            // Not optional — ask again
+            $session->current_step_retries = ($session->current_step_retries ?? 0) + 1;
+            $session->save();
+            return $question;
+        }
+
+        // Save answer
+        $session->setAnswer($fieldKey, $extractedText);
+        $session->current_step_retries = 0;
+        if ($step->isOptionalStep()) {
+            $session->markOptionalAsked($fieldKey);
+        }
+
+        // Update lead
+        if ($session->lead_id) {
+            $lead = Lead::find($session->lead_id);
+            if ($lead) {
+                $directFields = ['name', 'email', 'city', 'state'];
+                if (in_array($fieldKey, $directFields)) {
+                    $lead->update([$fieldKey => $extractedText]);
+                } else {
+                    $customData = $lead->ai_custom_data ?? [];
+                    $customData[$fieldKey] = $extractedText;
+                    $lead->update(['ai_custom_data' => $customData]);
+                }
+            }
+        }
+
+        // Advance
+        $this->advanceChatflow($session, $steps);
+        $session->save();
+
+        $msg = "✅ Got it!";
+        $nextPrompt = $this->buildNextStepPrompt($session, $steps);
+        if ($nextPrompt) {
+            $msg .= "\n\n" . $nextPrompt;
+        }
+
+        Log::info("AIChatbot: Custom answer (Tier 1)", ['session' => $session->id, 'field' => $fieldKey, 'value' => $extractedText]);
+        return $msg;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SUMMARY STEP — PHP Direct (no AI)
+    // ═══════════════════════════════════════════════════════
+
+    private function handleSummaryStep(AiChatSession $session): string
+    {
+        $answers = $session->collected_answers ?? [];
+        $visibleColumns = $this->getAiVisibleColumns();
+
+        $msg = "📋 *Order Summary:*\n\n";
+        $msg .= "Product: *{$answers['product_name']}*\n";
+
+        // Combo selections
+        $product = Product::with('combos.column')->find($answers['product_id'] ?? null);
+        if ($product) {
+            foreach ($product->combos as $combo) {
+                $col = $combo->column;
+                if ($col && isset($answers[$col->slug])) {
+                    $msg .= "{$col->name}: *{$answers[$col->slug]}*\n";
+                }
+            }
+        }
+
+        // Price from quote
+        if ($session->quote_id && $visibleColumns->contains('slug', 'sale_price')) {
+            $quote = Quote::with('items')->find($session->quote_id);
+            if ($quote) {
+                $msg .= "\n💰 Subtotal: ₹" . number_format($quote->subtotal / 100, 2) . "\n";
+                if ($quote->gst_total > 0) {
+                    $msg .= "📊 GST: ₹" . number_format($quote->gst_total / 100, 2) . "\n";
+                }
+                $msg .= "🏷️ *Total: ₹" . number_format($quote->grand_total / 100, 2) . "*\n";
+            }
+        }
+
+        // Custom answers
+        foreach ($answers as $key => $val) {
+            if (!in_array($key, ['product_id', 'product_name']) && !$product?->combos->pluck('column.slug')->contains($key)) {
+                $msg .= ucfirst(str_replace('_', ' ', $key)) . ": {$val}\n";
+            }
+        }
+
+        $msg .= "\n✅ Our team will contact you shortly! 🙏";
+
+        $session->update(['status' => 'completed', 'conversation_state' => 'completed']);
+
+        Log::info("AIChatbot: Summary sent (PHP Direct)", ['session' => $session->id]);
+        return $msg;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // TIER 2 — Full Conversational AI
+    // ═══════════════════════════════════════════════════════
+
+    private function handleTier2(AiChatSession $session, string $fullMessage, ?string $imageUrl): string
+    {
+        $systemPrompt = $this->buildSystemPrompt($session);
+        $chatHistory = $this->buildChatHistory($session, $fullMessage, $imageUrl);
+
+        $aiResult = $this->vertexAI->generateContent($systemPrompt, $chatHistory, $imageUrl);
+        $this->logTokens($session, 2, $aiResult);
+
+        // Parse structured response
+        $parsed = $this->parseAIResponse($aiResult['text'], $session);
+        $this->updateSessionState($session, $parsed);
+
+        Log::info("AIChatbot: Tier 2 AI used", ['session' => $session->id, 'tokens' => $aiResult['total_tokens']]);
+        return $parsed['response_text'] ?? $aiResult['text'];
+    }
+
+    /**
+     * Build system prompt (optimized — only current context)
+     */
+    private function buildSystemPrompt(AiChatSession $session): string
+    {
+        $basePrompt = Setting::getValue('ai_bot', 'system_prompt', '', $this->companyId);
+        $chatflowContext = $this->buildChatflowContext($session);
+        $memoryContext = $this->buildMemoryContext($session);
+        $catalogueContext = $this->buildCatalogueContext($session);
+
+        $prompt = $basePrompt . "\n\n---\n## SESSION CONTEXT\n\n" . $chatflowContext;
+
+        if (!empty($memoryContext)) {
+            $prompt .= "\n\n## MEMORY\n" . $memoryContext;
+        }
+        if (!empty($catalogueContext)) {
+            $prompt .= "\n\n## CATALOGUE\n" . $catalogueContext;
+        }
+
+        // Language instruction
+        $prompt .= "\n\n## LANGUAGE\n";
+        switch ($this->replyLanguage) {
+            case 'en':
+                $prompt .= "Always reply in English only.";
+                break;
+            case 'hi':
+                $prompt .= "Always reply in Hindi only.";
+                break;
+            default:
+                $prompt .= "Reply in the same language the customer is using.";
+        }
+
+        // Response format
+        $prompt .= "\n\n## RESPONSE FORMAT\n";
+        $prompt .= "Respond with JSON block then message:\n";
+        $prompt .= "```json\n{\"action\":\"<action>\",\"data\":{...}}\n```\n";
+        $prompt .= "Possible actions: greeting, select_product, select_combo, answer_optional, skip_optional, complete, escalate, continue\n";
+        $prompt .= "For select_product: data={\"product_id\":<id>}\n";
+        $prompt .= "For select_combo: data={\"column_slug\":\"<slug>\",\"value\":\"<val>\"}\n";
+        $prompt .= "For answer_optional: data={\"field_key\":\"<key>\",\"value\":\"<answer>\"}\n";
+        $prompt .= "Always include JSON block.\n";
+
+        return $prompt;
+    }
+
+    private function buildChatflowContext(AiChatSession $session): string
+    {
+        $steps = ChatflowStep::where('company_id', $this->companyId)->orderBy('sort_order')->get();
+        if ($steps->isEmpty()) {
+            return "No chatflow defined. Have a natural conversation.";
+        }
+
+        $context = "### Chatflow Steps:\n";
+        foreach ($steps as $step) {
+            $status = '⬜';
+            if ($session->current_step_id) {
+                $currentStep = $steps->firstWhere('id', $session->current_step_id);
+                if ($currentStep && $step->sort_order < $currentStep->sort_order) $status = '✅';
+                elseif ($step->id == $session->current_step_id) $status = '🔄';
+            }
+            $context .= "{$status} [{$step->step_type}] {$step->name}\n";
+        }
+
+        $answers = $session->collected_answers ?? [];
+        if (!empty($answers)) {
+            $context .= "\n### Collected:\n";
+            foreach ($answers as $k => $v) {
+                $context .= "- {$k}: {$v}\n";
+            }
+        }
+
+        return $context;
+    }
+
+    private function buildMemoryContext(AiChatSession $session): string
+    {
+        $context = '';
+        if ($session->lead_id) {
+            $lead = Lead::find($session->lead_id);
+            if ($lead) {
+                $context .= "Lead: {$lead->name}, Phone: {$lead->phone}";
+                if ($lead->city) $context .= ", City: {$lead->city}";
+                $context .= "\n";
+            }
+        }
+        return $context;
+    }
+
+    private function buildCatalogueContext(AiChatSession $session): string
+    {
+        $answers = $session->collected_answers ?? [];
+        $visibleColumns = $this->getAiVisibleColumns();
+
+        if (!isset($answers['product_id'])) {
+            // List products (only names + visible prices)
+            $products = Product::where('company_id', $this->companyId)->where('status', 'active')->get(['id', 'name', 'sale_price']);
+            if ($products->isEmpty()) return '';
+
+            $showPrice = $visibleColumns->contains('slug', 'sale_price');
+            $context = "### Products:\n";
+            foreach ($products as $p) {
+                $price = ($showPrice && $p->sale_price > 0) ? " — ₹" . number_format($p->sale_price / 100, 2) : '';
+                $context .= "- ID:{$p->id} | {$p->name}{$price}\n";
+            }
+            return $context;
+        }
+
+        return "Selected: {$answers['product_name']}";
+    }
+
+    private function buildChatHistory(AiChatSession $session, string $currentMessage, ?string $imageUrl): array
+    {
+        $history = [];
+        $messages = $session->getRecentMessages(5); // Reduced from 10
+
+        foreach ($messages as $msg) {
+            $role = $msg->role === 'user' ? 'user' : 'model';
+            $history[] = ['role' => $role, 'text' => $msg->message];
+        }
+
+        if (empty($history) || end($history)['text'] !== $currentMessage) {
+            $history[] = ['role' => 'user', 'text' => $currentMessage];
+        }
+
+        return $history;
+    }
+
+    private function parseAIResponse(string $response, AiChatSession $session): array
+    {
+        $result = ['action' => 'continue', 'data' => [], 'response_text' => $response];
+
+        if (preg_match('/```json\s*(.*?)\s*```/s', $response, $matches)) {
+            $parsed = json_decode($matches[1], true);
+            if ($parsed && isset($parsed['action'])) {
+                $result['action'] = $parsed['action'];
+                $result['data'] = $parsed['data'] ?? [];
+            }
+            $result['response_text'] = trim(preg_replace('/```json\s*.*?\s*```/s', '', $response));
+        }
+
+        return $result;
+    }
+
+    private function updateSessionState(AiChatSession $session, array $parsedData): void
+    {
+        $action = $parsedData['action'];
+        $data = $parsedData['data'];
+
+        $steps = ChatflowStep::where('company_id', $this->companyId)->orderBy('sort_order')->get();
+
+        switch ($action) {
+            case 'select_product':
+                if (isset($data['product_id'])) {
+                    $this->selectProduct($session, $data['product_id'], $steps);
+                }
+                break;
+            case 'select_combo':
+                if (isset($data['column_slug'], $data['value'])) {
+                    $session->setAnswer($data['column_slug'], $data['value']);
+                    $session->current_step_retries = 0;
+                    $productId = $session->getAnswer('product_id');
+                    if ($productId) {
+                        $product = Product::with('combos.column')->find($productId);
+                        if ($product) $this->updateQuoteVariation($session, $product);
+                    }
+                    $this->advanceChatflow($session, $steps);
+                }
+                break;
+            case 'answer_optional':
+                if (isset($data['field_key'], $data['value'])) {
+                    $session->setAnswer($data['field_key'], $data['value']);
+                    $session->markOptionalAsked($data['field_key']);
+                    $this->advanceChatflow($session, $steps);
+                }
+                break;
+            case 'skip_optional':
+                $currentStep = ChatflowStep::find($session->current_step_id);
+                if ($currentStep?->field_key) $session->markOptionalAsked($currentStep->field_key);
+                $this->advanceChatflow($session, $steps);
+                break;
+            case 'complete':
+                $session->update(['status' => 'completed', 'conversation_state' => 'completed']);
+                break;
+            case 'escalate':
+                if ($session->lead_id) {
+                    $lead = Lead::find($session->lead_id);
+                    $lead?->update([
+                        'notes' => ($lead->notes ? $lead->notes . "\n" : '') . "[AI Escalated] " . ($data['reason'] ?? ''),
+                        'stage' => 'contacted',
+                    ]);
+                }
+                break;
+            default:
+                if (!$session->current_step_id) {
+                    $first = ChatflowStep::getFirstStep($this->companyId);
+                    if ($first) $session->current_step_id = $first->id;
+                }
+                break;
+        }
+
+        $session->save();
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // HELPERS
+    // ═══════════════════════════════════════════════════════
+
+    private function getAiVisibleColumns()
+    {
+        return CatalogueCustomColumn::where('company_id', $this->companyId)
+            ->where('show_in_ai', true)
+            ->where('is_active', true)
+            ->get();
+    }
+
+    private function getComboValuesForProduct(Product $product, CatalogueCustomColumn $column): array
+    {
+        $combo = $product->combos->firstWhere('column_id', $column->id);
+        return $combo ? ($combo->selected_values ?? []) : [];
+    }
+
+    private function advanceChatflow(AiChatSession $session, $steps): void
+    {
+        $currentStep = $steps->firstWhere('id', $session->current_step_id);
+
+        if ($currentStep) {
+            $nextStep = $steps->first(fn($s) => $s->sort_order > $currentStep->sort_order);
+        } else {
+            $nextStep = $steps->first();
+        }
+
+        if ($nextStep) {
+            $session->current_step_id = $nextStep->id;
+            $session->current_step_retries = 0;
+            $session->conversation_state = 'in_chatflow';
+        } else {
+            $session->conversation_state = 'completed';
+            $session->update(['status' => 'completed']);
+        }
+    }
+
+    private function updateQuoteVariation(AiChatSession $session, Product $product): void
+    {
         $allSelected = true;
         $combination = [];
         foreach ($product->combos as $combo) {
             $slug = $combo->column->slug;
             $val = $session->getAnswer($slug);
-            if (!$val) {
-                $allSelected = false;
-                break;
-            }
+            if (!$val) { $allSelected = false; break; }
             $combination[$slug] = $val;
         }
 
-        // If all combos selected, update quote with variation price
         if ($allSelected && !empty($combination) && $session->quote_id) {
             $key = ProductVariation::generateKey($combination);
-            $variation = ProductVariation::where('product_id', $productId)
+            $variation = ProductVariation::where('product_id', $product->id)
                 ->where('combination_key', $key)
                 ->where('status', 'active')
                 ->first();
 
             if ($variation) {
                 $quoteItem = QuoteItem::where('quote_id', $session->quote_id)
-                    ->where('product_id', $productId)
+                    ->where('product_id', $product->id)
                     ->first();
 
                 if ($quoteItem) {
@@ -592,121 +877,52 @@ class AIChatbotService
                         'selected_combination' => $combination,
                         'rate' => $variation->price,
                         'unit_price' => $variation->price,
-                        'description' => $variation->description ?? $quoteItem->description,
                     ]);
-
-                    // Recalculate quote totals
                     $quote = Quote::find($session->quote_id);
-                    if ($quote) {
-                        $quote->recalculateTotals();
-                    }
+                    $quote?->recalculateTotals();
                 }
             }
         }
+    }
 
-        // Move to next chatflow step
-        $this->advanceChatflow($session);
+    private function buildNextStepPrompt(AiChatSession $session, $steps): string
+    {
+        $nextStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
+        if (!$nextStep) return "✅ All done! Our team will contact you. 🙏";
+
+        if ($nextStep->step_type === 'ask_combo' && $nextStep->linkedColumn) {
+            $productId = $session->getAnswer('product_id');
+            $product = Product::with('combos.column')->find($productId);
+            $comboValues = $product ? $this->getComboValuesForProduct($product, $nextStep->linkedColumn) : [];
+            $question = $nextStep->question_text ?: "Which {$nextStep->linkedColumn->name}?";
+            return "{$question} 👇\n" . implode(' | ', $comboValues);
+        }
+
+        if ($nextStep->step_type === 'send_summary') {
+            return $this->handleSummaryStep($session);
+        }
+
+        return $nextStep->question_text ?: "Please provide your {$nextStep->field_key}:";
     }
 
     /**
-     * Handle optional question answer — save to lead
+     * Log token consumption
      */
-    private function handleOptionalAnswer(AiChatSession $session, array $data): void
+    private function logTokens(AiChatSession $session, int $tier, array $result): void
     {
-        $fieldKey = $data['field_key'] ?? null;
-        $value = $data['value'] ?? null;
-        if (!$fieldKey || !$value) return;
-
-        // Mark as asked
-        $session->markOptionalAsked($fieldKey);
-        $session->setAnswer($fieldKey, $value);
-        $session->current_step_retries = 0;
-
-        // Update lead with custom data
-        if ($session->lead_id) {
-            $lead = Lead::find($session->lead_id);
-            if ($lead) {
-                // Some fields go directly on the lead model
-                $directFields = ['name', 'email', 'city', 'state'];
-                if (in_array($fieldKey, $directFields)) {
-                    $lead->update([$fieldKey => $value]);
-                } else {
-                    // Other fields go to ai_custom_data
-                    $customData = $lead->ai_custom_data ?? [];
-                    $customData[$fieldKey] = $value;
-                    $lead->update(['ai_custom_data' => $customData]);
-                }
-            }
-        }
-
-        // Move to next chatflow step
-        $this->advanceChatflow($session);
-    }
-
-    /**
-     * Handle skip optional — mark as asked and move on
-     */
-    private function handleSkipOptional(AiChatSession $session): void
-    {
-        $currentStep = ChatflowStep::find($session->current_step_id);
-        if ($currentStep && $currentStep->field_key) {
-            $session->markOptionalAsked($currentStep->field_key);
-        }
-        $session->current_step_retries = 0;
-        $this->advanceChatflow($session);
-    }
-
-    /**
-     * Handle escalation — mark lead for manual follow-up
-     */
-    private function handleEscalation(AiChatSession $session, array $data): void
-    {
-        if ($session->lead_id) {
-            $lead = Lead::find($session->lead_id);
-            if ($lead) {
-                $reason = $data['reason'] ?? 'AI bot escalated';
-                $lead->update([
-                    'notes' => ($lead->notes ? $lead->notes . "\n" : '') . "[AI Bot Escalated] {$reason}",
-                    'stage' => 'contacted',
-                ]);
-            }
-        }
-    }
-
-    /**
-     * Advance chatflow to the next step
-     */
-    private function advanceChatflow(AiChatSession $session): void
-    {
-        $currentStep = ChatflowStep::find($session->current_step_id);
-
-        if ($currentStep) {
-            $nextStep = $currentStep->getNextStep();
-        } else {
-            // Start from the first step
-            $nextStep = ChatflowStep::getFirstStep($this->companyId);
-        }
-
-        if ($nextStep) {
-            $session->current_step_id = $nextStep->id;
-            $session->current_step_retries = 0;
-        } else {
-            // No more steps — chatflow complete
-            $session->update(['status' => 'completed']);
-        }
-    }
-
-    /**
-     * Advance chatflow if the current step hasn't been set yet
-     * (For greeting/continue actions where we need to start the flow)
-     */
-    private function advanceChatflowIfNeeded(AiChatSession $session): void
-    {
-        if (!$session->current_step_id) {
-            $firstStep = ChatflowStep::getFirstStep($this->companyId);
-            if ($firstStep) {
-                $session->current_step_id = $firstStep->id;
-            }
+        try {
+            AiTokenLog::create([
+                'company_id' => $this->companyId,
+                'session_id' => $session->id,
+                'phone_number' => $session->phone_number,
+                'tier' => $tier,
+                'prompt_tokens' => $result['prompt_tokens'] ?? 0,
+                'completion_tokens' => $result['completion_tokens'] ?? 0,
+                'total_tokens' => $result['total_tokens'] ?? 0,
+                'model_used' => 'gemini-2.0-flash',
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('AIChatbot: Failed to log tokens - ' . $e->getMessage());
         }
     }
 
@@ -726,7 +942,6 @@ class AIChatbotService
         }
 
         try {
-            // Format phone for Evolution API
             $formattedPhone = preg_replace('/\D/', '', $phone);
             if (strlen($formattedPhone) == 10) {
                 $formattedPhone = '91' . $formattedPhone;
@@ -741,10 +956,7 @@ class AIChatbotService
             ]);
 
             if (!$response->successful()) {
-                Log::error('AIChatbot: Failed to send message', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
+                Log::error('AIChatbot: Failed to send', ['status' => $response->status(), 'body' => $response->body()]);
                 return false;
             }
 

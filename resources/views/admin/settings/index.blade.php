@@ -799,6 +799,27 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Reply Language Setting -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Reply Language</h3>
+                        <p class="text-sm text-muted" style="margin-top:4px">Bot kis language me reply kare</p>
+                    </div>
+                    <div class="card-content">
+                        <div style="margin-bottom:16px">
+                            <select class="form-input" id="ai-reply-language" style="max-width:350px">
+                                <option value="auto" {{ ($aiReplyLanguage ?? 'auto') === 'auto' ? 'selected' : '' }}>🌐 Same as User (Auto-detect)</option>
+                                <option value="en" {{ ($aiReplyLanguage ?? '') === 'en' ? 'selected' : '' }}>🇬🇧 English Only</option>
+                                <option value="hi" {{ ($aiReplyLanguage ?? '') === 'hi' ? 'selected' : '' }}>🇮🇳 Hindi Only</option>
+                            </select>
+                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Auto-detect = user jis language me pooche usi me reply hoga</small>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveAiLanguage()">
+                            <i data-lucide="save" style="width:16px;height:16px"></i> Save Language
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Backup & Restore Tab -->
@@ -1811,6 +1832,19 @@
                 })
             }).then(r => r.json()).then(data => {
                 alert(data.message || 'Saved');
+            }).catch(() => alert('Request failed'));
+        }
+
+        function saveAiLanguage() {
+            fetch('{{ route("admin.settings.ai-language.save") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    reply_language: document.getElementById('ai-reply-language').value,
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.success) showSavedToast();
+                else alert('Error saving language');
             }).catch(() => alert('Request failed'));
         }
     </script>

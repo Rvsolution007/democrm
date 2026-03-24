@@ -359,7 +359,7 @@
 
 @push('scripts')
 <script>
-var comboColDefs = @json($comboCols ?? collect());
+var comboColDefs = @json(isset($comboCols) ? $comboCols->values() : collect());
 var comboSelections = {}; // { comboId: [val1, val2..] }
 var dotColors = ['#6366f1','#f59e0b','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4'];
 
@@ -532,14 +532,14 @@ document.addEventListener('click', function (e) {
     document.getElementById('prod-purchase-enabled').checked = product.is_purchase_enabled == 1;
 
     // System columns
-    var sysCols = @json($customColumns->where('is_system', true)->pluck('slug'));
+    var sysCols = @json($customColumns->where('is_system', true)->pluck('slug')->values());
     sysCols.forEach(function(slug) {
         var el = document.getElementById('prod-' + slug);
         if (el) el.value = product[slug] !== null && product[slug] !== undefined ? product[slug] : '';
     });
 
     // Non-system non-combo columns
-    var nonSysCols = @json($customColumns->where('is_system', false)->where('is_combo', false)->pluck('id'));
+    var nonSysCols = @json($customColumns->where('is_system', false)->where('is_combo', false)->pluck('id')->values());
     nonSysCols.forEach(function(id) {
         var el = document.getElementById('custom-' + id);
         if (el && customValues[id] !== undefined) el.value = customValues[id];
@@ -547,7 +547,7 @@ document.addEventListener('click', function (e) {
 
     // Combo columns: restore tag chips
     document.querySelectorAll('.chip-dropdown-item.selected').forEach(function(i) { i.classList.remove('selected'); });
-    var comboCols = @json($customColumns->where('is_combo', true)->pluck('id'));
+    var comboCols = @json($customColumns->where('is_combo', true)->pluck('id')->values());
     comboCols.forEach(function(id) {
         if (customValues[id]) {
             var vals;

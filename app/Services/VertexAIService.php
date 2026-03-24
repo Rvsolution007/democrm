@@ -27,32 +27,20 @@ class VertexAIService
     }
 
     /**
-     * Generate content using Vertex AI Gemini
+     * Generate content using Vertex AI Gemini (Tier 2 — full conversational)
      *
-     * @param string $systemPrompt  System instructions for the AI
-     * @param array  $messages      Chat history [{role:'user',text:'...'},{role:'model',text:'...'}]
-     * @param string|null $imageUrl Image URL for multimodal (vision) processing
-     * @return string  AI response text
+     * @return array  ['text' => string, 'prompt_tokens' => int, 'completion_tokens' => int, 'total_tokens' => int]
      */
-    public function generateContent(string $systemPrompt, array $messages, ?string $imageUrl = null): string
+    public function generateContent(string $systemPrompt, array $messages, ?string $imageUrl = null): array
     {
         if (empty($this->projectId) || empty($this->serviceAccount)) {
-            Log::error('VertexAI: Service not configured — missing project_id or service_account');
-            return 'AI bot is not configured. Please set up Vertex AI in Settings.';
+            Log::error('VertexAI: Service not configured');
+            return ['text' => 'AI bot is not configured. Please set up Vertex AI in Settings.', 'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
         }
 
         try {
             $accessToken = $this->getAccessToken();
-
-            $endpoint = sprintf(
-                'https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:generateContent',
-                $this->location,
-                $this->projectId,
-                $this->location,
-                $this->model
-            );
-
-            // Build request body
+            $endpoint = $this->getEndpoint();
             $requestBody = $this->buildRequestBody($systemPrompt, $messages, $imageUrl);
 
             $response = Http::withHeaders([
@@ -61,27 +49,93 @@ class VertexAIService
             ])->timeout(60)->post($endpoint, $requestBody);
 
             if (!$response->successful()) {
-                Log::error('VertexAI: API error', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
-                return 'Sorry, I am unable to process your request right now. Please try again later.';
+                Log::error('VertexAI: API error', ['status' => $response->status(), 'body' => $response->body()]);
+                return ['text' => 'Sorry, I am unable to process your request right now.', 'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
             }
 
             $data = $response->json();
             $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+            $usage = $data['usageMetadata'] ?? [];
 
-            if (empty($text)) {
-                Log::warning('VertexAI: Empty response from API', ['response' => $data]);
-                return 'Sorry, I could not generate a response. Please try again.';
-            }
-
-            return trim($text);
+            return [
+                'text' => trim($text) ?: 'Sorry, I could not generate a response.',
+                'prompt_tokens' => $usage['promptTokenCount'] ?? 0,
+                'completion_tokens' => $usage['candidatesTokenCount'] ?? 0,
+                'total_tokens' => ($usage['promptTokenCount'] ?? 0) + ($usage['candidatesTokenCount'] ?? 0),
+            ];
 
         } catch (\Exception $e) {
             Log::error('VertexAI: Exception - ' . $e->getMessage());
-            return 'Sorry, an error occurred. Please try again later.';
+            return ['text' => 'Sorry, an error occurred. Please try again later.', 'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
         }
+    }
+
+    /**
+     * Lightweight classification call (Tier 1 — small prompt, deterministic)
+     *
+     * @param string $prompt  Short classification prompt
+     * @return array  ['text' => string, 'prompt_tokens' => int, 'completion_tokens' => int, 'total_tokens' => int]
+     */
+    public function classifyContent(string $prompt): array
+    {
+        if (empty($this->projectId) || empty($this->serviceAccount)) {
+            return ['text' => 'NONE', 'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
+        }
+
+        try {
+            $accessToken = $this->getAccessToken();
+            $endpoint = $this->getEndpoint();
+
+            $body = [
+                'contents' => [
+                    ['role' => 'user', 'parts' => [['text' => $prompt]]],
+                ],
+                'generationConfig' => [
+                    'temperature' => 0.1,
+                    'topP' => 0.8,
+                    'maxOutputTokens' => 50,
+                ],
+            ];
+
+            $response = Http::withHeaders([
+                'Authorization' => "Bearer {$accessToken}",
+                'Content-Type' => 'application/json',
+            ])->timeout(30)->post($endpoint, $body);
+
+            if (!$response->successful()) {
+                Log::error('VertexAI Classify: API error', ['status' => $response->status()]);
+                return ['text' => 'NONE', 'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
+            }
+
+            $data = $response->json();
+            $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? 'NONE';
+            $usage = $data['usageMetadata'] ?? [];
+
+            return [
+                'text' => trim($text),
+                'prompt_tokens' => $usage['promptTokenCount'] ?? 0,
+                'completion_tokens' => $usage['candidatesTokenCount'] ?? 0,
+                'total_tokens' => ($usage['promptTokenCount'] ?? 0) + ($usage['candidatesTokenCount'] ?? 0),
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('VertexAI Classify: Exception - ' . $e->getMessage());
+            return ['text' => 'NONE', 'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
+        }
+    }
+
+    /**
+     * Get API endpoint URL
+     */
+    private function getEndpoint(): string
+    {
+        return sprintf(
+            'https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:generateContent',
+            $this->location,
+            $this->projectId,
+            $this->location,
+            $this->model
+        );
     }
 
     /**
@@ -124,7 +178,7 @@ class VertexAIService
             'generationConfig' => [
                 'temperature' => 0.7,
                 'topP' => 0.95,
-                'maxOutputTokens' => 1024,
+                'maxOutputTokens' => 512,
             ],
         ];
 

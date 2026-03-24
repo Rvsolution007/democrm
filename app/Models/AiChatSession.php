@@ -22,6 +22,8 @@ class AiChatSession extends Model
         'optional_asked',
         'current_step_retries',
         'status',
+        'conversation_state',
+        'catalogue_sent',
         'last_message_at',
     ];
 
@@ -29,6 +31,7 @@ class AiChatSession extends Model
         'collected_answers' => 'array',
         'optional_asked' => 'array',
         'current_step_retries' => 'integer',
+        'catalogue_sent' => 'boolean',
         'last_message_at' => 'datetime',
     ];
 

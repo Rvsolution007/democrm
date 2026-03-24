@@ -18,6 +18,7 @@ use App\Http\Controllers\Web\ServiceTemplatesController;
 
 use App\Http\Controllers\Web\SettingsController;
 use App\Http\Controllers\Web\ProfileController;
+use App\Http\Controllers\Web\AiAnalyticsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1041,7 +1042,16 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     // AI Bot Settings
     Route::post('/settings/ai-config', [SettingsController::class, 'saveAiConfig'])->name('settings.ai-config.save');
     Route::post('/settings/ai-prompt', [SettingsController::class, 'saveAiPrompt'])->name('settings.ai-prompt.save');
+    Route::post('/settings/ai-language', [SettingsController::class, 'saveAiLanguage'])->name('settings.ai-language.save');
     Route::post('/settings/ai-toggle', [SettingsController::class, 'toggleAiBot'])->name('settings.ai-toggle');
+
+    // AI Token Analytics
+    Route::get('/ai-analytics', [AiAnalyticsController::class, 'index'])->name('ai-analytics.index');
+    Route::get('/ai-analytics/chats', [AiAnalyticsController::class, 'chats'])->name('ai-analytics.chats');
+    Route::get('/ai-analytics/chats/{id}', [AiAnalyticsController::class, 'chatDetail'])->name('ai-analytics.chat-detail');
+    Route::get('/ai-analytics/tester', [AiAnalyticsController::class, 'tester'])->name('ai-analytics.tester');
+    Route::post('/ai-analytics/tester-rules', [AiAnalyticsController::class, 'saveTesterRules'])->name('ai-analytics.tester-rules.save');
+    Route::post('/ai-analytics/tester-run', [AiAnalyticsController::class, 'runSimulation'])->name('ai-analytics.tester.run');
 
     // System Logs
     Route::get('/settings/system-logs', [SettingsController::class, 'systemLogsIndex'])->name('system-logs.index');

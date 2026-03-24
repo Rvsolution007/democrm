@@ -22,7 +22,7 @@
             <div class="card-content" style="padding:32px;display:flex;align-items:center;gap:24px">
                 <div style="flex-shrink:0">
                     <div style="width:80px;height:80px;background:white;border-radius:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 25px rgba(37,99,235,0.15)">
-                        <i data-lucide="chrome" style="width:40px;height:40px;color:#2563eb"></i>
+                        <i data-lucide="globe" style="width:40px;height:40px;color:#2563eb"></i>
                     </div>
                 </div>
                 <div style="flex:1">

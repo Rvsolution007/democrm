@@ -65,7 +65,7 @@
                 @if(can('whatsapp-extension.read'))
                     <a href="{{ route('admin.whatsapp.extension') }}"
                         class="nav-link {{ request()->routeIs('admin.whatsapp.extension') ? 'active' : '' }}">
-                        <i data-lucide="chrome" style="color:#3b82f6"></i> <span>Chrome Extension</span>
+                        <i data-lucide="globe" style="color:#3b82f6"></i> <span>Chrome Extension</span>
                     </a>
                 @endif
                 @if(can('whatsapp-campaigns.read'))
@@ -114,6 +114,18 @@
                 <a href="{{ route('admin.chatflow.index') }}"
                     class="nav-link {{ request()->routeIs('admin.chatflow.*') ? 'active' : '' }}">
                     <i data-lucide="git-branch" style="color:#10b981"></i> <span>Chatflow Builder</span>
+                </a>
+                <a href="{{ route('admin.ai-analytics.index') }}"
+                    class="nav-link {{ request()->routeIs('admin.ai-analytics.index') ? 'active' : '' }}">
+                    <i data-lucide="bar-chart-3" style="color:#f59e0b"></i> <span>Token Analytics</span>
+                </a>
+                <a href="{{ route('admin.ai-analytics.chats') }}"
+                    class="nav-link {{ request()->routeIs('admin.ai-analytics.chats') || request()->routeIs('admin.ai-analytics.chat-detail') ? 'active' : '' }}">
+                    <i data-lucide="message-square" style="color:#8b5cf6"></i> <span>Chat History</span>
+                </a>
+                <a href="{{ route('admin.ai-analytics.tester') }}"
+                    class="nav-link {{ request()->routeIs('admin.ai-analytics.tester') ? 'active' : '' }}">
+                    <i data-lucide="stethoscope" style="color:#6366f1"></i> <span>AI Bot Tester</span>
                 </a>
             </div>
         @endif

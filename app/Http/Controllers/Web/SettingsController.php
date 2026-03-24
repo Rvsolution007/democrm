@@ -46,6 +46,7 @@ class SettingsController extends Controller
             'service_account' => [],
         ]);
         $aiSystemPrompt = Setting::getValue('ai_bot', 'system_prompt', '');
+        $aiReplyLanguage = Setting::getValue('ai_bot', 'reply_language', 'auto');
 
         // Load backup files for Backup & Restore tab
         $backupFiles = [];
@@ -76,7 +77,7 @@ class SettingsController extends Controller
         return view('admin.settings.index', compact(
             'company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources',
             'taskStatuses', 'paymentTypes', 'whatsappApiConfig', 'backupFiles',
-            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt'
+            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiReplyLanguage'
         ));
     }
 
@@ -369,6 +370,20 @@ class SettingsController extends Controller
         Setting::setValue('ai_bot', 'system_prompt', $request->system_prompt);
 
         return response()->json(['success' => true, 'message' => 'AI system prompt saved']);
+    }
+
+    /**
+     * Save AI Bot reply language
+     */
+    public function saveAiLanguage(Request $request)
+    {
+        $request->validate([
+            'reply_language' => 'required|in:auto,en,hi',
+        ]);
+
+        Setting::setValue('ai_bot', 'reply_language', $request->reply_language);
+
+        return response()->json(['success' => true, 'message' => 'Reply language saved']);
     }
 
     /**

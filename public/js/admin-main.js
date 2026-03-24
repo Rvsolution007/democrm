@@ -327,7 +327,7 @@ function updateTableCount(tableId) {
 }
 
 // ==================== AJAX SEARCH DEBOUNCE ====================
-let _ajaxSearchTimeout = null;
+var _ajaxSearchTimeout = null;
 function autoAjaxSearch(formElement) {
     if (!formElement) return;
     
@@ -717,18 +717,25 @@ function ajaxDelete(url, btnOrEvent, itemName) {
 
 // ==================== INITIALIZE ====================
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', initApp);
+document.addEventListener('turbo:load', initApp);
+document.addEventListener('turbo:render', initApp);
+
+function initApp() {
     initSidebar();
     initDarkMode();
     initTabs();
 
     // Global CRUD optimizations
-    initGlobalFormProtection();
-    initGlobalDeleteProtection();
-    initGlobalButtonProtection();
+    if (!window.globalCrudInit) {
+        initGlobalFormProtection();
+        initGlobalDeleteProtection();
+        initGlobalButtonProtection();
+        window.globalCrudInit = true;
+    }
 
     // Initialize Lucide icons
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
-});
+}

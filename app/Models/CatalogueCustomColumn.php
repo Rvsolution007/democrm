@@ -26,6 +26,7 @@ class CatalogueCustomColumn extends Model
         'is_active',
         'connected_modules',
         'show_on_list',
+        'show_in_ai',
         'sort_order',
     ];
 
@@ -38,6 +39,7 @@ class CatalogueCustomColumn extends Model
         'is_system' => 'boolean',
         'is_active' => 'boolean',
         'show_on_list' => 'boolean',
+        'show_in_ai' => 'boolean',
         'sort_order' => 'integer',
     ];
 

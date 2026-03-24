@@ -76,6 +76,9 @@
                                 @if($column->is_unique)
                                     <span class="badge badge-success" style="margin:2px">Unique</span>
                                 @endif
+                                @if($column->show_in_ai)
+                                    <span class="badge badge-primary" style="margin:2px;font-size:10px">🤖 AI</span>
+                                @endif
                             </td>
                             <td style="padding:12px 16px;text-align:center">
                                 <div style="display:flex;align-items:center;gap:12px;justify-content:center">
@@ -162,9 +165,12 @@
                         </div>
                     </div>
                     
-                    <div style="display:flex;gap:20px;margin-bottom:16px;padding-top:16px;border-top:1px dashed #ddd">
+                    <div style="display:flex;flex-wrap:wrap;gap:20px;margin-bottom:16px;padding-top:16px;border-top:1px dashed #ddd">
                         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500">
-                            <input type="checkbox" id="col-show-list"> Show Column in Product Table (Index page)
+                            <input type="checkbox" id="col-show-list"> Show in Product Table
+                        </label>
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500">
+                            <input type="checkbox" id="col-show-ai"> 🤖 Show in AI Bot (WhatsApp)
                         </label>
                     </div>
 
@@ -194,6 +200,7 @@
         document.getElementById('col-unique').checked = false;
         document.getElementById('col-combo').checked = false;
         document.getElementById('col-show-list').checked = false;
+        document.getElementById('col-show-ai').checked = true;
         
         document.getElementById('system-warning').style.display = 'none';
         document.querySelectorAll('.system-locked-group input:not([type="checkbox"]), .system-locked-group select').forEach(el => el.disabled = false);
@@ -214,6 +221,7 @@
         document.getElementById('col-unique').checked = col.is_unique;
         document.getElementById('col-combo').checked = col.is_combo;
         document.getElementById('col-show-list').checked = col.show_on_list;
+        document.getElementById('col-show-ai').checked = col.show_in_ai !== undefined ? col.show_in_ai : true;
         
         if (col.is_system) {
             document.getElementById('system-warning').style.display = 'block';
@@ -273,6 +281,7 @@
                 is_unique: document.getElementById('col-unique').checked ? 1 : 0,
                 is_combo: document.getElementById('col-combo').checked ? 1 : 0,
                 show_on_list: document.getElementById('col-show-list').checked ? 1 : 0,
+                show_in_ai: document.getElementById('col-show-ai').checked ? 1 : 0,
                 is_active: id ? undefined : 1
             })
         }).then(r => r.json()).then(data => {
