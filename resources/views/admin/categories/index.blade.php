@@ -172,7 +172,7 @@
             <div
                 style="padding:20px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">
                 <h3 id="modal-title" style="margin:0">Add New Category</h3>
-                <button onclick="closeModal()"
+                <button type="button" onclick="closeCategoryModal(event)"
                     style="background:none;border:none;font-size:24px;cursor:pointer;padding:0;width:30px;height:30px">&times;</button>
             </div>
             <form id="category-form" method="POST" action="{{ route('admin.categories.store') }}">
@@ -223,7 +223,7 @@
                     </div>
                 </div>
                 <div style="padding:20px;border-top:1px solid #eee;display:flex;justify-content:flex-end;gap:10px">
-                    <button type="button" class="btn btn-outline" onclick="closeModal()"
+                    <button type="button" class="btn btn-outline" onclick="closeCategoryModal(event)"
                         style="padding:8px 16px;border:1px solid #ddd;background:white;border-radius:4px;cursor:pointer">Cancel</button>
                     <button type="submit" class="btn btn-primary"
                         style="padding:8px 16px;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer">
@@ -281,19 +281,20 @@
             document.getElementById('category-modal').style.display = 'flex';
         }
 
-        function closeModal() {
+        function closeCategoryModal(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
             document.getElementById('category-modal').style.display = 'none';
             document.getElementById('category-form').reset();
         }
 
         // Close modal on clicking outside
         document.getElementById('category-modal').addEventListener('click', function (e) {
-            if (e.target === this) closeModal();
+            if (e.target === this) closeCategoryModal(e);
         });
 
         // Close modal on Escape key
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') closeModal();
+            if (e.key === 'Escape') closeCategoryModal(e);
         });
     </script>
 @endpush

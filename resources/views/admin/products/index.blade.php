@@ -210,7 +210,7 @@
         <div style="background:white;border-radius:12px;width:95%;max-width:960px;max-height:92vh;overflow-y:auto">
             <div style="padding:20px 24px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">
                 <h3 id="modal-title" style="margin:0;font-size:18px">Add New Product</h3>
-                <button onclick="closeModal()"
+                <button type="button" onclick="closeProductModal(event)"
                     style="background:none;border:none;font-size:24px;cursor:pointer;padding:0;width:30px;height:30px;color:#64748b">&times;</button>
             </div>
             <form id="product-form" method="POST" action="{{ route('admin.products.store') }}">
@@ -345,7 +345,7 @@
                 </div>
 
                 <div style="padding:16px 24px;border-top:1px solid #eee;display:flex;justify-content:flex-end;gap:10px">
-                    <button type="button" class="btn btn-outline" onclick="closeModal()"
+                    <button type="button" class="btn btn-outline" onclick="closeProductModal(event)"
                         style="padding:8px 20px;border:1.5px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:13px">Cancel</button>
                     <button type="submit" class="btn btn-primary"
                         style="padding:8px 20px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500">
@@ -568,12 +568,13 @@ document.addEventListener('click', function (e) {
     if(typeof lucide !== 'undefined') lucide.createIcons();
 });
 
-function closeModal() {
+function closeProductModal(e) {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
     document.getElementById('product-modal').style.display = 'none';
     document.getElementById('product-form').reset();
 }
 
-document.getElementById('product-modal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
-document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+document.getElementById('product-modal').addEventListener('click', function (e) { if (e.target === this) closeProductModal(e); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeProductModal(e); });
 </script>
 @endpush
