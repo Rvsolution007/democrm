@@ -323,6 +323,16 @@ class AiSimulationService
         $conversationLog = [];
         $simulationPassed = true;
 
+        // Invalid tester messages to detect
+        $invalidTesterPhrases = [
+            'sorry, i could not generate',
+            'i cannot generate',
+            'i could not generate a response',
+            'i\'m unable to generate',
+            'unable to generate a response',
+            'i don\'t know what to say',
+        ];
+
         for ($i = 0; $i < 4; $i++) {
             // Tester AI generates message
             if ($i === 0) {
@@ -330,12 +340,48 @@ class AiSimulationService
             } else {
                 $testerResult = $this->vertexAI->generateContent($testerSystemPrompt, $chatHistory);
                 $userMsg = trim($testerResult['text'] ?? '');
-            }
 
-            if (empty($userMsg)) {
-                $log('error', "Tester AI failed to generate a response at turn " . ($i + 1));
-                $simulationPassed = false;
-                break;
+                // Check for empty or invalid tester response
+                $isInvalid = empty($userMsg);
+                if (!$isInvalid) {
+                    $lowerMsg = strtolower($userMsg);
+                    foreach ($invalidTesterPhrases as $phrase) {
+                        if (str_contains($lowerMsg, $phrase)) {
+                            $isInvalid = true;
+                            break;
+                        }
+                    }
+                }
+
+                // If invalid, retry ONCE
+                if ($isInvalid) {
+                    $log('info', "⚠️ Tester AI gave invalid response at turn " . ($i + 1) . ", retrying...");
+                    sleep(1);
+                    $retryResult = $this->vertexAI->generateContent(
+                        $testerSystemPrompt . "\n\nIMPORTANT: You MUST generate a realistic customer message. Look at the bot's last message and respond like a real customer would. Do NOT say 'sorry' or refuse. Just reply naturally.",
+                        $chatHistory
+                    );
+                    $userMsg = trim($retryResult['text'] ?? '');
+
+                    // Check again
+                    $stillInvalid = empty($userMsg);
+                    if (!$stillInvalid) {
+                        $lowerMsg = strtolower($userMsg);
+                        foreach ($invalidTesterPhrases as $phrase) {
+                            if (str_contains($lowerMsg, $phrase)) {
+                                $stillInvalid = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if ($stillInvalid) {
+                        $log('error', "❌ Tester AI failed to generate a valid response at turn " . ($i + 1) . " (even after retry)");
+                        $simulationPassed = false;
+                        $conversationLog[] = "ERROR: Tester AI could not generate valid response at turn " . ($i + 1);
+                        break;
+                    }
+                }
             }
 
             if (str_starts_with($userMsg, 'FAILURE:')) {
