@@ -317,7 +317,7 @@ class AiSimulationService
     {
         $log('info', 'Tester AI is reading your Testing Conditions...');
 
-        $testerSystemPrompt = "You are a customer testing a WhatsApp CRM bot. You must follow these exact testing rules provided by the admin:\n" . strip_tags($rules) . "\n\nIn each turn, observe how the bot responds to you and generate your NEXT message to push the conversation forward towards ordering a product. If the bot fails the rules (e.g. shows price when it shouldn't, or speaks wrong language), reply ONLY with 'FAILURE: [Reason]'. Note that the BOT response will be provided to you. You MUST initiate the chat first by saying 'Hi'. Maximum 4 conversational turns.";
+        $testerSystemPrompt = "You are pretending to be a REAL WhatsApp customer testing a CRM bot. Admin's testing rules:\n" . strip_tags($rules) . "\n\nCRITICAL INSTRUCTIONS:\n- Reply with ONLY a short 1-line customer message (like a real person would type on WhatsApp).\n- Do NOT include any thoughts, reasoning, explanations, or internal commentary.\n- Do NOT repeat or translate the bot's message.\n- Do NOT use markdown formatting like **bold** or headers.\n- Push the conversation towards ordering a product step by step.\n- If the bot breaks a rule (e.g. shows price when hidden, wrong language), reply ONLY: FAILURE: [reason]\n- Examples of good replies: 'products dikhao', 'pehla wala', 'haan ye chahiye', '1'\n- Examples of BAD replies: '(Translation of bot message)', '**Thoughts:** I should ask...'\n- Maximum 4 turns.";
 
         $chatHistory = [];
         $conversationLog = [];
@@ -331,6 +331,10 @@ class AiSimulationService
             'i\'m unable to generate',
             'unable to generate a response',
             'i don\'t know what to say',
+            'i cannot fulfill',
+            'i\'m not able to',
+            'as an ai',
+            'i am an ai',
         ];
 
         for ($i = 0; $i < 4; $i++) {
@@ -339,7 +343,7 @@ class AiSimulationService
                 $userMsg = "Hi";
             } else {
                 $testerResult = $this->vertexAI->generateContent($testerSystemPrompt, $chatHistory);
-                $userMsg = trim($testerResult['text'] ?? '');
+                $userMsg = $this->cleanTesterResponse(trim($testerResult['text'] ?? ''));
 
                 // Check for empty or invalid tester response
                 $isInvalid = empty($userMsg);
@@ -358,10 +362,10 @@ class AiSimulationService
                     $log('info', "⚠️ Tester AI gave invalid response at turn " . ($i + 1) . ", retrying...");
                     sleep(1);
                     $retryResult = $this->vertexAI->generateContent(
-                        $testerSystemPrompt . "\n\nIMPORTANT: You MUST generate a realistic customer message. Look at the bot's last message and respond like a real customer would. Do NOT say 'sorry' or refuse. Just reply naturally.",
+                        $testerSystemPrompt . "\n\nIMPORTANT: You MUST generate a short, realistic WhatsApp customer message. Just 3-5 words maximum. Look at the bot's last message and respond naturally. Examples: 'products dikhao', 'pehla wala do', '1', 'haan'. Do NOT refuse or say sorry.",
                         $chatHistory
                     );
-                    $userMsg = trim($retryResult['text'] ?? '');
+                    $userMsg = $this->cleanTesterResponse(trim($retryResult['text'] ?? ''));
 
                     // Check again
                     $stillInvalid = empty($userMsg);
@@ -608,11 +612,11 @@ class AiSimulationService
             }
         }
 
-        $summaryPrompt = "You are a CRM system diagnostic expert. Based on the test results below, write a SHORT summary report in simple Hinglish (Hindi + English mix). For each failed item, explain WHAT is wrong and HOW to fix it in 1 line. Keep it under 15 lines total.\n\n" . $resultText;
+        $summaryPrompt = "You are a CRM system diagnostic expert. Write a SHORT summary report in simple Hinglish (Hindi + English mix). For each failed item, explain WHAT is wrong and HOW to fix it in 1 line. Keep it under 15 lines total. Do NOT refuse or say you cannot generate a response.";
 
         try {
             $summaryResult = $this->vertexAI->generateContent($summaryPrompt, [
-                ['role' => 'user', 'text' => 'Generate diagnostic summary report'],
+                ['role' => 'user', 'text' => $resultText . "\n\nAbove results ka summary report generate karo."],
             ]);
 
             $summary = $summaryResult['text'] ?? '';
@@ -654,6 +658,38 @@ class AiSimulationService
             'passed' => $passed,
             'detail' => $detail,
         ];
+    }
+
+    /**
+     * Clean tester AI response — strip thoughts, formatting, translations
+     */
+    private function cleanTesterResponse(string $msg): string
+    {
+        if (empty($msg)) return '';
+
+        // Remove **Thoughts:** or **My next message:** blocks
+        $msg = preg_replace('/\*\*Thoughts?:\*\*.*?(?=\*\*My\s+(?:next\s+)?message|$)/si', '', $msg);
+        $msg = preg_replace('/\*\*My\s+(?:next\s+)?message:\*\*\s*/i', '', $msg);
+
+        // Remove any lines starting with "Thoughts:" or "My next message:"
+        $msg = preg_replace('/^Thoughts?:.*$/mi', '', $msg);
+        $msg = preg_replace('/^My\s+(?:next\s+)?message:\s*/mi', '', $msg);
+
+        // Remove parenthesized content that looks like translation (e.g. "(Hello! Welcome to...)")
+        $msg = preg_replace('/^\(.*\)$/s', '', trim($msg));
+
+        // Remove markdown bold/italic
+        $msg = preg_replace('/\*\*([^*]+)\*\*/', '$1', $msg);
+        $msg = preg_replace('/\*([^*]+)\*/', '$1', $msg);
+
+        // Take only the first non-empty line (real customer messages are 1 line)
+        $lines = array_filter(array_map('trim', explode("\n", $msg)), fn($l) => !empty($l));
+        $msg = !empty($lines) ? reset($lines) : '';
+
+        // Remove surrounding quotes if present
+        $msg = trim($msg, "\"'`");
+
+        return trim($msg);
     }
 
     private function cleanup(): void
