@@ -129,7 +129,9 @@ class AiAnalyticsController extends Controller
             $simulator = new AiSimulationService($companyId, $userId);
             $simulator->run($rules, function($type, $message) {
                 echo json_encode(['type' => $type, 'message' => $message]) . "\n";
-                ob_flush();
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
                 flush();
             });
         }, 200, [
