@@ -403,6 +403,66 @@ class AiSimulationService
                 $log('bot', $botMsg);
                 $chatHistory[] = ['role' => 'model', 'text' => $botMsg];
                 $conversationLog[] = "BOT: {$botMsg}";
+
+                // ══ Greeting Validation: First turn "Hi" should get greeting, NOT catalogue dump ══
+                if ($i === 0) {
+                    $isProductDump = preg_match('/\d+️⃣\s+\*/m', $botMsg) 
+                        || str_contains($botMsg, 'Our Products:') 
+                        || str_contains($botMsg, 'Our Categories:')
+                        || preg_match('/^\d+\.\s+\*\*.+\*\*/m', $botMsg);
+                    if ($isProductDump) {
+                        $log('error', '🚫 GREETING TEST FAILED: Bot sent product catalogue/category list in response to a simple greeting instead of greeting the customer first!');
+                        $simulationPassed = false;
+                        $this->addResult('greeting_test', false, 'Bot dumps product catalogue on greeting instead of greeting the customer first');
+                    } else {
+                        $log('success', '✅ Greeting Test: Bot properly greeted user without dumping catalogue');
+                        $this->addResult('greeting_test', true, 'Bot properly handles greeting messages');
+                    }
+                }
+
+                // ══ Fabricated Product Check: Verify bot only mentions REAL products from DB ══
+                $realProducts = Product::where('company_id', $this->companyId)
+                    ->where('status', 'active')
+                    ->pluck('name')
+                    ->map(fn($n) => strtolower(trim($n)))
+                    ->toArray();
+
+                if (!empty($realProducts)) {
+                    // Check if bot listed any numbered product items
+                    $hasProductList = preg_match('/\d+[\.\)️⃣]\s*\*/', $botMsg);
+                    if ($hasProductList) {
+                        // Extract product-like names from numbered list
+                        preg_match_all('/\*([^*]+)\*/', $botMsg, $starMatches);
+                        $mentionedNames = $starMatches[1] ?? [];
+
+                        $fakeProducts = [];
+                        foreach ($mentionedNames as $mentioned) {
+                            $mentionedLower = strtolower(trim($mentioned));
+                            // Skip known non-product labels
+                            if (in_array($mentionedLower, ['our products:', 'our categories:', 'order summary:'])) continue;
+                            
+                            $matchFound = false;
+                            foreach ($realProducts as $real) {
+                                if (str_contains($real, $mentionedLower) || str_contains($mentionedLower, $real) || $real === $mentionedLower) {
+                                    $matchFound = true;
+                                    break;
+                                }
+                            }
+                            if (!$matchFound) {
+                                $fakeProducts[] = $mentioned;
+                            }
+                        }
+
+                        if (!empty($fakeProducts)) {
+                            $fakeList = implode(', ', $fakeProducts);
+                            $log('error', "🚫 FAKE PRODUCT DETECTED: Bot mentioned products NOT in catalogue: {$fakeList}");
+                            $simulationPassed = false;
+                            $this->addResult('product_accuracy', false, "Bot fabricated product names: {$fakeList}");
+                        } else {
+                            $this->addResult('product_accuracy', true, 'All mentioned products match actual catalogue');
+                        }
+                    }
+                }
             } catch (\Exception $e) {
                 $log('error', "AIChatbotService crashed: " . $e->getMessage());
                 $simulationPassed = false;

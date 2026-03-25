@@ -176,7 +176,7 @@ class AIChatbotService
             }
 
             // Not sent yet — check intent then send category list
-            $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user asking about products, catalogue, what you sell, or showing interest in buying something? Reply with ONLY 'YES' or 'NO'.";
+            $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user EXPLICITLY asking about products, catalogue, prices, or what you sell? Simple greetings like 'hi', 'hello', 'hey', 'namaste', 'good morning', general casual conversation, or vague messages are NOT product queries — reply NO for those. Only reply YES if the user is clearly and specifically asking about products or showing direct buying intent. Reply with ONLY 'YES' or 'NO'.";
             $intentResult = $this->vertexAI->classifyContent($intentPrompt);
             $this->logTokens($session, 1, $intentResult);
             $isProductIntent = str_contains(strtoupper($intentResult['text']), 'YES');
@@ -194,7 +194,7 @@ class AIChatbotService
         }
 
         // Catalogue not sent yet — check if user is asking about products (Tier 1)
-        $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user asking about products, catalogue, what you sell, or showing interest in buying something? Reply with ONLY 'YES' or 'NO'.";
+        $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user EXPLICITLY asking about products, catalogue, prices, or what you sell? Simple greetings like 'hi', 'hello', 'hey', 'namaste', 'good morning', general casual conversation, or vague messages are NOT product queries — reply NO for those. Only reply YES if the user is clearly and specifically asking about products or showing direct buying intent. Reply with ONLY 'YES' or 'NO'.";
 
         $intentResult = $this->vertexAI->classifyContent($intentPrompt);
         $this->logTokens($session, 1, $intentResult);
@@ -831,6 +831,12 @@ class AIChatbotService
         $prompt .= "For select_combo: data={\"column_slug\":\"<slug>\",\"value\":\"<val>\"}\n";
         $prompt .= "For answer_optional: data={\"field_key\":\"<key>\",\"value\":\"<answer>\"}\n";
         $prompt .= "Always include JSON block.\n";
+
+        // Critical behavioral rules
+        $prompt .= "\n## CRITICAL RULES\n";
+        $prompt .= "1. When greeting (action=greeting), NEVER list products, categories, or what you sell. Just greet warmly and ask how you can help.\n";
+        $prompt .= "2. NEVER fabricate or invent product names. You must ONLY use product names from the ## CATALOGUE section above. If no CATALOGUE section exists, say you have no products.\n";
+        $prompt .= "3. Only show product list when user EXPLICITLY asks about products/catalogue.\n";
 
         return $prompt;
     }
