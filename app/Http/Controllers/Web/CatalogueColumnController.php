@@ -37,17 +37,17 @@ class CatalogueColumnController extends Controller
         ]);
 
         $companyId = auth()->user()->company_id;
-        $slug = Str::slug($request->name, '_');
+        $baseSlug = Str::slug($request->name, '_');
+        $slug = $baseSlug;
+        $counter = 1;
 
-        // Ensure unique slug
-        $existingSlug = CatalogueCustomColumn::where('company_id', $companyId)
+        // Ensure unique slug even against softly deleted records
+        while (CatalogueCustomColumn::withTrashed()
+            ->where('company_id', $companyId)
             ->where('slug', $slug)
-            ->exists();
-        if ($existingSlug) {
-            return response()->json([
-                'success' => false,
-                'message' => "A column with slug '{$slug}' already exists.",
-            ], 422);
+            ->exists()) {
+            $slug = "{$baseSlug}_{$counter}";
+            $counter++;
         }
 
         // Check combo limit (max 5)
