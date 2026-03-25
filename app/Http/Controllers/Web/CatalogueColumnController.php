@@ -41,9 +41,8 @@ class CatalogueColumnController extends Controller
         $slug = $baseSlug;
         $counter = 1;
 
-        // Ensure unique slug even against softly deleted records
-        while (CatalogueCustomColumn::withTrashed()
-            ->where('company_id', $companyId)
+        // Ensure unique slug
+        while (CatalogueCustomColumn::where('company_id', $companyId)
             ->where('slug', $slug)
             ->exists()) {
             $slug = "{$baseSlug}_{$counter}";
