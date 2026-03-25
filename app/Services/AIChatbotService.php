@@ -176,7 +176,7 @@ class AIChatbotService
             }
 
             // Not sent yet — check intent then send category list
-            $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user EXPLICITLY asking about products, catalogue, prices, or what you sell? Simple greetings like 'hi', 'hello', 'hey', 'namaste', 'good morning', general casual conversation, or vague messages are NOT product queries — reply NO for those. Only reply YES if the user is clearly and specifically asking about products or showing direct buying intent. Reply with ONLY 'YES' or 'NO'.";
+            $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user asking about products, catalogue, prices, or what you sell? This includes messages in ANY language like Hindi, Hinglish, etc. Examples of YES: 'products dikhao', 'kya bechte ho', 'show me products', 'muje product ke bare me btao', 'catalogue', 'what do you sell'. Examples of NO: 'hi', 'hello', 'namaste', 'good morning', 'how are you', 'thanks'. Reply with ONLY 'YES' or 'NO'.";
             $intentResult = $this->vertexAI->classifyContent($intentPrompt);
             $this->logTokens($session, 1, $intentResult);
             $isProductIntent = str_contains(strtoupper($intentResult['text']), 'YES');
@@ -194,7 +194,7 @@ class AIChatbotService
         }
 
         // Catalogue not sent yet — check if user is asking about products (Tier 1)
-        $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user EXPLICITLY asking about products, catalogue, prices, or what you sell? Simple greetings like 'hi', 'hello', 'hey', 'namaste', 'good morning', general casual conversation, or vague messages are NOT product queries — reply NO for those. Only reply YES if the user is clearly and specifically asking about products or showing direct buying intent. Reply with ONLY 'YES' or 'NO'.";
+        $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user asking about products, catalogue, prices, or what you sell? This includes messages in ANY language like Hindi, Hinglish, etc. Examples of YES: 'products dikhao', 'kya bechte ho', 'show me products', 'muje product ke bare me btao', 'catalogue', 'what do you sell'. Examples of NO: 'hi', 'hello', 'namaste', 'good morning', 'how are you', 'thanks'. Reply with ONLY 'YES' or 'NO'.";
 
         $intentResult = $this->vertexAI->classifyContent($intentPrompt);
         $this->logTokens($session, 1, $intentResult);
@@ -782,12 +782,54 @@ class AIChatbotService
         $aiResult = $this->vertexAI->generateContent($systemPrompt, $chatHistory, $imageUrl);
         $this->logTokens($session, 2, $aiResult);
 
+        $responseText = trim($aiResult['text'] ?? '');
+
+        // Check for empty or error responses — retry once
+        $errorPhrases = ['sorry, i could not generate', 'sorry, an error occurred', 'sorry, i am unable to process'];
+        $isError = empty($responseText);
+        if (!$isError) {
+            $lowerResp = strtolower($responseText);
+            foreach ($errorPhrases as $phrase) {
+                if (str_contains($lowerResp, $phrase)) {
+                    $isError = true;
+                    break;
+                }
+            }
+        }
+
+        if ($isError) {
+            Log::warning('AIChatbot: Tier 2 returned empty/error, retrying...', ['session' => $session->id, 'original' => $responseText]);
+            sleep(1);
+            $retryResult = $this->vertexAI->generateContent($systemPrompt, $chatHistory, $imageUrl);
+            $this->logTokens($session, 2, $retryResult);
+            $retryText = trim($retryResult['text'] ?? '');
+
+            // Check retry response
+            $retryIsError = empty($retryText);
+            if (!$retryIsError) {
+                $lowerRetry = strtolower($retryText);
+                foreach ($errorPhrases as $phrase) {
+                    if (str_contains($lowerRetry, $phrase)) {
+                        $retryIsError = true;
+                        break;
+                    }
+                }
+            }
+
+            if ($retryIsError) {
+                Log::error('AIChatbot: Tier 2 failed even after retry', ['session' => $session->id]);
+                return "Maaf kijiye, abhi kuch technical issue aa raha hai. Kripya thodi der baad dobara try karein. 🙏";
+            }
+
+            $responseText = $retryText;
+        }
+
         // Parse structured response
-        $parsed = $this->parseAIResponse($aiResult['text'], $session);
+        $parsed = $this->parseAIResponse($responseText, $session);
         $this->updateSessionState($session, $parsed);
 
         Log::info("AIChatbot: Tier 2 AI used", ['session' => $session->id, 'tokens' => $aiResult['total_tokens']]);
-        return $parsed['response_text'] ?? $aiResult['text'];
+        return $parsed['response_text'] ?? $responseText;
     }
 
     /**

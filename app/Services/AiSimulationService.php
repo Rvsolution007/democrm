@@ -408,6 +408,18 @@ class AiSimulationService
                 $chatHistory[] = ['role' => 'model', 'text' => $botMsg];
                 $conversationLog[] = "BOT: {$botMsg}";
 
+                // ══ Bot Error Response Check: Detect if bot returned an error message ══
+                $botErrorPhrases = ['sorry, i could not generate', 'sorry, an error occurred', 'sorry, i am unable to process', 'ai bot is not configured'];
+                $botLower = strtolower($botMsg);
+                foreach ($botErrorPhrases as $errPhrase) {
+                    if (str_contains($botLower, $errPhrase)) {
+                        $log('error', "🚫 BOT ERROR DETECTED at turn " . ($i + 1) . ": Bot returned error response instead of proper answer!");
+                        $simulationPassed = false;
+                        $this->addResult('bot_error_response', false, "Bot returned error at turn " . ($i + 1) . ": {$botMsg}");
+                        break;
+                    }
+                }
+
                 // ══ Greeting Validation: First turn "Hi" should get greeting, NOT catalogue dump ══
                 if ($i === 0) {
                     $isProductDump = preg_match('/\d+️⃣\s+\*/m', $botMsg) 
