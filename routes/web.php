@@ -1042,6 +1042,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     // AI Bot Settings
     Route::post('/settings/ai-config', [SettingsController::class, 'saveAiConfig'])->name('settings.ai-config.save');
     Route::post('/settings/ai-prompt', [SettingsController::class, 'saveAiPrompt'])->name('settings.ai-prompt.save');
+    Route::post('/settings/ai-architecture-rules', [SettingsController::class, 'saveAiArchitectureRules'])->name('settings.ai-architecture-rules.save');
     Route::post('/settings/ai-language', [SettingsController::class, 'saveAiLanguage'])->name('settings.ai-language.save');
     Route::post('/settings/ai-toggle', [SettingsController::class, 'toggleAiBot'])->name('settings.ai-toggle');
 

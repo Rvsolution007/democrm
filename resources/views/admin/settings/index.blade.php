@@ -800,6 +800,24 @@
                     </div>
                 </div>
 
+                <!-- AI Architecture Rules -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">AI Architecture & Development Rules</h3>
+                        <p class="text-sm text-muted" style="margin-top:4px">Technical logic, condition instructions for future AI Agents (e.g. Antigravity) to refer to.</p>
+                    </div>
+                    <div class="card-content">
+                        <div style="margin-bottom:16px">
+                            <textarea class="form-textarea" id="ai-architecture-rules" rows="12" placeholder="Testing conditions and architecture rules here...">{{ $aiArchitectureRules ?? '' }}</textarea>
+                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: Paste your system architecture description, dynamic catalogue columns instructions, or anything future AIs need to know.</small>
+                        </div>
+
+                        <button type="button" class="btn btn-primary" onclick="saveAiArchitectureRules()">
+                            <i data-lucide="save" style="width:16px;height:16px"></i> Save Rules
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Reply Language Setting -->
                 <div class="card">
                     <div class="card-header">
@@ -1102,10 +1120,25 @@
             margin-left: auto;
             font-size: 11px;
         }
+
+        /* Summernote Overrides for Settings UI */
+        .note-editor.note-frame {
+            border: 1px solid var(--border) !important;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #fff;
+        }
+        .note-editor .note-toolbar {
+            background: #f8fafc;
+            border-bottom: 1px solid var(--border);
+            padding: 8px 12px;
+        }
     </style>
+    <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.css" rel="stylesheet">
 @endpush
 
 @push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
     <script>
         // ─── Database-backed column visibility settings ───
         // Settings loaded from controller (server-side), saved via AJAX to database
@@ -1625,6 +1658,25 @@
                 });
             }
 
+            // Initialize Summernote for AI Architecture Rules
+            if ($('#ai-architecture-rules').length && !$('#ai-architecture-rules').next('.note-editor').length) {
+                $('#ai-architecture-rules').summernote({
+                    placeholder: 'Write your AI Architecture rules here...',
+                    tabsize: 2,
+                    height: 350,
+                    toolbar: [
+                        ['style', ['style', 'bold', 'italic', 'underline', 'clear']],
+                        ['font', ['strikethrough', 'superscript', 'subscript']],
+                        ['fontsize', ['fontsize']],
+                        ['color', ['color']],
+                        ['para', ['ul', 'ol', 'paragraph']],
+                        ['table', ['table']],
+                        ['insert', ['link', 'hr']],
+                        ['view', ['fullscreen', 'codeview', 'help']]
+                    ]
+                });
+            }
+
             lucide.createIcons();
         });
 
@@ -1829,6 +1881,19 @@
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
                 body: JSON.stringify({
                     system_prompt: document.getElementById('ai-system-prompt').value,
+                })
+            }).then(r => r.json()).then(data => {
+                alert(data.message || 'Saved');
+            }).catch(() => alert('Request failed'));
+        }
+
+        function saveAiArchitectureRules() {
+            const rulesContent = $('#ai-architecture-rules').summernote('code');
+            fetch('{{ route("admin.settings.ai-architecture-rules.save") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    architecture_rules: rulesContent,
                 })
             }).then(r => r.json()).then(data => {
                 alert(data.message || 'Saved');

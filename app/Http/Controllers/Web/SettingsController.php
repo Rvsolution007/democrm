@@ -47,6 +47,7 @@ class SettingsController extends Controller
         ]);
         $aiSystemPrompt = Setting::getValue('ai_bot', 'system_prompt', '');
         $aiReplyLanguage = Setting::getValue('ai_bot', 'reply_language', 'auto');
+        $aiArchitectureRules = Setting::getValue('ai_bot', 'architecture_rules', '');
 
         // Load backup files for Backup & Restore tab
         $backupFiles = [];
@@ -77,7 +78,7 @@ class SettingsController extends Controller
         return view('admin.settings.index', compact(
             'company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources',
             'taskStatuses', 'paymentTypes', 'whatsappApiConfig', 'backupFiles',
-            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiReplyLanguage'
+            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiReplyLanguage', 'aiArchitectureRules'
         ));
     }
 
@@ -370,6 +371,20 @@ class SettingsController extends Controller
         Setting::setValue('ai_bot', 'system_prompt', $request->system_prompt);
 
         return response()->json(['success' => true, 'message' => 'AI system prompt saved']);
+    }
+
+    /**
+     * Save AI Architecture rules
+     */
+    public function saveAiArchitectureRules(Request $request)
+    {
+        $request->validate([
+            'architecture_rules' => 'nullable|string',
+        ]);
+
+        Setting::setValue('ai_bot', 'architecture_rules', $request->architecture_rules ?? '');
+
+        return response()->json(['success' => true, 'message' => 'AI architecture rules saved']);
     }
 
     /**
