@@ -95,10 +95,7 @@ class AIChatbotService
         $currentStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
         $answers = $session->collected_answers ?? [];
 
-        // If no chatflow steps defined, always use Tier 2
-        if ($steps->isEmpty()) {
-            return $this->handleTier2($session, $fullMessage, $imageUrl);
-        }
+        // Removed empty chatflow steps bypass to allow catalog and pre-product phase matching
 
         // ══ CASE 1: No product selected yet ══
         if (!isset($answers['product_id'])) {
@@ -189,7 +186,7 @@ class AIChatbotService
         $session->conversation_state = 'awaiting_product';
 
         // Set current step to first product step (if exists)
-        $productStep = $steps = ChatflowStep::where('company_id', $this->companyId)
+        $productStep = ChatflowStep::where('company_id', $this->companyId)
             ->where('step_type', 'ask_product')
             ->orderBy('sort_order')
             ->first();
@@ -703,7 +700,9 @@ class AIChatbotService
         if (!isset($answers['product_id'])) {
             // List products (only names + visible prices)
             $products = Product::where('company_id', $this->companyId)->where('status', 'active')->get(['id', 'name', 'sale_price']);
-            if ($products->isEmpty()) return '';
+            if ($products->isEmpty()) {
+                return "System Note: The product catalogue is currently EMPTY. We do not have any products to sell right now. If the user asks for products, inform them that we currently have no products available.";
+            }
 
             $showPrice = $visibleColumns->contains('slug', 'sale_price');
             $context = "### Products:\n";

@@ -67,7 +67,7 @@
                 <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
                     Write exactly how the bot should behave in simple language. The Tester AI reads this prompt to simulate a customer test.
                 </p>
-                <textarea id="tester_rules" name="tester_rules" class="hidden">{!! $testerRules !!}</textarea>
+                <div id="tester_rules" class="tester-rules-editor">{!! $testerRules !!}</div>
             </div>
         </div>
 
@@ -96,24 +96,28 @@
 @endsection
 
 @push('scripts')
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
 
 <script>
-    $(document).ready(function() {
-        $('#tester_rules').summernote({
-            placeholder: 'Write your bot testing instructions here...',
-            tabsize: 2,
-            height: 400,
-            toolbar: [
-                ['style', ['style']],
-                ['font', ['bold', 'underline', 'clear']],
-                ['color', ['color']],
-                ['para', ['ul', 'ol', 'paragraph']],
-                ['view', ['fullscreen', 'codeview']]
-            ]
-        });
-    });
+    function initSummernote() {
+        if ($('#tester_rules').length && !$('#tester_rules').next('.note-editor').length) {
+            $('#tester_rules').summernote({
+                placeholder: 'Write your bot testing instructions here...',
+                tabsize: 2,
+                height: 400,
+                toolbar: [
+                    ['style', ['style']],
+                    ['font', ['bold', 'underline', 'clear']],
+                    ['color', ['color']],
+                    ['para', ['ul', 'ol', 'paragraph']],
+                    ['view', ['fullscreen', 'codeview']]
+                ]
+            });
+        }
+    }
+
+    $(document).ready(initSummernote);
+    document.addEventListener("turbo:load", initSummernote);
 
     function saveRules() {
         const rules = $('#tester_rules').summernote('code');
