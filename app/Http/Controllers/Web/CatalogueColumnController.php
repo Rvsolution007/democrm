@@ -70,11 +70,17 @@ class CatalogueColumnController extends Controller
             $options = array_values($options);
         }
 
-        // If is_unique, unset any existing unique column
+        // If is_unique, block if another unique already exists
         if ($request->boolean('is_unique')) {
-            CatalogueCustomColumn::where('company_id', $companyId)
+            $existing = CatalogueCustomColumn::where('company_id', $companyId)
                 ->where('is_unique', true)
-                ->update(['is_unique' => false]);
+                ->first();
+            if ($existing) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "'{$existing->name}' is already the Unique Identifier. Remove its unique flag first before assigning a new one.",
+                ], 422);
+            }
         }
 
         $maxOrder = CatalogueCustomColumn::where('company_id', $companyId)->max('sort_order') ?? 0;
@@ -125,12 +131,18 @@ class CatalogueColumnController extends Controller
             $options = array_values($options);
         }
 
-        // If setting as unique, unset others
+        // If setting as unique, block if another unique already exists
         if ($request->boolean('is_unique')) {
-            CatalogueCustomColumn::where('company_id', auth()->user()->company_id)
+            $existing = CatalogueCustomColumn::where('company_id', auth()->user()->company_id)
                 ->where('id', '!=', $id)
                 ->where('is_unique', true)
-                ->update(['is_unique' => false]);
+                ->first();
+            if ($existing) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "'{$existing->name}' is already the Unique Identifier. Remove its unique flag first before assigning a new one.",
+                ], 422);
+            }
         }
 
         // If it is a system column, restrict what can be updated

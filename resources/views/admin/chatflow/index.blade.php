@@ -29,7 +29,8 @@
                             <i data-lucide="arrow-right" style="width:16px;height:16px;color:var(--text-muted)"></i>
                         @endif
                         <div style="padding:6px 12px;border-radius:20px;font-size:13px;font-weight:500;
-                            @if($step->step_type === 'ask_product') background:#dbeafe;color:#1e40af;
+                            @if($step->step_type === 'ask_category') background:#fce7f3;color:#9d174d;
+                            @elseif($step->step_type === 'ask_product') background:#dbeafe;color:#1e40af;
                             @elseif($step->step_type === 'ask_combo') background:#fef3c7;color:#92400e;
                             @elseif($step->step_type === 'ask_optional') background:#e0e7ff;color:#3730a3;
                             @elseif($step->step_type === 'send_summary') background:#d1fae5;color:#065f46;
@@ -69,7 +70,7 @@
                             <td style="padding:12px 16px;font-weight:600">{{ $step->name }}</td>
                             <td style="padding:12px 16px;text-align:center">
                                 @php
-                                    $typeColors = ['ask_product' => 'badge-info', 'ask_combo' => 'badge-warning', 'ask_optional' => 'badge-outline', 'ask_custom' => 'badge-secondary', 'send_summary' => 'badge-success'];
+                                    $typeColors = ['ask_category' => 'badge-primary', 'ask_product' => 'badge-info', 'ask_combo' => 'badge-warning', 'ask_optional' => 'badge-outline', 'ask_custom' => 'badge-secondary', 'send_summary' => 'badge-success'];
                                 @endphp
                                 <span class="badge {{ $typeColors[$step->step_type] ?? 'badge-outline' }}">{{ str_replace('_', ' ', $step->step_type) }}</span>
                             </td>
@@ -129,6 +130,7 @@
                     <div style="margin-bottom:16px">
                         <label style="display:block;margin-bottom:4px;font-weight:500">Step Type *</label>
                         <select id="step-type" onchange="toggleStepFields()" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
+                            <option value="ask_category">📂 Ask Category — Show category list first</option>
                             <option value="ask_product">🛍️ Ask Product — Show product list</option>
                             <option value="ask_combo">🎨 Ask Combo — Ask a combo dimension</option>
                             <option value="ask_optional">📝 Ask Optional — Optional question</option>
@@ -179,7 +181,7 @@
         document.getElementById('step-modal-title').textContent = 'Add Step';
         document.getElementById('step-id').value = '';
         document.getElementById('step-name').value = '';
-        document.getElementById('step-type').value = 'ask_product';
+        document.getElementById('step-type').value = 'ask_category';
         document.getElementById('step-linked-column').value = '';
         document.getElementById('step-question').value = '';
         document.getElementById('step-field-key').value = '';

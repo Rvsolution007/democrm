@@ -37,7 +37,7 @@ class ChatflowController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'step_type' => 'required|in:ask_product,ask_combo,ask_optional,ask_custom,send_summary',
+            'step_type' => 'required|in:ask_category,ask_product,ask_combo,ask_optional,ask_custom,send_summary',
             'linked_column_id' => 'nullable|exists:catalogue_custom_columns,id',
             'question_text' => 'nullable|string|max:500',
             'field_key' => 'nullable|string|max:100',
@@ -93,7 +93,7 @@ class ChatflowController extends Controller
 
         $request->validate([
             'name' => 'required|string|max:255',
-            'step_type' => 'required|in:ask_product,ask_combo,ask_optional,ask_custom,send_summary',
+            'step_type' => 'required|in:ask_category,ask_product,ask_combo,ask_optional,ask_custom,send_summary',
             'linked_column_id' => 'nullable|exists:catalogue_custom_columns,id',
             'question_text' => 'nullable|string|max:500',
             'field_key' => 'nullable|string|max:100',

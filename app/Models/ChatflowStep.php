@@ -56,6 +56,11 @@ class ChatflowStep extends Model
         return $this->step_type === 'ask_product';
     }
 
+    public function isCategoryStep(): bool
+    {
+        return $this->step_type === 'ask_category';
+    }
+
     public function isSummaryStep(): bool
     {
         return $this->step_type === 'send_summary';

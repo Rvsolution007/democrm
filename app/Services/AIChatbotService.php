@@ -31,6 +31,38 @@ class AIChatbotService
         $this->replyLanguage = Setting::getValue('ai_bot', 'reply_language', 'auto', $companyId);
     }
 
+    private ?CatalogueCustomColumn $uniqueColumn = null;
+    private bool $uniqueColumnLoaded = false;
+
+    private function getProductDisplayName(Product $product): string
+    {
+        if (!$this->uniqueColumnLoaded) {
+            $this->uniqueColumn = CatalogueCustomColumn::where('company_id', $this->companyId)
+                ->where('is_unique', true)
+                ->first();
+            $this->uniqueColumnLoaded = true;
+        }
+
+        if ($this->uniqueColumn) {
+            if ($this->uniqueColumn->is_system) {
+                return $product->{$this->uniqueColumn->slug} ?: $product->name;
+            } else {
+                if ($product->relationLoaded('customValues')) {
+                    $customVal = $product->customValues->where('column_id', $this->uniqueColumn->id)->first();
+                } else {
+                    $customVal = $product->customValues()->where('column_id', $this->uniqueColumn->id)->first();
+                }
+                
+                if ($customVal && !empty($customVal->value)) {
+                    $val = json_decode($customVal->value, true);
+                    return is_array($val) ? implode(', ', $val) : $customVal->value;
+                }
+            }
+        }
+
+        return $product->name;
+    }
+
     // ═══════════════════════════════════════════════════════
     // MAIN ENTRY POINT
     // ═══════════════════════════════════════════════════════
@@ -127,9 +159,37 @@ class AIChatbotService
 
     private function handlePreProductPhase(AiChatSession $session, $steps, string $fullMessage, string $rawMessage, ?string $imageUrl): string
     {
-        // Check if catalogue has been sent already
+        $answers = $session->collected_answers ?? [];
+
+        // ══ Check if ask_category step exists and category not yet selected ══
+        $hasCategoryStep = $steps->contains('step_type', 'ask_category');
+
+        if ($hasCategoryStep && !isset($answers['category_id'])) {
+            // Category flow active — check if categories already sent
+            if ($session->conversation_state === 'awaiting_category') {
+                return $this->matchCategoryFromMessage($session, $rawMessage, $steps);
+            }
+
+            // Check if catalogue has been sent (meaning categories were sent)
+            if ($session->catalogue_sent) {
+                return $this->matchCategoryFromMessage($session, $rawMessage, $steps);
+            }
+
+            // Not sent yet — check intent then send category list
+            $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user asking about products, catalogue, what you sell, or showing interest in buying something? Reply with ONLY 'YES' or 'NO'.";
+            $intentResult = $this->vertexAI->classifyContent($intentPrompt);
+            $this->logTokens($session, 1, $intentResult);
+            $isProductIntent = str_contains(strtoupper($intentResult['text']), 'YES');
+
+            if ($isProductIntent) {
+                return $this->sendCategoryList($session);
+            }
+
+            return $this->handleTier2($session, $fullMessage, $imageUrl);
+        }
+
+        // ══ Standard product flow (no category step or category already selected) ══
         if ($session->catalogue_sent) {
-            // User has seen catalogue — try to match their reply to a product (Tier 1)
             return $this->matchProductFromMessage($session, $rawMessage, $steps);
         }
 
@@ -151,13 +211,129 @@ class AIChatbotService
     }
 
     /**
+     * Send category list message (PHP built — no AI)
+     */
+    private function sendCategoryList(AiChatSession $session): string
+    {
+        $categories = \App\Models\Category::where('company_id', $this->companyId)
+            ->where('status', 'active')
+            ->whereHas('products', function ($q) {
+                $q->where('status', 'active');
+            })
+            ->orderBy('name')
+            ->get();
+
+        if ($categories->isEmpty()) {
+            // No categories with products — fall back to direct product list
+            return $this->sendCatalogue($session);
+        }
+
+        $msg = "📂 *Our Categories:*\n\n";
+        foreach ($categories as $i => $cat) {
+            $num = $i + 1;
+            $productCount = Product::where('company_id', $this->companyId)
+                ->where('category_id', $cat->id)
+                ->where('status', 'active')
+                ->count();
+            $msg .= "{$num}️⃣ *{$cat->name}* ({$productCount} products)\n";
+        }
+        $msg .= "\nReply with category number or name! 👆";
+
+        // Update session state
+        $session->catalogue_sent = true;
+        $session->conversation_state = 'awaiting_category';
+
+        // Set current step to category step
+        $categoryStep = ChatflowStep::where('company_id', $this->companyId)
+            ->where('step_type', 'ask_category')
+            ->orderBy('sort_order')
+            ->first();
+        if ($categoryStep) {
+            $session->current_step_id = $categoryStep->id;
+        }
+
+        $session->save();
+
+        Log::info("AIChatbot: Category list sent (PHP Direct)", ['session' => $session->id]);
+        return $msg;
+    }
+
+    /**
+     * Match user's message to a category (Tier 1)
+     */
+    private function matchCategoryFromMessage(AiChatSession $session, string $rawMessage, $steps): string
+    {
+        $categories = \App\Models\Category::where('company_id', $this->companyId)
+            ->where('status', 'active')
+            ->whereHas('products', function ($q) {
+                $q->where('status', 'active');
+            })
+            ->orderBy('name')
+            ->get();
+
+        if ($categories->isEmpty()) {
+            return $this->sendCatalogue($session);
+        }
+
+        // Build category list for prompt
+        $catList = $categories->map(fn($c, $i) => ($i + 1) . ". {$c->name} (ID:{$c->id})")->implode("\n");
+
+        $prompt = "User said: \"{$rawMessage}\"\n\nAvailable categories:\n{$catList}\n\nWhich category number did user select or which category name matches? Reply with ONLY the ID number. If unclear or no match, reply NONE.";
+
+        $matchResult = $this->vertexAI->classifyContent($prompt);
+        $this->logTokens($session, 1, $matchResult);
+
+        $matchText = trim($matchResult['text']);
+
+        // Extract number from response
+        preg_match('/(\d+)/', $matchText, $matches);
+        $matchedId = $matches[1] ?? null;
+
+        // Check if it's a valid category ID or list number
+        $selectedCategory = null;
+        if ($matchedId) {
+            $selectedCategory = $categories->firstWhere('id', (int)$matchedId);
+            if (!$selectedCategory && (int)$matchedId <= $categories->count()) {
+                $selectedCategory = $categories->values()[(int)$matchedId - 1] ?? null;
+            }
+        }
+
+        if (!$selectedCategory || strtoupper($matchText) === 'NONE') {
+            return "Sorry, I couldn't match that to a category. Please reply with the category number or name from the list above. 🙏";
+        }
+
+        // Category matched — save to session and send filtered product list
+        $session->setAnswer('category_id', $selectedCategory->id);
+        $session->setAnswer('category_name', $selectedCategory->name);
+        $session->conversation_state = 'awaiting_product';
+
+        // Advance chatflow past ask_category step
+        $this->advanceChatflow($session, $steps);
+        $session->save();
+
+        Log::info("AIChatbot: Category selected (Tier 1)", ['session' => $session->id, 'category' => $selectedCategory->name]);
+
+        // Now send filtered product catalogue
+        $msg = "✅ *{$selectedCategory->name}* selected!\n\n";
+        $msg .= $this->sendCatalogue($session);
+        return $msg;
+    }
+
+    /**
      * Send product catalogue message (PHP built — no AI)
      */
     private function sendCatalogue(AiChatSession $session): string
     {
-        $products = Product::where('company_id', $this->companyId)
-            ->where('status', 'active')
-            ->get();
+        $answers = $session->collected_answers ?? [];
+        $query = Product::with('customValues')->where('company_id', $this->companyId)
+            ->where('status', 'active');
+
+        // Filter by category if category was selected
+        if (isset($answers['category_id'])) {
+            $query->where('category_id', $answers['category_id']);
+        }
+
+        $products = $query->get();
 
         if ($products->isEmpty()) {
             return "Sorry, we don't have any products available right now.";
@@ -170,7 +346,8 @@ class AIChatbotService
         $msg = "🛍️ *Our Products:*\n\n";
         foreach ($products as $i => $product) {
             $num = $i + 1;
-            $msg .= "{$num}️⃣ *{$product->name}*";
+            $displayName = $this->getProductDisplayName($product);
+            $msg .= "{$num}️⃣ *{$displayName}*";
             if ($showPrice && $product->sale_price > 0) {
                 $msg .= " — ₹" . number_format($product->sale_price / 100, 2);
             }
@@ -205,16 +382,23 @@ class AIChatbotService
      */
     private function matchProductFromMessage(AiChatSession $session, string $rawMessage, $steps): string
     {
-        $products = Product::where('company_id', $this->companyId)
-            ->where('status', 'active')
-            ->get(['id', 'name']);
+        $answers = $session->collected_answers ?? [];
+        $query = Product::with('customValues')->where('company_id', $this->companyId)
+            ->where('status', 'active');
+
+        // Filter by category if category was selected
+        if (isset($answers['category_id'])) {
+            $query->where('category_id', $answers['category_id']);
+        }
+
+        $products = $query->get();
 
         if ($products->isEmpty()) {
             return "Sorry, no products available right now.";
         }
 
         // Build product list for prompt
-        $productList = $products->map(fn($p, $i) => ($i + 1) . ". {$p->name} (ID:{$p->id})")->implode("\n");
+        $productList = $products->map(fn($p, $i) => ($i + 1) . ". " . $this->getProductDisplayName($p) . " (ID:{$p->id})")->implode("\n");
 
         $prompt = "User said: \"{$rawMessage}\"\n\nAvailable products:\n{$productList}\n\nWhich product number did user select or which product name matches? Reply with ONLY the ID number. If unclear or no match, reply NONE.";
 
@@ -251,14 +435,15 @@ class AIChatbotService
      */
     private function selectProduct(AiChatSession $session, int $productId, $steps): string
     {
-        $product = Product::with(['combos.column', 'activeVariations'])->find($productId);
+        $product = Product::with(['combos.column', 'activeVariations', 'customValues'])->find($productId);
         if (!$product || $product->company_id !== $this->companyId) {
             return "Product not found. Please try again.";
         }
 
         // Save to session
+        $displayName = $this->getProductDisplayName($product);
         $session->setAnswer('product_id', $productId);
-        $session->setAnswer('product_name', $product->name);
+        $session->setAnswer('product_name', $displayName);
         $session->conversation_state = 'product_selected';
 
         // Create Lead
@@ -270,7 +455,7 @@ class AIChatbotService
                 'name' => $session->phone_number,
                 'phone' => $session->phone_number,
                 'stage' => 'new',
-                'product_name' => $product->name,
+                'product_name' => $displayName,
             ]);
             $session->lead_id = $lead->id;
             $lead->products()->attach($productId, ['quantity' => 1, 'price' => $product->sale_price]);
@@ -295,7 +480,7 @@ class AIChatbotService
             QuoteItem::create([
                 'quote_id' => $quote->id,
                 'product_id' => $productId,
-                'product_name' => $product->name,
+                'product_name' => $displayName,
                 'description' => $product->description,
                 'hsn_code' => $product->hsn_code,
                 'qty' => 1,
@@ -335,7 +520,8 @@ class AIChatbotService
     private function buildProductDetailsMessage(Product $product): string
     {
         $visibleColumns = $this->getAiVisibleColumns();
-        $msg = "✅ *{$product->name}* 🛍️\n\n";
+        $displayName = $this->getProductDisplayName($product);
+        $msg = "✅ *{$displayName}* 🛍️\n\n";
 
         // Description
         if ($product->description && $visibleColumns->contains('slug', 'description')) {
@@ -699,7 +885,14 @@ class AIChatbotService
 
         if (!isset($answers['product_id'])) {
             // List products (only names + visible prices)
-            $products = Product::where('company_id', $this->companyId)->where('status', 'active')->get(['id', 'name', 'sale_price']);
+            $query = Product::with('customValues')->where('company_id', $this->companyId)->where('status', 'active');
+
+            // Filter by category if selected
+            if (isset($answers['category_id'])) {
+                $query->where('category_id', $answers['category_id']);
+            }
+
+            $products = $query->get();
             if ($products->isEmpty()) {
                 return "System Note: The product catalogue is currently EMPTY. We do not have any products to sell right now. If the user asks for products, inform them that we currently have no products available.";
             }
@@ -708,7 +901,8 @@ class AIChatbotService
             $context = "### Products:\n";
             foreach ($products as $p) {
                 $price = ($showPrice && $p->sale_price > 0) ? " — ₹" . number_format($p->sale_price / 100, 2) : '';
-                $context .= "- ID:{$p->id} | {$p->name}{$price}\n";
+                $displayName = $this->getProductDisplayName($p);
+                $context .= "- ID:{$p->id} | {$displayName}{$price}\n";
             }
             return $context;
         }
