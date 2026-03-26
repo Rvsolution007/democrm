@@ -1051,8 +1051,10 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::get('/ai-analytics/chats', [AiAnalyticsController::class, 'chats'])->name('ai-analytics.chats');
     Route::get('/ai-analytics/chats/{id}', [AiAnalyticsController::class, 'chatDetail'])->name('ai-analytics.chat-detail');
     Route::get('/ai-analytics/tester', [AiAnalyticsController::class, 'tester'])->name('ai-analytics.tester');
-    Route::post('/ai-analytics/tester-rules', [AiAnalyticsController::class, 'saveTesterRules'])->name('ai-analytics.tester-rules.save');
-    Route::post('/ai-analytics/tester-run', [AiAnalyticsController::class, 'runSimulation'])->name('ai-analytics.tester.run');
+    Route::post('/ai-analytics/test-questions', [AiAnalyticsController::class, 'saveTestQuestions'])->name('ai-analytics.test-questions.save');
+    Route::get('/ai-analytics/test-questions', [AiAnalyticsController::class, 'getTestQuestions'])->name('ai-analytics.test-questions.get');
+    Route::post('/ai-analytics/conversation-test-run', [AiAnalyticsController::class, 'runConversationTest'])->name('ai-analytics.conversation-test.run');
+    Route::post('/ai-analytics/diagnostic-test-run', [AiAnalyticsController::class, 'runDiagnosticTest'])->name('ai-analytics.diagnostic-test.run');
 
     // System Logs
     Route::get('/settings/system-logs', [SettingsController::class, 'systemLogsIndex'])->name('system-logs.index');

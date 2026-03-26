@@ -134,6 +134,12 @@ class AIChatbotService
             return $this->handlePreProductPhase($session, $steps, $fullMessage, $rawMessage, $imageUrl);
         }
 
+        // ══ CASE 1.5: Check for product modification intent (add/edit/delete) ══
+        $modifyResult = $this->detectProductModifyIntent($session, $rawMessage);
+        if ($modifyResult !== null) {
+            return $modifyResult;
+        }
+
         // ══ CASE 2: Product selected, in chatflow ══
         if ($currentStep) {
             switch ($currentStep->step_type) {
@@ -1049,6 +1055,315 @@ class AIChatbotService
         }
 
         $session->save();
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // PRODUCT MODIFY — Add / Edit / Delete Detection
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Detect if user wants to add another product, edit, or delete current product.
+     * Returns null if no modification intent detected (normal flow continues).
+     */
+    private function detectProductModifyIntent(AiChatSession $session, string $rawMessage): ?string
+    {
+        // Only check if product is already selected
+        $answers = $session->collected_answers ?? [];
+        if (!isset($answers['product_id'])) return null;
+
+        // Quick keyword pre-check to avoid unnecessary AI calls
+        $lowerMsg = strtolower($rawMessage);
+        $modifyKeywords = [
+            'add', 'another', 'more', 'aur', 'dusra', 'ek aur', 'add karo', 'aur ek',
+            'remove', 'delete', 'hatao', 'nikalo', 'nahi chahiye', 'cancel', 'hata do',
+            'change', 'edit', 'badlo', 'replace', 'swap', 'modify', 'galat', 'wrong',
+        ];
+        $hasModifyKeyword = false;
+        foreach ($modifyKeywords as $kw) {
+            if (str_contains($lowerMsg, $kw)) {
+                $hasModifyKeyword = true;
+                break;
+            }
+        }
+
+        if (!$hasModifyKeyword) return null;
+
+        // AI classification for modification intent
+        $currentProduct = $answers['product_name'] ?? 'unknown';
+        $prompt = <<<PROMPT
+User has selected product "{$currentProduct}" and now said: "{$rawMessage}"
+
+Is the user trying to:
+1. ADD — Add another/different product to their order
+2. DELETE — Remove/cancel the current product from their order
+3. EDIT — Change something about the current product (quantity, variant, etc.)
+4. NONE — Not trying to modify, just answering a normal question
+
+Reply with ONLY one word: ADD, DELETE, EDIT, or NONE.
+PROMPT;
+
+        try {
+            $result = $this->vertexAI->classifyContent($prompt);
+            $this->logTokens($session, 1, $result);
+            $intent = strtoupper(trim($result['text'] ?? 'NONE'));
+
+            switch ($intent) {
+                case 'ADD':
+                    return $this->handleProductAdd($session, $rawMessage);
+                case 'DELETE':
+                    return $this->handleProductDelete($session, $rawMessage);
+                case 'EDIT':
+                    return $this->handleProductEdit($session, $rawMessage);
+                default:
+                    return null; // Not a modify intent, continue normal flow
+            }
+        } catch (\Exception $e) {
+            Log::warning('AIChatbot: Product modify detection failed: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Handle ADD — User wants to add another product to their quote
+     */
+    private function handleProductAdd(AiChatSession $session, string $rawMessage): string
+    {
+        $answers = $session->collected_answers ?? [];
+        $oldProductName = $answers['product_name'] ?? 'previous product';
+
+        // Keep lead and quote, but reset product selection to allow new product pick
+        $answersToKeep = [];
+        // Keep non-product answers (name, city, etc.)
+        foreach ($answers as $key => $val) {
+            if (!in_array($key, ['product_id', 'product_name', 'category_id', 'category_name'])) {
+                // Keep only non-combo answers
+                $isCombo = CatalogueCustomColumn::where('company_id', $this->companyId)
+                    ->where('slug', $key)
+                    ->where('is_combo', true)
+                    ->exists();
+                if (!$isCombo) {
+                    $answersToKeep[$key] = $val;
+                }
+            }
+        }
+
+        $session->collected_answers = $answersToKeep;
+        $session->catalogue_sent = false;
+        $session->conversation_state = 'awaiting_product';
+        $session->current_step_id = null;
+        $session->current_step_retries = 0;
+        $session->save();
+
+        Log::info("AIChatbot: Product ADD — Reset for new product", ['session' => $session->id, 'old_product' => $oldProductName]);
+
+        // Send catalogue again
+        $msg = "✅ *{$oldProductName}* is saved in your quote! ✨\n\n";
+        $msg .= "Now let's add another product:\n\n";
+        $msg .= $this->sendCatalogue($session);
+        return $msg;
+    }
+
+    /**
+     * Handle DELETE — User wants to remove current product from quote
+     */
+    private function handleProductDelete(AiChatSession $session, string $rawMessage): string
+    {
+        $answers = $session->collected_answers ?? [];
+        $productId = $answers['product_id'] ?? null;
+        $productName = $answers['product_name'] ?? 'the product';
+
+        // Remove product from quote
+        if ($session->quote_id && $productId) {
+            $quoteItem = QuoteItem::where('quote_id', $session->quote_id)
+                ->where('product_id', $productId)
+                ->first();
+            if ($quoteItem) {
+                $quoteItem->delete();
+                // Recalculate quote totals
+                $quote = Quote::find($session->quote_id);
+                if ($quote) {
+                    $remainingItems = QuoteItem::where('quote_id', $quote->id)->count();
+                    if ($remainingItems === 0) {
+                        // No items left — delete quote
+                        $quote->delete();
+                        $session->quote_id = null;
+                    } else {
+                        $quote->recalculateTotals();
+                    }
+                }
+            }
+        }
+
+        // Remove product from lead
+        if ($session->lead_id && $productId) {
+            $lead = Lead::find($session->lead_id);
+            if ($lead) {
+                $lead->products()->detach($productId);
+            }
+        }
+
+        // Reset product selection
+        $answersToKeep = [];
+        foreach ($answers as $key => $val) {
+            if (!in_array($key, ['product_id', 'product_name', 'category_id', 'category_name'])) {
+                $isCombo = CatalogueCustomColumn::where('company_id', $this->companyId)
+                    ->where('slug', $key)
+                    ->where('is_combo', true)
+                    ->exists();
+                if (!$isCombo) {
+                    $answersToKeep[$key] = $val;
+                }
+            }
+        }
+
+        $session->collected_answers = $answersToKeep;
+        $session->catalogue_sent = false;
+        $session->conversation_state = 'awaiting_product';
+        $session->current_step_id = null;
+        $session->current_step_retries = 0;
+        $session->save();
+
+        Log::info("AIChatbot: Product DELETE", ['session' => $session->id, 'product' => $productName]);
+
+        $msg = "🗑️ *{$productName}* removed from your order.\n\n";
+        $msg .= "Would you like to select a different product?\n\n";
+        $msg .= $this->sendCatalogue($session);
+        return $msg;
+    }
+
+    /**
+     * Handle EDIT — User wants to change something about the current product
+     */
+    private function handleProductEdit(AiChatSession $session, string $rawMessage): string
+    {
+        $answers = $session->collected_answers ?? [];
+        $productId = $answers['product_id'] ?? null;
+        $productName = $answers['product_name'] ?? 'the product';
+
+        if (!$productId) return "No product selected to edit.";
+
+        // Detect what the user wants to change using AI
+        $product = Product::with('combos.column')->find($productId);
+        if (!$product) return "Product not found.";
+
+        $comboOptions = [];
+        foreach ($product->combos as $combo) {
+            $col = $combo->column;
+            if ($col) {
+                $currentVal = $answers[$col->slug] ?? 'not selected';
+                $comboOptions[] = "{$col->name} (slug: {$col->slug}, current: {$currentVal}, options: " . implode(', ', $combo->selected_values ?? []) . ")";
+            }
+        }
+
+        $comboInfo = !empty($comboOptions) ? implode("\n", $comboOptions) : 'No combo options';
+
+        $prompt = <<<PROMPT
+User wants to edit product "{$productName}" and said: "{$rawMessage}"
+
+Available fields to edit:
+{$comboInfo}
+
+Which field does the user want to change? Also what is the new value they want?
+Reply in this format ONLY:
+FIELD: <slug>
+VALUE: <new_value>
+
+If you cannot determine, reply: UNCLEAR
+PROMPT;
+
+        try {
+            $result = $this->vertexAI->classifyContent($prompt);
+            $this->logTokens($session, 1, $result);
+            $responseText = trim($result['text'] ?? '');
+
+            if (str_contains(strtoupper($responseText), 'UNCLEAR')) {
+                // Show current selections and ask what to change
+                $msg = "📋 Current selections for *{$productName}*:\n\n";
+                foreach ($product->combos as $combo) {
+                    $col = $combo->column;
+                    if ($col) {
+                        $val = $answers[$col->slug] ?? '❌ Not selected';
+                        $msg .= "• {$col->name}: *{$val}*\n";
+                    }
+                }
+                $msg .= "\nWhich option would you like to change? Reply with the name and new value.";
+                return $msg;
+            }
+
+            // Parse FIELD and VALUE
+            preg_match('/FIELD:\s*(.+)/i', $responseText, $fieldMatch);
+            preg_match('/VALUE:\s*(.+)/i', $responseText, $valueMatch);
+
+            $fieldSlug = trim($fieldMatch[1] ?? '');
+            $newValue = trim($valueMatch[1] ?? '');
+
+            if (empty($fieldSlug) || empty($newValue)) {
+                return "Sorry, I couldn't understand what to change. Please specify which option and the new value.";
+            }
+
+            // Validate the new value against available options
+            $validCombo = null;
+            foreach ($product->combos as $combo) {
+                if ($combo->column && $combo->column->slug === $fieldSlug) {
+                    $validCombo = $combo;
+                    break;
+                }
+            }
+
+            if (!$validCombo) {
+                return "Sorry, '{$fieldSlug}' is not a valid option for this product.";
+            }
+
+            // Fuzzy match the new value against available options
+            $matched = null;
+            foreach ($validCombo->selected_values ?? [] as $opt) {
+                if (strtolower($opt) === strtolower($newValue)) {
+                    $matched = $opt;
+                    break;
+                }
+            }
+
+            // If no exact match, try AI matching
+            if (!$matched) {
+                $optionsList = implode(', ', $validCombo->selected_values ?? []);
+                $matchPrompt = "User said: \"{$newValue}\"\nOptions: [{$optionsList}]\nWhich option matches? Reply with EXACT option text or NONE.";
+                $matchResult = $this->vertexAI->classifyContent($matchPrompt);
+                $this->logTokens($session, 1, $matchResult);
+                $matchText = trim($matchResult['text'] ?? '');
+
+                foreach ($validCombo->selected_values ?? [] as $opt) {
+                    if (strtolower($opt) === strtolower($matchText)) {
+                        $matched = $opt;
+                        break;
+                    }
+                }
+            }
+
+            if (!$matched) {
+                return "Sorry, '{$newValue}' is not available. Options: " . implode(' | ', $validCombo->selected_values ?? []);
+            }
+
+            // Update the answer
+            $colName = $validCombo->column->name;
+            $session->setAnswer($fieldSlug, $matched);
+            $session->save();
+
+            // Update quote variation
+            $this->updateQuoteVariation($session, $product);
+
+            Log::info("AIChatbot: Product EDIT", [
+                'session' => $session->id,
+                'field' => $fieldSlug,
+                'old' => $answers[$fieldSlug] ?? 'none',
+                'new' => $matched,
+            ]);
+
+            return "✏️ Updated *{$colName}* to *{$matched}*! ✅";
+
+        } catch (\Exception $e) {
+            Log::error('AIChatbot: Product edit failed: ' . $e->getMessage());
+            return "Sorry, couldn't process the edit. Please try again.";
+        }
     }
 
     // ═══════════════════════════════════════════════════════

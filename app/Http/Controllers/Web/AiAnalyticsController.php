@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\AiTokenLog;
 use App\Models\AiChatSession;
 use App\Models\AiChatMessage;
+use App\Models\AiBotTestQuestion;
 use App\Models\Setting;
-use App\Services\AiSimulationService;
+use App\Services\AiConversationTestService;
+use App\Services\AiBotDiagnosticService;
 use Illuminate\Http\Request;
 
 class AiAnalyticsController extends Controller
@@ -92,42 +94,102 @@ class AiAnalyticsController extends Controller
     }
 
     /**
-     * AI Bot Tester UI
+     * AI Bot Tester Page — Two sections
      */
     public function tester()
     {
         $companyId = auth()->user()->company_id;
-        $defaultRules = "<ul><li>Start with greetings.</li><li>If user asks for products, send the <strong>Catalogue List</strong> without AI formatting.</li><li>Understand <strong>Spelling Mistakes</strong> (e.g. 'cebnet hndle' -&gt; Cabinet Handle).</li><li>Do NOT show prices if they are hidden in Catalogue Columns.</li><li>Follow the <strong>Chatflow</strong> (ask for combo, size, finish).</li><li>Respect the Admin <strong>Language</strong> setting.</li></ul>";
-        $testerRules = Setting::getValue('ai_bot', 'tester_rules', $defaultRules, $companyId);
+        $questions = AiBotTestQuestion::where('company_id', $companyId)
+            ->orderBy('sort_order')
+            ->get();
 
-        return view('admin.ai-analytics.tester', compact('testerRules'));
+        return view('admin.ai-analytics.tester', compact('questions'));
     }
 
+    // ═══════════════════════════════════════════════════════
+    // SECTION 1: AI BOT CONVERSATION TEST
+    // ═══════════════════════════════════════════════════════
+
     /**
-     * Save AI Bot Tester Rules
+     * Save test questions (AJAX)
      */
-    public function saveTesterRules(Request $request)
+    public function saveTestQuestions(Request $request)
     {
-        $request->validate(['rules' => 'required|string']);
-        $companyId = auth()->user()->company_id;
-        
-        Setting::setValue('ai_bot', 'tester_rules', $request->rules, 'string', $companyId);
+        $request->validate([
+            'questions' => 'required|array|min:1',
+            'questions.*' => 'required|string|max:500',
+        ]);
 
-        return response()->json(['success' => true]);
+        $companyId = auth()->user()->company_id;
+
+        // Delete existing and re-create
+        AiBotTestQuestion::where('company_id', $companyId)->delete();
+
+        foreach ($request->questions as $i => $q) {
+            AiBotTestQuestion::create([
+                'company_id' => $companyId,
+                'question' => trim($q),
+                'sort_order' => $i + 1,
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => count($request->questions) . ' questions saved.',
+        ]);
     }
 
     /**
-     * Run AI Bot Simulation (Streamed Response)
+     * Get saved test questions (AJAX)
      */
-    public function runSimulation()
+    public function getTestQuestions()
+    {
+        $companyId = auth()->user()->company_id;
+        $questions = AiBotTestQuestion::where('company_id', $companyId)
+            ->orderBy('sort_order')
+            ->pluck('question');
+
+        return response()->json(['questions' => $questions]);
+    }
+
+    /**
+     * Run Conversation Test (Streamed Response)
+     */
+    public function runConversationTest()
     {
         $companyId = auth()->user()->company_id;
         $userId = auth()->id();
-        $rules = Setting::getValue('ai_bot', 'tester_rules', '', $companyId);
 
-        return response()->stream(function () use ($companyId, $userId, $rules) {
-            $simulator = new AiSimulationService($companyId, $userId);
-            $simulator->run($rules, function($type, $message) {
+        return response()->stream(function () use ($companyId, $userId) {
+            $service = new AiConversationTestService($companyId, $userId);
+            $service->run(function ($type, $message) {
+                echo json_encode(['type' => $type, 'message' => $message]) . "\n";
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
+                flush();
+            });
+        }, 200, [
+            'Cache-Control' => 'no-cache',
+            'Content-Type'  => 'text/event-stream',
+        ]);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SECTION 2: AI BOT DIAGNOSTIC TESTER
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Run Diagnostic Test (Streamed Response)
+     */
+    public function runDiagnosticTest()
+    {
+        $companyId = auth()->user()->company_id;
+        $userId = auth()->id();
+
+        return response()->stream(function () use ($companyId, $userId) {
+            $service = new AiBotDiagnosticService($companyId, $userId);
+            $service->run(function ($type, $message) {
                 echo json_encode(['type' => $type, 'message' => $message]) . "\n";
                 if (ob_get_level() > 0) {
                     ob_flush();
