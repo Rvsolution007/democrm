@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Log;
 use App\Models\Traits\BelongsToCompany;
 
 class AiChatSession extends Model
@@ -113,7 +114,8 @@ class AiChatSession extends Model
     }
 
     /**
-     * Find or create an active session for a phone number on an instance
+     * Find or create an active session for a phone number on an instance.
+     * Auto-expires sessions older than configured timeout (default 30 min).
      */
     public static function findOrCreateForPhone(int $companyId, string $phone, string $instanceName): self
     {
@@ -125,6 +127,27 @@ class AiChatSession extends Model
             ->first();
 
         if ($session) {
+            // Session timeout: if last message > N minutes ago, expire old session and create fresh one
+            $timeoutMinutes = (int) Setting::getValue('ai_bot', 'session_timeout_minutes', 30, $companyId);
+            if ($session->last_message_at && $session->last_message_at->diffInMinutes(now()) >= $timeoutMinutes) {
+                Log::info('AiChatSession: Session expired due to timeout', [
+                    'session_id' => $session->id,
+                    'phone' => $phone,
+                    'last_message' => $session->last_message_at->toDateTimeString(),
+                    'timeout_minutes' => $timeoutMinutes,
+                ]);
+                $session->update(['status' => 'expired']);
+
+                // Create a fresh session
+                return static::create([
+                    'company_id' => $companyId,
+                    'phone_number' => $phone,
+                    'instance_name' => $instanceName,
+                    'status' => 'active',
+                    'last_message_at' => now(),
+                ]);
+            }
+
             return $session;
         }
 

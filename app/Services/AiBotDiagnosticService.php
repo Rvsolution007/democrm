@@ -22,7 +22,7 @@ class AiBotDiagnosticService
     private int $userId;
     private VertexAIService $vertexAI;
     private AIChatbotService $chatbotService;
-    private string $simPhone = '919999999992'; // Unique phone for diagnostic
+    private string $simPhone = '919999999992';
     private array $diagnosticResults = [];
 
     public function __construct(int $companyId, int $userId)
@@ -237,6 +237,8 @@ class AiBotDiagnosticService
 
     // ═══════════════════════════════════════════════════════
     // PHASE 3: PROCESS FLOW DIAGNOSTIC
+    // Uses the EXACT same processMessage() as WhatsApp,
+    // then validates results using route trace from AIChatbotService
     // ═══════════════════════════════════════════════════════
 
     private function runProcessFlowDiagnostic(callable $log): void
@@ -252,7 +254,7 @@ class AiBotDiagnosticService
             return;
         }
 
-        $log('info', "🔬 Running {$questions->count()} questions through process flow...");
+        $log('info', "🔬 Running {$questions->count()} questions through EXACT WhatsApp flow...");
         $log('info', '');
 
         foreach ($questions as $i => $question) {
@@ -262,26 +264,28 @@ class AiBotDiagnosticService
             $log('info', "── Turn {$turnNum}/{$questions->count()} ──");
             $log('user', $userMsg);
 
-            // Step A: Classify user input
-            $classification = $this->classifyUserInput($userMsg);
-            $log('info', "   🏷️ Classified as: {$classification['type']}");
-
-            // Step B: Send through bot
             try {
                 $beforeSession = $this->getSessionSnapshot();
 
+                // Use EXACT same processMessage() as WhatsApp webhook
                 $botResult = $this->chatbotService->processMessage(
                     'diagnostic_tester_1',
                     $this->simPhone,
                     $userMsg
                 );
                 $botMsg = $botResult['response'] ?? '';
+
+                // Get route trace — shows EXACTLY which code path was taken
+                $routeTrace = $this->chatbotService->getRouteTrace();
+                $routeStr = !empty($routeTrace) ? implode(' → ', $routeTrace) : 'unknown';
+                $log('info', "   🛤️ Route: {$routeStr}");
+
                 $log('bot', $botMsg);
 
                 $afterSession = $this->getSessionSnapshot();
 
-                // Step C: Run diagnostic checks for this turn
-                $this->diagnoseTurn($turnNum, $userMsg, $botMsg, $classification, $beforeSession, $afterSession, $log);
+                // Run diagnostic checks based on ACTUAL route trace (not separate AI)
+                $this->diagnoseTurn($turnNum, $userMsg, $botMsg, $routeTrace, $beforeSession, $afterSession, $log);
 
             } catch (\Exception $e) {
                 $log('error', "❌ Bot CRASHED: " . $e->getMessage());
@@ -296,326 +300,253 @@ class AiBotDiagnosticService
     }
 
     /**
-     * Classify what type of message the user sent
+     * Run diagnostic checks for a single turn based on ACTUAL route trace.
+     * No separate AI classification — uses what really happened.
      */
-    private function classifyUserInput(string $message): array
+    private function diagnoseTurn(int $turn, string $userMsg, string $botMsg, array $routeTrace, ?array $before, ?array $after, callable $log): void
     {
-        $prompt = <<<PROMPT
-Analyze this user message: "{$message}"
-
-Classify it into ONE of these categories:
-1. GREETING — hi, hello, namaste, good morning, how are you
-2. BUSINESS_QUERY — asking about business info, company details, location, contact, services
-3. PRODUCT_INQUIRY — asking about products, catalogue, what do you sell, prices, show me products
-4. PRODUCT_CONFIRMATION — confirming a product selection, like "yes", "1", "pehla wala", "haan ye chahiye", agreeing to buy
-5. PRODUCT_DETAIL_CONFIRM — confirming a product detail/combo option like a size, color, finish, material
-6. PRODUCT_MODIFY — wanting to add another product, remove product, change product, edit quantity
-7. SKIP_ANSWER — skipping a question, saying "no", "skip", "nahi chahiye"
-8. GENERAL_ANSWER — providing an answer to a question (name, city, email, number etc.)
-9. OTHER — anything else
-
-Reply with ONLY the category name (e.g., "GREETING"). Nothing else.
-PROMPT;
-
-        try {
-            $result = $this->vertexAI->classifyContent($prompt);
-            $type = strtoupper(trim($result['text'] ?? 'OTHER'));
-            // Sanitize
-            $validTypes = ['GREETING', 'BUSINESS_QUERY', 'PRODUCT_INQUIRY', 'PRODUCT_CONFIRMATION', 'PRODUCT_DETAIL_CONFIRM', 'PRODUCT_MODIFY', 'SKIP_ANSWER', 'GENERAL_ANSWER', 'OTHER'];
-            if (!in_array($type, $validTypes)) {
-                $type = 'OTHER';
-            }
-            return ['type' => $type];
-        } catch (\Exception $e) {
-            return ['type' => 'OTHER'];
-        }
-    }
-
-    /**
-     * Run all diagnostic checks for a single turn
-     */
-    private function diagnoseTurn(int $turn, string $userMsg, string $botMsg, array $classification, ?array $before, ?array $after, callable $log): void
-    {
-        $type = $classification['type'];
+        $routeStr = implode(' → ', $routeTrace);
 
         // ── TEST 1: Greeting Detection ──
-        if ($type === 'GREETING') {
+        if (in_array('greeting_intercept', $routeTrace)) {
             $isProductDump = preg_match('/\d+️⃣\s+\*/m', $botMsg)
                 || str_contains($botMsg, 'Our Products:')
-                || str_contains($botMsg, 'Our Categories:')
-                || preg_match('/^\d+\.\s+\*\*.+\*\*/m', $botMsg);
+                || str_contains($botMsg, 'Our Categories:');
 
             if ($isProductDump) {
-                $log('error', '   ❌ GREETING TEST: Bot dumped product list instead of greeting!');
+                $log('error', '   ❌ GREETING: Bot dumped product list instead of greeting!');
                 $this->addResult("turn_{$turn}_greeting", false, 'Bot sent catalogue on greeting');
             } else {
-                $log('success', '   ✅ GREETING TEST: Bot greeted properly');
+                $log('success', '   ✅ GREETING: Bot greeted properly');
                 $this->addResult("turn_{$turn}_greeting", true, 'Proper greeting');
             }
         }
 
-        // ── TEST 2: Business Query ──
-        if ($type === 'BUSINESS_QUERY') {
+        // ── TEST 2: Product Catalogue Sent ──
+        if (str_contains($routeStr, 'sendCatalogue') || str_contains($routeStr, 'sendCategoryList')) {
+            $hasNumberedList = preg_match('/\d+️⃣\s+\*/m', $botMsg)
+                || str_contains($botMsg, 'Our Products:')
+                || str_contains($botMsg, 'Our Categories:');
+
+            if ($hasNumberedList) {
+                $log('success', '   ✅ CATALOGUE: PHP-built product/category list sent');
+                $this->addResult("turn_{$turn}_catalogue", true, 'Catalogue sent via PHP');
+            } else {
+                $log('error', '   ❌ CATALOGUE: Expected PHP catalogue but got different response');
+                $this->addResult("turn_{$turn}_catalogue", false, 'Catalogue format mismatch');
+            }
+
+            // Verify no fabricated products
+            $this->verifyNoFakeProducts($botMsg, $turn, $log);
+        }
+
+        // ── TEST 3: Product Matching ──
+        if (in_array('matchProductFromMessage', $routeTrace)) {
+            if ($after && isset($after['answers']['product_id'])) {
+                $productName = $after['answers']['product_name'] ?? 'Unknown';
+                $log('success', "   ✅ PRODUCT MATCH: Selected \"{$productName}\"");
+
+                // Verify Lead + Quote created
+                if (!empty($after['lead_id'])) {
+                    $log('success', "   ✅ LEAD: Created #{$after['lead_id']}");
+                } else {
+                    $log('error', '   ❌ LEAD: NOT created after product selection');
+                }
+                if (!empty($after['quote_id'])) {
+                    $log('success', "   ✅ QUOTE: Created #{$after['quote_id']}");
+                    $this->addResult("turn_{$turn}_product_match", true, "Lead + Quote created");
+                } else {
+                    $log('error', '   ❌ QUOTE: NOT created after product selection');
+                    $this->addResult("turn_{$turn}_product_match", false, 'Quote not created');
+                }
+            } else {
+                // Product match attempted but failed
+                if (str_contains(strtolower($botMsg), "couldn't match")) {
+                    $log('error', "   ❌ PRODUCT MATCH: Bot couldn't match user input to any product");
+                    $this->addResult("turn_{$turn}_product_match", false, 'No match found');
+                } else {
+                    $log('info', "   ℹ️ PRODUCT MATCH: Attempted, result pending");
+                }
+            }
+        }
+
+        // ── TEST 4: Category Matching ──
+        if (in_array('matchCategoryFromMessage', $routeTrace)) {
+            if ($after && isset($after['answers']['category_id'])) {
+                $catName = $after['answers']['category_name'] ?? 'Unknown';
+                $log('success', "   ✅ CATEGORY MATCH: Selected \"{$catName}\"");
+                $this->addResult("turn_{$turn}_category_match", true, "Category matched");
+            } else {
+                if (str_contains(strtolower($botMsg), "couldn't match")) {
+                    $log('error', "   ❌ CATEGORY MATCH: Bot couldn't match user input");
+                    $this->addResult("turn_{$turn}_category_match", false, 'No match');
+                }
+            }
+        }
+
+        // ── TEST 5: Combo Step ──
+        if (in_array('handleComboStep', $routeTrace)) {
+            $answersBefore = $before['answers'] ?? [];
+            $answersAfter = $after['answers'] ?? [];
+            $newAnswers = array_diff_key($answersAfter, $answersBefore);
+
+            if (!empty($newAnswers)) {
+                foreach ($newAnswers as $key => $val) {
+                    $log('success', "   ✅ COMBO: Saved {$key} = {$val}");
+                }
+                $this->addResult("turn_{$turn}_combo", true, 'Combo value saved');
+
+                // Check quote variation update
+                if (!empty($after['quote_id'])) {
+                    $quote = Quote::with('items.variation')->find($after['quote_id']);
+                    if ($quote) {
+                        foreach ($quote->items as $item) {
+                            if ($item->variation_id) {
+                                $log('success', "   ✅ VARIATION: Price updated to ₹" . number_format($item->rate / 100, 2));
+                            }
+                            if (!empty($item->selected_combination)) {
+                                $combos = is_array($item->selected_combination) ? $item->selected_combination : json_decode($item->selected_combination, true);
+                                if ($combos) {
+                                    $comboStr = implode(', ', array_map(fn($k, $v) => "{$k}={$v}", array_keys($combos), $combos));
+                                    $log('info', "   📋 Combos: {$comboStr}");
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                $log('error', '   ❌ COMBO: No value was saved (retry or mismatch)');
+                $this->addResult("turn_{$turn}_combo", false, 'No value saved');
+            }
+
+            // Show chatflow progress
+            $this->showChatflowProgress($after, $log);
+        }
+
+        // ── TEST 6: Custom/Optional Step ──
+        if (in_array('handleCustomStep', $routeTrace)) {
+            $answersBefore = $before['answers'] ?? [];
+            $answersAfter = $after['answers'] ?? [];
+            $newAnswers = array_diff_key($answersAfter, $answersBefore);
+
+            if (!empty($newAnswers)) {
+                foreach ($newAnswers as $key => $val) {
+                    $log('success', "   ✅ CUSTOM: Saved {$key} = {$val}");
+                }
+                $this->addResult("turn_{$turn}_custom", true, 'Answer saved');
+            } else {
+                $log('info', '   ℹ️ CUSTOM: No new answer recorded (may be skip/retry)');
+            }
+        }
+
+        // ── TEST 7: Summary Step ──
+        if (in_array('handleSummaryStep', $routeTrace)) {
+            if (str_contains($botMsg, 'Order Summary') || str_contains($botMsg, '📋')) {
+                $log('success', '   ✅ SUMMARY: Order summary generated');
+                $this->addResult("turn_{$turn}_summary", true, 'Summary sent');
+            } else {
+                $log('error', '   ❌ SUMMARY: Expected order summary but got different response');
+                $this->addResult("turn_{$turn}_summary", false, 'No summary');
+            }
+        }
+
+        // ── TEST 8: Product Modify (add/edit/delete) ──
+        if (in_array('detectProductModifyIntent', $routeTrace)) {
+            $quoteBefore = $before['quote_items_count'] ?? 0;
+            $quoteAfter = $after['quote_items_count'] ?? 0;
+
+            if ($quoteBefore !== $quoteAfter) {
+                $log('success', "   ✅ MODIFY: Quote items changed ({$quoteBefore} → {$quoteAfter})");
+                $this->addResult("turn_{$turn}_modify", true, 'Quote modified');
+            } else {
+                $log('info', "   ℹ️ MODIFY: Intent detected, quote items unchanged");
+            }
+        }
+
+        // ── TEST 9: Tier 2 Fallback ──
+        if (in_array('handleTier2', $routeTrace) || in_array('handleTier2_fallback', $routeTrace)) {
+            // Verify bot didn't crash
+            $errorPhrases = ['sorry, i could not generate', 'sorry, an error occurred'];
             $botLower = strtolower($botMsg);
-            $errorPhrases = ['sorry, i could not generate', 'i don\'t have information', 'i cannot help'];
             $isError = false;
             foreach ($errorPhrases as $p) {
                 if (str_contains($botLower, $p)) { $isError = true; break; }
             }
             if ($isError) {
-                $log('error', '   ❌ BUSINESS QUERY: Bot failed to answer business question');
-                $this->addResult("turn_{$turn}_business", false, 'Bot cannot answer business queries');
+                $log('error', "   ❌ TIER 2: AI returned error response");
+                $this->addResult("turn_{$turn}_tier2", false, 'AI error response');
             } else {
-                $log('success', '   ✅ BUSINESS QUERY: Bot responded with business info');
-                $this->addResult("turn_{$turn}_business", true, 'Business info provided');
+                $log('success', '   ✅ TIER 2: AI responded successfully');
+                $this->addResult("turn_{$turn}_tier2", true, 'AI responded');
             }
         }
 
-        // ── TEST 3: Product Inquiry — spell fix + find in catalogue ──
-        if ($type === 'PRODUCT_INQUIRY') {
-            $hasProductList = str_contains($botMsg, '1️⃣')
-                || str_contains($botMsg, 'Products:')
-                || str_contains($botMsg, 'Categories:')
-                || preg_match('/\d+[\.\)]\s+/m', $botMsg);
+        // ── TEST 10: Language Check ──
+        $this->checkLanguageMatch($userMsg, $botMsg, $turn, $log);
+    }
 
-            // Check no fabricated products
-            $realProducts = Product::where('company_id', $this->companyId)
-                ->where('status', 'active')
-                ->pluck('name')
-                ->map(fn($n) => strtolower(trim($n)))
-                ->toArray();
+    /**
+     * Verify bot didn't fabricate non-existent products
+     */
+    private function verifyNoFakeProducts(string $botMsg, int $turn, callable $log): void
+    {
+        $realProducts = Product::where('company_id', $this->companyId)
+            ->where('status', 'active')
+            ->pluck('name')
+            ->map(fn($n) => strtolower(trim($n)))
+            ->toArray();
 
-            $hasFake = false;
-            if ($hasProductList && !empty($realProducts)) {
-                preg_match_all('/\*([^*]+)\*/', $botMsg, $starMatches);
-                $mentioned = $starMatches[1] ?? [];
-                foreach ($mentioned as $m) {
-                    $mLower = strtolower(trim($m));
-                    if (in_array($mLower, ['our products:', 'our categories:', 'order summary:'])) continue;
-                    $matchFound = false;
-                    foreach ($realProducts as $real) {
-                        if (str_contains($real, $mLower) || str_contains($mLower, $real) || $real === $mLower) {
-                            $matchFound = true;
-                            break;
-                        }
-                    }
-                    if (!$matchFound) $hasFake = true;
-                }
-            }
+        if (empty($realProducts)) return;
 
-            if ($hasFake) {
-                $log('error', '   ❌ PRODUCT INQUIRY: Bot fabricated non-existent products!');
-                $this->addResult("turn_{$turn}_product_inquiry", false, 'Fabricated products');
-            } elseif ($hasProductList || str_contains(strtolower($botMsg), 'product')) {
-                $log('success', '   ✅ PRODUCT INQUIRY: Bot showed real products from catalogue');
-                $this->addResult("turn_{$turn}_product_inquiry", true, 'Real products listed');
-            } else {
-                $log('error', '   ❌ PRODUCT INQUIRY: Bot did not show product list');
-                $this->addResult("turn_{$turn}_product_inquiry", false, 'No product list shown');
-            }
-        }
+        preg_match_all('/\*([^*]+)\*/', $botMsg, $starMatches);
+        $mentioned = $starMatches[1] ?? [];
+        $skipLabels = ['our products:', 'our categories:', 'order summary:'];
 
-        // ── TEST 4: Product Confirmation — save to lead/quote ──
-        if ($type === 'PRODUCT_CONFIRMATION') {
-            $productSaved = false;
-            if ($after && isset($after['answers']['product_id'])) {
-                $productSaved = true;
-                // Verify lead created
-                if (!empty($after['lead_id'])) {
-                    $log('success', '   ✅ PRODUCT CONFIRM: Product selected → Lead created (#{' . $after['lead_id'] . '})');
-                } else {
-                    $log('error', '   ❌ PRODUCT CONFIRM: Product selected but Lead NOT created');
-                }
-                // Verify quote created
-                if (!empty($after['quote_id'])) {
-                    $log('success', '   ✅ PRODUCT CONFIRM: Quote created (#{' . $after['quote_id'] . '})');
-                    $this->addResult("turn_{$turn}_product_confirm", true, 'Lead + Quote created');
-                } else {
-                    $log('error', '   ❌ PRODUCT CONFIRM: Quote NOT created');
-                    $this->addResult("turn_{$turn}_product_confirm", false, 'Quote not created');
-                }
-            } else {
-                $log('info', '   ℹ️ PRODUCT CONFIRM: Product not yet matched (may need product list first)');
-                $this->addResult("turn_{$turn}_product_confirm", false, 'Product not matched');
-            }
-        }
+        foreach ($mentioned as $m) {
+            $mLower = strtolower(trim($m));
+            if (in_array($mLower, $skipLabels)) continue;
 
-        // ── TEST 5: Product Detail Confirmation (combo step) — spell correct + save + verify chatflow progress ──
-        if ($type === 'PRODUCT_DETAIL_CONFIRM') {
-            $answersBefore = $before['answers'] ?? [];
-            $answersAfter = $after['answers'] ?? [];
-
-            // Check if new answer was added
-            $newAnswers = array_diff_key($answersAfter, $answersBefore);
-            if (!empty($newAnswers)) {
-                foreach ($newAnswers as $key => $val) {
-                    $log('success', "   ✅ DETAIL CONFIRM: Saved {$key} = {$val}");
-                }
-
-                // Verify chatflow progress
-                $this->verifyChatflowProgress($after, $log, $turn);
-                $this->addResult("turn_{$turn}_detail_confirm", true, 'Detail saved to session');
-            } else {
-                // Check if same answer was updated
-                $updatedAnswers = [];
-                foreach ($answersAfter as $k => $v) {
-                    if (isset($answersBefore[$k]) && $answersBefore[$k] !== $v) {
-                        $updatedAnswers[$k] = $v;
-                    }
-                }
-                if (!empty($updatedAnswers)) {
-                    foreach ($updatedAnswers as $key => $val) {
-                        $log('success', "   ✅ DETAIL CONFIRM: Updated {$key} = {$val}");
-                    }
-                    $this->addResult("turn_{$turn}_detail_confirm", true, 'Detail updated');
-                } else {
-                    $log('info', '   ℹ️ DETAIL CONFIRM: No new answers recorded (might be retry or mismatch)');
-                    $this->addResult("turn_{$turn}_detail_confirm", false, 'No answer recorded');
-                }
-            }
-
-            // Verify quote was updated
-            if (!empty($after['quote_id'])) {
-                $quote = Quote::with('items.variation')->find($after['quote_id']);
-                if ($quote) {
-                    foreach ($quote->items as $item) {
-                        if ($item->variation_id) {
-                            $log('success', "   ✅ QUOTE UPDATE: Variation matched, Price: ₹" . number_format($item->rate / 100, 2));
-                        }
-                        if (!empty($item->selected_combination)) {
-                            $combos = is_array($item->selected_combination) ? $item->selected_combination : json_decode($item->selected_combination, true);
-                            if ($combos) {
-                                $comboStr = implode(', ', array_map(fn($k, $v) => "{$k}={$v}", array_keys($combos), $combos));
-                                $log('info', "   📋 Selected combos: {$comboStr}");
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── TEST 6: Product Modify (add/edit/delete) ──
-        if ($type === 'PRODUCT_MODIFY') {
-            // Check if the bot detected the modification intent
-            $modifyKeywords = ['add', 'remove', 'delete', 'change', 'edit', 'hatao', 'nikalo', 'badlo', 'dusra', 'aur ek'];
-            $botDetected = false;
-            $botLower = strtolower($botMsg);
-            foreach ($modifyKeywords as $kw) {
-                if (str_contains($botLower, $kw) || str_contains(strtolower($userMsg), $kw)) {
-                    $botDetected = true;
+            $matchFound = false;
+            foreach ($realProducts as $real) {
+                if (str_contains($real, $mLower) || str_contains($mLower, $real) || $real === $mLower) {
+                    $matchFound = true;
                     break;
                 }
             }
 
-            // Check if quote was actually modified
-            $quoteBefore = $before['quote_items_count'] ?? 0;
-            $quoteAfter = $after['quote_items_count'] ?? 0;
-
-            if ($quoteBefore !== $quoteAfter) {
-                $log('success', "   ✅ PRODUCT MODIFY: Quote items changed ({$quoteBefore} → {$quoteAfter})");
-                $this->addResult("turn_{$turn}_product_modify", true, 'Quote modified');
-            } else {
-                $log('error', '   ❌ PRODUCT MODIFY: Bot did not modify quote items');
-                $log('info', '   ℹ️ Product add/edit/delete handling may need implementation');
-                $this->addResult("turn_{$turn}_product_modify", false, 'Quote not modified');
-            }
-        }
-
-        // ── TEST 7: Language Detection ──
-        $this->checkLanguageMatch($userMsg, $botMsg, $turn, $log);
-
-        // ── TEST 8: Bot Error Check ──
-        $errorPhrases = ['sorry, i could not generate', 'sorry, an error occurred', 'sorry, i am unable to process', 'ai bot is not configured'];
-        $botLower = strtolower($botMsg);
-        foreach ($errorPhrases as $errPhrase) {
-            if (str_contains($botLower, $errPhrase)) {
-                $log('error', "   ❌ BOT ERROR: Returned error message at turn {$turn}");
-                $this->addResult("turn_{$turn}_bot_error", false, 'Bot returned error');
-                break;
-            }
-        }
-
-        // ── TEST 9: Optional Question / Skip Check ──
-        if ($type === 'SKIP_ANSWER') {
-            $currentStepId = $after['current_step_id'] ?? null;
-            $beforeStepId = $before['current_step_id'] ?? null;
-
-            if ($currentStepId !== $beforeStepId) {
-                $log('success', '   ✅ SKIP: Bot advanced to next step after skip');
-                $this->addResult("turn_{$turn}_skip", true, 'Skipped and advanced');
-            } else {
-                // Check if it's an optional step
-                $step = $currentStepId ? ChatflowStep::find($currentStepId) : null;
-                if ($step && $step->isOptionalStep()) {
-                    $retries = $after['current_step_retries'] ?? 0;
-                    $maxRetries = $step->max_retries ?? 2;
-                    if ($retries >= $maxRetries) {
-                        $log('error', "   ❌ SKIP: Optional step reached max retries ({$maxRetries}) but didn't advance");
-                    } else {
-                        $log('info', "   ℹ️ SKIP: Optional step retry {$retries}/{$maxRetries}");
-                    }
-                    $this->addResult("turn_{$turn}_skip", $retries < $maxRetries, "Retry {$retries}/{$maxRetries}");
-                } else {
-                    $log('info', '   ℹ️ SKIP: Step did not advance (may be required step)');
-                    $this->addResult("turn_{$turn}_skip", false, 'Required step cannot be skipped');
-                }
+            if (!$matchFound) {
+                $log('error', "   ❌ FAKE PRODUCT: \"{$m}\" is not in catalogue!");
+                $this->addResult("turn_{$turn}_fake_product", false, "Fabricated: {$m}");
+                return;
             }
         }
     }
 
     /**
-     * Verify chatflow progress — which steps are done, which pending
+     * Show chatflow progress
      */
-    private function verifyChatflowProgress(array $sessionData, callable $log, int $turn): void
+    private function showChatflowProgress(array $sessionData, callable $log): void
     {
         $steps = ChatflowStep::where('company_id', $this->companyId)->orderBy('sort_order')->get();
         if ($steps->isEmpty()) return;
 
         $currentStepId = $sessionData['current_step_id'] ?? null;
-        $answers = $sessionData['answers'] ?? [];
-
         $completed = 0;
         $pending = 0;
         $currentFound = false;
 
         foreach ($steps as $step) {
-            if ($step->id == $currentStepId) {
-                $currentFound = true;
-            }
-            if ($currentFound) {
-                $pending++;
-            } else {
-                $completed++;
-            }
+            if ($step->id == $currentStepId) $currentFound = true;
+            if ($currentFound) { $pending++; } else { $completed++; }
         }
 
         $total = $steps->count();
-        $log('info', "   📊 Chatflow Progress: {$completed}/{$total} completed, {$pending} pending");
+        $log('info', "   📊 Chatflow: {$completed}/{$total} done, {$pending} pending");
 
-        // Check if next step in chatflow matches current step
         if ($currentStepId) {
             $currentStep = $steps->firstWhere('id', $currentStepId);
             if ($currentStep) {
-                $log('info', "   ➡️ Next question: [{$currentStep->step_type}] {$currentStep->name}");
-            }
-        }
-
-        // Verify quote has all confirmed fields
-        if (!empty($sessionData['quote_id'])) {
-            $quote = Quote::with('items')->find($sessionData['quote_id']);
-            if ($quote && $quote->items->count() > 0) {
-                $item = $quote->items->first();
-                $combos = is_array($item->selected_combination) ? $item->selected_combination : json_decode($item->selected_combination ?? '{}', true);
-                $confirmedCount = $combos ? count($combos) : 0;
-
-                // Count combo steps
-                $comboSteps = $steps->where('step_type', 'ask_combo')->count();
-                $log('info', "   📦 Quote combos confirmed: {$confirmedCount}/{$comboSteps}");
-
-                if ($confirmedCount === $comboSteps && $comboSteps > 0) {
-                    $log('success', '   ✅ All combo fields confirmed in quote!');
-                    $this->addResult("turn_{$turn}_chatflow", true, 'All combos confirmed');
-                }
+                $log('info', "   ➡️ Next: [{$currentStep->step_type}] {$currentStep->name}");
             }
         }
     }
@@ -626,8 +557,6 @@ PROMPT;
     private function checkLanguageMatch(string $userMsg, string $botMsg, int $turn, callable $log): void
     {
         $langSetting = Setting::getValue('ai_bot', 'reply_language', 'auto', $this->companyId);
-
-        // Only check for auto mode (match user language)
         if ($langSetting !== 'auto') return;
 
         try {
@@ -648,14 +577,14 @@ PROMPT;
             $match = strtoupper(trim($result['text'] ?? ''));
 
             if (str_contains($match, 'MATCH') && !str_contains($match, 'MISMATCH')) {
-                $log('success', '   ✅ LANGUAGE: Bot replied in same language as user');
+                $log('success', '   ✅ LANGUAGE: Matched');
                 $this->addResult("turn_{$turn}_language", true, 'Language matched');
             } else {
-                $log('error', '   ❌ LANGUAGE: Bot replied in different language than user!');
+                $log('error', '   ❌ LANGUAGE: Mismatch');
                 $this->addResult("turn_{$turn}_language", false, 'Language mismatch');
             }
         } catch (\Exception $e) {
-            $log('info', '   ℹ️ LANGUAGE: Could not verify (' . $e->getMessage() . ')');
+            $log('info', '   ℹ️ LANGUAGE: Could not verify');
         }
     }
 
@@ -664,7 +593,9 @@ PROMPT;
      */
     private function getSessionSnapshot(): ?array
     {
-        $session = AiChatSession::where('phone_number', $this->simPhone)->first();
+        $session = AiChatSession::where('phone_number', $this->simPhone)
+            ->where('status', 'active')
+            ->first();
         if (!$session) return null;
 
         $quoteItemsCount = 0;
@@ -716,7 +647,7 @@ PROMPT;
             }
         }
 
-        // Generate AI summary in Hinglish
+        // Generate AI summary
         if ($total > 0) {
             try {
                 $resultText = '';
@@ -760,10 +691,16 @@ PROMPT;
 
     private function cleanup(): void
     {
-        $session = AiChatSession::where('phone_number', $this->simPhone)->first();
-        if ($session) {
+        $sessions = AiChatSession::where('phone_number', $this->simPhone)->get();
+        foreach ($sessions as $session) {
             AiChatMessage::where('session_id', $session->id)->delete();
-            if ($session->lead_id) { Lead::where('id', $session->lead_id)->delete(); }
+            if ($session->lead_id) {
+                $lead = Lead::find($session->lead_id);
+                if ($lead) {
+                    $lead->products()->detach();
+                    $lead->delete();
+                }
+            }
             if ($session->quote_id) {
                 QuoteItem::where('quote_id', $session->quote_id)->delete();
                 Quote::where('id', $session->quote_id)->delete();

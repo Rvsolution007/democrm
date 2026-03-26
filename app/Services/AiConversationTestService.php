@@ -16,7 +16,7 @@ class AiConversationTestService
     private int $companyId;
     private int $userId;
     private AIChatbotService $chatbotService;
-    private string $simPhone = '919999999991'; // Different from old simulator
+    private string $simPhone = '919999999991';
 
     public function __construct(int $companyId, int $userId)
     {
@@ -27,6 +27,7 @@ class AiConversationTestService
 
     /**
      * Run conversation test with user-defined questions (streamed output).
+     * Uses the EXACT same processMessage() as WhatsApp webhook.
      */
     public function run(callable $log): void
     {
@@ -68,6 +69,12 @@ class AiConversationTestService
                     $botMsg = $botResult['response'] ?? 'No response generated.';
                     $log('bot', $botMsg);
 
+                    // Show route trace — exactly which code path was taken
+                    $routeTrace = $this->chatbotService->getRouteTrace();
+                    if (!empty($routeTrace)) {
+                        $log('info', '   🛤️ Route: ' . implode(' → ', $routeTrace));
+                    }
+
                     // Check for error responses
                     $botErrorPhrases = [
                         'sorry, i could not generate',
@@ -85,7 +92,9 @@ class AiConversationTestService
                     }
 
                     // Log session state
-                    $session = AiChatSession::where('phone_number', $this->simPhone)->first();
+                    $session = AiChatSession::where('phone_number', $this->simPhone)
+                        ->where('status', 'active')
+                        ->first();
                     if ($session) {
                         $stateInfo = "State: {$session->conversation_state}";
                         if ($session->lead_id) $stateInfo .= " | Lead: #{$session->lead_id}";
@@ -118,7 +127,9 @@ class AiConversationTestService
             }
 
             // Show final session state
-            $session = AiChatSession::where('phone_number', $this->simPhone)->first();
+            $session = AiChatSession::where('phone_number', $this->simPhone)
+                ->where('status', 'active')
+                ->first();
             if ($session) {
                 $log('info', "Final State: {$session->conversation_state}");
                 $answers = $session->collected_answers ?? [];
@@ -152,11 +163,15 @@ class AiConversationTestService
      */
     private function cleanup(): void
     {
-        $session = AiChatSession::where('phone_number', $this->simPhone)->first();
-        if ($session) {
+        $sessions = AiChatSession::where('phone_number', $this->simPhone)->get();
+        foreach ($sessions as $session) {
             AiChatMessage::where('session_id', $session->id)->delete();
             if ($session->lead_id) {
-                Lead::where('id', $session->lead_id)->delete();
+                $lead = Lead::find($session->lead_id);
+                if ($lead) {
+                    $lead->products()->detach();
+                    $lead->delete();
+                }
             }
             if ($session->quote_id) {
                 QuoteItem::where('quote_id', $session->quote_id)->delete();

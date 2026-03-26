@@ -22,6 +22,7 @@ class AIChatbotService
     private int $userId;
     private VertexAIService $vertexAI;
     private string $replyLanguage;
+    private array $routeTrace = [];
 
     public function __construct(int $companyId, int $userId)
     {
@@ -29,6 +30,15 @@ class AIChatbotService
         $this->userId = $userId;
         $this->vertexAI = new VertexAIService($companyId);
         $this->replyLanguage = Setting::getValue('ai_bot', 'reply_language', 'auto', $companyId);
+    }
+
+    /**
+     * Get route trace — shows which code path was taken during message processing.
+     * Used by diagnostic/test services to display exact routing decisions.
+     */
+    public function getRouteTrace(): array
+    {
+        return $this->routeTrace;
     }
 
     private ?CatalogueCustomColumn $uniqueColumn = null;
@@ -123,20 +133,29 @@ class AIChatbotService
 
     private function routeMessage(AiChatSession $session, string $fullMessage, string $rawMessage, ?string $imageUrl): string
     {
+        $this->routeTrace = []; // Reset trace for each message
         $steps = ChatflowStep::where('company_id', $this->companyId)->orderBy('sort_order')->get();
         $currentStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
         $answers = $session->collected_answers ?? [];
 
-        // Removed empty chatflow steps bypass to allow catalog and pre-product phase matching
+        // ══ GREETING INTERCEPT: If user greets at any point, handle via Tier 2 ══
+        if ($this->isGreeting($rawMessage)) {
+            $this->routeTrace[] = 'greeting_intercept';
+            $this->routeTrace[] = 'handleTier2';
+            Log::info('AIChatbot: Greeting detected, routing to Tier 2', ['session' => $session->id, 'message' => $rawMessage]);
+            return $this->handleTier2($session, $fullMessage, $imageUrl);
+        }
 
         // ══ CASE 1: No product selected yet ══
         if (!isset($answers['product_id'])) {
+            $this->routeTrace[] = 'handlePreProductPhase';
             return $this->handlePreProductPhase($session, $steps, $fullMessage, $rawMessage, $imageUrl);
         }
 
         // ══ CASE 1.5: Check for product modification intent (add/edit/delete) ══
         $modifyResult = $this->detectProductModifyIntent($session, $rawMessage);
         if ($modifyResult !== null) {
+            $this->routeTrace[] = 'detectProductModifyIntent';
             return $modifyResult;
         }
 
@@ -144,18 +163,22 @@ class AIChatbotService
         if ($currentStep) {
             switch ($currentStep->step_type) {
                 case 'ask_combo':
+                    $this->routeTrace[] = 'handleComboStep';
                     return $this->handleComboStep($session, $currentStep, $rawMessage, $steps);
 
                 case 'ask_optional':
                 case 'ask_custom':
+                    $this->routeTrace[] = 'handleCustomStep';
                     return $this->handleCustomStep($session, $currentStep, $rawMessage, $steps);
 
                 case 'send_summary':
+                    $this->routeTrace[] = 'handleSummaryStep';
                     return $this->handleSummaryStep($session);
             }
         }
 
         // ══ CASE 3: Fallback — Tier 2 ══
+        $this->routeTrace[] = 'handleTier2_fallback';
         return $this->handleTier2($session, $fullMessage, $imageUrl);
     }
 
@@ -173,33 +196,50 @@ class AIChatbotService
         if ($hasCategoryStep && !isset($answers['category_id'])) {
             // Category flow active — check if categories already sent
             if ($session->conversation_state === 'awaiting_category') {
+                $this->routeTrace[] = 'matchCategoryFromMessage';
                 return $this->matchCategoryFromMessage($session, $rawMessage, $steps);
             }
 
             // Check if catalogue has been sent (meaning categories were sent)
             if ($session->catalogue_sent) {
+                $this->routeTrace[] = 'matchCategoryFromMessage';
                 return $this->matchCategoryFromMessage($session, $rawMessage, $steps);
             }
 
-            // Not sent yet — check intent then send category list
+            // Not sent yet — fast PHP check first, then AI fallback
+            if ($this->isProductIntent($rawMessage)) {
+                $this->routeTrace[] = 'isProductIntent(PHP) → sendCategoryList';
+                return $this->sendCategoryList($session);
+            }
+
+            // AI fallback for ambiguous messages
             $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user asking about products, catalogue, prices, or what you sell? This includes messages in ANY language like Hindi, Hinglish, etc. Examples of YES: 'products dikhao', 'kya bechte ho', 'show me products', 'muje product ke bare me btao', 'catalogue', 'what do you sell'. Examples of NO: 'hi', 'hello', 'namaste', 'good morning', 'how are you', 'thanks'. Reply with ONLY 'YES' or 'NO'.";
             $intentResult = $this->vertexAI->classifyContent($intentPrompt);
             $this->logTokens($session, 1, $intentResult);
             $isProductIntent = str_contains(strtoupper($intentResult['text']), 'YES');
 
             if ($isProductIntent) {
+                $this->routeTrace[] = 'isProductIntent(AI) → sendCategoryList';
                 return $this->sendCategoryList($session);
             }
 
+            $this->routeTrace[] = 'handleTier2';
             return $this->handleTier2($session, $fullMessage, $imageUrl);
         }
 
         // ══ Standard product flow (no category step or category already selected) ══
         if ($session->catalogue_sent) {
+            $this->routeTrace[] = 'matchProductFromMessage';
             return $this->matchProductFromMessage($session, $rawMessage, $steps);
         }
 
-        // Catalogue not sent yet — check if user is asking about products (Tier 1)
+        // Catalogue not sent yet — fast PHP check first, then AI fallback
+        if ($this->isProductIntent($rawMessage)) {
+            $this->routeTrace[] = 'isProductIntent(PHP) → sendCatalogue';
+            return $this->sendCatalogue($session);
+        }
+
+        // AI fallback for ambiguous messages
         $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user asking about products, catalogue, prices, or what you sell? This includes messages in ANY language like Hindi, Hinglish, etc. Examples of YES: 'products dikhao', 'kya bechte ho', 'show me products', 'muje product ke bare me btao', 'catalogue', 'what do you sell'. Examples of NO: 'hi', 'hello', 'namaste', 'good morning', 'how are you', 'thanks'. Reply with ONLY 'YES' or 'NO'.";
 
         $intentResult = $this->vertexAI->classifyContent($intentPrompt);
@@ -208,11 +248,12 @@ class AIChatbotService
         $isProductIntent = str_contains(strtoupper($intentResult['text']), 'YES');
 
         if ($isProductIntent) {
-            // Send catalogue
+            $this->routeTrace[] = 'isProductIntent(AI) → sendCatalogue';
             return $this->sendCatalogue($session);
         }
 
         // Not product-related — use Tier 2 for general conversation
+        $this->routeTrace[] = 'handleTier2';
         return $this->handleTier2($session, $fullMessage, $imageUrl);
     }
 
@@ -1369,6 +1410,63 @@ PROMPT;
     // ═══════════════════════════════════════════════════════
     // HELPERS
     // ═══════════════════════════════════════════════════════
+
+    /**
+     * Fast PHP-level greeting detection (no AI call needed).
+     * Returns true if the message is a simple greeting.
+     */
+    private function isGreeting(string $message): bool
+    {
+        $msg = strtolower(trim($message));
+
+        // Exact match greetings
+        $greetings = [
+            'hi', 'hello', 'hey', 'hola', 'namaste', 'namaskar', 'namasté',
+            'good morning', 'good afternoon', 'good evening', 'good night',
+            'gm', 'gn', 'howdy', 'sup', 'yo',
+            'hii', 'hiii', 'hiiii', 'hiiiii',
+            'helo', 'hllo', 'hlw', 'hellow', 'helloo',
+            'hw r u', 'how are you', 'how r u',
+            'kaise ho', 'kya hal hai', 'kya haal hai', 'kem cho',
+            'vanakkam', 'vanakam',
+            'assalamu alaikum', 'salam', 'salaam',
+            'sat sri akal', 'sat shri akal',
+            'jai shri ram', 'jai shree ram', 'ram ram',
+            'jai jinendra', 'pranam', 'pranaam',
+            'shubh prabhat', 'suprabhat',
+        ];
+
+        return in_array($msg, $greetings);
+    }
+
+    /**
+     * Fast PHP-level product intent detection (no AI call needed).
+     * Returns true if the message clearly asks about products/catalogue.
+     */
+    private function isProductIntent(string $message): bool
+    {
+        $msg = strtolower(trim($message));
+
+        // Keyword-based detection (substring match)
+        $keywords = [
+            'product', 'products', 'catalogue', 'catalog',
+            'price', 'prices', 'rate', 'rates', 'cost',
+            'dikhao', 'dikha do', 'btao', 'batao', 'bata do',
+            'bechte', 'sell', 'selling',
+            'kya hai', 'kya he', 'kya milta', 'kya milega',
+            'show me', 'show products', 'list',
+            'what do you', 'what you have',
+            'menu', 'item', 'items',
+        ];
+
+        foreach ($keywords as $kw) {
+            if (str_contains($msg, $kw)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private function getAiVisibleColumns()
     {
