@@ -426,6 +426,7 @@ class AIChatbotService
 
     /**
      * Match user's message to a product (Tier 1)
+     * First tries PHP-level number extraction, then falls back to AI matching.
      */
     private function matchProductFromMessage(AiChatSession $session, string $rawMessage, $steps): string
     {
@@ -444,32 +445,80 @@ class AIChatbotService
             return "Sorry, no products available right now.";
         }
 
-        // Build product list for prompt
-        $productList = $products->map(fn($p, $i) => ($i + 1) . ". " . $this->getProductDisplayName($p) . " (ID:{$p->id})")->implode("\n");
-
-        $prompt = "User said: \"{$rawMessage}\"\n\nAvailable products:\n{$productList}\n\nWhich product number did user select or which product name matches? Reply with ONLY the ID number. If unclear or no match, reply NONE.";
-
-        $matchResult = $this->vertexAI->classifyContent($prompt);
-        $this->logTokens($session, 1, $matchResult);
-
-        $matchText = trim($matchResult['text']);
-
-        // Extract number from response
-        preg_match('/(\d+)/', $matchText, $matches);
-        $matchedId = $matches[1] ?? null;
-
-        // Check if it's a valid product ID or list number
+        // ── PHP PRE-CHECK: Direct number extraction ──
+        // Handles: "1", "product 1", "#1", "product 1 me btao", "pehla product", etc.
+        $msg = strtolower(trim($rawMessage));
         $selectedProduct = null;
-        if ($matchedId) {
-            // First try as product ID
-            $selectedProduct = $products->firstWhere('id', (int)$matchedId);
-            // Then try as list number
-            if (!$selectedProduct && (int)$matchedId <= $products->count()) {
-                $selectedProduct = $products->values()[(int)$matchedId - 1] ?? null;
+
+        // Try extracting a list number from the message
+        $listNumber = null;
+
+        // Pattern: ordinal words (Hindi/English)
+        $ordinals = [
+            'first' => 1, 'second' => 2, 'third' => 3, 'fourth' => 4, 'fifth' => 5,
+            'pehla' => 1, 'pahla' => 1, 'pehli' => 1, 'pahli' => 1,
+            'dusra' => 2, 'doosra' => 2, 'dusri' => 2, 'doosri' => 2,
+            'teesra' => 3, 'tisra' => 3, 'teesri' => 3,
+            'chautha' => 4, 'chauthi' => 4,
+            'paanchva' => 5, 'panchva' => 5,
+        ];
+        foreach ($ordinals as $word => $num) {
+            if (str_contains($msg, $word)) {
+                $listNumber = $num;
+                break;
             }
         }
 
-        if (!$selectedProduct || strtoupper($matchText) === 'NONE') {
+        // Pattern: extract digit from message (e.g., "product 1", "1", "#2", "no. 3")
+        if (!$listNumber) {
+            if (preg_match('/(?:product|#|no\.?\s*|number\s*)?(\d+)/i', $msg, $numMatch)) {
+                $listNumber = (int)$numMatch[1];
+            }
+        }
+
+        // If we got a list number, try to match it
+        if ($listNumber && $listNumber >= 1 && $listNumber <= $products->count()) {
+            $selectedProduct = $products->values()[$listNumber - 1] ?? null;
+        }
+
+        // ── Also try direct name matching (PHP level) ──
+        if (!$selectedProduct) {
+            foreach ($products as $product) {
+                $displayName = strtolower($this->getProductDisplayName($product));
+                $productName = strtolower($product->name);
+                if (str_contains($msg, $displayName) || str_contains($msg, $productName)) {
+                    $selectedProduct = $product;
+                    break;
+                }
+            }
+        }
+
+        // ── If PHP couldn't match, fall back to AI ──
+        if (!$selectedProduct) {
+            $productList = $products->map(fn($p, $i) => ($i + 1) . ". " . $this->getProductDisplayName($p) . " (ID:{$p->id})")->implode("\n");
+
+            $prompt = "User said: \"{$rawMessage}\"\n\nAvailable products:\n{$productList}\n\nWhich product did user select? User may refer by number (e.g. 'product 1' means list item #1), by name, or description. Reply with ONLY the product ID number. If truly unclear or no match, reply NONE.";
+
+            $matchResult = $this->vertexAI->classifyContent($prompt);
+            $this->logTokens($session, 1, $matchResult);
+
+            $matchText = trim($matchResult['text']);
+
+            // Extract number from response
+            preg_match('/(\d+)/', $matchText, $matches);
+            $matchedId = $matches[1] ?? null;
+
+            if ($matchedId && strtoupper($matchText) !== 'NONE') {
+                // First try as product ID
+                $selectedProduct = $products->firstWhere('id', (int)$matchedId);
+                // Then try as list number
+                if (!$selectedProduct && (int)$matchedId <= $products->count()) {
+                    $selectedProduct = $products->values()[(int)$matchedId - 1] ?? null;
+                }
+            }
+        }
+
+        if (!$selectedProduct) {
             return "Sorry, I couldn't match that to a product. Please reply with the product number or name from the list above. 🙏";
         }
 

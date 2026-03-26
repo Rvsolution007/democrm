@@ -16,6 +16,9 @@ use App\Models\QuoteItem;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Log;
 
+// Unique column cache for display name resolution
+use App\Models\CatalogueCustomValue;
+
 class AiBotDiagnosticService
 {
     private int $companyId;
@@ -287,6 +290,9 @@ class AiBotDiagnosticService
                 // Run diagnostic checks based on ACTUAL route trace (not separate AI)
                 $this->diagnoseTurn($turnNum, $userMsg, $botMsg, $routeTrace, $beforeSession, $afterSession, $log);
 
+                // ── CONVERSATION OUTPUT (like Conversation Test) ──
+                $this->logSessionState($log);
+
             } catch (\Exception $e) {
                 $log('error', "❌ Bot CRASHED: " . $e->getMessage());
                 $this->addResult("turn_{$turnNum}_crash", false, $e->getMessage());
@@ -486,17 +492,27 @@ class AiBotDiagnosticService
     }
 
     /**
-     * Verify bot didn't fabricate non-existent products
+     * Verify bot didn't fabricate non-existent products.
+     * Uses display names (from unique column) — same as AIChatbotService.
      */
     private function verifyNoFakeProducts(string $botMsg, int $turn, callable $log): void
     {
-        $realProducts = Product::where('company_id', $this->companyId)
+        $products = Product::with('customValues')->where('company_id', $this->companyId)
             ->where('status', 'active')
-            ->pluck('name')
-            ->map(fn($n) => strtolower(trim($n)))
-            ->toArray();
+            ->get();
 
-        if (empty($realProducts)) return;
+        if ($products->isEmpty()) return;
+
+        // Build list of ALL valid names: raw name + display name (unique column)
+        $validNames = [];
+        foreach ($products as $product) {
+            $validNames[] = strtolower(trim($product->name));
+            $displayName = $this->getProductDisplayNameForDiag($product);
+            if ($displayName !== $product->name) {
+                $validNames[] = strtolower(trim($displayName));
+            }
+        }
+        $validNames = array_unique($validNames);
 
         preg_match_all('/\*([^*]+)\*/', $botMsg, $starMatches);
         $mentioned = $starMatches[1] ?? [];
@@ -507,7 +523,7 @@ class AiBotDiagnosticService
             if (in_array($mLower, $skipLabels)) continue;
 
             $matchFound = false;
-            foreach ($realProducts as $real) {
+            foreach ($validNames as $real) {
                 if (str_contains($real, $mLower) || str_contains($mLower, $real) || $real === $mLower) {
                     $matchFound = true;
                     break;
@@ -520,6 +536,36 @@ class AiBotDiagnosticService
                 return;
             }
         }
+    }
+
+    /**
+     * Get product display name using unique column (mirrors AIChatbotService logic)
+     */
+    private function getProductDisplayNameForDiag(Product $product): string
+    {
+        static $uniqueColumn = null;
+        static $loaded = false;
+
+        if (!$loaded) {
+            $uniqueColumn = CatalogueCustomColumn::where('company_id', $this->companyId)
+                ->where('is_unique', true)
+                ->first();
+            $loaded = true;
+        }
+
+        if ($uniqueColumn) {
+            if ($uniqueColumn->is_system) {
+                return $product->{$uniqueColumn->slug} ?: $product->name;
+            } else {
+                $customVal = $product->customValues->where('column_id', $uniqueColumn->id)->first();
+                if ($customVal && !empty($customVal->value)) {
+                    $val = json_decode($customVal->value, true);
+                    return is_array($val) ? implode(', ', $val) : $customVal->value;
+                }
+            }
+        }
+
+        return $product->name;
     }
 
     /**
@@ -552,40 +598,77 @@ class AiBotDiagnosticService
     }
 
     /**
-     * Check if bot reply language matches user input language
+     * Check if bot reply language matches user input language.
+     * Uses PHP-based detection instead of unreliable AI classification.
+     * In auto mode: Hindi/Hinglish/English mixed is ALWAYS acceptable.
      */
     private function checkLanguageMatch(string $userMsg, string $botMsg, int $turn, callable $log): void
     {
         $langSetting = Setting::getValue('ai_bot', 'reply_language', 'auto', $this->companyId);
         if ($langSetting !== 'auto') return;
 
-        try {
-            $prompt = <<<PROMPT
-Analyze these two messages:
-User: "{$userMsg}"
-Bot: "{$botMsg}"
+        $userLang = $this->detectLanguageType($userMsg);
+        $botLang = $this->detectLanguageType($botMsg);
 
-Are they in the same language? Consider:
-- Hindi text (Devanagari or Romanized Hindi/Hinglish both count as Hindi)
-- English text
-- Mixed is acceptable
+        // In auto mode: Hinglish/mixed is ALWAYS acceptable
+        // Only flag if user writes pure Devanagari Hindi but bot responds in pure English,
+        // or user writes pure English but bot responds in pure Devanagari Hindi.
+        $isMismatch = false;
 
-Reply with ONLY "MATCH" or "MISMATCH".
-PROMPT;
-
-            $result = $this->vertexAI->classifyContent($prompt);
-            $match = strtoupper(trim($result['text'] ?? ''));
-
-            if (str_contains($match, 'MATCH') && !str_contains($match, 'MISMATCH')) {
-                $log('success', '   ✅ LANGUAGE: Matched');
-                $this->addResult("turn_{$turn}_language", true, 'Language matched');
-            } else {
-                $log('error', '   ❌ LANGUAGE: Mismatch');
-                $this->addResult("turn_{$turn}_language", false, 'Language mismatch');
-            }
-        } catch (\Exception $e) {
-            $log('info', '   ℹ️ LANGUAGE: Could not verify');
+        if ($userLang === 'devanagari' && $botLang === 'english') {
+            $isMismatch = true; // User wrote Hindi script, bot responded in pure English
+        } elseif ($userLang === 'english' && $botLang === 'devanagari') {
+            $isMismatch = true; // User wrote pure English, bot responded in Hindi script
         }
+        // All other combos (hinglish, mixed, same) are acceptable
+
+        if (!$isMismatch) {
+            $log('success', "   ✅ LANGUAGE: OK ({$userLang} → {$botLang})");
+            $this->addResult("turn_{$turn}_language", true, "Language OK ({$userLang} → {$botLang})");
+        } else {
+            $log('error', "   ❌ LANGUAGE: Mismatch ({$userLang} → {$botLang})");
+            $this->addResult("turn_{$turn}_language", false, "Language mismatch ({$userLang} → {$botLang})");
+        }
+    }
+
+    /**
+     * Detect language type of a message using character analysis.
+     * Returns: 'devanagari', 'english', 'hinglish', or 'mixed'
+     */
+    private function detectLanguageType(string $text): string
+    {
+        $clean = preg_replace('/[\s\d\p{P}\p{S}*️⃣🛍📋✅❌🙏💰📊📌📏🏷📂👆🗑✏]+/u', '', $text);
+        if (empty($clean)) return 'mixed';
+
+        // Count Devanagari vs Latin characters
+        $devanagariCount = preg_match_all('/[\x{0900}-\x{097F}]/u', $clean);
+        $latinCount = preg_match_all('/[a-zA-Z]/u', $clean);
+        $total = $devanagariCount + $latinCount;
+
+        if ($total === 0) return 'mixed';
+
+        $devPercent = $devanagariCount / $total;
+
+        if ($devPercent > 0.8) return 'devanagari';  // Mostly Hindi script
+        if ($devPercent < 0.1) {
+            // Check if it looks like Romanized Hindi (Hinglish)
+            $hinglishWords = ['hai', 'kya', 'aap', 'mein', 'hoon', 'kaise', 'nahi', 'haan',
+                'karo', 'batao', 'btao', 'dikhao', 'chahiye', 'bechte', 'milta',
+                'aapka', 'humari', 'madad', 'sakta', 'karein', 'dekh', 'ho',
+                'ke', 'ka', 'ki', 'ko', 'se', 'me', 'pe', 'par', 'bhi', 'aur'];
+            $words = preg_split('/\s+/', strtolower($text));
+            $hinglishCount = 0;
+            foreach ($words as $w) {
+                $w = preg_replace('/[^a-z]/', '', $w);
+                if (in_array($w, $hinglishWords)) $hinglishCount++;
+            }
+            if (count($words) > 0 && ($hinglishCount / count($words)) > 0.2) {
+                return 'hinglish';
+            }
+            return 'english';
+        }
+
+        return 'mixed'; // Mix of Devanagari and Latin
     }
 
     /**
@@ -614,6 +697,27 @@ PROMPT;
             'catalogue_sent' => $session->catalogue_sent,
             'quote_items_count' => $quoteItemsCount,
         ];
+    }
+
+    /**
+     * Log current session state — mirrors AiConversationTestService output.
+     * Shows state, lead, quote, and collected answers after each turn.
+     */
+    private function logSessionState(callable $log): void
+    {
+        $session = AiChatSession::where('phone_number', $this->simPhone)
+            ->where('status', 'active')
+            ->first();
+        if (!$session) return;
+
+        $stateInfo = "State: {$session->conversation_state}";
+        if ($session->lead_id) $stateInfo .= " | Lead: #{$session->lead_id}";
+        if ($session->quote_id) $stateInfo .= " | Quote: #{$session->quote_id}";
+        $answers = $session->collected_answers ?? [];
+        if (!empty($answers)) {
+            $stateInfo .= " | Answers: " . count($answers);
+        }
+        $log('info', "   📊 {$stateInfo}");
     }
 
     // ═══════════════════════════════════════════════════════
