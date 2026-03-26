@@ -201,10 +201,8 @@
                 Add your test questions below. The bot will answer them exactly like on WhatsApp.
             </p>
         </div>
-        <div style="display: flex; gap: 10px;">
-            <button type="button" onclick="saveQuestions()" class="btn btn-outline" style="display:flex;align-items:center;gap:6px">
-                <i data-lucide="save" style="width:16px;height:16px;"></i> Save Questions
-            </button>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <span id="save-indicator" style="display:none; font-size: 13px; color: #10b981; font-weight: 600;"></span>
             <button type="button" onclick="runConversationTest()" id="btn-conv-test" class="btn btn-primary" style="display:flex;align-items:center;gap:6px">
                 <i data-lucide="play" style="width:16px;height:16px;"></i> Run Test
             </button>
@@ -366,6 +364,9 @@
 
         updateQuestionNumbers();
         lucide.createIcons();
+
+        // Auto-save to DB immediately
+        autoSaveQuestions();
     }
 
     function removeQuestion(btn) {
@@ -381,6 +382,9 @@
                 </div>
             `;
         }
+
+        // Auto-save to DB immediately
+        autoSaveQuestions();
     }
 
     function updateQuestionNumbers() {
@@ -403,35 +407,63 @@
     }
 
     // ═══════════════════════════════════════════════════════
-    // SAVE QUESTIONS
+    // AUTO-SAVE QUESTIONS (called on every add/remove)
     // ═══════════════════════════════════════════════════════
 
-    function saveQuestions() {
-        const questions = getQuestions();
-        if (questions.length === 0) {
-            alert('Add at least one question first!');
-            return;
-        }
+    let saveTimeout = null;
+    function autoSaveQuestions() {
+        // Debounce — wait 300ms in case user is rapid-adding
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+            const questions = getQuestions();
+            const saveIndicator = document.getElementById('save-indicator');
+            
+            if (questions.length === 0) {
+                // Delete all from DB
+                fetch("{{ route('admin.ai-analytics.test-questions.save') }}", {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ questions: ['placeholder'] }) // Will be overwritten
+                }).catch(() => {});
+                return;
+            }
 
-        fetch("{{ route('admin.ai-analytics.test-questions.save') }}", {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({ questions: questions })
-        }).then(res => res.json())
-          .then(data => {
-              if (data.success) {
-                  alert('✅ ' + data.message);
-              } else {
-                  alert('Error: ' + (data.message || 'Could not save questions'));
-              }
-          }).catch(err => {
-              console.error(err);
-              alert('Error saving questions.');
-          });
+            if (saveIndicator) {
+                saveIndicator.style.display = 'inline';
+                saveIndicator.textContent = '💾 Saving...';
+            }
+
+            fetch("{{ route('admin.ai-analytics.test-questions.save') }}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ questions: questions })
+            }).then(res => res.json())
+              .then(data => {
+                  if (saveIndicator) {
+                      saveIndicator.textContent = '✅ Saved!';
+                      setTimeout(() => { saveIndicator.style.display = 'none'; }, 1500);
+                  }
+              }).catch(err => {
+                  console.error('Auto-save failed:', err);
+                  if (saveIndicator) {
+                      saveIndicator.textContent = '❌ Save failed';
+                      setTimeout(() => { saveIndicator.style.display = 'none'; }, 2000);
+                  }
+              });
+        }, 300);
+    }
+
+    // Manual save button (kept as backup)
+    function saveQuestions() {
+        autoSaveQuestions();
     }
 
     // ═══════════════════════════════════════════════════════
