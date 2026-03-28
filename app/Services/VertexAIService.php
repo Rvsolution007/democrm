@@ -225,7 +225,12 @@ class VertexAIService
         $signingInput = "{$header}.{$payload}";
 
         // Sign with RSA private key
-        $privateKey = openssl_pkey_get_private($this->serviceAccount['private_key']);
+        $privateKeyString = $this->serviceAccount['private_key'] ?? '';
+        
+        // Fix potential double-escaped newlines from JSON/DB storage
+        $privateKeyString = str_replace('\\n', "\n", $privateKeyString);
+        
+        $privateKey = openssl_pkey_get_private($privateKeyString);
         if (!$privateKey) {
             throw new \RuntimeException('VertexAI: Invalid private key in service account');
         }
