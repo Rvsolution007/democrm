@@ -469,10 +469,30 @@ class SettingsController extends Controller
         $logFile = storage_path('logs/laravel.log');
         $logs = [];
         
-        if (file_exists($logFile)) {
-            // Read last 500 lines efficiently
-            $lines = file($logFile);
-            $logs = array_slice($lines, -500);
+        if (file_exists($logFile) && is_readable($logFile)) {
+            // Read last N lines efficiently using fseek
+            $lines = 500;
+            $fp = fopen($logFile, 'r');
+            if ($fp) {
+                fseek($fp, -1, SEEK_END);
+                $pos = ftell($fp);
+                $logsString = '';
+                $linesCount = 0;
+
+                // Read backwards finding newlines
+                while ($pos > 0 && $linesCount < $lines) {
+                    $char = fgetc($fp);
+                    $logsString = $char . $logsString;
+                    if ($char === "\n") {
+                        $linesCount++;
+                    }
+                    fseek($fp, --$pos);
+                }
+                fclose($fp);
+
+                // Split into array and remove any empty trailing lines
+                $logs = array_filter(explode("\n", $logsString));
+            }
         }
 
         return view('admin.system_logs', compact('logs'));
