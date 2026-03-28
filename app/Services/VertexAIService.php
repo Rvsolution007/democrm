@@ -227,11 +227,25 @@ class VertexAIService
         // Sign with RSA private key
         $privateKeyString = $this->serviceAccount['private_key'] ?? '';
         
-        // Fix potential double-escaped newlines from JSON/DB storage
-        $privateKeyString = str_replace('\\n', "\n", $privateKeyString);
+        // Fix all possible newline escape variants from JSON/DB storage
+        // Order matters: fix double-escaped first, then single-escaped
+        $privateKeyString = str_replace(['\\n', '\\r'], ["\n", ""], $privateKeyString);
+        $privateKeyString = str_replace("\r", "", $privateKeyString);
+        
+        // Ensure proper PEM format: header/footer on own lines
+        $privateKeyString = trim($privateKeyString);
         
         $privateKey = openssl_pkey_get_private($privateKeyString);
         if (!$privateKey) {
+            Log::error('VertexAI: Private key parse failed', [
+                'key_length' => strlen($privateKeyString),
+                'starts_with' => substr($privateKeyString, 0, 40),
+                'ends_with' => substr($privateKeyString, -30),
+                'has_begin' => str_contains($privateKeyString, '-----BEGIN'),
+                'has_end' => str_contains($privateKeyString, '-----END'),
+                'newline_count' => substr_count($privateKeyString, "\n"),
+                'openssl_error' => openssl_error_string(),
+            ]);
             throw new \RuntimeException('VertexAI: Invalid private key in service account');
         }
 

@@ -356,6 +356,9 @@ class SettingsController extends Controller
             'service_account' => $serviceAccount,
         ]);
 
+        // Clear cached access token so new credentials take effect immediately
+        \Illuminate\Support\Facades\Cache::forget('vertex_ai_token_' . md5($request->project_id));
+
         return response()->json(['success' => true, 'message' => 'AI configuration saved']);
     }
 
