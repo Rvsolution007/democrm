@@ -430,6 +430,7 @@ class AIChatbotService
 
         $session->save();
 
+        $this->traceNode($session->id, 'CategoryListSent', 'routing', 'success', null, ['categories_count' => $categories->count()]);
         Log::info("AIChatbot: Category list sent (PHP Direct)", ['session' => $session->id]);
         return $msg;
     }
@@ -555,6 +556,7 @@ class AIChatbotService
 
         $session->save();
 
+        $this->traceNode($session->id, 'CatalogueSent', 'routing', 'success', null, ['products_count' => $products->count()]);
         Log::info("AIChatbot: Catalogue sent (PHP Direct)", ['session' => $session->id]);
         return $msg;
     }
@@ -700,6 +702,7 @@ class AIChatbotService
             ]);
             $session->lead_id = $lead->id;
             $lead->products()->attach($productId, ['quantity' => 1, 'price' => $product->sale_price]);
+            $this->traceNode($session->id, 'LeadCreated', 'database', 'success', ['product_id' => $productId], ['lead_id' => $lead->id]);
         }
 
         // Create Quote
@@ -732,6 +735,7 @@ class AIChatbotService
                 'sort_order' => 1,
             ]);
             $session->quote_id = $quote->id;
+            $this->traceNode($session->id, 'QuoteCreated', 'database', 'success', ['lead_id' => $session->lead_id, 'product_id' => $productId], ['quote_id' => $quote->id]);
         }
 
         // Build product details message
@@ -857,6 +861,7 @@ class AIChatbotService
             // Retry
             $session->current_step_retries = ($session->current_step_retries ?? 0) + 1;
 
+            $this->traceNode($session->id, 'ChatflowRetry', 'routing', 'warning', ['step' => $step->name], ['retries' => $session->current_step_retries, 'max' => $step->max_retries ?? 2]);
             if ($session->current_step_retries >= ($step->max_retries ?? 2)) {
                 if ($step->isOptionalStep()) {
                     $session->markOptionalAsked($column->slug);
@@ -878,6 +883,7 @@ class AIChatbotService
 
         // Update quote variation if all combos selected
         $this->updateQuoteVariation($session, $product);
+        $this->traceNode($session->id, 'QuoteUpdated', 'database', 'success', ['combo' => $column->slug, 'value' => $matchedOption], ['quote_id' => $session->quote_id]);
 
         // Advance chatflow
         $this->advanceChatflow($session, $steps);
@@ -932,6 +938,7 @@ class AIChatbotService
             // Not optional — ask again
             $this->traceNode($session->id, "CustomStep_{$fieldKey}", 'routing', 'error', null, ['action' => 'retry_required'], 'Required field skipped');
             $session->current_step_retries = ($session->current_step_retries ?? 0) + 1;
+            $this->traceNode($session->id, 'ChatflowRetry', 'routing', 'warning', ['step' => $step->name], ['retries' => $session->current_step_retries, 'max' => $step->max_retries ?? 2]);
             $session->save();
             return $question;
         }
@@ -956,6 +963,7 @@ class AIChatbotService
                     $customData[$fieldKey] = $extractedText;
                     $lead->update(['ai_custom_data' => $customData]);
                 }
+                $this->traceNode($session->id, 'LeadUpdated', 'database', 'success', ['field' => $fieldKey, 'value' => $extractedText], ['lead_id' => $lead->id]);
             }
         }
 
@@ -1364,6 +1372,7 @@ PROMPT;
             $result = $this->vertexAI->classifyContent($prompt);
             $this->logTokens($session, 1, $result);
             $intent = strtoupper(trim($result['text'] ?? 'NONE'));
+            $this->traceNode($session->id, 'ProductModifyIntentAI', 'ai_call', 'success', ['message' => $rawMessage], ['intent' => $intent]);
 
             switch ($intent) {
                 case 'ADD':
@@ -1413,6 +1422,7 @@ PROMPT;
         $session->save();
 
         Log::info("AIChatbot: Product ADD — Reset for new product", ['session' => $session->id, 'old_product' => $oldProductName]);
+        $this->traceNode($session->id, 'ProductAddFlow', 'routing', 'success', ['old_product' => $oldProductName], ['action' => 'reset_for_new_product']);
 
         // Send catalogue again
         $msg = "✅ *{$oldProductName}* is saved in your quote! ✨\n\n";
@@ -1482,6 +1492,7 @@ PROMPT;
         $session->save();
 
         Log::info("AIChatbot: Product DELETE", ['session' => $session->id, 'product' => $productName]);
+        $this->traceNode($session->id, 'ProductRemovedFlow', 'routing', 'success', ['product' => $productName], ['action' => 'product_removed']);
 
         $msg = "🗑️ *{$productName}* removed from your order.\n\n";
         $msg .= "Would you like to select a different product?\n\n";
@@ -1608,6 +1619,7 @@ PROMPT;
 
             // Update quote variation
             $this->updateQuoteVariation($session, $product);
+            $this->traceNode($session->id, 'ProductEditFlow', 'database', 'success', ['field' => $fieldSlug, 'new_value' => $matched], ['quote_id' => $session->quote_id]);
 
             Log::info("AIChatbot: Product EDIT", [
                 'session' => $session->id,
