@@ -46,6 +46,8 @@ class SettingsController extends Controller
             'service_account' => [],
         ]);
         $aiSystemPrompt = Setting::getValue('ai_bot', 'system_prompt', '');
+        $aiGreetingPrompt = Setting::getValue('ai_bot', 'greeting_prompt', '');
+        $aiBusinessPrompt = Setting::getValue('ai_bot', 'business_prompt', '');
         $aiReplyLanguage = Setting::getValue('ai_bot', 'reply_language', 'auto');
         $aiArchitectureRules = Setting::getValue('ai_bot', 'architecture_rules', '');
 
@@ -78,7 +80,7 @@ class SettingsController extends Controller
         return view('admin.settings.index', compact(
             'company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources',
             'taskStatuses', 'paymentTypes', 'whatsappApiConfig', 'backupFiles',
-            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiReplyLanguage', 'aiArchitectureRules'
+            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiGreetingPrompt', 'aiBusinessPrompt', 'aiReplyLanguage', 'aiArchitectureRules'
         ));
     }
 

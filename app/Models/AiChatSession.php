@@ -62,6 +62,11 @@ class AiChatSession extends Model
         return $this->hasMany(AiChatMessage::class, 'session_id')->orderBy('created_at');
     }
 
+    public function traces(): HasMany
+    {
+        return $this->hasMany(AiChatTrace::class, 'session_id')->orderBy('created_at');
+    }
+
     // Helpers
     public function isActive(): bool
     {
