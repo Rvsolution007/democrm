@@ -7,8 +7,8 @@ use Illuminate\Console\Command;
 
 class PurgeOldAiTraces extends Command
 {
-    protected $signature = 'ai:purge-traces {--days=2 : Days to keep}';
-    protected $description = 'Delete AI chat trace logs older than N days (default 2)';
+    protected $signature = 'ai:purge-traces {--days=7 : Days to keep}';
+    protected $description = 'Delete AI chat trace logs older than N days (default 7)';
 
     public function handle(): int
     {

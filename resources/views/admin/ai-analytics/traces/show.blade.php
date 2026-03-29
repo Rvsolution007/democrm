@@ -151,7 +151,11 @@
     <div class="page-header">
         <div class="page-header-content">
             <div>
-                <h1 class="page-title">Trace Flow: {{ $session->phone }}</h1>
+                <h1 class="page-title" style="display:flex;align-items:center;gap:8px">
+                    Trace Flow: 
+                    <i data-lucide="phone" style="width:20px;height:20px;color:var(--primary)"></i>
+                    {{ $session->phone_number ?: 'Session #' . $session->id }}
+                </h1>
                 <p class="page-description">Visual representation of routing and AI evaluation logic</p>
             </div>
         </div>
@@ -159,10 +163,25 @@
 
     <!-- Overall State -->
     <div class="card" style="margin-bottom:24px">
-        <div class="card-content" style="display:flex;gap:32px;padding:20px">
+        <div class="card-content" style="display:flex;gap:32px;padding:20px;flex-wrap:wrap">
+            <div>
+                <div style="font-size:12px;color:var(--text-muted);font-weight:600">Phone Number</div>
+                <div style="font-size:16px;font-weight:500;margin-top:4px;display:flex;align-items:center;gap:6px">
+                    <i data-lucide="phone" style="width:16px;height:16px;color:var(--primary)"></i>
+                    {{ $session->phone_number ?: 'N/A' }}
+                </div>
+            </div>
             <div>
                 <div style="font-size:12px;color:var(--text-muted);font-weight:600">Conversation State</div>
                 <div style="font-size:16px;font-weight:500;margin-top:4px">{{ ucfirst(str_replace('_', ' ', $session->conversation_state)) }}</div>
+            </div>
+            <div>
+                <div style="font-size:12px;color:var(--text-muted);font-weight:600">Total Messages</div>
+                <div style="font-size:16px;font-weight:500;margin-top:4px">{{ $session->messages()->count() }}</div>
+            </div>
+            <div>
+                <div style="font-size:12px;color:var(--text-muted);font-weight:600">Total Traces</div>
+                <div style="font-size:16px;font-weight:500;margin-top:4px">{{ $traces->count() }}</div>
             </div>
             @if($session->lead)
                 <div>

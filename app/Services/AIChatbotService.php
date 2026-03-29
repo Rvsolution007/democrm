@@ -25,6 +25,7 @@ class AIChatbotService
     private string $replyLanguage;
     private array $routeTrace = [];
     private ?int $currentMessageId = null;
+    private array $pendingTraces = [];
     private string $greetingPrompt;
     private string $businessPrompt;
 
@@ -52,21 +53,33 @@ class AIChatbotService
      */
     private function traceNode(int $sessionId, string $nodeName, string $group, string $status, ?array $input = null, ?array $output = null, ?string $error = null, int $timeMs = 0): void
     {
-        try {
-            AiChatTrace::create([
-                'session_id'        => $sessionId,
-                'message_id'        => $this->currentMessageId,
-                'node_name'         => $nodeName,
-                'node_group'        => $group,
-                'status'            => $status,
-                'input_data'        => $input,
-                'output_data'       => $output,
-                'error_message'     => $error,
-                'execution_time_ms' => $timeMs,
-            ]);
-        } catch (\Exception $e) {
-            Log::warning('AIChatbot: Failed to save trace - ' . $e->getMessage());
+        $this->pendingTraces[] = [
+            'session_id'        => $sessionId,
+            'message_id'        => $this->currentMessageId,
+            'node_name'         => $nodeName,
+            'node_group'        => $group,
+            'status'            => $status,
+            'input_data'        => $input,
+            'output_data'       => $output,
+            'error_message'     => $error,
+            'execution_time_ms' => $timeMs,
+        ];
+    }
+
+    /**
+     * Flush all buffered traces to the database.
+     * Called AFTER the DB::transaction commits so traces are never lost.
+     */
+    private function flushTraces(): void
+    {
+        foreach ($this->pendingTraces as $trace) {
+            try {
+                AiChatTrace::create($trace);
+            } catch (\Exception $e) {
+                Log::warning('AIChatbot: Failed to save trace - ' . $e->getMessage());
+            }
         }
+        $this->pendingTraces = [];
     }
 
     private ?CatalogueCustomColumn $uniqueColumn = null;
@@ -112,65 +125,74 @@ class AIChatbotService
         ?array $replyContext = null,
         ?string $imageUrl = null
     ): array {
-        return DB::transaction(function () use ($instanceName, $phone, $messageText, $replyContext, $imageUrl) {
+        $this->pendingTraces = [];
 
-            $session = AiChatSession::findOrCreateForPhone($this->companyId, $phone, $instanceName);
-            $session->update(['last_message_at' => now()]);
+        try {
+            $result = DB::transaction(function () use ($instanceName, $phone, $messageText, $replyContext, $imageUrl) {
 
-            // Save incoming user message
-            $userMsg = AiChatMessage::create([
-                'session_id' => $session->id,
-                'role' => 'user',
-                'message' => $messageText,
-                'message_type' => $imageUrl ? 'image' : 'text',
-                'image_url' => $imageUrl,
-                'reply_context' => $replyContext,
-            ]);
-            $this->currentMessageId = $userMsg->id;
+                $session = AiChatSession::findOrCreateForPhone($this->companyId, $phone, $instanceName);
+                $session->update(['last_message_at' => now()]);
 
-            // ── TRACE: Receive Message
-            $this->traceNode($session->id, 'ReceiveMessage', 'routing', 'success',
-                ['phone' => $phone, 'message' => $messageText, 'has_image' => (bool)$imageUrl],
-                ['session_id' => $session->id, 'message_id' => $userMsg->id]
-            );
+                // Save incoming user message
+                $userMsg = AiChatMessage::create([
+                    'session_id' => $session->id,
+                    'role' => 'user',
+                    'message' => $messageText,
+                    'message_type' => $imageUrl ? 'image' : 'text',
+                    'image_url' => $imageUrl,
+                    'reply_context' => $replyContext,
+                ]);
+                $this->currentMessageId = $userMsg->id;
 
-            // Get quoted text if reply
-            $quotedText = $replyContext['quoted_text'] ?? null;
-            $fullMessage = $quotedText ? "[Replying to: \"{$quotedText}\"]\n{$messageText}" : $messageText;
+                // ── TRACE: Receive Message
+                $this->traceNode($session->id, 'ReceiveMessage', 'routing', 'success',
+                    ['phone' => $phone, 'message' => $messageText, 'has_image' => (bool)$imageUrl],
+                    ['session_id' => $session->id, 'message_id' => $userMsg->id]
+                );
 
-            // ═══ SMART ROUTER — decide Tier 1, Tier 2, or PHP Direct ═══
-            $responseText = $this->routeMessage($session, $fullMessage, $messageText, $imageUrl);
+                // Get quoted text if reply
+                $quotedText = $replyContext['quoted_text'] ?? null;
+                $fullMessage = $quotedText ? "[Replying to: \"{$quotedText}\"]\n{$messageText}" : $messageText;
 
-            // Save bot response
-            AiChatMessage::create([
-                'session_id' => $session->id,
-                'role' => 'bot',
-                'message' => $responseText,
-                'message_type' => 'text',
-            ]);
+                // ═══ SMART ROUTER — decide Tier 1, Tier 2, or PHP Direct ═══
+                $responseText = $this->routeMessage($session, $fullMessage, $messageText, $imageUrl);
 
-            // Send via WhatsApp
-            $sendStart = microtime(true);
-            $sendResult = $this->sendWhatsAppMessage($instanceName, $phone, $responseText);
-            $sendMs = (int)((microtime(true) - $sendStart) * 1000);
+                // Save bot response
+                AiChatMessage::create([
+                    'session_id' => $session->id,
+                    'role' => 'bot',
+                    'message' => $responseText,
+                    'message_type' => 'text',
+                ]);
 
-            // ── TRACE: Send Reply
-            $this->traceNode($session->id, 'SendWhatsAppReply', 'delivery',
-                $sendResult ? 'success' : 'error',
-                ['phone' => $phone, 'response_length' => strlen($responseText)],
-                ['sent' => $sendResult],
-                $sendResult ? null : 'WhatsApp send failed',
-                $sendMs
-            );
+                // Send via WhatsApp
+                $sendStart = microtime(true);
+                $sendResult = $this->sendWhatsAppMessage($instanceName, $phone, $responseText);
+                $sendMs = (int)((microtime(true) - $sendStart) * 1000);
 
-            return [
-                'status' => $sendResult ? 'sent' : 'send_failed',
-                'response' => $responseText,
-                'session_id' => $session->id,
-                'lead_id' => $session->lead_id,
-                'quote_id' => $session->quote_id,
-            ];
-        });
+                // ── TRACE: Send Reply
+                $this->traceNode($session->id, 'SendWhatsAppReply', 'delivery',
+                    $sendResult ? 'success' : 'error',
+                    ['phone' => $phone, 'response_length' => strlen($responseText)],
+                    ['sent' => $sendResult],
+                    $sendResult ? null : 'WhatsApp send failed',
+                    $sendMs
+                );
+
+                return [
+                    'status' => $sendResult ? 'sent' : 'send_failed',
+                    'response' => $responseText,
+                    'session_id' => $session->id,
+                    'lead_id' => $session->lead_id,
+                    'quote_id' => $session->quote_id,
+                ];
+            });
+
+            return $result;
+        } finally {
+            // Flush traces ALWAYS — even on exception, so error diagnostics are preserved
+            $this->flushTraces();
+        }
     }
 
     // ═══════════════════════════════════════════════════════

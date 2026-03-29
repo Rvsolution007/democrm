@@ -39,8 +39,11 @@
                         @endphp
                         <tr style="border-bottom:1px solid var(--border)">
                             <td style="padding:12px 16px;font-weight:500">
-                                <div>{{ $s->phone }}</div>
-                                <div style="font-size:11px;color:var(--text-muted)">State: {{ $s->conversation_state }}</div>
+                                <div style="display:flex;align-items:center;gap:6px">
+                                    <i data-lucide="phone" style="width:14px;height:14px;color:var(--primary)"></i>
+                                    <span style="font-size:14px;font-weight:600">{{ $s->phone_number ?: 'Session #' . $s->id }}</span>
+                                </div>
+                                <div style="font-size:11px;color:var(--text-muted);margin-top:2px;padding-left:20px">State: {{ ucfirst(str_replace('_', ' ', $s->conversation_state ?? 'new')) }}</div>
                             </td>
                             <td style="padding:12px 16px;text-align:center">{{ $s->messages_count }}</td>
                             <td style="padding:12px 16px;text-align:center">{{ $s->traces_count }}</td>

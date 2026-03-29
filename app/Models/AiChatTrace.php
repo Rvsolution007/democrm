@@ -69,7 +69,7 @@ class AiChatTrace extends Model
     /**
      * Delete traces older than N days.
      */
-    public static function purgeOlderThan(int $days = 2): int
+    public static function purgeOlderThan(int $days = 7): int
     {
         return static::where('created_at', '<', now()->subDays($days))->delete();
     }
