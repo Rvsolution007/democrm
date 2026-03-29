@@ -145,14 +145,51 @@ class AIChatbotService
                 $this->currentMessageId = $userMsg->id;
 
                 // ── TRACE: Receive Message
+                $messageType = 'text';
+                if ($imageUrl) $messageType = 'image';
+                elseif ($messageText === '[audio]') $messageType = 'audio';
+                elseif ($messageText === '[sticker]') $messageType = 'sticker';
+                elseif ($messageText === '[media]') $messageType = 'media';
+                elseif (str_starts_with($messageText, '[contact:')) $messageType = 'contact';
+                elseif ($messageText === '[location]' || $messageText === '[live_location]') $messageType = 'location';
+
+                $receiveInput = [
+                    'phone' => $phone,
+                    'message' => $messageText,
+                    'message_type' => $messageType,
+                    'has_image' => (bool)$imageUrl,
+                    'has_video' => str_contains($messageText, '[video]'),
+                    'has_document' => str_contains($messageText, '[document]'),
+                ];
+                if ($imageUrl) $receiveInput['image_url'] = $imageUrl;
+                if ($replyContext) {
+                    $receiveInput['reply_id'] = $replyContext['stanza_id'] ?? null;
+                    $receiveInput['reply_message'] = $replyContext['quoted_text'] ?? null;
+                }
+
                 $this->traceNode($session->id, 'ReceiveMessage', 'routing', 'success',
-                    ['phone' => $phone, 'message' => $messageText, 'has_image' => (bool)$imageUrl],
-                    ['session_id' => $session->id, 'message_id' => $userMsg->id]
+                    $receiveInput,
+                    ['message_id' => $userMsg->id, 'session_id' => $session->id, 'is_new_session' => $session->wasRecentlyCreated]
                 );
 
                 // Get quoted text if reply
                 $quotedText = $replyContext['quoted_text'] ?? null;
                 $fullMessage = $quotedText ? "[Replying to: \"{$quotedText}\"]\n{$messageText}" : $messageText;
+
+                // ── TRACE: Reply Detector (only when reply context exists)
+                if ($replyContext && $quotedText) {
+                    $this->traceNode($session->id, 'ReplyDetector', 'routing', 'success',
+                        [
+                            'reply_id' => $replyContext['stanza_id'] ?? null,
+                            'reply_message' => $quotedText,
+                            'original_message' => $messageText,
+                        ],
+                        [
+                            'has_reply' => true,
+                            'combined_message' => mb_substr($fullMessage, 0, 200),
+                        ]
+                    );
+                }
 
                 // ═══ SMART ROUTER — decide Tier 1, Tier 2, or PHP Direct ═══
                 $responseText = $this->routeMessage($session, $fullMessage, $messageText, $imageUrl);
@@ -173,7 +210,7 @@ class AIChatbotService
                 // ── TRACE: Send Reply
                 $this->traceNode($session->id, 'SendWhatsAppReply', 'delivery',
                     $sendResult ? 'success' : 'error',
-                    ['phone' => $phone, 'response_length' => strlen($responseText)],
+                    ['phone' => $phone, 'response_length' => strlen($responseText), 'response_preview' => mb_substr($responseText, 0, 100)],
                     ['sent' => $sendResult],
                     $sendResult ? null : 'WhatsApp send failed',
                     $sendMs
@@ -210,7 +247,8 @@ class AIChatbotService
         if ($this->isGreeting($rawMessage)) {
             $this->routeTrace[] = 'greeting_intercept';
             $this->traceNode($session->id, 'GreetingDetector', 'routing', 'success',
-                ['message' => $rawMessage], ['detected' => true]);
+                ['message' => $rawMessage, 'detection_method' => 'PHP'],
+                ['detected' => true, 'matched_word' => strtolower(trim($rawMessage)), 'greeting_prompt_configured' => !empty($this->greetingPrompt), 'greeting_prompt_preview' => mb_substr($this->greetingPrompt, 0, 100)]);
 
             // Use dedicated greeting prompt if configured
             if (!empty($this->greetingPrompt)) {
@@ -226,7 +264,8 @@ class AIChatbotService
                 $responseText = trim($greetResult['text'] ?? '');
                 $this->traceNode($session->id, 'GreetingAIResponse', 'ai_call',
                     !empty($responseText) ? 'success' : 'error',
-                    ['prompt' => 'greeting_prompt'], ['response' => mb_substr($responseText, 0, 200)], null, $ms);
+                    ['message' => $rawMessage, 'prompt_type' => 'greeting_prompt', 'prompt_preview' => mb_substr($this->greetingPrompt, 0, 150)],
+                    ['response' => mb_substr($responseText, 0, 200), 'tokens_used' => $greetResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
                 if (!empty($responseText)) {
                     return $responseText;
                 }
@@ -238,11 +277,15 @@ class AIChatbotService
         }
 
         $this->traceNode($session->id, 'GreetingDetector', 'routing', 'success',
-            ['message' => $rawMessage], ['detected' => false]);
+            ['message' => $rawMessage, 'detection_method' => 'PHP'], ['detected' => false]);
 
         // ══ Business Query check ══
         if (!isset($answers['product_id']) && !empty($this->businessPrompt) && $this->isBusinessQuery($rawMessage)) {
             $this->routeTrace[] = 'business_query';
+            // ── TRACE: Business Query Detected
+            $this->traceNode($session->id, 'BusinessQueryDetector', 'routing', 'success',
+                ['message' => $rawMessage, 'detection_method' => 'PHP', 'has_business_prompt' => true],
+                ['detected' => true]);
             $t = microtime(true);
             $bizResult = $this->vertexAI->generateContent(
                 $this->businessPrompt . "\n\n## LANGUAGE\nReply in the same language the customer is using.",
@@ -254,8 +297,8 @@ class AIChatbotService
             $responseText = trim($bizResult['text'] ?? '');
             $this->traceNode($session->id, 'BusinessQueryAI', 'ai_call',
                 !empty($responseText) ? 'success' : 'error',
-                ['prompt' => 'business_prompt', 'message' => $rawMessage],
-                ['response' => mb_substr($responseText, 0, 200)], null, $ms);
+                ['message' => $rawMessage, 'prompt_type' => 'business_prompt', 'prompt_preview' => mb_substr($this->businessPrompt, 0, 150)],
+                ['response' => mb_substr($responseText, 0, 200), 'tokens_used' => $bizResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
             if (!empty($responseText)) {
                 return $responseText;
             }
@@ -265,7 +308,8 @@ class AIChatbotService
         if (!isset($answers['product_id'])) {
             $this->routeTrace[] = 'handlePreProductPhase';
             $this->traceNode($session->id, 'IntentRouter', 'routing', 'success',
-                ['state' => 'no_product'], ['route' => 'PreProductPhase']);
+                ['state' => 'no_product', 'has_product' => false, 'catalogue_sent' => (bool)$session->catalogue_sent, 'collected_answers_count' => count($answers)],
+                ['route' => 'PreProductPhase']);
             return $this->handlePreProductPhase($session, $steps, $fullMessage, $rawMessage, $imageUrl);
         }
 
@@ -279,8 +323,8 @@ class AIChatbotService
         // ══ CASE 2: Product selected, in chatflow ══
         if ($currentStep) {
             $this->traceNode($session->id, 'IntentRouter', 'routing', 'success',
-                ['state' => 'in_chatflow', 'step' => $currentStep->name],
-                ['route' => $currentStep->step_type]);
+                ['state' => 'in_chatflow', 'step' => $currentStep->name, 'step_type' => $currentStep->step_type, 'collected_answers_count' => count($answers)],
+                ['route' => $currentStep->step_type, 'current_step' => $currentStep->name]);
             switch ($currentStep->step_type) {
                 case 'ask_combo':
                     $this->routeTrace[] = 'handleComboStep';
@@ -329,7 +373,7 @@ class AIChatbotService
             // Not sent yet — fast PHP check first, then AI fallback
             if ($this->isProductIntent($rawMessage)) {
                 $this->routeTrace[] = 'isProductIntent(PHP) → sendCategoryList';
-                $this->traceNode($session->id, 'ProductIntentDetector', 'routing', 'success', ['message' => $rawMessage, 'method' => 'PHP'], ['is_product_intent' => true]);
+                $this->traceNode($session->id, 'ProductIntentDetector', 'routing', 'success', ['message' => $rawMessage, 'method' => 'PHP', 'match_type' => 'keyword'], ['is_product_intent' => true, 'matched_keyword' => $this->findMatchedProductKeyword($rawMessage)]);
                 return $this->sendCategoryList($session);
             }
 
@@ -341,7 +385,7 @@ class AIChatbotService
             $this->logTokens($session, 1, $intentResult);
             $isProductIntent = str_contains(strtoupper($intentResult['text']), 'YES');
             
-            $this->traceNode($session->id, 'ProductIntentDetector', 'ai_call', 'success', ['message' => $rawMessage, 'method' => 'AI'], ['is_product_intent' => $isProductIntent, 'raw_response' => $intentResult['text']], null, $ms);
+            $this->traceNode($session->id, 'ProductIntentDetector', 'ai_call', 'success', ['message' => $rawMessage, 'method' => 'AI'], ['is_product_intent' => $isProductIntent, 'raw_response' => $intentResult['text'], 'tokens_used' => $intentResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
 
             if ($isProductIntent) {
                 $this->routeTrace[] = 'isProductIntent(AI) → sendCategoryList';
@@ -361,7 +405,7 @@ class AIChatbotService
         // Catalogue not sent yet — fast PHP check first, then AI fallback
         if ($this->isProductIntent($rawMessage)) {
             $this->routeTrace[] = 'isProductIntent(PHP) → sendCatalogue';
-            $this->traceNode($session->id, 'ProductIntentDetector', 'routing', 'success', ['message' => $rawMessage, 'method' => 'PHP'], ['is_product_intent' => true]);
+            $this->traceNode($session->id, 'ProductIntentDetector', 'routing', 'success', ['message' => $rawMessage, 'method' => 'PHP', 'match_type' => 'keyword'], ['is_product_intent' => true, 'matched_keyword' => $this->findMatchedProductKeyword($rawMessage)]);
             return $this->sendCatalogue($session);
         }
 
@@ -374,7 +418,7 @@ class AIChatbotService
         $this->logTokens($session, 1, $intentResult);
 
         $isProductIntent = str_contains(strtoupper($intentResult['text']), 'YES');
-        $this->traceNode($session->id, 'ProductIntentDetector', 'ai_call', 'success', ['message' => $rawMessage, 'method' => 'AI'], ['is_product_intent' => $isProductIntent, 'raw_response' => $intentResult['text']], null, $ms);
+        $this->traceNode($session->id, 'ProductIntentDetector', 'ai_call', 'success', ['message' => $rawMessage, 'method' => 'AI'], ['is_product_intent' => $isProductIntent, 'raw_response' => $intentResult['text'], 'tokens_used' => $intentResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
 
         if ($isProductIntent) {
             $this->routeTrace[] = 'isProductIntent(AI) → sendCatalogue';
@@ -430,7 +474,9 @@ class AIChatbotService
 
         $session->save();
 
-        $this->traceNode($session->id, 'CategoryListSent', 'routing', 'success', null, ['categories_count' => $categories->count()]);
+        $this->traceNode($session->id, 'CategoryListSent', 'routing', 'success',
+            ['trigger' => 'product_intent_detected'],
+            ['categories_count' => $categories->count(), 'category_names' => $categories->pluck('name')->toArray()]);
         Log::info("AIChatbot: Category list sent (PHP Direct)", ['session' => $session->id]);
         return $msg;
     }
@@ -463,7 +509,9 @@ class AIChatbotService
         $this->logTokens($session, 1, $matchResult);
 
         $matchText = trim($matchResult['text']);
-        $this->traceNode($session->id, 'CategoryMatchAI', 'ai_call', 'success', ['message' => $rawMessage], ['raw_response' => $matchText], null, $ms);
+        $this->traceNode($session->id, 'CategoryMatchAI', 'ai_call', 'success',
+            ['message' => $rawMessage, 'categories_available' => $categories->count()],
+            ['raw_response' => $matchText, 'tokens_used' => $matchResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
 
         // Extract number from response
         preg_match('/(\d+)/', $matchText, $matches);
@@ -479,11 +527,11 @@ class AIChatbotService
         }
 
         if (!$selectedCategory || strtoupper($matchText) === 'NONE') {
-            $this->traceNode($session->id, 'CategorySelected', 'routing', 'error', null, ['matched' => false], 'No category matched');
+            $this->traceNode($session->id, 'CategorySelected', 'routing', 'error', ['message' => $rawMessage], ['matched' => false], 'No category matched');
             return "Sorry, I couldn't match that to a category. Please reply with the category number or name from the list above. 🙏";
         }
 
-        $this->traceNode($session->id, 'CategorySelected', 'routing', 'success', null, ['category_id' => $selectedCategory->id, 'category_name' => $selectedCategory->name]);
+        $this->traceNode($session->id, 'CategorySelected', 'routing', 'success', ['message' => $rawMessage], ['category_id' => $selectedCategory->id, 'category_name' => $selectedCategory->name]);
 
         // Category matched — save to session and send filtered product list
         $session->setAnswer('category_id', $selectedCategory->id);
@@ -556,7 +604,11 @@ class AIChatbotService
 
         $session->save();
 
-        $this->traceNode($session->id, 'CatalogueSent', 'routing', 'success', null, ['products_count' => $products->count()]);
+        $productNames = $products->map(fn($p) => $this->getProductDisplayName($p))->toArray();
+        $categoryFilter = isset($answers['category_id']) ? ($answers['category_name'] ?? 'ID:' . $answers['category_id']) : null;
+        $this->traceNode($session->id, 'CatalogueSent', 'routing', 'success',
+            $categoryFilter ? ['trigger' => 'category_selected', 'category_filter' => $categoryFilter] : ['trigger' => 'product_intent'],
+            ['products_count' => $products->count(), 'product_names' => array_slice($productNames, 0, 10)]);
         Log::info("AIChatbot: Catalogue sent (PHP Direct)", ['session' => $session->id]);
         return $msg;
     }
@@ -631,7 +683,10 @@ class AIChatbotService
         }
 
         if ($selectedProduct) {
-            $this->traceNode($session->id, 'ProductMatchPHP', 'routing', 'success', ['message' => $rawMessage], ['product_id' => $selectedProduct->id, 'name' => $selectedProduct->name]);
+            $matchType = $listNumber ? 'list_number' : 'name_match';
+            $this->traceNode($session->id, 'ProductMatchPHP', 'routing', 'success',
+                ['message' => $rawMessage, 'method' => 'PHP', 'match_type' => $matchType],
+                ['product_id' => $selectedProduct->id, 'product_name' => $this->getProductDisplayName($selectedProduct)]);
         }
 
         // ── If PHP couldn't match, fall back to AI ──
@@ -646,7 +701,9 @@ class AIChatbotService
             $this->logTokens($session, 1, $matchResult);
 
             $matchText = trim($matchResult['text']);
-            $this->traceNode($session->id, 'ProductMatchAI', 'ai_call', 'success', ['message' => $rawMessage], ['raw_response' => $matchText], null, $ms);
+            $this->traceNode($session->id, 'ProductMatchAI', 'ai_call', 'success',
+                ['message' => $rawMessage, 'products_available' => $products->count()],
+                ['raw_response' => $matchText, 'tokens_used' => $matchResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
 
             // Extract number from response
             preg_match('/(\d+)/', $matchText, $matches);
@@ -663,11 +720,13 @@ class AIChatbotService
         }
 
         if (!$selectedProduct) {
-            $this->traceNode($session->id, 'ProductSelected', 'routing', 'error', null, ['matched' => false], 'No product matched');
+            $this->traceNode($session->id, 'ProductSelected', 'routing', 'error', ['message' => $rawMessage], ['matched' => false], 'No product matched');
             return "Sorry, I couldn't match that to a product. Please reply with the product number or name from the list above. 🙏";
         }
 
-        $this->traceNode($session->id, 'ProductSelected', 'routing', 'success', null, ['product_id' => $selectedProduct->id]);
+        $this->traceNode($session->id, 'ProductSelected', 'routing', 'success',
+            ['message' => $rawMessage],
+            ['product_id' => $selectedProduct->id, 'product_name' => $this->getProductDisplayName($selectedProduct), 'product_price' => $selectedProduct->sale_price > 0 ? '₹' . number_format($selectedProduct->sale_price / 100, 2) : 'N/A']);
 
         // Product matched — proceed
         return $this->selectProduct($session, $selectedProduct->id, $steps);
@@ -702,7 +761,9 @@ class AIChatbotService
             ]);
             $session->lead_id = $lead->id;
             $lead->products()->attach($productId, ['quantity' => 1, 'price' => $product->sale_price]);
-            $this->traceNode($session->id, 'LeadCreated', 'database', 'success', ['product_id' => $productId], ['lead_id' => $lead->id]);
+            $this->traceNode($session->id, 'LeadCreated', 'database', 'success',
+                ['product_id' => $productId, 'product_name' => $displayName, 'phone' => $session->phone_number],
+                ['lead_id' => $lead->id, 'lead_phone' => $session->phone_number, 'lead_source' => 'whatsapp']);
         }
 
         // Create Quote
@@ -735,7 +796,9 @@ class AIChatbotService
                 'sort_order' => 1,
             ]);
             $session->quote_id = $quote->id;
-            $this->traceNode($session->id, 'QuoteCreated', 'database', 'success', ['lead_id' => $session->lead_id, 'product_id' => $productId], ['quote_id' => $quote->id]);
+            $this->traceNode($session->id, 'QuoteCreated', 'database', 'success',
+                ['lead_id' => $session->lead_id, 'product_id' => $productId, 'product_name' => $displayName],
+                ['quote_id' => $quote->id, 'quote_no' => $quote->quote_no, 'grand_total' => '₹' . number_format($quote->grand_total / 100, 2)]);
         }
 
         // Build product details message
@@ -845,7 +908,9 @@ class AIChatbotService
         $this->logTokens($session, 1, $matchResult);
 
         $matchedText = trim($matchResult['text']);
-        $this->traceNode($session->id, "ComboStepAI_{$column->slug}", 'ai_call', 'success', ['message' => $rawMessage], ['raw_response' => $matchedText], null, $ms);
+        $this->traceNode($session->id, "ComboStepAI_{$column->slug}", 'ai_call', 'success',
+            ['message' => $rawMessage, 'step_name' => $step->name, 'question' => $step->question_text ?: "Which {$column->name}?", 'available_options' => $comboValues],
+            ['raw_response' => $matchedText, 'tokens_used' => $matchResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
 
         // Verify match is in options (case-insensitive)
         $matchedOption = null;
@@ -857,11 +922,14 @@ class AIChatbotService
         }
 
         if (!$matchedOption || strtoupper($matchedText) === 'NONE') {
-            $this->traceNode($session->id, "ComboStep_{$column->slug}", 'routing', 'error', ['matched' => false], null, 'Combo option not matched');
+            $this->traceNode($session->id, "ComboStep_{$column->slug}", 'routing', 'error',
+                ['step_name' => $step->name, 'step_type' => 'ask_combo', 'user_answer' => $rawMessage, 'matched' => false], null, 'Combo option not matched');
             // Retry
             $session->current_step_retries = ($session->current_step_retries ?? 0) + 1;
 
-            $this->traceNode($session->id, 'ChatflowRetry', 'routing', 'warning', ['step' => $step->name], ['retries' => $session->current_step_retries, 'max' => $step->max_retries ?? 2]);
+            $this->traceNode($session->id, 'ChatflowRetry', 'routing', 'warning',
+                ['step_name' => $step->name, 'step_type' => 'ask_combo', 'user_answer' => $rawMessage],
+                ['retries' => $session->current_step_retries, 'max_retries' => $step->max_retries ?? 2, 'action' => $session->current_step_retries >= ($step->max_retries ?? 2) ? ($step->isOptionalStep() ? 'skip_optional' : 'exhausted') : 'retry']);
             if ($session->current_step_retries >= ($step->max_retries ?? 2)) {
                 if ($step->isOptionalStep()) {
                     $session->markOptionalAsked($column->slug);
@@ -879,11 +947,15 @@ class AIChatbotService
         $session->setAnswer($column->slug, $matchedOption);
         $session->current_step_retries = 0;
         
-        $this->traceNode($session->id, "ComboStep_{$column->slug}", 'routing', 'success', null, ['value' => $matchedOption]);
+        $this->traceNode($session->id, "ComboStep_{$column->slug}", 'routing', 'success',
+            ['step_name' => $step->name, 'step_type' => 'ask_combo'],
+            ['value' => $matchedOption, 'action' => 'saved']);
 
         // Update quote variation if all combos selected
         $this->updateQuoteVariation($session, $product);
-        $this->traceNode($session->id, 'QuoteUpdated', 'database', 'success', ['combo' => $column->slug, 'value' => $matchedOption], ['quote_id' => $session->quote_id]);
+        $this->traceNode($session->id, 'QuoteUpdated', 'database', 'success',
+            ['combo' => $column->slug, 'value' => $matchedOption, 'product_name' => $session->getAnswer('product_name')],
+            ['quote_id' => $session->quote_id]);
 
         // Advance chatflow
         $this->advanceChatflow($session, $steps);
@@ -925,26 +997,34 @@ class AIChatbotService
         $this->logTokens($session, 1, $extractResult);
 
         $extractedText = trim($extractResult['text']);
-        $this->traceNode($session->id, "CustomStepAI_{$fieldKey}", 'ai_call', 'success', ['message' => $rawMessage, 'question' => $question], ['raw_response' => $extractedText], null, $ms);
+        $this->traceNode($session->id, "CustomStepAI_{$fieldKey}", 'ai_call', 'success',
+            ['message' => $rawMessage, 'step_name' => $step->name, 'question' => $question, 'step_type' => $step->step_type],
+            ['raw_response' => $extractedText, 'tokens_used' => $extractResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
 
         if (strtoupper($extractedText) === 'SKIP' || empty($extractedText)) {
             if ($step->isOptionalStep()) {
-                $this->traceNode($session->id, "CustomStep_{$fieldKey}", 'routing', 'skipped', null, ['action' => 'skipped_optional']);
+                $this->traceNode($session->id, "CustomStep_{$fieldKey}", 'routing', 'skipped',
+                    ['step_name' => $step->name, 'step_type' => $step->step_type], ['action' => 'skipped_optional']);
                 $session->markOptionalAsked($fieldKey);
                 $this->advanceChatflow($session, $steps);
                 $session->save();
                 return $this->buildNextStepPrompt($session, $steps);
             }
             // Not optional — ask again
-            $this->traceNode($session->id, "CustomStep_{$fieldKey}", 'routing', 'error', null, ['action' => 'retry_required'], 'Required field skipped');
+            $this->traceNode($session->id, "CustomStep_{$fieldKey}", 'routing', 'error',
+                ['step_name' => $step->name, 'step_type' => $step->step_type], ['action' => 'retry_required'], 'Required field skipped');
             $session->current_step_retries = ($session->current_step_retries ?? 0) + 1;
-            $this->traceNode($session->id, 'ChatflowRetry', 'routing', 'warning', ['step' => $step->name], ['retries' => $session->current_step_retries, 'max' => $step->max_retries ?? 2]);
+            $this->traceNode($session->id, 'ChatflowRetry', 'routing', 'warning',
+                ['step_name' => $step->name, 'step_type' => $step->step_type, 'user_answer' => $rawMessage],
+                ['retries' => $session->current_step_retries, 'max_retries' => $step->max_retries ?? 2, 'action' => 'retry']);
             $session->save();
             return $question;
         }
 
         // Save answer
-        $this->traceNode($session->id, "CustomStep_{$fieldKey}", 'routing', 'success', null, ['value' => $extractedText]);
+        $this->traceNode($session->id, "CustomStep_{$fieldKey}", 'routing', 'success',
+            ['step_name' => $step->name, 'step_type' => $step->step_type, 'question' => $question],
+            ['value' => $extractedText, 'action' => 'saved']);
         $session->setAnswer($fieldKey, $extractedText);
         $session->current_step_retries = 0;
         if ($step->isOptionalStep()) {
@@ -963,7 +1043,10 @@ class AIChatbotService
                     $customData[$fieldKey] = $extractedText;
                     $lead->update(['ai_custom_data' => $customData]);
                 }
-                $this->traceNode($session->id, 'LeadUpdated', 'database', 'success', ['field' => $fieldKey, 'value' => $extractedText], ['lead_id' => $lead->id]);
+                $updateType = in_array($fieldKey, $directFields) ? 'direct_field' : 'custom_data';
+                $this->traceNode($session->id, 'LeadUpdated', 'database', 'success',
+                    ['field' => $fieldKey, 'value' => $extractedText],
+                    ['lead_id' => $lead->id, 'update_type' => $updateType]);
             }
         }
 
@@ -1061,7 +1144,9 @@ class AIChatbotService
         }
 
         if ($isError) {
-            $this->traceNode($session->id, 'Tier2GenerativeAI', 'ai_call', 'error', ['prompt_length' => strlen($systemPrompt), 'history_length' => count($chatHistory)], ['raw_response' => $responseText], 'First attempt failed', $ms);
+            $this->traceNode($session->id, 'Tier2GenerativeAI', 'ai_call', 'error',
+                ['prompt_length' => strlen($systemPrompt), 'history_length' => count($chatHistory), 'system_prompt_preview' => mb_substr($systemPrompt, 0, 150), 'model' => 'gemini-2.0-flash'],
+                ['response' => mb_substr($responseText, 0, 200), 'tokens_used' => $aiResult['total_tokens'] ?? 0], 'First attempt failed', $ms);
             Log::warning('AIChatbot: Tier 2 returned empty/error, retrying...', ['session' => $session->id, 'original' => $responseText]);
             sleep(1);
             
@@ -1085,15 +1170,21 @@ class AIChatbotService
             }
 
             if ($retryIsError) {
-                $this->traceNode($session->id, 'Tier2GenerativeAI_Retry', 'ai_call', 'error', ['prompt_length' => strlen($systemPrompt)], ['raw_response' => $retryText], 'Retry attempt failed', $retryMs);
+                $this->traceNode($session->id, 'Tier2GenerativeAI_Retry', 'ai_call', 'error',
+                    ['prompt_length' => strlen($systemPrompt), 'attempt' => 'retry', 'model' => 'gemini-2.0-flash'],
+                    ['response' => mb_substr($retryText, 0, 200), 'tokens_used' => $retryResult['total_tokens'] ?? 0], 'Retry attempt failed', $retryMs);
                 Log::error('AIChatbot: Tier 2 failed even after retry', ['session' => $session->id]);
                 return "Maaf kijiye, abhi kuch technical issue aa raha hai. Kripya thodi der baad dobara try karein. 🙏";
             }
 
-            $this->traceNode($session->id, 'Tier2GenerativeAI_Retry', 'ai_call', 'success', ['prompt_length' => strlen($systemPrompt)], ['raw_response' => $retryText], null, $retryMs);
+            $this->traceNode($session->id, 'Tier2GenerativeAI_Retry', 'ai_call', 'success',
+                ['prompt_length' => strlen($systemPrompt), 'attempt' => 'retry', 'model' => 'gemini-2.0-flash'],
+                ['response' => mb_substr($retryText, 0, 200), 'tokens_used' => $retryResult['total_tokens'] ?? 0], null, $retryMs);
             $responseText = $retryText;
         } else {
-            $this->traceNode($session->id, 'Tier2GenerativeAI', 'ai_call', 'success', ['prompt_length' => strlen($systemPrompt), 'history_length' => count($chatHistory)], ['raw_response' => $responseText], null, $ms);
+            $this->traceNode($session->id, 'Tier2GenerativeAI', 'ai_call', 'success',
+                ['prompt_length' => strlen($systemPrompt), 'history_length' => count($chatHistory), 'system_prompt_preview' => mb_substr($systemPrompt, 0, 150), 'model' => 'gemini-2.0-flash'],
+                ['response' => mb_substr($responseText, 0, 200), 'tokens_used' => $aiResult['total_tokens'] ?? 0], null, $ms);
         }
 
         // Parse structured response
@@ -1422,7 +1513,9 @@ PROMPT;
         $session->save();
 
         Log::info("AIChatbot: Product ADD — Reset for new product", ['session' => $session->id, 'old_product' => $oldProductName]);
-        $this->traceNode($session->id, 'ProductAddFlow', 'routing', 'success', ['old_product' => $oldProductName], ['action' => 'reset_for_new_product']);
+        $this->traceNode($session->id, 'ProductAddFlow', 'routing', 'success',
+            ['old_product' => $oldProductName, 'old_product_id' => $answers['product_id'] ?? null],
+            ['action' => 'reset_for_new_product', 'quote_preserved' => true, 'lead_preserved' => true]);
 
         // Send catalogue again
         $msg = "✅ *{$oldProductName}* is saved in your quote! ✨\n\n";
@@ -1492,7 +1585,9 @@ PROMPT;
         $session->save();
 
         Log::info("AIChatbot: Product DELETE", ['session' => $session->id, 'product' => $productName]);
-        $this->traceNode($session->id, 'ProductRemovedFlow', 'routing', 'success', ['product' => $productName], ['action' => 'product_removed']);
+        $this->traceNode($session->id, 'ProductRemovedFlow', 'routing', 'success',
+            ['product' => $productName, 'product_id' => $productId],
+            ['action' => 'product_removed', 'quote_items_remaining' => QuoteItem::where('quote_id', $session->quote_id ?? 0)->count(), 'quote_deleted' => is_null($session->quote_id)]);
 
         $msg = "🗑️ *{$productName}* removed from your order.\n\n";
         $msg .= "Would you like to select a different product?\n\n";
@@ -1619,7 +1714,9 @@ PROMPT;
 
             // Update quote variation
             $this->updateQuoteVariation($session, $product);
-            $this->traceNode($session->id, 'ProductEditFlow', 'database', 'success', ['field' => $fieldSlug, 'new_value' => $matched], ['quote_id' => $session->quote_id]);
+            $this->traceNode($session->id, 'ProductEditFlow', 'database', 'success',
+                ['field' => $fieldSlug, 'old_value' => $answers[$fieldSlug] ?? 'none', 'new_value' => $matched],
+                ['quote_id' => $session->quote_id, 'variation_updated' => true]);
 
             Log::info("AIChatbot: Product EDIT", [
                 'session' => $session->id,
@@ -1718,6 +1815,31 @@ PROMPT;
         }
 
         return false;
+    }
+
+    /**
+     * Find which product keyword matched in the message (for trace output).
+     */
+    private function findMatchedProductKeyword(string $message): ?string
+    {
+        $msg = strtolower(trim($message));
+        $keywords = [
+            'product', 'products', 'catalogue', 'catalog',
+            'price', 'prices', 'rate', 'rates', 'cost',
+            'dikhao', 'dikha do', 'btao', 'batao', 'bata do',
+            'bechte', 'sell', 'selling',
+            'kya hai', 'kya he', 'kya milta', 'kya milega',
+            'show me', 'show products', 'list',
+            'what do you', 'what you have',
+            'menu', 'item', 'items',
+        ];
+
+        foreach ($keywords as $kw) {
+            if (str_contains($msg, $kw)) {
+                return $kw;
+            }
+        }
+        return null;
     }
 
     private function getAiVisibleColumns()

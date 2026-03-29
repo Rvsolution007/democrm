@@ -41,6 +41,7 @@
         display: flex;
         align-items: center;
         gap: 12px;
+        flex-wrap: wrap;
     }
 
     .message-id-badge {
@@ -126,10 +127,11 @@
     .node-card[data-status="success"] { border-left-color: #22c55e; }
     .node-card[data-status="error"] { border-left-color: #ef4444; }
     .node-card[data-status="skipped"] { border-left-color: #f59e0b; }
+    .node-card[data-status="warning"] { border-left-color: #f59e0b; }
 
     .timeline-dot {
         position: absolute;
-        left: -37px; /* Matches timeline center */
+        left: -37px;
         top: 20px;
         width: 12px;
         height: 12px;
@@ -142,6 +144,7 @@
     .node-card[data-status="success"] .timeline-dot { border-color: #22c55e; }
     .node-card[data-status="error"] .timeline-dot { border-color: #ef4444; }
     .node-card[data-status="skipped"] .timeline-dot { border-color: #f59e0b; }
+    .node-card[data-status="warning"] .timeline-dot { border-color: #f59e0b; }
 
     .node-header {
         padding: 12px 16px;
@@ -174,6 +177,8 @@
     .badge-routing { background: #e0e7ff; color: #4338ca; }
     .badge-ai_call { background: #fef08a; color: #854d0e; }
     .badge-delivery { background: #dcfce7; color: #166534; }
+    .badge-database { background: #f0e4ff; color: #7c3aed; }
+    .badge-data_update { background: #f0e4ff; color: #7c3aed; }
     
     .node-time {
         font-size: 11px;
@@ -231,6 +236,11 @@
         margin-right: 4px;
     }
 
+    .kv-val-true { color: #16a34a; font-weight: 600; }
+    .kv-val-false { color: #dc2626; font-weight: 600; }
+    .kv-val-number { color: #2563eb; font-weight: 600; }
+    .kv-val-null { color: #94a3b8; font-style: italic; }
+
     .error-msg {
         background: #fef2f2;
         color: #b91c1c;
@@ -248,6 +258,28 @@
     .empty-state {
         text-align: center;
         padding: 60px 20px;
+    }
+
+    .msg-type-badge {
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .msg-type-text { background: #e0e7ff; color: #4338ca; }
+    .msg-type-image { background: #dcfce7; color: #166534; }
+    .msg-type-video { background: #fef08a; color: #854d0e; }
+    .msg-type-audio { background: #fce7f3; color: #9d174d; }
+    .msg-type-document { background: #f0e4ff; color: #7c3aed; }
+    .msg-type-other { background: #f1f5f9; color: #475569; }
+
+    @media (max-width: 768px) {
+        .node-wrapper { padding-left: 40px; }
+        .timeline-line { left: 28px; }
+        .timeline-dot { left: -17px; }
+        .message-meta { gap: 8px; }
+        .user-message-text { max-width: 250px; }
     }
 </style>
 @endpush
@@ -313,10 +345,11 @@
         @php
             $firstTrace = $msgTraces->first();
             $userMessageText = $firstTrace->message->message ?? 'Background Process / System Trigger';
+            $userMsgType = $firstTrace->message->message_type ?? 'text';
             $timeMs = $msgTraces->sum('execution_time_ms');
             $errorCount = $msgTraces->where('status', 'error')->count();
+            $warningCount = $msgTraces->where('status', 'warning')->count();
             $isFirst = $loop->first;
-            // Removed undefined function use Str::limit
             if (mb_strlen($userMessageText) > 80) $userMessageText = mb_substr($userMessageText, 0, 80) . '...';
         @endphp
 
@@ -327,12 +360,26 @@
                         <i data-lucide="message-square" style="width:14px;height:14px"></i>
                         ID #{{ $msgId ?: 'N/A' }}
                     </span>
+                    @php
+                        $typeClass = 'msg-type-other';
+                        if ($userMsgType === 'text') $typeClass = 'msg-type-text';
+                        elseif ($userMsgType === 'image') $typeClass = 'msg-type-image';
+                        elseif ($userMsgType === 'video') $typeClass = 'msg-type-video';
+                        elseif ($userMsgType === 'audio') $typeClass = 'msg-type-audio';
+                        elseif ($userMsgType === 'document') $typeClass = 'msg-type-document';
+                    @endphp
+                    <span class="msg-type-badge {{ $typeClass }}">{{ $userMsgType }}</span>
                     <span class="user-message-text">"{!! htmlspecialchars($userMessageText) !!}"</span>
                 </div>
                 <div class="message-meta">
                     @if($errorCount > 0)
                         <span style="color: #b91c1c; background: #fee2e2; padding: 4px 10px; border-radius: 20px; display:flex; align-items:center; gap:4px">
                             <i data-lucide="alert-circle" style="width:14px;height:14px"></i> {{ $errorCount }} Error(s)
+                        </span>
+                    @endif
+                    @if($warningCount > 0)
+                        <span style="color: #92400e; background: #fef3c7; padding: 4px 10px; border-radius: 20px; display:flex; align-items:center; gap:4px">
+                            <i data-lucide="alert-triangle" style="width:14px;height:14px"></i> {{ $warningCount }} Warning(s)
                         </span>
                     @endif
                     <span style="display:flex; align-items:center; gap:4px">
@@ -383,7 +430,20 @@
                                                 </div>
                                                 <div class="data-value">
                                                     @foreach($trace->input_data as $k => $v)
-                                                        <div class="kv-pair"><span class="kv-key">{{ $k }}:</span> <span class="text-gray-700">{{ is_array($v) ? json_encode($v) : $v }}</span></div>
+                                                        <div class="kv-pair">
+                                                            <span class="kv-key">{{ $k }}:</span>
+                                                            @if(is_bool($v) || $v === true || $v === false)
+                                                                <span class="{{ $v ? 'kv-val-true' : 'kv-val-false' }}">{{ $v ? 'true' : 'false' }}</span>
+                                                            @elseif(is_null($v))
+                                                                <span class="kv-val-null">null</span>
+                                                            @elseif(is_numeric($v))
+                                                                <span class="kv-val-number">{{ $v }}</span>
+                                                            @elseif(is_array($v))
+                                                                <span class="text-gray-700" style="font-size:12px">{{ mb_substr(json_encode($v), 0, 150) }}</span>
+                                                            @else
+                                                                <span class="text-gray-700">{{ mb_substr((string)$v, 0, 200) }}</span>
+                                                            @endif
+                                                        </div>
                                                     @endforeach
                                                 </div>
                                             </div>
@@ -396,7 +456,20 @@
                                                 </div>
                                                 <div class="data-value">
                                                     @foreach($trace->output_data as $k => $v)
-                                                        <div class="kv-pair"><span class="kv-key">{{ $k }}:</span> <span class="text-gray-700">{{ is_array($v) ? json_encode($v) : $v }}</span></div>
+                                                        <div class="kv-pair">
+                                                            <span class="kv-key">{{ $k }}:</span>
+                                                            @if(is_bool($v) || $v === true || $v === false)
+                                                                <span class="{{ $v ? 'kv-val-true' : 'kv-val-false' }}">{{ $v ? 'true' : 'false' }}</span>
+                                                            @elseif(is_null($v))
+                                                                <span class="kv-val-null">null</span>
+                                                            @elseif(is_numeric($v))
+                                                                <span class="kv-val-number">{{ $v }}</span>
+                                                            @elseif(is_array($v))
+                                                                <span class="text-gray-700" style="font-size:12px">{{ mb_substr(json_encode($v), 0, 150) }}</span>
+                                                            @else
+                                                                <span class="text-gray-700">{{ mb_substr((string)$v, 0, 200) }}</span>
+                                                            @endif
+                                                        </div>
                                                     @endforeach
                                                 </div>
                                             </div>

@@ -47,6 +47,7 @@ class AiChatTrace extends Model
         return match ($this->status) {
             'success' => '#22c55e',
             'error'   => '#ef4444',
+            'warning' => '#f59e0b',
             'skipped' => '#94a3b8',
             default   => '#6b7280',
         };
@@ -60,6 +61,7 @@ class AiChatTrace extends Model
         return match ($this->node_group) {
             'routing'     => 'git-branch',
             'ai_call'     => 'brain',
+            'database'    => 'database',
             'data_update' => 'database',
             'delivery'    => 'send',
             default       => 'circle',
