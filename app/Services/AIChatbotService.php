@@ -144,6 +144,49 @@ class AIChatbotService
                 ]);
                 $this->currentMessageId = $userMsg->id;
 
+                // ── Session Health Check (Deleted Quotes/Leads or Closed Leads) ──
+                $needsReset = false;
+                $resetReason = '';
+
+                if ($session->lead_id) {
+                    $lead = \App\Models\Lead::find($session->lead_id);
+                    if (!$lead) {
+                        $needsReset = true;
+                        $resetReason = "Admin deleted the Lead";
+                    } elseif (!$lead->isOpen()) {
+                        $needsReset = true;
+                        $resetReason = "Lead stage is closed ({$lead->stage})";
+                    }
+                }
+
+                if (!$needsReset && $session->quote_id) {
+                    $quote = \App\Models\Quote::find($session->quote_id);
+                    if (!$quote) {
+                        $needsReset = true;
+                        $resetReason = "Admin deleted the Quote";
+                    }
+                }
+
+                if ($needsReset) {
+                    Log::warning("AIChatbot: Resetting session for {$phone}. Reason: {$resetReason}");
+
+                    $session->update([
+                        'lead_id' => null,
+                        'quote_id' => null,
+                        'current_step_id' => null,
+                        'collected_answers' => [],
+                        'optional_asked' => [],
+                        'current_step_retries' => 0,
+                        'catalogue_sent' => false,
+                        'conversation_state' => 'reset_due_to_closure',
+                    ]);
+
+                    $this->traceNode($session->id, 'SessionReset', 'routing', 'warning', 
+                        ['reason' => $resetReason], 
+                        ['action' => 'cleared_session_data', 'restarted_as_new' => true]
+                    );
+                }
+
                 // ── TRACE: Receive Message
                 $messageType = 'text';
                 if ($imageUrl) $messageType = 'image';
