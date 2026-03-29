@@ -796,9 +796,14 @@ class AIChatbotService
                 'sort_order' => 1,
             ]);
             $session->quote_id = $quote->id;
+            
+            // Extract the sequence number from quote_no (e.g. Q-25-26-000017 -> 17) for clearer tracing
+            $quoteSeqParts = explode('-', $quote->quote_no);
+            $quoteSequence = (int) end($quoteSeqParts);
+
             $this->traceNode($session->id, 'QuoteCreated', 'database', 'success',
                 ['lead_id' => $session->lead_id, 'product_id' => $productId, 'product_name' => $displayName],
-                ['quote_id' => $quote->id, 'quote_no' => $quote->quote_no, 'grand_total' => '₹' . number_format($quote->grand_total / 100, 2)]);
+                ['database_id' => $quote->id, 'quote_sequence_id' => $quoteSequence, 'quote_no' => $quote->quote_no, 'grand_total' => '₹' . number_format($quote->grand_total / 100, 2)]);
         }
 
         // Build product details message
