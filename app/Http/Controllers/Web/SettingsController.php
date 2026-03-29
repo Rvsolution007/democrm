@@ -363,17 +363,21 @@ class SettingsController extends Controller
     }
 
     /**
-     * Save AI Bot system prompt
+     * Save AI Bot system prompt and other specific prompts
      */
     public function saveAiPrompt(Request $request)
     {
         $request->validate([
             'system_prompt' => 'required|string',
+            'greeting_prompt' => 'nullable|string',
+            'business_prompt' => 'nullable|string',
         ]);
 
         Setting::setValue('ai_bot', 'system_prompt', $request->system_prompt);
+        Setting::setValue('ai_bot', 'greeting_prompt', $request->greeting_prompt ?? '');
+        Setting::setValue('ai_bot', 'business_prompt', $request->business_prompt ?? '');
 
-        return response()->json(['success' => true, 'message' => 'AI system prompt saved']);
+        return response()->json(['success' => true, 'message' => 'AI prompts saved']);
     }
 
     /**

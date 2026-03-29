@@ -1056,6 +1056,10 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::post('/ai-analytics/conversation-test-run', [AiAnalyticsController::class, 'runConversationTest'])->name('ai-analytics.conversation-test.run');
     Route::post('/ai-analytics/diagnostic-test-run', [AiAnalyticsController::class, 'runDiagnosticTest'])->name('ai-analytics.diagnostic-test.run');
 
+    // AI Node Traces
+    Route::get('/ai-analytics/traces', [\App\Http\Controllers\Web\AiTraceController::class, 'index'])->name('ai-analytics.traces.index');
+    Route::get('/ai-analytics/traces/{sessionId}', [\App\Http\Controllers\Web\AiTraceController::class, 'show'])->name('ai-analytics.traces.show');
+
     // System Logs
     Route::get('/settings/system-logs', [SettingsController::class, 'systemLogsIndex'])->name('system-logs.index');
     Route::delete('/settings/system-logs/clear', [SettingsController::class, 'systemLogsClear'])->name('system-logs.clear');

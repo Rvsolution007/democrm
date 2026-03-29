@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AiChatSession;
 use App\Models\AiChatMessage;
+use App\Models\AiChatTrace;
 use App\Models\AiTokenLog;
 use App\Models\ChatflowStep;
 use App\Models\CatalogueCustomColumn;
@@ -23,6 +24,9 @@ class AIChatbotService
     private VertexAIService $vertexAI;
     private string $replyLanguage;
     private array $routeTrace = [];
+    private ?int $currentMessageId = null;
+    private string $greetingPrompt;
+    private string $businessPrompt;
 
     public function __construct(int $companyId, int $userId)
     {
@@ -30,6 +34,8 @@ class AIChatbotService
         $this->userId = $userId;
         $this->vertexAI = new VertexAIService($companyId);
         $this->replyLanguage = Setting::getValue('ai_bot', 'reply_language', 'auto', $companyId);
+        $this->greetingPrompt = Setting::getValue('ai_bot', 'greeting_prompt', '', $companyId);
+        $this->businessPrompt = Setting::getValue('ai_bot', 'business_prompt', '', $companyId);
     }
 
     /**
@@ -39,6 +45,28 @@ class AIChatbotService
     public function getRouteTrace(): array
     {
         return $this->routeTrace;
+    }
+
+    /**
+     * Log a node execution trace for n8n-style diagnostic UI.
+     */
+    private function traceNode(int $sessionId, string $nodeName, string $group, string $status, ?array $input = null, ?array $output = null, ?string $error = null, int $timeMs = 0): void
+    {
+        try {
+            AiChatTrace::create([
+                'session_id'        => $sessionId,
+                'message_id'        => $this->currentMessageId,
+                'node_name'         => $nodeName,
+                'node_group'        => $group,
+                'status'            => $status,
+                'input_data'        => $input,
+                'output_data'       => $output,
+                'error_message'     => $error,
+                'execution_time_ms' => $timeMs,
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('AIChatbot: Failed to save trace - ' . $e->getMessage());
+        }
     }
 
     private ?CatalogueCustomColumn $uniqueColumn = null;
@@ -90,7 +118,7 @@ class AIChatbotService
             $session->update(['last_message_at' => now()]);
 
             // Save incoming user message
-            AiChatMessage::create([
+            $userMsg = AiChatMessage::create([
                 'session_id' => $session->id,
                 'role' => 'user',
                 'message' => $messageText,
@@ -98,6 +126,13 @@ class AIChatbotService
                 'image_url' => $imageUrl,
                 'reply_context' => $replyContext,
             ]);
+            $this->currentMessageId = $userMsg->id;
+
+            // ── TRACE: Receive Message
+            $this->traceNode($session->id, 'ReceiveMessage', 'routing', 'success',
+                ['phone' => $phone, 'message' => $messageText, 'has_image' => (bool)$imageUrl],
+                ['session_id' => $session->id, 'message_id' => $userMsg->id]
+            );
 
             // Get quoted text if reply
             $quotedText = $replyContext['quoted_text'] ?? null;
@@ -115,7 +150,18 @@ class AIChatbotService
             ]);
 
             // Send via WhatsApp
+            $sendStart = microtime(true);
             $sendResult = $this->sendWhatsAppMessage($instanceName, $phone, $responseText);
+            $sendMs = (int)((microtime(true) - $sendStart) * 1000);
+
+            // ── TRACE: Send Reply
+            $this->traceNode($session->id, 'SendWhatsAppReply', 'delivery',
+                $sendResult ? 'success' : 'error',
+                ['phone' => $phone, 'response_length' => strlen($responseText)],
+                ['sent' => $sendResult],
+                $sendResult ? null : 'WhatsApp send failed',
+                $sendMs
+            );
 
             return [
                 'status' => $sendResult ? 'sent' : 'send_failed',
@@ -133,26 +179,75 @@ class AIChatbotService
 
     private function routeMessage(AiChatSession $session, string $fullMessage, string $rawMessage, ?string $imageUrl): string
     {
-        $this->routeTrace = []; // Reset trace for each message
+        $this->routeTrace = [];
         $steps = ChatflowStep::where('company_id', $this->companyId)->orderBy('sort_order')->get();
         $currentStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
         $answers = $session->collected_answers ?? [];
 
-        // ══ GREETING INTERCEPT: If user greets at any point, handle via Tier 2 ══
+        // ══ GREETING INTERCEPT ══
         if ($this->isGreeting($rawMessage)) {
             $this->routeTrace[] = 'greeting_intercept';
+            $this->traceNode($session->id, 'GreetingDetector', 'routing', 'success',
+                ['message' => $rawMessage], ['detected' => true]);
+
+            // Use dedicated greeting prompt if configured
+            if (!empty($this->greetingPrompt)) {
+                $this->routeTrace[] = 'handleGreetingPrompt';
+                $t = microtime(true);
+                $greetResult = $this->vertexAI->generateContent(
+                    $this->greetingPrompt . "\n\n## LANGUAGE\nReply in the same language the customer is using.",
+                    [['role' => 'user', 'text' => $rawMessage]],
+                    null
+                );
+                $ms = (int)((microtime(true) - $t) * 1000);
+                $this->logTokens($session, 2, $greetResult);
+                $responseText = trim($greetResult['text'] ?? '');
+                $this->traceNode($session->id, 'GreetingAIResponse', 'ai_call',
+                    !empty($responseText) ? 'success' : 'error',
+                    ['prompt' => 'greeting_prompt'], ['response' => mb_substr($responseText, 0, 200)], null, $ms);
+                if (!empty($responseText)) {
+                    return $responseText;
+                }
+            }
+
             $this->routeTrace[] = 'handleTier2';
-            Log::info('AIChatbot: Greeting detected, routing to Tier 2', ['session' => $session->id, 'message' => $rawMessage]);
+            Log::info('AIChatbot: Greeting → Tier 2', ['session' => $session->id]);
             return $this->handleTier2($session, $fullMessage, $imageUrl);
+        }
+
+        $this->traceNode($session->id, 'GreetingDetector', 'routing', 'success',
+            ['message' => $rawMessage], ['detected' => false]);
+
+        // ══ Business Query check ══
+        if (!isset($answers['product_id']) && !empty($this->businessPrompt) && $this->isBusinessQuery($rawMessage)) {
+            $this->routeTrace[] = 'business_query';
+            $t = microtime(true);
+            $bizResult = $this->vertexAI->generateContent(
+                $this->businessPrompt . "\n\n## LANGUAGE\nReply in the same language the customer is using.",
+                [['role' => 'user', 'text' => $rawMessage]],
+                null
+            );
+            $ms = (int)((microtime(true) - $t) * 1000);
+            $this->logTokens($session, 2, $bizResult);
+            $responseText = trim($bizResult['text'] ?? '');
+            $this->traceNode($session->id, 'BusinessQueryAI', 'ai_call',
+                !empty($responseText) ? 'success' : 'error',
+                ['prompt' => 'business_prompt', 'message' => $rawMessage],
+                ['response' => mb_substr($responseText, 0, 200)], null, $ms);
+            if (!empty($responseText)) {
+                return $responseText;
+            }
         }
 
         // ══ CASE 1: No product selected yet ══
         if (!isset($answers['product_id'])) {
             $this->routeTrace[] = 'handlePreProductPhase';
+            $this->traceNode($session->id, 'IntentRouter', 'routing', 'success',
+                ['state' => 'no_product'], ['route' => 'PreProductPhase']);
             return $this->handlePreProductPhase($session, $steps, $fullMessage, $rawMessage, $imageUrl);
         }
 
-        // ══ CASE 1.5: Check for product modification intent (add/edit/delete) ══
+        // ══ CASE 1.5: Product modification intent ══
         $modifyResult = $this->detectProductModifyIntent($session, $rawMessage);
         if ($modifyResult !== null) {
             $this->routeTrace[] = 'detectProductModifyIntent';
@@ -161,6 +256,9 @@ class AIChatbotService
 
         // ══ CASE 2: Product selected, in chatflow ══
         if ($currentStep) {
+            $this->traceNode($session->id, 'IntentRouter', 'routing', 'success',
+                ['state' => 'in_chatflow', 'step' => $currentStep->name],
+                ['route' => $currentStep->step_type]);
             switch ($currentStep->step_type) {
                 case 'ask_combo':
                     $this->routeTrace[] = 'handleComboStep';
@@ -209,14 +307,19 @@ class AIChatbotService
             // Not sent yet — fast PHP check first, then AI fallback
             if ($this->isProductIntent($rawMessage)) {
                 $this->routeTrace[] = 'isProductIntent(PHP) → sendCategoryList';
+                $this->traceNode($session->id, 'ProductIntentDetector', 'routing', 'success', ['message' => $rawMessage, 'method' => 'PHP'], ['is_product_intent' => true]);
                 return $this->sendCategoryList($session);
             }
 
             // AI fallback for ambiguous messages
             $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user asking about products, catalogue, prices, or what you sell? This includes messages in ANY language like Hindi, Hinglish, etc. Examples of YES: 'products dikhao', 'kya bechte ho', 'show me products', 'muje product ke bare me btao', 'catalogue', 'what do you sell'. Examples of NO: 'hi', 'hello', 'namaste', 'good morning', 'how are you', 'thanks'. Reply with ONLY 'YES' or 'NO'.";
+            $t = microtime(true);
             $intentResult = $this->vertexAI->classifyContent($intentPrompt);
+            $ms = (int)((microtime(true) - $t) * 1000);
             $this->logTokens($session, 1, $intentResult);
             $isProductIntent = str_contains(strtoupper($intentResult['text']), 'YES');
+            
+            $this->traceNode($session->id, 'ProductIntentDetector', 'ai_call', 'success', ['message' => $rawMessage, 'method' => 'AI'], ['is_product_intent' => $isProductIntent, 'raw_response' => $intentResult['text']], null, $ms);
 
             if ($isProductIntent) {
                 $this->routeTrace[] = 'isProductIntent(AI) → sendCategoryList';
@@ -236,16 +339,20 @@ class AIChatbotService
         // Catalogue not sent yet — fast PHP check first, then AI fallback
         if ($this->isProductIntent($rawMessage)) {
             $this->routeTrace[] = 'isProductIntent(PHP) → sendCatalogue';
+            $this->traceNode($session->id, 'ProductIntentDetector', 'routing', 'success', ['message' => $rawMessage, 'method' => 'PHP'], ['is_product_intent' => true]);
             return $this->sendCatalogue($session);
         }
 
         // AI fallback for ambiguous messages
         $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user asking about products, catalogue, prices, or what you sell? This includes messages in ANY language like Hindi, Hinglish, etc. Examples of YES: 'products dikhao', 'kya bechte ho', 'show me products', 'muje product ke bare me btao', 'catalogue', 'what do you sell'. Examples of NO: 'hi', 'hello', 'namaste', 'good morning', 'how are you', 'thanks'. Reply with ONLY 'YES' or 'NO'.";
 
+        $t = microtime(true);
         $intentResult = $this->vertexAI->classifyContent($intentPrompt);
+        $ms = (int)((microtime(true) - $t) * 1000);
         $this->logTokens($session, 1, $intentResult);
 
         $isProductIntent = str_contains(strtoupper($intentResult['text']), 'YES');
+        $this->traceNode($session->id, 'ProductIntentDetector', 'ai_call', 'success', ['message' => $rawMessage, 'method' => 'AI'], ['is_product_intent' => $isProductIntent, 'raw_response' => $intentResult['text']], null, $ms);
 
         if ($isProductIntent) {
             $this->routeTrace[] = 'isProductIntent(AI) → sendCatalogue';
@@ -327,10 +434,13 @@ class AIChatbotService
 
         $prompt = "User said: \"{$rawMessage}\"\n\nAvailable categories:\n{$catList}\n\nWhich category number did user select or which category name matches? Reply with ONLY the ID number. If unclear or no match, reply NONE.";
 
+        $t = microtime(true);
         $matchResult = $this->vertexAI->classifyContent($prompt);
+        $ms = (int)((microtime(true) - $t) * 1000);
         $this->logTokens($session, 1, $matchResult);
 
         $matchText = trim($matchResult['text']);
+        $this->traceNode($session->id, 'CategoryMatchAI', 'ai_call', 'success', ['message' => $rawMessage], ['raw_response' => $matchText], null, $ms);
 
         // Extract number from response
         preg_match('/(\d+)/', $matchText, $matches);
@@ -346,8 +456,11 @@ class AIChatbotService
         }
 
         if (!$selectedCategory || strtoupper($matchText) === 'NONE') {
+            $this->traceNode($session->id, 'CategorySelected', 'routing', 'error', null, ['matched' => false], 'No category matched');
             return "Sorry, I couldn't match that to a category. Please reply with the category number or name from the list above. 🙏";
         }
+
+        $this->traceNode($session->id, 'CategorySelected', 'routing', 'success', null, ['category_id' => $selectedCategory->id, 'category_name' => $selectedCategory->name]);
 
         // Category matched — save to session and send filtered product list
         $session->setAnswer('category_id', $selectedCategory->id);
@@ -493,16 +606,23 @@ class AIChatbotService
             }
         }
 
+        if ($selectedProduct) {
+            $this->traceNode($session->id, 'ProductMatchPHP', 'routing', 'success', ['message' => $rawMessage], ['product_id' => $selectedProduct->id, 'name' => $selectedProduct->name]);
+        }
+
         // ── If PHP couldn't match, fall back to AI ──
         if (!$selectedProduct) {
             $productList = $products->map(fn($p, $i) => ($i + 1) . ". " . $this->getProductDisplayName($p) . " (ID:{$p->id})")->implode("\n");
 
             $prompt = "User said: \"{$rawMessage}\"\n\nAvailable products:\n{$productList}\n\nWhich product did user select? User may refer by number (e.g. 'product 1' means list item #1), by name, or description. Reply with ONLY the product ID number. If truly unclear or no match, reply NONE.";
 
+            $t = microtime(true);
             $matchResult = $this->vertexAI->classifyContent($prompt);
+            $ms = (int)((microtime(true) - $t) * 1000);
             $this->logTokens($session, 1, $matchResult);
 
             $matchText = trim($matchResult['text']);
+            $this->traceNode($session->id, 'ProductMatchAI', 'ai_call', 'success', ['message' => $rawMessage], ['raw_response' => $matchText], null, $ms);
 
             // Extract number from response
             preg_match('/(\d+)/', $matchText, $matches);
@@ -519,8 +639,11 @@ class AIChatbotService
         }
 
         if (!$selectedProduct) {
+            $this->traceNode($session->id, 'ProductSelected', 'routing', 'error', null, ['matched' => false], 'No product matched');
             return "Sorry, I couldn't match that to a product. Please reply with the product number or name from the list above. 🙏";
         }
+
+        $this->traceNode($session->id, 'ProductSelected', 'routing', 'success', null, ['product_id' => $selectedProduct->id]);
 
         // Product matched — proceed
         return $this->selectProduct($session, $selectedProduct->id, $steps);
@@ -690,10 +813,13 @@ class AIChatbotService
         $optionsList = implode(', ', $comboValues);
         $prompt = "User said: \"{$rawMessage}\"\n\nAvailable options: [{$optionsList}]\n\nWhich option matches user's choice? Reply with the EXACT option text from the list. If no clear match, reply NONE.";
 
+        $t = microtime(true);
         $matchResult = $this->vertexAI->classifyContent($prompt);
+        $ms = (int)((microtime(true) - $t) * 1000);
         $this->logTokens($session, 1, $matchResult);
 
         $matchedText = trim($matchResult['text']);
+        $this->traceNode($session->id, "ComboStepAI_{$column->slug}", 'ai_call', 'success', ['message' => $rawMessage], ['raw_response' => $matchedText], null, $ms);
 
         // Verify match is in options (case-insensitive)
         $matchedOption = null;
@@ -705,6 +831,7 @@ class AIChatbotService
         }
 
         if (!$matchedOption || strtoupper($matchedText) === 'NONE') {
+            $this->traceNode($session->id, "ComboStep_{$column->slug}", 'routing', 'error', ['matched' => false], null, 'Combo option not matched');
             // Retry
             $session->current_step_retries = ($session->current_step_retries ?? 0) + 1;
 
@@ -724,6 +851,8 @@ class AIChatbotService
         // Matched! Save to session
         $session->setAnswer($column->slug, $matchedOption);
         $session->current_step_retries = 0;
+        
+        $this->traceNode($session->id, "ComboStep_{$column->slug}", 'routing', 'success', null, ['value' => $matchedOption]);
 
         // Update quote variation if all combos selected
         $this->updateQuoteVariation($session, $product);
@@ -762,25 +891,31 @@ class AIChatbotService
         $question = $step->question_text ?: "What is your {$fieldKey}?";
         $prompt = "Question asked: \"{$question}\"\nUser replied: \"{$rawMessage}\"\n\nExtract the user's answer. Reply with ONLY the extracted answer text. If user seems to skip or says 'no' / 'skip', reply SKIP.";
 
+        $t = microtime(true);
         $extractResult = $this->vertexAI->classifyContent($prompt);
+        $ms = (int)((microtime(true) - $t) * 1000);
         $this->logTokens($session, 1, $extractResult);
 
         $extractedText = trim($extractResult['text']);
+        $this->traceNode($session->id, "CustomStepAI_{$fieldKey}", 'ai_call', 'success', ['message' => $rawMessage, 'question' => $question], ['raw_response' => $extractedText], null, $ms);
 
         if (strtoupper($extractedText) === 'SKIP' || empty($extractedText)) {
             if ($step->isOptionalStep()) {
+                $this->traceNode($session->id, "CustomStep_{$fieldKey}", 'routing', 'skipped', null, ['action' => 'skipped_optional']);
                 $session->markOptionalAsked($fieldKey);
                 $this->advanceChatflow($session, $steps);
                 $session->save();
                 return $this->buildNextStepPrompt($session, $steps);
             }
             // Not optional — ask again
+            $this->traceNode($session->id, "CustomStep_{$fieldKey}", 'routing', 'error', null, ['action' => 'retry_required'], 'Required field skipped');
             $session->current_step_retries = ($session->current_step_retries ?? 0) + 1;
             $session->save();
             return $question;
         }
 
         // Save answer
+        $this->traceNode($session->id, "CustomStep_{$fieldKey}", 'routing', 'success', null, ['value' => $extractedText]);
         $session->setAnswer($fieldKey, $extractedText);
         $session->current_step_retries = 0;
         if ($step->isOptionalStep()) {
@@ -875,7 +1010,9 @@ class AIChatbotService
         $systemPrompt = $this->buildSystemPrompt($session);
         $chatHistory = $this->buildChatHistory($session, $fullMessage, $imageUrl);
 
+        $t = microtime(true);
         $aiResult = $this->vertexAI->generateContent($systemPrompt, $chatHistory, $imageUrl);
+        $ms = (int)((microtime(true) - $t) * 1000);
         $this->logTokens($session, 2, $aiResult);
 
         $responseText = trim($aiResult['text'] ?? '');
@@ -894,9 +1031,14 @@ class AIChatbotService
         }
 
         if ($isError) {
+            $this->traceNode($session->id, 'Tier2GenerativeAI', 'ai_call', 'error', ['prompt_length' => strlen($systemPrompt), 'history_length' => count($chatHistory)], ['raw_response' => $responseText], 'First attempt failed', $ms);
             Log::warning('AIChatbot: Tier 2 returned empty/error, retrying...', ['session' => $session->id, 'original' => $responseText]);
             sleep(1);
+            
+            $t = microtime(true);
             $retryResult = $this->vertexAI->generateContent($systemPrompt, $chatHistory, $imageUrl);
+            $retryMs = (int)((microtime(true) - $t) * 1000);
+            
             $this->logTokens($session, 2, $retryResult);
             $retryText = trim($retryResult['text'] ?? '');
 
@@ -913,11 +1055,15 @@ class AIChatbotService
             }
 
             if ($retryIsError) {
+                $this->traceNode($session->id, 'Tier2GenerativeAI_Retry', 'ai_call', 'error', ['prompt_length' => strlen($systemPrompt)], ['raw_response' => $retryText], 'Retry attempt failed', $retryMs);
                 Log::error('AIChatbot: Tier 2 failed even after retry', ['session' => $session->id]);
                 return "Maaf kijiye, abhi kuch technical issue aa raha hai. Kripya thodi der baad dobara try karein. 🙏";
             }
 
+            $this->traceNode($session->id, 'Tier2GenerativeAI_Retry', 'ai_call', 'success', ['prompt_length' => strlen($systemPrompt)], ['raw_response' => $retryText], null, $retryMs);
             $responseText = $retryText;
+        } else {
+            $this->traceNode($session->id, 'Tier2GenerativeAI', 'ai_call', 'success', ['prompt_length' => strlen($systemPrompt), 'history_length' => count($chatHistory)], ['raw_response' => $responseText], null, $ms);
         }
 
         // Parse structured response
@@ -1486,6 +1632,29 @@ PROMPT;
         ];
 
         return in_array($msg, $greetings);
+    }
+
+    /**
+     * Fast PHP-level business query detection.
+     */
+    private function isBusinessQuery(string $message): bool
+    {
+        $msg = strtolower(trim($message));
+        $keywords = [
+            'address', 'location', 'where are you', 'kaha ho', 'kaha par ho', 'pata',
+            'contact', 'phone', 'number', 'call',
+            'about', 'company', 'business', 'details', 'who are you', 'kaun ho',
+            'timing', 'hours', 'open', 'close', 'kab khulte ho', 'baje',
+            'website', 'link', 'url',
+            'owner', 'manager', 'shop', 'dukan'
+        ];
+
+        foreach ($keywords as $kw) {
+            if (str_contains($msg, $kw)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

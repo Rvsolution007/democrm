@@ -784,8 +784,21 @@
                     </div>
                     <div class="card-content">
                         <div style="margin-bottom:16px">
-                            <textarea class="form-textarea" id="ai-system-prompt" rows="12" placeholder="Tum ek helpful WhatsApp AI assistant ho...">{{ $aiSystemPrompt ?? '' }}</textarea>
-                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: Batao ki bot Hindi/English me baat kare, customer ko kaise greet kare, products ke baare me kya bataye</small>
+                            <label style="display:block;margin-bottom:4px;font-weight:600">Primary System Prompt</label>
+                            <textarea class="form-textarea" id="ai-system-prompt" rows="6" placeholder="Tum ek helpful WhatsApp AI assistant ho...">{{ $aiSystemPrompt ?? '' }}</textarea>
+                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: Explain general bot persona and rules.</small>
+                        </div>
+
+                        <div style="margin-bottom:16px">
+                            <label style="display:block;margin-bottom:4px;font-weight:600">Greeting Prompt (Optional)</label>
+                            <textarea class="form-textarea" id="ai-greeting-prompt" rows="4" placeholder="User just said hi or hello...">{{ $aiGreetingPrompt ?? '' }}</textarea>
+                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: Define how the bot should greet users specifically when they only send a greeting phrase like "Hi", "Hello", "Namaste".</small>
+                        </div>
+
+                        <div style="margin-bottom:16px">
+                            <label style="display:block;margin-bottom:4px;font-weight:600">Business Query Prompt (Optional)</label>
+                            <textarea class="form-textarea" id="ai-business-prompt" rows="4" placeholder="User asked about office hours or location...">{{ $aiBusinessPrompt ?? '' }}</textarea>
+                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: Provide business details like address, support number, and business hours to use when user wants to know about the company.</small>
                         </div>
 
                         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -1881,6 +1894,8 @@
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
                 body: JSON.stringify({
                     system_prompt: document.getElementById('ai-system-prompt').value,
+                    greeting_prompt: document.getElementById('ai-greeting-prompt').value,
+                    business_prompt: document.getElementById('ai-business-prompt').value,
                 })
             }).then(r => r.json()).then(data => {
                 alert(data.message || 'Saved');

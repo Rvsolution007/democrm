@@ -127,6 +127,10 @@
                     class="nav-link {{ request()->routeIs('admin.ai-analytics.tester') ? 'active' : '' }}">
                     <i data-lucide="stethoscope" style="color:#6366f1"></i> <span>AI Bot Tester</span>
                 </a>
+                <a href="{{ route('admin.ai-analytics.traces.index') }}"
+                    class="nav-link {{ request()->routeIs('admin.ai-analytics.traces.*') ? 'active' : '' }}">
+                    <i data-lucide="git-merge" style="color:#ec4899"></i> <span>Node Traces</span>
+                </a>
             </div>
         @endif
         @if(can('products.read') || can('categories.read') || can('projects.global') || can('quotes.global'))
