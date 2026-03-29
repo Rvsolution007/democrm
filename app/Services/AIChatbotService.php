@@ -922,6 +922,67 @@ class AIChatbotService
         }
 
         if (!$matchedOption || strtoupper($matchedText) === 'NONE') {
+            // OUT OF ORDER CHECK LOGIC
+            // Check if user's input matches any OTHER unanswered combo options for this product
+            $answers = $session->collected_answers ?? [];
+            $unansweredComboSteps = $steps->filter(function($s) use ($session, $answers) {
+                return $s->step_type === 'ask_combo' && 
+                       $s->linkedColumn && 
+                       $s->id !== $session->current_step_id &&
+                       !isset($answers[$s->linkedColumn->slug]);
+            });
+
+            $outOfOrderMatch = null;
+            $outOfOrderStep = null;
+
+            foreach ($unansweredComboSteps as $uStep) {
+                $uCol = $uStep->linkedColumn;
+                $uComboValues = $product ? $this->getComboValuesForProduct($product, $uCol) : [];
+                foreach ($uComboValues as $opt) {
+                     // Check if exact option matches user's message (case insensitive)
+                     if (trim(strtolower($rawMessage)) === strtolower(trim($opt))) {
+                          $outOfOrderMatch = $opt;
+                          $outOfOrderStep = $uStep;
+                          break 2;
+                     }
+                }
+            }
+
+            // Fallback to substring exact boundary match if strict full match failed
+            if (!$outOfOrderMatch) {
+                foreach ($unansweredComboSteps as $uStep) {
+                    $uCol = $uStep->linkedColumn;
+                    $uComboValues = $product ? $this->getComboValuesForProduct($product, $uCol) : [];
+                    foreach ($uComboValues as $opt) {
+                         if (preg_match('/\b' . preg_quote(trim($opt), '/') . '\b/i', $rawMessage)) {
+                              $outOfOrderMatch = $opt;
+                              $outOfOrderStep = $uStep;
+                              break 2;
+                         }
+                    }
+                }
+            }
+
+            if ($outOfOrderMatch && $outOfOrderStep) {
+                 // Trace smart out-of-order match
+                 $this->traceNode($session->id, "ComboStepAI_SmartMatch", 'routing', 'success',
+                     ['message' => $rawMessage, 'intended_step' => $step->name, 'resolved_step' => $outOfOrderStep->name],
+                     ['value' => $outOfOrderMatch, 'column' => $outOfOrderStep->linkedColumn->slug]);
+                 
+                 // Save the matched out-of-order option
+                 $session->setAnswer($outOfOrderStep->linkedColumn->slug, $outOfOrderMatch);
+                 
+                 // Directly update quote item description and attempt quote variation sync
+                 $this->updateQuoteItemDescription($session, $product);
+                 $this->updateQuoteVariation($session, $product);
+                 
+                 // Advance chatflow (which will now loop back to this current step since it's still unanswered)
+                 $this->advanceChatflow($session, $steps);
+                 $session->save();
+                 $nextPrompt = $this->buildNextStepPrompt($session, $steps);
+                 return "Got it! Noted {$outOfOrderStep->linkedColumn->name}: {$outOfOrderMatch}.\n\n" . $nextPrompt;
+            }
+
             $this->traceNode($session->id, "ComboStep_{$column->slug}", 'routing', 'error',
                 ['step_name' => $step->name, 'step_type' => 'ask_combo', 'user_answer' => $rawMessage, 'matched' => false], null, 'Combo option not matched');
             // Retry
@@ -951,7 +1012,8 @@ class AIChatbotService
             ['step_name' => $step->name, 'step_type' => 'ask_combo'],
             ['value' => $matchedOption, 'action' => 'saved']);
 
-        // Update quote variation if all combos selected
+        // Update quote description and variation
+        $this->updateQuoteItemDescription($session, $product);
         $this->updateQuoteVariation($session, $product);
         $this->traceNode($session->id, 'QuoteUpdated', 'database', 'success',
             ['combo' => $column->slug, 'value' => $matchedOption, 'product_name' => $session->getAnswer('product_name')],
@@ -1858,12 +1920,44 @@ PROMPT;
 
     private function advanceChatflow(AiChatSession $session, $steps): void
     {
-        $currentStep = $steps->firstWhere('id', $session->current_step_id);
+        $answers = $session->collected_answers ?? [];
+        $nextStep = null;
 
-        if ($currentStep) {
-            $nextStep = $steps->first(fn($s) => $s->sort_order > $currentStep->sort_order);
-        } else {
-            $nextStep = $steps->first();
+        // Loop through all steps to find the FIRST unanswered step
+        foreach ($steps as $step) {
+            $isAnswered = false;
+
+            if ($step->step_type === 'ask_combo' && $step->linkedColumn) {
+                if (isset($answers[$step->linkedColumn->slug])) {
+                    $isAnswered = true;
+                }
+            } elseif ($step->step_type === 'ask_product') {
+                if (isset($answers['product_id'])) {
+                    $isAnswered = true;
+                }
+            } elseif ($step->step_type === 'ask_category') {
+                if (isset($answers['category_id'])) {
+                    $isAnswered = true;
+                }
+            } elseif ($step->step_type === 'ask_custom' || $step->step_type === 'ask_optional') {
+                if (isset($answers[$step->field_key]) || ($session->optional_asked ?? false)) {
+                    // For simplicity, checking if key exists or optional already skipped
+                    if (isset($answers[$step->field_key])) {
+                        $isAnswered = true;
+                    } else if ($step->isOptionalStep() && isset($session->optional_asked[$step->field_key])) {
+                        $isAnswered = true;
+                    }
+                }
+            }
+
+            if (!$isAnswered && $step->step_type !== 'send_summary') {
+                $nextStep = $step;
+                break;
+            }
+        }
+
+        if (!$nextStep && $steps->contains('step_type', 'send_summary')) {
+             $nextStep = $steps->firstWhere('step_type', 'send_summary');
         }
 
         if ($nextStep) {
@@ -1873,6 +1967,34 @@ PROMPT;
         } else {
             $session->conversation_state = 'completed';
             $session->update(['status' => 'completed']);
+        }
+    }
+
+    private function updateQuoteItemDescription(AiChatSession $session, Product $product): void
+    {
+        if (!$session->quote_id) return;
+
+        $quoteItem = QuoteItem::where('quote_id', $session->quote_id)
+            ->where('product_id', $product->id)
+            ->first();
+
+        if ($quoteItem) {
+            $descriptionLines = [];
+            foreach ($product->combos as $combo) {
+                $slug = $combo->column->slug;
+                $val = $session->getAnswer($slug);
+                if ($val) {
+                    $descriptionLines[] = "{$combo->column->name} : {$val}";
+                }
+            }
+
+            if (!empty($descriptionLines)) {
+                // If original product description is not empty, preserve it
+                $baseDesc = $product->description ? $product->description . "\n" : "";
+                $quoteItem->update([
+                    'description' => $baseDesc . implode("\n", $descriptionLines)
+                ]);
+            }
         }
     }
 
