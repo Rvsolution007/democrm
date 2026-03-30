@@ -132,27 +132,6 @@ class AiChatSession extends Model
             ->first();
 
         if ($session) {
-            // Session timeout: if last message > N minutes ago, expire old session and create fresh one
-            $timeoutMinutes = (int) Setting::getValue('ai_bot', 'session_timeout_minutes', 30, $companyId);
-            if ($session->last_message_at && $session->last_message_at->diffInMinutes(now()) >= $timeoutMinutes) {
-                Log::info('AiChatSession: Session expired due to timeout', [
-                    'session_id' => $session->id,
-                    'phone' => $phone,
-                    'last_message' => $session->last_message_at->toDateTimeString(),
-                    'timeout_minutes' => $timeoutMinutes,
-                ]);
-                $session->update(['status' => 'expired']);
-
-                // Create a fresh session
-                return static::create([
-                    'company_id' => $companyId,
-                    'phone_number' => $phone,
-                    'instance_name' => $instanceName,
-                    'status' => 'active',
-                    'last_message_at' => now(),
-                ]);
-            }
-
             return $session;
         }
 

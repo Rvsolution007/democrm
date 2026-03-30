@@ -851,6 +851,23 @@
                         </button>
                     </div>
                 </div>
+                <!-- AI Session Control -->
+                <div class="card" style="margin-bottom:24px">
+                    <div class="card-header">
+                        <h3 class="card-title">Session Validity Settings</h3>
+                        <p class="text-sm text-muted" style="margin-top:4px">Configure how long an AI session remembers user responses.</p>
+                    </div>
+                    <div class="card-content">
+                        <div style="margin-bottom:16px">
+                            <label style="display:block;margin-bottom:4px;font-weight:600">Lead Session Valid Days</label>
+                            <input type="number" class="form-input" id="ai-session-valid-days" value="{{ $aiSessionValidDays ?? 10 }}" style="max-width:150px">
+                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Example: 10 days. If a user texts after this time, a new Session, Lead and Quote will be created.</small>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveAiSessionSettings()">
+                            <i data-lucide="save" style="width:16px;height:16px"></i> Save Session Settings
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Backup & Restore Tab -->
@@ -1885,6 +1902,22 @@
                 })
             }).then(r => r.json()).then(data => {
                 alert(data.message || 'Saved');
+            }).catch(() => alert('Request failed'));
+        }
+
+        function saveAiSessionSettings() {
+            let val = document.getElementById('ai-session-valid-days').value;
+            fetch('{{ route("admin.settings.ai-session.save") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    session_valid_days: val,
+                })
+            }).then(r => r.json()).then(data => {
+                alert(data.message || 'Saved');
+                if (data.errors) {
+                    alert(Object.values(data.errors).flat().join('\n'));
+                }
             }).catch(() => alert('Request failed'));
         }
 

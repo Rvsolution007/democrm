@@ -50,6 +50,7 @@ class SettingsController extends Controller
         $aiBusinessPrompt = Setting::getValue('ai_bot', 'business_prompt', '');
         $aiReplyLanguage = Setting::getValue('ai_bot', 'reply_language', 'auto');
         $aiArchitectureRules = Setting::getValue('ai_bot', 'architecture_rules', '');
+        $aiSessionValidDays = Setting::getValue('ai_bot', 'session_valid_days', 10);
 
         // Load backup files for Backup & Restore tab
         $backupFiles = [];
@@ -80,7 +81,7 @@ class SettingsController extends Controller
         return view('admin.settings.index', compact(
             'company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources',
             'taskStatuses', 'paymentTypes', 'whatsappApiConfig', 'backupFiles',
-            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiGreetingPrompt', 'aiBusinessPrompt', 'aiReplyLanguage', 'aiArchitectureRules'
+            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiGreetingPrompt', 'aiBusinessPrompt', 'aiReplyLanguage', 'aiArchitectureRules', 'aiSessionValidDays'
         ));
     }
 
@@ -362,6 +363,20 @@ class SettingsController extends Controller
         \Illuminate\Support\Facades\Cache::forget('vertex_ai_token_' . md5($request->project_id));
 
         return response()->json(['success' => true, 'message' => 'AI configuration saved']);
+    }
+
+    /**
+     * Save AI Bot session validation settings
+     */
+    public function saveAiSessionSettings(Request $request)
+    {
+        $request->validate([
+            'session_valid_days' => 'required|integer|min:1|max:365',
+        ]);
+
+        Setting::setValue('ai_bot', 'session_valid_days', (int) $request->session_valid_days);
+
+        return response()->json(['success' => true, 'message' => 'Session settings saved']);
     }
 
     /**

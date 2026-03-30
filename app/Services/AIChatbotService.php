@@ -131,6 +131,40 @@ class AIChatbotService
             $result = DB::transaction(function () use ($instanceName, $phone, $messageText, $replyContext, $imageUrl) {
 
                 $session = AiChatSession::findOrCreateForPhone($this->companyId, $phone, $instanceName);
+                
+                // ── Session Time Validity Check ──
+                $validDays = (int) Setting::getValue('ai_bot', 'session_valid_days', 10, $this->companyId);
+                
+                if (!$session->wasRecentlyCreated && $session->last_message_at) {
+                    $daysSinceLastMessage = $session->last_message_at->diffInDays(now());
+                    
+                    if ($daysSinceLastMessage >= $validDays) {
+                        Log::info('AIChatbot: Session expired due to valid days limit', [
+                            'session_id' => $session->id,
+                            'phone' => $phone,
+                            'days_elapsed' => $daysSinceLastMessage,
+                            'valid_days' => $validDays,
+                        ]);
+                        
+                        // Trace the timeout before replacing the session
+                        $this->traceNode($session->id, 'SessionTimeout', 'routing', 'warning', 
+                            ['reason' => 'Validity period elapsed', 'days_elapsed' => $daysSinceLastMessage, 'limit_days' => $validDays], 
+                            ['action' => 'expired_old_session', 'started_new_session' => true]
+                        );
+                        
+                        $session->update(['status' => 'expired']);
+                        
+                        // Create a fresh session
+                        $session = AiChatSession::create([
+                            'company_id' => $this->companyId,
+                            'phone_number' => $phone,
+                            'instance_name' => $instanceName,
+                            'status' => 'active',
+                            'last_message_at' => now(),
+                        ]);
+                    }
+                }
+
                 $session->update(['last_message_at' => now()]);
 
                 // Save incoming user message
@@ -2020,27 +2054,39 @@ PROMPT;
 
     private function updateQuoteItemDescription(AiChatSession $session, Product $product): void
     {
-        if (!$session->quote_id) return;
-
-        $quoteItem = QuoteItem::where('quote_id', $session->quote_id)
-            ->where('product_id', $product->id)
-            ->first();
-
-        if ($quoteItem) {
-            $descriptionLines = [];
-            foreach ($product->combos as $combo) {
-                $slug = $combo->column->slug;
-                $val = $session->getAnswer($slug);
-                if ($val) {
-                    $descriptionLines[] = "{$combo->column->name} : {$val}";
-                }
+        $descriptionLines = [];
+        foreach ($product->combos as $combo) {
+            $slug = $combo->column->slug;
+            $val = $session->getAnswer($slug);
+            if ($val) {
+                $descriptionLines[] = "{$combo->column->name} : {$val}";
             }
+        }
 
-            if (!empty($descriptionLines)) {
-                // If original product description is not empty, preserve it
-                $baseDesc = $product->description ? $product->description . "\n" : "";
+        if (empty($descriptionLines)) return;
+
+        $baseDesc = $product->description ? $product->description . "\n" : "";
+        $fullDesc = $baseDesc . implode("\n", $descriptionLines);
+
+        // Update QuoteItem
+        if ($session->quote_id) {
+            $quoteItem = QuoteItem::where('quote_id', $session->quote_id)
+                ->where('product_id', $product->id)
+                ->first();
+
+            if ($quoteItem) {
                 $quoteItem->update([
-                    'description' => $baseDesc . implode("\n", $descriptionLines)
+                    'description' => $fullDesc
+                ]);
+            }
+        }
+
+        // Update Lead Product pivot
+        if ($session->lead_id) {
+            $lead = Lead::find($session->lead_id);
+            if ($lead && $lead->products->contains('id', $product->id)) {
+                $lead->products()->updateExistingPivot($product->id, [
+                    'description' => $fullDesc
                 ]);
             }
         }

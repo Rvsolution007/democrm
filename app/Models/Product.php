@@ -12,6 +12,40 @@ class Product extends Model
 {
     use SoftDeletes, BelongsToCompany;
 
+    protected $appends = ['display_name'];
+
+    public static $uniqueColumnCache = [];
+
+    public function getDisplayNameAttribute()
+    {
+        if (!$this->company_id) return $this->name;
+
+        if (!array_key_exists($this->company_id, self::$uniqueColumnCache)) {
+            self::$uniqueColumnCache[$this->company_id] = \App\Models\CatalogueCustomColumn::where('company_id', $this->company_id)
+                ->where('is_unique', true)->first();
+        }
+
+        $uc = self::$uniqueColumnCache[$this->company_id];
+        if ($uc) {
+            if ($uc->is_system) {
+                return $this->{$uc->slug} ?: $this->name;
+            } else {
+                if ($this->relationLoaded('customValues')) {
+                    $val = $this->customValues->where('column_id', $uc->id)->first();
+                } else {
+                    $val = \App\Models\CatalogueCustomValue::where('product_id', $this->id)->where('column_id', $uc->id)->first();
+                }
+
+                if ($val) {
+                    $decoded = json_decode($val->value, true);
+                    return is_array($decoded) ? implode(', ', $decoded) : $val->value;
+                }
+            }
+        }
+        
+        return $this->name;
+    }
+
     protected $fillable = [
         'company_id',
         'created_by_user_id',
