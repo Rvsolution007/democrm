@@ -547,6 +547,11 @@ class AIChatbotService
         }
 
         // ══ Standard product flow (no category step or category already selected) ══
+        if ($session->conversation_state === 'awaiting_product_group') {
+            $this->routeTrace[] = 'matchProductGroupFromMessage';
+            return $this->matchProductGroupFromMessage($session, $rawMessage, $steps);
+        }
+
         if ($session->catalogue_sent) {
             $this->routeTrace[] = 'matchProductFromMessage';
             return $this->matchProductFromMessage($session, $rawMessage, $steps);
@@ -714,17 +719,56 @@ class AIChatbotService
             $query->where('category_id', $answers['category_id']);
         }
 
+        // Apply group filter if already selected
+        $selectedGroup = $answers['selected_product_group'] ?? null;
+        if ($selectedGroup) {
+            $query->where('name', $selectedGroup);
+        }
+
         $products = $query->get();
 
         if ($products->isEmpty()) {
             return "Sorry, we don't have any products available right now.";
         }
 
-        // Get AI-visible columns
+        $groupedProducts = $products->groupBy(function($p) {
+            return trim(strtolower($p->name));
+        });
+
+        // Grouping is needed if we haven't selected a group yet AND there are duplicates
+        $needsGrouping = !$selectedGroup && $groupedProducts->count() < $products->count();
+
+        // Get AI-visible columns for price/desc mapping if needed
         $visibleColumns = $this->getAiVisibleColumns();
         $showPrice = $visibleColumns->contains('slug', 'sale_price') || $visibleColumns->contains('slug', 'mrp');
 
-        $msg = "🛍️ *Our Products:*\n\n";
+        if ($needsGrouping) {
+            $msg = "🛍️ *Our Product Lines:*\n\n";
+            $i = 1;
+            $groupNamesForTrace = [];
+            foreach ($groupedProducts as $key => $group) {
+                $actualName = $group->first()->name;
+                $msg .= "{$i}️⃣ *{$actualName}* ({$group->count()} models)\n";
+                $groupNamesForTrace[] = $actualName;
+                $i++;
+            }
+            $msg .= "\nReply with product line number or name! 👆";
+
+            $session->catalogue_sent = true;
+            $session->conversation_state = 'awaiting_product_group';
+            $session->save();
+
+            $categoryFilter = isset($answers['category_id']) ? ($answers['category_name'] ?? 'ID:' . $answers['category_id']) : null;
+            $this->traceNode($session->id, 'CatalogueGroupSent', 'routing', 'success',
+                $categoryFilter ? ['trigger' => 'category_selected', 'category_filter' => $categoryFilter] : ['trigger' => 'product_intent'],
+                ['groups_count' => $groupedProducts->count(), 'group_names' => array_slice($groupNamesForTrace, 0, 10)]);
+            Log::info("AIChatbot: Catalogue Group sent (PHP Direct)", ['session' => $session->id]);
+
+            return $msg;
+        }
+
+        // Standard flat listing logic
+        $msg = "🛍️ *Our " . ($selectedGroup ? $selectedGroup . " Models:" : "Products:") . "*\n\n";
         foreach ($products as $i => $product) {
             $num = $i + 1;
             $displayName = $this->getProductDisplayName($product);
@@ -755,12 +799,74 @@ class AIChatbotService
         $session->save();
 
         $productNames = $products->map(fn($p) => $this->getProductDisplayName($p))->toArray();
-        $categoryFilter = isset($answers['category_id']) ? ($answers['category_name'] ?? 'ID:' . $answers['category_id']) : null;
         $this->traceNode($session->id, 'CatalogueSent', 'routing', 'success',
-            $categoryFilter ? ['trigger' => 'category_selected', 'category_filter' => $categoryFilter] : ['trigger' => 'product_intent'],
+            ['trigger' => $selectedGroup ? 'group_selected' : 'product_intent', 'group_filter' => $selectedGroup],
             ['products_count' => $products->count(), 'product_names' => array_slice($productNames, 0, 10)]);
         Log::info("AIChatbot: Catalogue sent (PHP Direct)", ['session' => $session->id]);
         return $msg;
+    }
+
+    /**
+     * Match user's message to a product group
+     */
+    private function matchProductGroupFromMessage(AiChatSession $session, string $rawMessage, $steps): string
+    {
+        $answers = $session->collected_answers ?? [];
+        $query = Product::where('company_id', $this->companyId)->where('status', 'active');
+        if (isset($answers['category_id'])) {
+            $query->where('category_id', $answers['category_id']);
+        }
+        $products = $query->get();
+
+        if ($products->isEmpty()) {
+            return "Sorry, no product lines available right now.";
+        }
+
+        $groupedProducts = [];
+        foreach ($products as $p) {
+            $key = trim(strtolower($p->name));
+            if (!isset($groupedProducts[$key])) {
+                $groupedProducts[$key] = ['name' => $p->name, 'count' => 0];
+            }
+            $groupedProducts[$key]['count']++;
+        }
+        
+        $groupsList = array_values($groupedProducts);
+
+        $msg = strtolower(trim($rawMessage));
+        $selectedGroupName = null;
+
+        // Try number extraction
+        $listNumber = null;
+        if (preg_match('/(?:group|line|#|no\.?\s*|number\s*)?(\d+)/i', $msg, $numMatch)) {
+            $listNumber = (int)$numMatch[1];
+        }
+
+        if ($listNumber && $listNumber >= 1 && $listNumber <= count($groupsList)) {
+            $selectedGroupName = $groupsList[$listNumber - 1]['name'];
+        }
+
+        if (!$selectedGroupName) {
+            foreach ($groupsList as $g) {
+                if (str_contains($msg, strtolower($g['name']))) {
+                    $selectedGroupName = $g['name'];
+                    break;
+                }
+            }
+        }
+
+        if ($selectedGroupName) {
+            $this->traceNode($session->id, 'ProductGroupSelected', 'routing', 'success', ['message' => $rawMessage], ['group_name' => $selectedGroupName]);
+            $session->setAnswer('selected_product_group', $selectedGroupName);
+            $session->save();
+
+            $replyMsg = "✅ *{$selectedGroupName}* selected!\n\n";
+            $replyMsg .= $this->sendCatalogue($session);
+            return $replyMsg;
+        }
+
+        $this->traceNode($session->id, 'ProductGroupSelected', 'routing', 'error', ['message' => $rawMessage], ['matched' => false], 'No product line matched');
+        return "Sorry, I couldn't match that to a product line. Please reply with the number or exact name from the list. 🙏";
     }
 
     /**
@@ -776,6 +882,12 @@ class AIChatbotService
         // Filter by category if category was selected
         if (isset($answers['category_id'])) {
             $query->where('category_id', $answers['category_id']);
+        }
+        
+        // Filter by group if group was selected
+        $selectedGroup = $answers['selected_product_group'] ?? null;
+        if ($selectedGroup) {
+            $query->where('name', $selectedGroup);
         }
 
         $products = $query->get();

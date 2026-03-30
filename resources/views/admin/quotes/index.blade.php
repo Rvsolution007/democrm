@@ -187,7 +187,7 @@
                             <td>{{ $quote->valid_till ? $quote->valid_till->format('d M Y') : '—' }}</td>
                             <td>
                                 <div class="table-actions">
-                                    <button class="btn btn-ghost btn-icon btn-sm" onclick="viewQuote({{ $quote->id }})"
+                                    <button class="btn btn-ghost btn-icon btn-sm" onclick="viewQuote({{ $quote->id }}, this)"
                                         title="View"><i data-lucide="eye" style="width:16px;height:16px"></i></button>
                                     <button class="btn btn-ghost btn-icon btn-sm" onclick="downloadQuote({{ $quote->id }})"
                                         title="Download"><i data-lucide="download" style="width:16px;height:16px"></i></button>
@@ -201,7 +201,7 @@
                                                 data-lucide="user-check" style="width:16px;height:16px"></i></button>
                                     @endif
                                     @if(can('quotes.write'))
-                                        <button class="btn btn-ghost btn-icon btn-sm" onclick="editQuote({{ $quote->id }})"
+                                        <button class="btn btn-ghost btn-icon btn-sm" onclick="editQuote({{ $quote->id }}, this)"
                                             title="Edit"><i data-lucide="edit" style="width:16px;height:16px"></i></button>
                                     @endif
                                     @if(can('quotes.delete'))
@@ -1036,7 +1036,13 @@
             if (editBtn) editBtn.style.display = editable ? 'none' : 'flex';
         }
 
-        function editQuote(id) {
+        function editQuote(id, btn) {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i data-lucide="loader-2" class="spin" style="width:16px;height:16px"></i>';
+                if (typeof lucide !== 'undefined') lucide.createIcons({'name': 'loader-2'});
+            }
+
             // Fetch quote details
             fetch(`{{ url('admin/quotes') }}/${id}/edit`)
                 .then(response => response.json())
@@ -1115,10 +1121,26 @@
                     calcQuoteTotal();
                     openDrawer('quote-drawer');
                 })
-                .catch(error => console.error('Error fetching quote:', error));
+                .catch(error => {
+                    console.error('Error fetching quote:', error);
+                    alert('An error occurred. Please try again.');
+                })
+                .finally(() => {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i data-lucide="edit" style="width:16px;height:16px"></i>';
+                        if (typeof lucide !== 'undefined') lucide.createIcons({'name': 'edit'});
+                    }
+                });
         }
 
-        function viewQuote(id) {
+        function viewQuote(id, btn) {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i data-lucide="loader-2" class="spin" style="width:16px;height:16px"></i>';
+                if (typeof lucide !== 'undefined') lucide.createIcons({'name': 'loader-2'});
+            }
+
             fetch(`{{ url('admin/quotes') }}/${id}`)
                 .then(response => response.json())
                 .then(quote => {
@@ -1126,7 +1148,10 @@
 
                     var editBtn = document.getElementById('btn-edit-quote');
                     if (editBtn) {
-                        editBtn.onclick = function () { editQuote(id); };
+                        editBtn.onclick = function () { 
+                            var originalBtn = document.querySelector('button[onclick="editQuote('+id+', this)"]') || null;
+                            editQuote(id, originalBtn); 
+                        };
                     }
 
                     var isInvoice = quote.status === 'accepted';
@@ -1188,7 +1213,17 @@
                     calcQuoteTotal();
                     openDrawer('quote-drawer');
                 })
-                .catch(error => console.error('Error fetching quote:', error));
+                .catch(error => {
+                    console.error('Error fetching quote:', error);
+                    alert('An error occurred. Please try again.');
+                })
+                .finally(() => {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i data-lucide="eye" style="width:16px;height:16px"></i>';
+                        if (typeof lucide !== 'undefined') lucide.createIcons({'name': 'eye'});
+                    }
+                });
         }
 
         function downloadQuote(id) {
