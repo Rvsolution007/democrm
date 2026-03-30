@@ -549,12 +549,12 @@ class AIChatbotService
         // ══ Standard product flow (no category step or category already selected) ══
         if ($session->conversation_state === 'awaiting_product_group') {
             $this->routeTrace[] = 'matchProductGroupFromMessage';
-            return $this->matchProductGroupFromMessage($session, $rawMessage, $steps);
+            return $this->matchProductGroupFromMessage($session, $fullMessage, $rawMessage, $imageUrl, $steps);
         }
 
         if ($session->catalogue_sent) {
             $this->routeTrace[] = 'matchProductFromMessage';
-            return $this->matchProductFromMessage($session, $rawMessage, $steps);
+            return $this->matchProductFromMessage($session, $fullMessage, $rawMessage, $imageUrl, $steps);
         }
 
         // Catalogue not sent yet — fast PHP check first, then AI fallback
@@ -809,7 +809,7 @@ class AIChatbotService
     /**
      * Match user's message to a product group
      */
-    private function matchProductGroupFromMessage(AiChatSession $session, string $rawMessage, $steps): string
+    private function matchProductGroupFromMessage(AiChatSession $session, string $fullMessage, string $rawMessage, ?string $imageUrl, $steps): string
     {
         $answers = $session->collected_answers ?? [];
         $query = Product::where('company_id', $this->companyId)->where('status', 'active');
@@ -836,9 +836,9 @@ class AIChatbotService
         $msg = strtolower(trim($rawMessage));
         $selectedGroupName = null;
 
-        // Try number extraction
+        // Try strict number extraction
         $listNumber = null;
-        if (preg_match('/(?:group|line|#|no\.?\s*|number\s*)?(\d+)/i', $msg, $numMatch)) {
+        if (preg_match('/^\s*(?:group|line|#|no\.?\s*|number\s*)?\s*(\d+)\s*$/i', $msg, $numMatch)) {
             $listNumber = (int)$numMatch[1];
         }
 
@@ -865,15 +865,15 @@ class AIChatbotService
             return $replyMsg;
         }
 
-        $this->traceNode($session->id, 'ProductGroupSelected', 'routing', 'error', ['message' => $rawMessage], ['matched' => false], 'No product line matched');
-        return "Sorry, I couldn't match that to a product line. Please reply with the number or exact name from the list. 🙏";
+        $this->traceNode($session->id, 'ProductGroupSelected', 'routing', 'warning', ['message' => $rawMessage], ['matched' => false], 'No product line matched. Falling back to Tier 2.');
+        return $this->handleTier2($session, $fullMessage, $imageUrl);
     }
 
     /**
      * Match user's message to a product (Tier 1)
      * First tries PHP-level number extraction, then falls back to AI matching.
      */
-    private function matchProductFromMessage(AiChatSession $session, string $rawMessage, $steps): string
+    private function matchProductFromMessage(AiChatSession $session, string $fullMessage, string $rawMessage, ?string $imageUrl, $steps): string
     {
         $answers = $session->collected_answers ?? [];
         $query = Product::with('customValues')->where('company_id', $this->companyId)
@@ -914,15 +914,16 @@ class AIChatbotService
             'paanchva' => 5, 'panchva' => 5,
         ];
         foreach ($ordinals as $word => $num) {
-            if (str_contains($msg, $word)) {
+            // Strict check for ordinal
+            if (preg_match('/^\s*' . $word . '\s*(?:wala|wali|one|product)?\s*$/i', $msg)) {
                 $listNumber = $num;
                 break;
             }
         }
 
-        // Pattern: extract digit from message (e.g., "product 1", "1", "#2", "no. 3")
+        // Pattern: strict digit match from message
         if (!$listNumber) {
-            if (preg_match('/(?:product|#|no\.?\s*|number\s*)?(\d+)/i', $msg, $numMatch)) {
+            if (preg_match('/^\s*(?:product|#|no\.?\s*|number\s*)?\s*(\d+)\s*$/i', $msg, $numMatch)) {
                 $listNumber = (int)$numMatch[1];
             }
         }
@@ -933,11 +934,12 @@ class AIChatbotService
         }
 
         // ── Also try direct name matching (PHP level) ──
-        if (!$selectedProduct) {
+        if (!$selectedProduct && !$listNumber) {
             foreach ($products as $product) {
                 $displayName = strtolower($this->getProductDisplayName($product));
                 $productName = strtolower($product->name);
-                if (str_contains($msg, $displayName) || str_contains($msg, $productName)) {
+                // Strict equality check instead of greedy str_contains
+                if ($msg === $displayName || $msg === $productName) {
                     $selectedProduct = $product;
                     break;
                 }
@@ -982,8 +984,8 @@ class AIChatbotService
         }
 
         if (!$selectedProduct) {
-            $this->traceNode($session->id, 'ProductSelected', 'routing', 'error', ['message' => $rawMessage], ['matched' => false], 'No product matched');
-            return "Sorry, I couldn't match that to a product. Please reply with the product number or name from the list above. 🙏";
+            $this->traceNode($session->id, 'ProductSelected', 'routing', 'warning', ['message' => $rawMessage], ['matched' => false], 'No product matched. Falling back to Tier 2.');
+            return $this->handleTier2($session, $fullMessage, $imageUrl);
         }
 
         $this->traceNode($session->id, 'ProductSelected', 'routing', 'success',
