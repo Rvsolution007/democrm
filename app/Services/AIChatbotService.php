@@ -187,6 +187,94 @@ class AIChatbotService
         return $product->name;
     }
 
+    /**
+     * Get the product's "base" name (group/line name) WITHOUT the unique variant identifier.
+     * Used for grouping products into product lines (e.g., "Cabinet Handle").
+     * Falls back to the native `name` column only if no custom columns exist.
+     */
+    private function getProductBaseName(Product $product): string
+    {
+        if (!$this->uniqueColumnLoaded) {
+            $this->uniqueColumn = CatalogueCustomColumn::where('company_id', $this->companyId)
+                ->where('is_unique', true)
+                ->first();
+            $this->uniqueColumnLoaded = true;
+        }
+
+        if ($this->uniqueColumn) {
+            if ($this->aiVisibleColumns === null) {
+                $this->aiVisibleColumns = CatalogueCustomColumn::where('company_id', $this->companyId)
+                    ->where('show_in_ai', true)
+                    ->where('is_active', true)
+                    ->orderBy('sort_order', 'asc')
+                    ->get();
+            }
+
+            $uniqueSortOrder = $this->uniqueColumn->sort_order;
+            $columnsAbove = [];
+            foreach ($this->aiVisibleColumns as $col) {
+                if ($col->sort_order < $uniqueSortOrder) {
+                    $columnsAbove[] = $col;
+                }
+            }
+
+            // If there are columns above the unique column, build the base name from them
+            if (!empty($columnsAbove)) {
+                $baseNameParts = [];
+                foreach ($columnsAbove as $col) {
+                    if ($col->is_system) {
+                        $slug = $col->slug;
+                        if ($slug === 'product_name') $slug = 'name';
+                        $val = $product->{$slug};
+                        if (!empty($val)) {
+                            $baseNameParts[] = $val;
+                        }
+                    } else {
+                        if ($product->relationLoaded('customValues')) {
+                            $customVal = $product->customValues->where('column_id', $col->id)->first();
+                        } else {
+                            $customVal = $product->customValues()->where('column_id', $col->id)->first();
+                        }
+                        if ($customVal && !empty($customVal->value)) {
+                            $valStr = json_decode($customVal->value, true);
+                            $valStr = is_array($valStr) ? implode(', ', $valStr) : $customVal->value;
+                            if (!empty($valStr)) {
+                                $baseNameParts[] = $valStr;
+                            }
+                        }
+                    }
+                }
+
+                $baseName = implode(' ', $baseNameParts);
+                if (!empty(trim($baseName))) {
+                    return trim($baseName);
+                }
+            }
+
+            // No columns above unique, or they were empty — use the unique value itself as base
+            if ($this->uniqueColumn->is_system) {
+                $slug = $this->uniqueColumn->slug;
+                if ($slug === 'product_name') $slug = 'name';
+                $val = $product->{$slug};
+                if (!empty($val)) return $val;
+            } else {
+                if ($product->relationLoaded('customValues')) {
+                    $customVal = $product->customValues->where('column_id', $this->uniqueColumn->id)->first();
+                } else {
+                    $customVal = $product->customValues()->where('column_id', $this->uniqueColumn->id)->first();
+                }
+                if ($customVal && !empty($customVal->value)) {
+                    $val = json_decode($customVal->value, true);
+                    $val = is_array($val) ? implode(', ', $val) : $customVal->value;
+                    if (!empty($val)) return $val;
+                }
+            }
+        }
+
+        // Ultimate fallback: native name column
+        return $product->name;
+    }
+
     // ═══════════════════════════════════════════════════════
     // MAIN ENTRY POINT
     // ═══════════════════════════════════════════════════════
@@ -733,19 +821,25 @@ class AIChatbotService
         }
 
         // Apply group filter if already selected
+        // Note: selectedGroup filtering is done post-query via getProductBaseName()
+        // because the group name may come from custom columns, not the native `name` field
         $selectedGroup = $answers['selected_product_group'] ?? null;
-        if ($selectedGroup) {
-            $query->where('name', $selectedGroup);
-        }
 
         $products = $query->get();
+
+        // Filter by selected group using computed base name (not native `name` column)
+        if ($selectedGroup) {
+            $products = $products->filter(function($p) use ($selectedGroup) {
+                return trim(strtolower($this->getProductBaseName($p))) === trim(strtolower($selectedGroup));
+            })->values();
+        }
 
         if ($products->isEmpty()) {
             return "Sorry, we don't have any {$terms['plural_base']} available right now.";
         }
 
         $groupedProducts = $products->groupBy(function($p) {
-            return trim(strtolower($p->name));
+            return trim(strtolower($this->getProductBaseName($p)));
         });
 
         // Grouping is needed if we haven't selected a group yet AND there are duplicates
@@ -767,7 +861,7 @@ class AIChatbotService
             $i = 1;
             $groupNamesForTrace = [];
             foreach ($groupedProducts as $key => $group) {
-                $actualName = $group->first()->name;
+                $actualName = $this->getProductBaseName($group->first());
                 $msg .= "{$i}️⃣ *{$actualName}* ({$group->count()} {$terms['plural_variant']})\n";
                 $groupNamesForTrace[] = $actualName;
                 $i++;
@@ -877,9 +971,10 @@ class AIChatbotService
 
         $groupedProducts = [];
         foreach ($products as $p) {
-            $key = trim(strtolower($p->name));
+            $baseName = $this->getProductBaseName($p);
+            $key = trim(strtolower($baseName));
             if (!isset($groupedProducts[$key])) {
-                $groupedProducts[$key] = ['name' => $p->name, 'count' => 0];
+                $groupedProducts[$key] = ['name' => $baseName, 'count' => 0];
             }
             $groupedProducts[$key]['count']++;
         }
@@ -944,11 +1039,17 @@ class AIChatbotService
         
         // Filter by group if group was selected
         $selectedGroup = $answers['selected_product_group'] ?? null;
-        if ($selectedGroup) {
-            $query->where('name', $selectedGroup);
-        }
+        // Note: selectedGroup filtering is done post-query via getProductBaseName()
+        // because the group name may come from custom columns, not the native `name` field
 
         $products = $query->get();
+
+        // Filter by selected group using computed base name (not native `name` column)
+        if ($selectedGroup) {
+            $products = $products->filter(function($p) use ($selectedGroup) {
+                return trim(strtolower($this->getProductBaseName($p))) === trim(strtolower($selectedGroup));
+            })->values();
+        }
 
         if ($products->isEmpty()) {
             return "Sorry, no products available right now.";
@@ -1729,18 +1830,24 @@ class AIChatbotService
             }
 
             // Apply selected group filter if available
+            // Note: selectedGroup filtering is done post-query via getProductBaseName()
             $selectedGroup = $answers['selected_product_group'] ?? null;
-            if ($selectedGroup) {
-                $query->where('name', $selectedGroup);
-            }
 
             $products = $query->get();
+
+            // Filter by selected group using computed base name
+            if ($selectedGroup) {
+                $products = $products->filter(function($p) use ($selectedGroup) {
+                    return trim(strtolower($this->getProductBaseName($p))) === trim(strtolower($selectedGroup));
+                })->values();
+            }
+
             if ($products->isEmpty()) {
                 return "System Note: The {$terms['base']} catalogue is currently EMPTY. We do not have any {$terms['plural_base']} to sell right now. If the user asks for {$terms['plural_base']}, inform them that we currently have no {$terms['plural_base']} available.";
             }
 
             $groupedProducts = $products->groupBy(function($p) {
-                return trim(strtolower($p->name));
+                return trim(strtolower($this->getProductBaseName($p)));
             });
 
             // Grouping is needed if we haven't selected a group yet AND there are duplicates
@@ -1749,7 +1856,7 @@ class AIChatbotService
             if ($needsGrouping) {
                 $context = "### {$terms['base']} Lines / Groups:\n";
                 foreach ($groupedProducts as $key => $group) {
-                    $actualName = $group->first()->name;
+                    $actualName = $this->getProductBaseName($group->first());
                     $context .= "- {$actualName} ({$group->count()} {$terms['plural_variant']} available)\n";
                 }
                 $context .= "\nSystem Note: Because there are many {$terms['plural_variant']} per {$terms['base']}, DO NOT ask the user to select a final {$terms['base']}. Ask them WHICH {$terms['base']} Line from the above list they are interested in. Do NOT list the individual {$terms['plural_variant']} yet.\n";
@@ -2637,6 +2744,14 @@ PROMPT;
      */
     private function sendMediaToWhatsApp(AiChatSession $session, string $mediaUrl, string $traceNodeName): void
     {
+        // ── Resolve relative URLs to absolute URLs ──
+        // Evolution API needs a full http(s):// URL to fetch the media.
+        // If the stored path is relative (e.g., "/storage/products/cover/abc.jpg"),
+        // convert it to an absolute URL using the Laravel asset() helper.
+        if (!empty($mediaUrl) && !preg_match('#^https?://#i', $mediaUrl)) {
+            $mediaUrl = rtrim(config('app.url'), '/') . '/' . ltrim($mediaUrl, '/');
+        }
+
         $config = Setting::getValue('whatsapp', 'api_config', [
             'api_url' => '',
             'api_key' => '',
