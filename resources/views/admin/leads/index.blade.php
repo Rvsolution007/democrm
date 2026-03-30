@@ -201,8 +201,8 @@
                                             @foreach($lead->products as $product)
                                                 <span
                                                     style="background:#f1f5f9;color:#475569;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:500;white-space:nowrap;border:1px solid #e2e8f0"
-                                                    title="{{ $product->name }}">
-                                                    {{ Str::limit($product->name, 20) }}
+                                                    title="{{ $product->display_name }}">
+                                                    {{ Str::limit($product->display_name, 20) }}
                                                 </span>
                                             @endforeach
                                         </div>
@@ -300,8 +300,8 @@
                                         @foreach($lead->products as $product)
                                             <span
                                                 style="background:#f1f5f9;color:#475569;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:500;white-space:nowrap;border:1px solid #e2e8f0"
-                                                title="{{ $product->name }}">
-                                                {{ Str::limit($product->name, 20) }}
+                                                title="{{ $product->display_name }}">
+                                                {{ Str::limit($product->display_name, 20) }}
                                             </span>
                                         @endforeach
                                     </div>
@@ -489,10 +489,10 @@
                                         <option value="">🔍 Search or select a product...</option>
                                         @foreach($products as $product)
                                             @php $displayPrice = ($product->mrp ?: $product->sale_price) / 100; @endphp
-                                            <option value="{{ $product->id }}" data-name="{{ $product->name }}"
+                                            <option value="{{ $product->id }}" data-name="{{ $product->display_name }}"
                                                 data-price="{{ $displayPrice }}" data-mrp="{{ $product->mrp }}"
                                                 data-desc="{{ Str::limit($product->description ?? '', 60) }}">
-                                                {{ $product->name }} — ₹{{ number_format($displayPrice, 2) }}
+                                                {{ $product->display_name }} — ₹{{ number_format($displayPrice, 2) }}
                                             </option>
                                         @endforeach
                                     </select>
@@ -783,7 +783,7 @@
                             let discount = p.pivot.discount || 0;
                             let finalPrice = ((price - discount) / 100).toFixed(2);
                             productRows += `<tr>
-                                                                                                                                                                                        <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155">${escapeHtml(p.name)}</td>
+                                                                                                                                                                                        <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155">${escapeHtml(p.display_name || p.name)}</td>
                                                                                                                                                                                         <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;color:#334155;text-align:center">${p.pivot.quantity}</td>
                                                                                                                                                                                         <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:600;color:#059669">₹${finalPrice}</td>
                                                                                                                                                                                                                                                                                     </tr>`;
@@ -1206,7 +1206,8 @@
                     ? (p.pivot.price / 100)
                     : ((p.mrp || p.sale_price || 0) / 100);
                 var discount = p.pivot ? (p.pivot.discount / 100) : 0;
-                addProductRow(p.id, p.name, price, p.description || p.pivot?.description || '', p.pivot ? p.pivot.quantity : 1, discount);
+                var desc = (p.pivot && p.pivot.description) ? p.pivot.description : (p.description || '');
+                addProductRow(p.id, p.display_name || p.name, price, desc, p.pivot ? p.pivot.quantity : 1, discount);
             });
         }
 

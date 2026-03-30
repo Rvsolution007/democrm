@@ -25,7 +25,7 @@ class LeadsController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $query = Lead::with(['assignedUsers', 'products']);
+        $query = Lead::with(['assignedUsers', 'products.customValues']);
 
         // Global permission filter
         if (!can('leads.global')) {
@@ -275,10 +275,12 @@ class LeadsController extends Controller
                     $price = isset($request->product_prices[$index])
                         ? $request->product_prices[$index] * 100
                         : ($product->mrp ?: $product->sale_price);
+                    $description = $request->product_descriptions[$index] ?? null;
                     $productData[$productId] = [
                         'quantity' => $qty,
                         'price' => $price,
                         'discount' => $disc,
+                        'description' => $description,
                     ];
                 }
             }
@@ -324,7 +326,7 @@ class LeadsController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $lead = Lead::with(['products', 'quotes', 'followups.user'])->findOrFail($id);
+        $lead = Lead::with(['products.customValues', 'quotes', 'followups.user'])->findOrFail($id);
         $data = $lead->toArray();
         $data['quote_id'] = $lead->quotes->first()?->id ?? null;
         return response()->json($data);
@@ -336,7 +338,7 @@ class LeadsController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $lead = Lead::with(['products', 'quotes', 'assignedUsers', 'createdBy', 'followups.user'])->findOrFail($id);
+        $lead = Lead::with(['products.customValues', 'quotes', 'assignedUsers', 'createdBy', 'followups.user'])->findOrFail($id);
 
         if (!can('leads.global') && $lead->created_by_user_id != auth()->id() && !$lead->assignedUsers->contains('id', auth()->id())) {
             abort(403, 'You can only view your own leads.');
@@ -433,7 +435,7 @@ class LeadsController extends Controller
                 QuoteItem::create([
                     'quote_id' => $quote->id,
                     'product_id' => $product->id,
-                    'product_name' => $product->name,
+                    'product_name' => $product->display_name,
                     'description' => $product->pivot->description ?? '',
                     'qty' => $qty,
                     'rate' => $price,
@@ -541,7 +543,7 @@ class LeadsController extends Controller
             QuoteItem::create([
                 'quote_id' => $quote->id,
                 'product_id' => $product->id,
-                'product_name' => $product->name,
+                'product_name' => $product->display_name,
                 'description' => $product->pivot->description ?? '',
                 'qty' => $qty,
                 'rate' => $price,
