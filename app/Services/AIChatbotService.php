@@ -84,6 +84,7 @@ class AIChatbotService
 
     private ?CatalogueCustomColumn $uniqueColumn = null;
     private bool $uniqueColumnLoaded = false;
+    private $aiVisibleColumns = null;
 
     private function getProductDisplayName(Product $product): string
     {
@@ -95,20 +96,92 @@ class AIChatbotService
         }
 
         if ($this->uniqueColumn) {
+            // Load visible columns if not loaded
+            if ($this->aiVisibleColumns === null) {
+                $this->aiVisibleColumns = CatalogueCustomColumn::where('company_id', $this->companyId)
+                    ->where('show_in_ai', true)
+                    ->where('is_active', true)
+                    ->orderBy('sort_order', 'asc')
+                    ->get();
+            }
+
+            // Find columns above the unique column
+            $uniqueSortOrder = $this->uniqueColumn->sort_order;
+            $columnsAbove = [];
+            foreach ($this->aiVisibleColumns as $col) {
+                if ($col->sort_order < $uniqueSortOrder) {
+                    $columnsAbove[] = $col;
+                }
+            }
+
+            // Get unique value
+            $uniqueValue = '';
             if ($this->uniqueColumn->is_system) {
-                return $product->{$this->uniqueColumn->slug} ?: $product->name;
+                $slug = $this->uniqueColumn->slug;
+                if ($slug === 'product_name') $slug = 'name';
+                $uniqueValue = $product->{$slug};
             } else {
                 if ($product->relationLoaded('customValues')) {
                     $customVal = $product->customValues->where('column_id', $this->uniqueColumn->id)->first();
                 } else {
                     $customVal = $product->customValues()->where('column_id', $this->uniqueColumn->id)->first();
                 }
-                
                 if ($customVal && !empty($customVal->value)) {
                     $val = json_decode($customVal->value, true);
-                    return is_array($val) ? implode(', ', $val) : $customVal->value;
+                    $uniqueValue = is_array($val) ? implode(', ', $val) : $customVal->value;
                 }
             }
+
+            // If unique column is at the very top (no columns above it)
+            if (empty($columnsAbove)) {
+                return $uniqueValue ?: $product->name;
+            }
+
+            // There are columns above it. Combine them into a base name.
+            $baseNameParts = [];
+            foreach ($columnsAbove as $col) {
+                if ($col->is_system) {
+                    $slug = $col->slug;
+                    if ($slug === 'product_name') $slug = 'name';
+                    $val = $product->{$slug};
+                    if (!empty($val)) {
+                        $baseNameParts[] = $val;
+                    }
+                } else {
+                    if ($product->relationLoaded('customValues')) {
+                        $customVal = $product->customValues->where('column_id', $col->id)->first();
+                    } else {
+                        $customVal = $product->customValues()->where('column_id', $col->id)->first();
+                    }
+                    if ($customVal && !empty($customVal->value)) {
+                        $valStr = json_decode($customVal->value, true);
+                        $valStr = is_array($valStr) ? implode(', ', $valStr) : $customVal->value;
+                        if (!empty($valStr)) {
+                            $baseNameParts[] = $valStr;
+                        }
+                    }
+                }
+            }
+
+            $baseName = implode(' ', $baseNameParts);
+            
+            // Fallback in case columns above had no data
+            if (empty(trim($baseName))) {
+                return $uniqueValue ?: $product->name;
+            }
+            
+            // If the unique value is empty, just return base name
+            if (empty(trim((string)$uniqueValue))) {
+                return trim($baseName);
+            }
+
+            // If the unique value is already basically the same as base name, don't duplicate
+            if (trim(strtolower((string)$baseName)) === trim(strtolower((string)$uniqueValue))) {
+                return trim($baseName);
+            }
+
+            // Combine base name and unique value
+            return trim($baseName) . ' (' . trim((string)$uniqueValue) . ')';
         }
 
         return $product->name;
