@@ -17,6 +17,7 @@ class ChatflowStep extends Model
         'step_type',
         'linked_column_id',
         'question_text',
+        'media_path',
         'field_key',
         'is_optional',
         'max_retries',
@@ -53,7 +54,22 @@ class ChatflowStep extends Model
 
     public function isProductStep(): bool
     {
-        return $this->step_type === 'ask_product';
+        return in_array($this->step_type, ['ask_product', 'ask_unique_column']);
+    }
+
+    public function isBaseColumnStep(): bool
+    {
+        return $this->step_type === 'ask_base_column';
+    }
+
+    public function isUniqueColumnStep(): bool
+    {
+        return $this->step_type === 'ask_unique_column';
+    }
+
+    public function hasMedia(): bool
+    {
+        return !empty($this->media_path);
     }
 
     public function isCategoryStep(): bool

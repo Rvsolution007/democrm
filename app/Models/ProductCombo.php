@@ -11,6 +11,7 @@ class ProductCombo extends Model
         'product_id',
         'column_id',
         'selected_values',
+        'combo_media_url',
         'sort_order',
     ];
 

@@ -27,7 +27,20 @@ class ChatflowController extends Controller
             ->orderBy('sort_order')
             ->get();
 
-        return view('admin.chatflow.index', compact('steps', 'comboColumns'));
+        // Get ALL active catalogue columns for the new step types
+        $allColumns = CatalogueCustomColumn::where('company_id', $companyId)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get();
+
+        // Determine which column is the Unique column and which is the Base column
+        $uniqueColumn = $allColumns->firstWhere('is_unique', true);
+        $baseColumn = null;
+        if ($uniqueColumn) {
+            $baseColumn = $allColumns->where('sort_order', '<', $uniqueColumn->sort_order)->first();
+        }
+
+        return view('admin.chatflow.index', compact('steps', 'comboColumns', 'allColumns', 'uniqueColumn', 'baseColumn'));
     }
 
     /**
@@ -37,9 +50,10 @@ class ChatflowController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'step_type' => 'required|in:ask_category,ask_product,ask_combo,ask_optional,ask_custom,send_summary',
+            'step_type' => 'required|in:ask_category,ask_product,ask_base_column,ask_unique_column,ask_combo,ask_optional,ask_custom,send_summary',
             'linked_column_id' => 'nullable|exists:catalogue_custom_columns,id',
             'question_text' => 'nullable|string|max:500',
+            'media_path' => 'nullable|string|max:500',
             'field_key' => 'nullable|string|max:100',
             'is_optional' => 'nullable',
             'max_retries' => 'nullable|integer|min:1|max:5',
@@ -71,6 +85,7 @@ class ChatflowController extends Controller
             'step_type' => $request->step_type,
             'linked_column_id' => $request->linked_column_id,
             'question_text' => $request->question_text,
+            'media_path' => $request->media_path,
             'field_key' => $request->field_key,
             'is_optional' => $request->boolean('is_optional'),
             'max_retries' => $request->max_retries ?? 2,
@@ -93,9 +108,10 @@ class ChatflowController extends Controller
 
         $request->validate([
             'name' => 'required|string|max:255',
-            'step_type' => 'required|in:ask_category,ask_product,ask_combo,ask_optional,ask_custom,send_summary',
+            'step_type' => 'required|in:ask_category,ask_product,ask_base_column,ask_unique_column,ask_combo,ask_optional,ask_custom,send_summary',
             'linked_column_id' => 'nullable|exists:catalogue_custom_columns,id',
             'question_text' => 'nullable|string|max:500',
+            'media_path' => 'nullable|string|max:500',
             'field_key' => 'nullable|string|max:100',
             'is_optional' => 'nullable',
             'max_retries' => 'nullable|integer|min:1|max:5',
@@ -106,6 +122,7 @@ class ChatflowController extends Controller
             'step_type' => $request->step_type,
             'linked_column_id' => $request->linked_column_id,
             'question_text' => $request->question_text,
+            'media_path' => $request->media_path,
             'field_key' => $request->field_key,
             'is_optional' => $request->boolean('is_optional'),
             'max_retries' => $request->max_retries ?? 2,

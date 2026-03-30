@@ -177,7 +177,9 @@
                                                 'sale_price' => $product->sale_price / 100,
                                                 'gst_percent' => $product->gst_percent,
                                                 'hsn_code' => $product->hsn_code,
-                                                'is_purchase_enabled' => $product->is_purchase_enabled ? 1 : 0
+                                                'is_purchase_enabled' => $product->is_purchase_enabled ? 1 : 0,
+                                                'group_media_url' => $product->group_media_url,
+                                                'cover_media_url' => $product->cover_media_url
                                             ]) }}"
                                             data-custom-values="{{ json_encode($product->customValues->pluck('value', 'column_id')) }}"
                                             data-variations="{{ json_encode($product->variations ?? []) }}"
@@ -213,7 +215,7 @@
                 <button type="button" onclick="closeProductModal(event)"
                     style="background:none;border:none;font-size:24px;cursor:pointer;padding:0;width:30px;height:30px;color:#64748b">&times;</button>
             </div>
-            <form id="product-form" method="POST" action="{{ route('admin.products.store') }}">
+            <form id="product-form" method="POST" action="{{ route('admin.products.store') }}" enctype="multipart/form-data">
                 @csrf
                 <input type="hidden" id="form-method" name="_method" value="">
 
@@ -285,6 +287,43 @@
                             @endif
                         </div>
                     @endforeach
+                </div>
+
+                <!-- ── 3-Tier Media Uploads ── -->
+                <div style="padding:8px 24px 20px;display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                    <div style="grid-column:span 2">
+                        <h4 style="margin:8px 0;padding-bottom:8px;border-bottom:1px solid #eee;font-size:14px;color:#334155;display:flex;align-items:center;gap:8px">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                            Product Media
+                        </h4>
+                    </div>
+                    
+                    <div>
+                        <label style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-weight:600;font-size:13px;color:#1e293b">
+                            Group Series Master Image
+                            <span style="font-size:10px;padding:2px 6px;background:#fef3c7;color:#92400e;border-radius:10px;font-weight:600">Auto-Sync</span>
+                        </label>
+                        <p style="font-size:11px;color:#64748b;margin:0 0 8px;line-height:1.4">Displays when user selects this entire product line (e.g. "Cabinet Handles"). Uploading here syncs to ALL models with the same product name.</p>
+                        <div style="position:relative;border:1.5px dashed #cbd5e1;border-radius:8px;padding:12px;background:#f8fafc;text-align:center">
+                            <input type="file" name="group_media" id="prod-group-media" accept="image/*,video/*,application/pdf" style="width:100%;font-size:12px">
+                            <div id="group-media-preview" style="margin-top:8px;font-size:11px;color:#6366f1;display:none">
+                                <a href="#" target="_blank" style="text-decoration:none;color:#6366f1;font-weight:500">📎 View Current File</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-weight:600;font-size:13px;color:#1e293b">
+                            Unique Model Image
+                        </label>
+                        <p style="font-size:11px;color:#64748b;margin:0 0 8px;line-height:1.4">Displays when user explicitly selects THIS specific variation/model (e.g. Model 001). This is unique to this product entry.</p>
+                        <div style="position:relative;border:1.5px dashed #cbd5e1;border-radius:8px;padding:12px;background:#f8fafc;text-align:center">
+                            <input type="file" name="cover_media" id="prod-cover-media" accept="image/*,video/*,application/pdf" style="width:100%;font-size:12px">
+                            <div id="cover-media-preview" style="margin-top:8px;font-size:11px;color:#6366f1;display:none">
+                                <a href="#" target="_blank" style="text-decoration:none;color:#6366f1;font-weight:500">📎 View Current File</a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- ── Combo Variation Selector (Tag Chips) ── -->
@@ -584,6 +623,25 @@ document.addEventListener('click', function (e) {
         var el = document.getElementById('custom-' + id);
         if (el && customValues[id] !== undefined) el.value = customValues[id];
     });
+
+    // Populate media previews
+    var groupMediaPreview = document.getElementById('group-media-preview');
+    if (product.group_media_url) {
+        groupMediaPreview.style.display = 'block';
+        groupMediaPreview.querySelector('a').href = product.group_media_url;
+    } else {
+        groupMediaPreview.style.display = 'none';
+        groupMediaPreview.querySelector('a').href = '#';
+    }
+
+    var coverMediaPreview = document.getElementById('cover-media-preview');
+    if (product.cover_media_url) {
+        coverMediaPreview.style.display = 'block';
+        coverMediaPreview.querySelector('a').href = product.cover_media_url;
+    } else {
+        coverMediaPreview.style.display = 'none';
+        coverMediaPreview.querySelector('a').href = '#';
+    }
 
     // Combo columns: restore tag chips
     document.querySelectorAll('.chip-dropdown-item.selected').forEach(function(i) { i.classList.remove('selected'); });

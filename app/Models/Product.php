@@ -61,6 +61,8 @@ class Product extends Model
         'stock_qty',
         'min_stock_qty',
         'image',
+        'cover_media_url',
+        'group_media_url',
         'specifications',
         'status',
         'is_purchase_enabled',

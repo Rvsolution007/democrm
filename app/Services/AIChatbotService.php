@@ -488,6 +488,14 @@ class AIChatbotService
                 case 'send_summary':
                     $this->routeTrace[] = 'handleSummaryStep';
                     return $this->handleSummaryStep($session);
+
+                case 'ask_base_column':
+                    $this->routeTrace[] = 'handleBaseColumnStep';
+                    return $this->matchProductGroupFromMessage($session, $fullMessage, $rawMessage, $imageUrl, $steps);
+
+                case 'ask_unique_column':
+                    $this->routeTrace[] = 'handleUniqueColumnStep';
+                    return $this->matchProductFromMessage($session, $fullMessage, $rawMessage, $imageUrl, $steps);
             }
         }
 
@@ -682,6 +690,9 @@ class AIChatbotService
         }
 
         if (!$selectedCategory || strtoupper($matchText) === 'NONE') {
+            if ($this->isProductIntent($rawMessage)) {
+                return $this->sendCategoryList($session);
+            }
             $this->traceNode($session->id, 'CategorySelected', 'routing', 'error', ['message' => $rawMessage], ['matched' => false], 'No category matched');
             return "Sorry, I couldn't match that to a category. Please reply with the category number or name from the list above. 🙏";
         }
@@ -711,6 +722,7 @@ class AIChatbotService
     private function sendCatalogue(AiChatSession $session): string
     {
         $answers = $session->collected_answers ?? [];
+        $terms = $this->getDynamicTerminology();
         $query = Product::with('customValues')->where('company_id', $this->companyId)
             ->where('status', 'active');
 
@@ -728,7 +740,7 @@ class AIChatbotService
         $products = $query->get();
 
         if ($products->isEmpty()) {
-            return "Sorry, we don't have any products available right now.";
+            return "Sorry, we don't have any {$terms['plural_base']} available right now.";
         }
 
         $groupedProducts = $products->groupBy(function($p) {
@@ -743,16 +755,28 @@ class AIChatbotService
         $showPrice = $visibleColumns->contains('slug', 'sale_price') || $visibleColumns->contains('slug', 'mrp');
 
         if ($needsGrouping) {
-            $msg = "🛍️ *Our Product Lines:*\n\n";
+            // Check for chatflow step question text as AI reference
+            $baseStep = ChatflowStep::where('company_id', $this->companyId)
+                ->whereIn('step_type', ['ask_base_column'])
+                ->orderBy('sort_order')
+                ->first();
+            $questionRef = $baseStep && $baseStep->question_text ? $baseStep->question_text : "Kaunsa {$terms['base']} chahiye?";
+
+            $msg = "🛍️ *Our {$terms['base']} Lines:*\n\n";
             $i = 1;
             $groupNamesForTrace = [];
             foreach ($groupedProducts as $key => $group) {
                 $actualName = $group->first()->name;
-                $msg .= "{$i}️⃣ *{$actualName}* ({$group->count()} models)\n";
+                $msg .= "{$i}️⃣ *{$actualName}* ({$group->count()} {$terms['plural_variant']})\n";
                 $groupNamesForTrace[] = $actualName;
                 $i++;
             }
-            $msg .= "\nReply with product line number or name! 👆";
+            $msg .= "\nReply with {$terms['base']} number or name! 👆";
+
+            // Send chatflow step media if attached
+            if ($baseStep && $baseStep->hasMedia()) {
+                $this->sendStepMedia($session, $baseStep);
+            }
 
             $session->catalogue_sent = true;
             $session->conversation_state = 'awaiting_product_group';
@@ -761,14 +785,20 @@ class AIChatbotService
             $categoryFilter = isset($answers['category_id']) ? ($answers['category_name'] ?? 'ID:' . $answers['category_id']) : null;
             $this->traceNode($session->id, 'CatalogueGroupSent', 'routing', 'success',
                 $categoryFilter ? ['trigger' => 'category_selected', 'category_filter' => $categoryFilter] : ['trigger' => 'product_intent'],
-                ['groups_count' => $groupedProducts->count(), 'group_names' => array_slice($groupNamesForTrace, 0, 10)]);
+                ['groups_count' => $groupedProducts->count(), 'group_names' => array_slice($groupNamesForTrace, 0, 10), 'terminology' => $terms]);
             Log::info("AIChatbot: Catalogue Group sent (PHP Direct)", ['session' => $session->id]);
 
             return $msg;
         }
 
         // Standard flat listing logic
-        $msg = "🛍️ *Our " . ($selectedGroup ? $selectedGroup . " Models:" : "Products:") . "*\n\n";
+        // Check for unique column step question text as AI reference
+        $uniqueStep = ChatflowStep::where('company_id', $this->companyId)
+            ->whereIn('step_type', ['ask_product', 'ask_unique_column'])
+            ->orderBy('sort_order')
+            ->first();
+
+        $msg = "🛍️ *" . ($selectedGroup ? "{$selectedGroup} {$terms['plural_variant']}" : "Our {$terms['plural_base']}") . ":*\n\n";
         foreach ($products as $i => $product) {
             $num = $i + 1;
             $displayName = $this->getProductDisplayName($product);
@@ -781,15 +811,35 @@ class AIChatbotService
                 $msg .= "   {$product->description}\n";
             }
         }
-        $msg .= "\nReply with product number or name! 👆";
+        $msg .= "\nReply with {$terms['variant']} number or name! 👆";
+
+        // Send chatflow step media if attached
+        if ($uniqueStep && $uniqueStep->hasMedia()) {
+            $this->sendStepMedia($session, $uniqueStep);
+        }
+
+        // Send group master image if available and group was just selected
+        if ($selectedGroup) {
+            $groupProduct = $products->first(fn($p) => !empty($p->group_media_url));
+            if ($groupProduct) {
+                $this->traceNode($session->id, 'GroupMediaLookup', 'media', 'success',
+                    ['product_name' => $selectedGroup, 'company_id' => $this->companyId],
+                    ['found' => true, 'source_product_id' => $groupProduct->id, 'media_url' => $groupProduct->group_media_url]);
+                $this->sendMediaToWhatsApp($session, $groupProduct->group_media_url, 'GroupMediaSent');
+            } else {
+                $this->traceNode($session->id, 'GroupMediaLookup', 'media', 'info',
+                    ['product_name' => $selectedGroup, 'company_id' => $this->companyId],
+                    ['found' => false]);
+            }
+        }
 
         // Update session state
         $session->catalogue_sent = true;
         $session->conversation_state = 'awaiting_product';
 
-        // Set current step to first product step (if exists)
+        // Set current step to first product/unique column step (if exists)
         $productStep = ChatflowStep::where('company_id', $this->companyId)
-            ->where('step_type', 'ask_product')
+            ->whereIn('step_type', ['ask_product', 'ask_unique_column'])
             ->orderBy('sort_order')
             ->first();
         if ($productStep) {
@@ -801,7 +851,7 @@ class AIChatbotService
         $productNames = $products->map(fn($p) => $this->getProductDisplayName($p))->toArray();
         $this->traceNode($session->id, 'CatalogueSent', 'routing', 'success',
             ['trigger' => $selectedGroup ? 'group_selected' : 'product_intent', 'group_filter' => $selectedGroup],
-            ['products_count' => $products->count(), 'product_names' => array_slice($productNames, 0, 10)]);
+            ['products_count' => $products->count(), 'product_names' => array_slice($productNames, 0, 10), 'terminology' => $terms]);
         Log::info("AIChatbot: Catalogue sent (PHP Direct)", ['session' => $session->id]);
         return $msg;
     }
@@ -863,6 +913,10 @@ class AIChatbotService
             $replyMsg = "✅ *{$selectedGroupName}* selected!\n\n";
             $replyMsg .= $this->sendCatalogue($session);
             return $replyMsg;
+        }
+
+        if ($this->isProductIntent($rawMessage)) {
+            return $this->sendCatalogue($session);
         }
 
         $this->traceNode($session->id, 'ProductGroupSelected', 'routing', 'warning', ['message' => $rawMessage], ['matched' => false], 'No product line matched. Falling back to Tier 2.');
@@ -984,6 +1038,9 @@ class AIChatbotService
         }
 
         if (!$selectedProduct) {
+            if ($this->isProductIntent($rawMessage)) {
+                return $this->sendCatalogue($session);
+            }
             $this->traceNode($session->id, 'ProductSelected', 'routing', 'warning', ['message' => $rawMessage], ['matched' => false], 'No product matched. Falling back to Tier 2.');
             return $this->handleTier2($session, $fullMessage, $imageUrl);
         }
@@ -1069,6 +1126,9 @@ class AIChatbotService
                 ['lead_id' => $session->lead_id, 'product_id' => $productId, 'product_name' => $displayName],
                 ['database_id' => $quote->id, 'quote_sequence_id' => $quoteSequence, 'quote_no' => $quote->quote_no, 'grand_total' => '₹' . number_format($quote->grand_total / 100, 2)]);
         }
+
+        // Send unique model image if available (Tier 2 Media)
+        $this->sendProductMedia($session, $product);
 
         // Build product details message
         $msg = $this->buildProductDetailsMessage($product);
@@ -1287,6 +1347,9 @@ class AIChatbotService
         $this->traceNode($session->id, 'QuoteUpdated', 'database', 'success',
             ['combo' => $column->slug, 'value' => $matchedOption, 'product_name' => $session->getAnswer('product_name')],
             ['quote_id' => $session->quote_id]);
+
+        // Send combo-level media if available (Tier 3 Media)
+        $this->sendComboMedia($session, $product, $column->slug, $matchedOption);
 
         // Advance chatflow
         $this->advanceChatflow($session, $steps);
@@ -1624,28 +1687,59 @@ class AIChatbotService
     {
         $answers = $session->collected_answers ?? [];
         $visibleColumns = $this->getAiVisibleColumns();
+        $terms = $this->getDynamicTerminology();
+
+        // Get chatflow question text for current step as AI reference
+        $currentStep = $session->current_step_id ? ChatflowStep::find($session->current_step_id) : null;
+        $questionRef = '';
+        if ($currentStep && $currentStep->question_text) {
+            $questionRef = "\nIMPORTANT: When asking the user, use this question as a reference/guideline (enhance it to be friendly & engaging): \"{$currentStep->question_text}\"\n";
+        }
 
         if (!isset($answers['product_id'])) {
-            // List products (only names + visible prices)
             $query = Product::with('customValues')->where('company_id', $this->companyId)->where('status', 'active');
 
-            // Filter by category if selected
             if (isset($answers['category_id'])) {
                 $query->where('category_id', $answers['category_id']);
             }
 
+            // Apply selected group filter if available
+            $selectedGroup = $answers['selected_product_group'] ?? null;
+            if ($selectedGroup) {
+                $query->where('name', $selectedGroup);
+            }
+
             $products = $query->get();
             if ($products->isEmpty()) {
-                return "System Note: The product catalogue is currently EMPTY. We do not have any products to sell right now. If the user asks for products, inform them that we currently have no products available.";
+                return "System Note: The {$terms['base']} catalogue is currently EMPTY. We do not have any {$terms['plural_base']} to sell right now. If the user asks for {$terms['plural_base']}, inform them that we currently have no {$terms['plural_base']} available.";
+            }
+
+            $groupedProducts = $products->groupBy(function($p) {
+                return trim(strtolower($p->name));
+            });
+
+            // Grouping is needed if we haven't selected a group yet AND there are duplicates
+            $needsGrouping = !$selectedGroup && $groupedProducts->count() < $products->count();
+
+            if ($needsGrouping) {
+                $context = "### {$terms['base']} Lines / Groups:\n";
+                foreach ($groupedProducts as $key => $group) {
+                    $actualName = $group->first()->name;
+                    $context .= "- {$actualName} ({$group->count()} {$terms['plural_variant']} available)\n";
+                }
+                $context .= "\nSystem Note: Because there are many {$terms['plural_variant']} per {$terms['base']}, DO NOT ask the user to select a final {$terms['base']}. Ask them WHICH {$terms['base']} Line from the above list they are interested in. Do NOT list the individual {$terms['plural_variant']} yet.\n";
+                $context .= $questionRef;
+                return $context;
             }
 
             $showPrice = $visibleColumns->contains('slug', 'sale_price');
-            $context = "### Products:\n";
+            $context = "### Available " . ($selectedGroup ? "'{$selectedGroup}' {$terms['plural_variant']}" : "{$terms['plural_base']}") . ":\n";
             foreach ($products as $p) {
                 $price = ($showPrice && $p->sale_price > 0) ? " — ₹" . number_format($p->sale_price / 100, 2) : '';
                 $displayName = $this->getProductDisplayName($p);
                 $context .= "- ID:{$p->id} | {$displayName}{$price}\n";
             }
+            $context .= $questionRef;
             return $context;
         }
 
@@ -2200,15 +2294,19 @@ PROMPT;
                 if (isset($answers[$step->linkedColumn->slug])) {
                     $isAnswered = true;
                 }
-            } elseif ($step->step_type === 'ask_product') {
+            } elseif (in_array($step->step_type, ['ask_product', 'ask_unique_column'])) {
                 if (isset($answers['product_id'])) {
+                    $isAnswered = true;
+                }
+            } elseif ($step->step_type === 'ask_base_column') {
+                if (isset($answers['selected_product_group'])) {
                     $isAnswered = true;
                 }
             } elseif ($step->step_type === 'ask_category') {
                 if (isset($answers['category_id'])) {
                     $isAnswered = true;
                 }
-            } elseif ($step->step_type === 'ask_custom' || $step->step_type === 'ask_optional') {
+            } elseif (in_array($step->step_type, ['ask_custom', 'ask_optional'])) {
                 if (isset($answers[$step->field_key]) || ($session->optional_asked ?? false)) {
                     // For simplicity, checking if key exists or optional already skipped
                     if (isset($answers[$step->field_key])) {
@@ -2396,6 +2494,247 @@ PROMPT;
         } catch (\Exception $e) {
             Log::error('AIChatbot: Send exception - ' . $e->getMessage());
             return false;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // DYNAMIC TERMINOLOGY ENGINE
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Get dynamic terminology labels based on CatalogueCustomColumn settings.
+     * Uses sort_order hierarchy: the column ABOVE unique = Base, the unique column = Variant.
+     * Results are cached per-request to avoid repeated DB queries.
+     *
+     * @return array{base: string, plural_base: string, variant: string, plural_variant: string}
+     */
+    private array $terminologyCache = [];
+
+    private function getDynamicTerminology(): array
+    {
+        if (!empty($this->terminologyCache)) {
+            return $this->terminologyCache;
+        }
+
+        // Find the unique column (e.g., "Model")
+        $uniqueCol = CatalogueCustomColumn::where('company_id', $this->companyId)
+            ->where('is_unique', true)
+            ->where('is_active', true)
+            ->first();
+
+        // Find the base column: the FIRST column above the unique column (by sort_order)
+        $baseCol = null;
+        if ($uniqueCol) {
+            $baseCol = CatalogueCustomColumn::where('company_id', $this->companyId)
+                ->where('sort_order', '<', $uniqueCol->sort_order)
+                ->where('is_active', true)
+                ->orderBy('sort_order', 'asc')
+                ->first();
+        }
+
+        // Extract clean names — strip " Name" suffix for display (e.g., "Product Name" → "Product")
+        $baseName = $baseCol ? $baseCol->name : 'Product';
+        $cleanBaseName = preg_replace('/\s+name$/i', '', $baseName);
+
+        $variantName = $uniqueCol ? $uniqueCol->name : 'Model';
+
+        // Simple English pluralization
+        $pluralBase = $this->simplePlural($cleanBaseName);
+        $pluralVariant = $this->simplePlural($variantName);
+
+        $this->terminologyCache = [
+            'base' => $cleanBaseName,
+            'plural_base' => $pluralBase,
+            'variant' => $variantName,
+            'plural_variant' => $pluralVariant,
+        ];
+
+        return $this->terminologyCache;
+    }
+
+    /**
+     * Basic English pluralization helper.
+     * Handles common patterns: s→ses, y→ies, default +s.
+     */
+    private function simplePlural(string $word): string
+    {
+        $lower = strtolower($word);
+        if (str_ends_with($lower, 's') || str_ends_with($lower, 'sh') || str_ends_with($lower, 'ch') || str_ends_with($lower, 'x')) {
+            return $word . 'es';
+        }
+        if (str_ends_with($lower, 'y') && !in_array(substr($lower, -2, 1), ['a', 'e', 'i', 'o', 'u'])) {
+            return substr($word, 0, -1) . 'ies';
+        }
+        return $word . 's';
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // MEDIA ENGINE — Step, Group & Combo Level
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Send chatflow step-level media (PDF/Image/Video) before the question.
+     * Traces: ChatflowMediaCheck → ChatflowMediaSent / MediaSendFailed
+     */
+    private function sendStepMedia(AiChatSession $session, ChatflowStep $step): void
+    {
+        if (!$step->hasMedia()) {
+            $this->traceNode($session->id, 'ChatflowMediaCheck', 'media', 'info',
+                ['step_id' => $step->id, 'step_type' => $step->step_type, 'has_media' => false],
+                ['media_found' => false]);
+            return;
+        }
+
+        $this->traceNode($session->id, 'ChatflowMediaCheck', 'media', 'success',
+            ['step_id' => $step->id, 'step_type' => $step->step_type, 'has_media' => true],
+            ['media_found' => true, 'media_url' => $step->media_path]);
+
+        $this->sendMediaToWhatsApp($session, $step->media_path, 'ChatflowMediaSent');
+    }
+
+    /**
+     * Send a media file to WhatsApp via Evolution API.
+     * Handles image, document (PDF), and video types.
+     * Traces the send result with the provided traceNodeName.
+     */
+    private function sendMediaToWhatsApp(AiChatSession $session, string $mediaUrl, string $traceNodeName): void
+    {
+        $config = Setting::getValue('whatsapp', 'api_config', [
+            'api_url' => '',
+            'api_key' => '',
+        ], $this->companyId);
+
+        if (empty($config['api_url']) || empty($config['api_key'])) {
+            $this->traceNode($session->id, 'MediaSendFailed', 'media', 'error',
+                ['media_url' => $mediaUrl, 'error_type' => 'config_missing'],
+                ['error_message' => 'WhatsApp API not configured']);
+            return;
+        }
+
+        // Detect the instance name from session
+        $instanceName = $session->instance_name ?? Setting::getValue('whatsapp', 'instance_name', '', $this->companyId);
+        if (empty($instanceName)) {
+            $this->traceNode($session->id, 'MediaSendFailed', 'media', 'error',
+                ['media_url' => $mediaUrl, 'error_type' => 'no_instance'],
+                ['error_message' => 'WhatsApp instance name not found']);
+            return;
+        }
+
+        // Format phone number
+        $phone = preg_replace('/\D/', '', $session->phone_number);
+        if (strlen($phone) == 10) {
+            $phone = '91' . $phone;
+        }
+
+        // Determine media type from URL extension
+        $extension = strtolower(pathinfo($mediaUrl, PATHINFO_EXTENSION));
+        $isImage = in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+        $isVideo = in_array($extension, ['mp4', 'avi', 'mov', 'mkv']);
+        $isDocument = in_array($extension, ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx']);
+
+        // Build the API endpoint and payload
+        $endpoint = $isImage ? 'sendMedia' : ($isDocument ? 'sendMedia' : ($isVideo ? 'sendMedia' : 'sendMedia'));
+        $mediaType = $isImage ? 'image' : ($isDocument ? 'document' : ($isVideo ? 'video' : 'image'));
+
+        try {
+            $payload = [
+                'number' => $phone,
+                'mediatype' => $mediaType,
+                'media' => $mediaUrl,
+            ];
+
+            if ($isDocument) {
+                $payload['fileName'] = basename($mediaUrl);
+            }
+
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'apikey' => $config['api_key'],
+                'Content-Type' => 'application/json',
+            ])->post("{$config['api_url']}/message/sendMedia/{$instanceName}", $payload);
+
+            if ($response->successful()) {
+                $this->traceNode($session->id, $traceNodeName, 'media', 'success',
+                    ['media_url' => $mediaUrl, 'media_type' => $mediaType],
+                    ['whatsapp_status' => 'sent', 'http_status' => $response->status()]);
+            } else {
+                $this->traceNode($session->id, 'MediaSendFailed', 'media', 'error',
+                    ['media_url' => $mediaUrl, 'error_type' => 'api_error'],
+                    ['error_message' => $response->body(), 'http_status' => $response->status()]);
+            }
+        } catch (\Exception $e) {
+            $this->traceNode($session->id, 'MediaSendFailed', 'media', 'error',
+                ['media_url' => $mediaUrl, 'error_type' => 'exception'],
+                ['error_message' => $e->getMessage()]);
+            Log::error("AIChatbot: Media send failed", ['url' => $mediaUrl, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Sync a Group Series Master Image across all products with the same name.
+     * When admin uploads group_media_url on any one product, this syncs it to all siblings.
+     *
+     * @param Product $product The product that was just updated with a group_media_url
+     */
+    public static function syncGroupMedia(Product $product): void
+    {
+        if (empty($product->group_media_url)) {
+            return;
+        }
+
+        // Find all products with the same name in the same company
+        Product::where('company_id', $product->company_id)
+            ->where('name', $product->name)
+            ->where('id', '!=', $product->id)
+            ->update(['group_media_url' => $product->group_media_url]);
+
+        Log::info('AIChatbot: Group media synced', [
+            'source_product_id' => $product->id,
+            'product_name' => $product->name,
+            'media_url' => $product->group_media_url,
+        ]);
+    }
+
+    /**
+     * Send unique model image when a specific product is selected.
+     * Traces: UniqueModelMediaLookup → UniqueModelMediaSent / not found
+     */
+    private function sendProductMedia(AiChatSession $session, Product $product): void
+    {
+        // Check for unique model image
+        if (!empty($product->cover_media_url)) {
+            $this->traceNode($session->id, 'UniqueModelMediaLookup', 'media', 'success',
+                ['product_id' => $product->id, 'model_name' => $this->getProductDisplayName($product)],
+                ['found' => true, 'media_url' => $product->cover_media_url]);
+            $this->sendMediaToWhatsApp($session, $product->cover_media_url, 'UniqueModelMediaSent');
+        } else {
+            $this->traceNode($session->id, 'UniqueModelMediaLookup', 'media', 'info',
+                ['product_id' => $product->id, 'model_name' => $this->getProductDisplayName($product)],
+                ['found' => false]);
+        }
+    }
+
+    /**
+     * Send combo-level media when a specific variant (e.g., Black finish) is selected.
+     * Traces: ComboMediaLookup → ComboMediaSent / not found
+     */
+    private function sendComboMedia(AiChatSession $session, Product $product, string $comboSlug, string $selectedValue): void
+    {
+        // Find the combo record for this product + column + value
+        $combo = $product->combos->first(function ($c) use ($comboSlug, $selectedValue) {
+            if (!$c->column || $c->column->slug !== $comboSlug) return false;
+            $values = is_array($c->selected_values) ? $c->selected_values : json_decode($c->selected_values, true);
+            return is_array($values) && in_array($selectedValue, $values);
+        });
+
+        if ($combo && !empty($combo->combo_media_url)) {
+            $this->traceNode($session->id, 'ComboMediaLookup', 'media', 'success',
+                ['product_id' => $product->id, 'combo_key' => $comboSlug, 'combo_value' => $selectedValue],
+                ['found' => true, 'combo_media_url' => $combo->combo_media_url]);
+            $this->sendMediaToWhatsApp($session, $combo->combo_media_url, 'ComboMediaSent');
+        } else {
+            $this->traceNode($session->id, 'ComboMediaLookup', 'media', 'info',
+                ['product_id' => $product->id, 'combo_key' => $comboSlug, 'combo_value' => $selectedValue],
+                ['found' => false]);
         }
     }
 }

@@ -18,6 +18,28 @@
 
     <div id="alert-container"></div>
 
+    {{-- Dynamic Column Info Banner --}}
+    @if($uniqueColumn || $baseColumn)
+    <div style="background:linear-gradient(135deg,#eef2ff,#faf5ff);border:1px solid #c7d2fe;border-radius:8px;padding:14px 20px;margin-bottom:20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:13px;color:#6366f1;font-weight:600">📊 Detected Columns:</span>
+        </div>
+        @if($baseColumn)
+        <div style="padding:4px 12px;background:#dbeafe;border-radius:16px;font-size:12px;font-weight:500;color:#1e40af">
+            📦 Base: {{ $baseColumn->name }}
+        </div>
+        @endif
+        @if($uniqueColumn)
+        <div style="padding:4px 12px;background:#fef3c7;border-radius:16px;font-size:12px;font-weight:500;color:#92400e">
+            🏷️ Unique: {{ $uniqueColumn->name }}
+        </div>
+        @endif
+        <div style="font-size:11px;color:var(--text-muted);margin-left:auto">
+            Based on your <a href="{{ route('admin.catalogue-columns.index') }}" style="color:#6366f1;text-decoration:underline">Catalogue Settings</a>
+        </div>
+    </div>
+    @endif
+
     <!-- Flow Preview -->
     <div class="card" style="margin-bottom:20px">
         <div class="card-content">
@@ -30,7 +52,8 @@
                         @endif
                         <div style="padding:6px 12px;border-radius:20px;font-size:13px;font-weight:500;
                             @if($step->step_type === 'ask_category') background:#fce7f3;color:#9d174d;
-                            @elseif($step->step_type === 'ask_product') background:#dbeafe;color:#1e40af;
+                            @elseif($step->step_type === 'ask_product' || $step->step_type === 'ask_unique_column') background:#dbeafe;color:#1e40af;
+                            @elseif($step->step_type === 'ask_base_column') background:#e0e7ff;color:#3730a3;
                             @elseif($step->step_type === 'ask_combo') background:#fef3c7;color:#92400e;
                             @elseif($step->step_type === 'ask_optional') background:#e0e7ff;color:#3730a3;
                             @elseif($step->step_type === 'send_summary') background:#d1fae5;color:#065f46;
@@ -38,6 +61,7 @@
                             @endif">
                             {{ $step->name }}
                             @if($step->is_optional) <small>(opt)</small> @endif
+                            @if($step->hasMedia()) <span title="Has attached media">📎</span> @endif
                         </div>
                     </div>
                 @empty
@@ -70,9 +94,28 @@
                             <td style="padding:12px 16px;font-weight:600">{{ $step->name }}</td>
                             <td style="padding:12px 16px;text-align:center">
                                 @php
-                                    $typeColors = ['ask_category' => 'badge-primary', 'ask_product' => 'badge-info', 'ask_combo' => 'badge-warning', 'ask_optional' => 'badge-outline', 'ask_custom' => 'badge-secondary', 'send_summary' => 'badge-success'];
+                                    $typeColors = [
+                                        'ask_category' => 'badge-primary',
+                                        'ask_product' => 'badge-info',
+                                        'ask_unique_column' => 'badge-info',
+                                        'ask_base_column' => 'badge-secondary',
+                                        'ask_combo' => 'badge-warning',
+                                        'ask_optional' => 'badge-outline',
+                                        'ask_custom' => 'badge-outline',
+                                        'send_summary' => 'badge-success',
+                                    ];
+                                    $typeLabels = [
+                                        'ask_category' => 'ask category',
+                                        'ask_product' => 'ask unique column',
+                                        'ask_unique_column' => 'ask unique column',
+                                        'ask_base_column' => 'ask base column',
+                                        'ask_combo' => 'ask combo',
+                                        'ask_optional' => 'ask optional',
+                                        'ask_custom' => 'ask optional',
+                                        'send_summary' => 'send summary',
+                                    ];
                                 @endphp
-                                <span class="badge {{ $typeColors[$step->step_type] ?? 'badge-outline' }}">{{ str_replace('_', ' ', $step->step_type) }}</span>
+                                <span class="badge {{ $typeColors[$step->step_type] ?? 'badge-outline' }}">{{ $typeLabels[$step->step_type] ?? str_replace('_', ' ', $step->step_type) }}</span>
                             </td>
                             <td style="padding:12px 16px;font-size:13px;color:var(--text-muted)">
                                 @if($step->question_text)
@@ -83,6 +126,9 @@
                                     Field: {{ $step->field_key }}
                                 @else
                                     —
+                                @endif
+                                @if($step->media_path)
+                                    <span style="margin-left:6px;color:#6366f1" title="{{ $step->media_path }}">📎 Media</span>
                                 @endif
                             </td>
                             <td style="padding:12px 16px;text-align:center">
@@ -131,10 +177,10 @@
                         <label style="display:block;margin-bottom:4px;font-weight:500">Step Type *</label>
                         <select id="step-type" onchange="toggleStepFields()" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
                             <option value="ask_category">📂 Ask Category — Show category list first</option>
-                            <option value="ask_product">🛍️ Ask Product — Show product list</option>
+                            <option value="ask_base_column">📦 Ask Base Column — {{ $baseColumn ? $baseColumn->name : 'Product Name' }} selection</option>
+                            <option value="ask_unique_column">🏷️ Ask Unique Column — {{ $uniqueColumn ? $uniqueColumn->name : 'Model' }} list</option>
                             <option value="ask_combo">🎨 Ask Combo — Ask a combo dimension</option>
                             <option value="ask_optional">📝 Ask Optional — Optional question</option>
-                            <option value="ask_custom">💬 Ask Custom — Free-text question</option>
                             <option value="send_summary">📋 Send Summary — Order summary</option>
                         </select>
                     </div>
@@ -148,8 +194,14 @@
                         </select>
                     </div>
                     <div id="question-group" style="margin-bottom:16px">
-                        <label style="display:block;margin-bottom:4px;font-weight:500">Question Text</label>
+                        <label style="display:block;margin-bottom:4px;font-weight:500">Question Text <small style="color:var(--text-muted)">(AI will use this as reference & enhance it)</small></label>
                         <input type="text" id="step-question" placeholder="e.g., Kaunsa finish chahiye?" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
+                        <small style="color:var(--text-muted)">Bot will take this as a guideline and make it smart & friendly</small>
+                    </div>
+                    <div id="media-group" style="margin-bottom:16px">
+                        <label style="display:block;margin-bottom:4px;font-weight:500">📎 Attach Media to this Step <small style="color:var(--text-muted)">(Optional)</small></label>
+                        <input type="text" id="step-media" placeholder="e.g., /uploads/brochure.pdf or image URL" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
+                        <small style="color:var(--text-muted)">Image/PDF/Video URL — will be sent before the question on WhatsApp</small>
                     </div>
                     <div id="field-key-group" style="margin-bottom:16px;display:none">
                         <label style="display:block;margin-bottom:4px;font-weight:500">Field Key * (where to save answer)</label>
@@ -184,6 +236,7 @@
         document.getElementById('step-type').value = 'ask_category';
         document.getElementById('step-linked-column').value = '';
         document.getElementById('step-question').value = '';
+        document.getElementById('step-media').value = '';
         document.getElementById('step-field-key').value = '';
         document.getElementById('step-optional').checked = false;
         document.getElementById('step-retries').value = 2;
@@ -195,9 +248,14 @@
         document.getElementById('step-modal-title').textContent = 'Edit Step';
         document.getElementById('step-id').value = step.id;
         document.getElementById('step-name').value = step.name;
-        document.getElementById('step-type').value = step.step_type;
+        // Map legacy ask_product to ask_unique_column for display
+        var stepType = step.step_type === 'ask_product' ? 'ask_unique_column' : step.step_type;
+        // Map legacy ask_custom to ask_optional for display
+        stepType = stepType === 'ask_custom' ? 'ask_optional' : stepType;
+        document.getElementById('step-type').value = stepType;
         document.getElementById('step-linked-column').value = step.linked_column_id || '';
         document.getElementById('step-question').value = step.question_text || '';
+        document.getElementById('step-media').value = step.media_path || '';
         document.getElementById('step-field-key').value = step.field_key || '';
         document.getElementById('step-optional').checked = step.is_optional;
         document.getElementById('step-retries').value = step.max_retries || 2;
@@ -210,7 +268,7 @@
     function toggleStepFields() {
         var type = document.getElementById('step-type').value;
         document.getElementById('combo-column-group').style.display = type === 'ask_combo' ? 'block' : 'none';
-        document.getElementById('field-key-group').style.display = (type === 'ask_optional' || type === 'ask_custom') ? 'block' : 'none';
+        document.getElementById('field-key-group').style.display = type === 'ask_optional' ? 'block' : 'none';
     }
 
     function saveStep(e) {
@@ -227,6 +285,7 @@
                 step_type: document.getElementById('step-type').value,
                 linked_column_id: document.getElementById('step-linked-column').value || null,
                 question_text: document.getElementById('step-question').value || null,
+                media_path: document.getElementById('step-media').value || null,
                 field_key: document.getElementById('step-field-key').value || null,
                 is_optional: document.getElementById('step-optional').checked ? 1 : 0,
                 max_retries: parseInt(document.getElementById('step-retries').value) || 2,
