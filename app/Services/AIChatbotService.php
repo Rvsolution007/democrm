@@ -2737,4 +2737,21 @@ PROMPT;
                 ['found' => false]);
         }
     }
+
+    /**
+     * Auto-sync group master images across all products with the exact same name.
+     */
+    public static function syncGroupMedia(\App\Models\Product $product): void
+    {
+        if (empty($product->group_media_url) || empty($product->name)) {
+            return;
+        }
+
+        \App\Models\Product::where('company_id', $product->company_id)
+            ->where('id', '!=', $product->id)
+            ->where('name', $product->name) // Strict exact name match
+            ->update(['group_media_url' => $product->group_media_url]);
+            
+        \Illuminate\Support\Facades\Log::info("AIChatbot: Synced group media for product name '{$product->name}'");
+    }
 }
