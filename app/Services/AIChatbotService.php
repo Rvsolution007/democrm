@@ -598,6 +598,7 @@ class AIChatbotService
      */
     private function sendCategoryList(AiChatSession $session): string
     {
+        $categoryLabel = $this->getCategoryFieldLabel();
         $categories = \App\Models\Category::where('company_id', $this->companyId)
             ->where('status', 'active')
             ->whereHas('products', function ($q) {
@@ -611,7 +612,7 @@ class AIChatbotService
             return $this->sendCatalogue($session);
         }
 
-        $msg = "📂 *Our Categories:*\n\n";
+        $msg = "📂 *Our " . $this->simplePlural($categoryLabel) . ":*\n\n";
         foreach ($categories as $i => $cat) {
             $num = $i + 1;
             $productCount = Product::where('company_id', $this->companyId)
@@ -620,7 +621,7 @@ class AIChatbotService
                 ->count();
             $msg .= "{$num}️⃣ *{$cat->name}* ({$productCount} products)\n";
         }
-        $msg .= "\nReply with category number or name! 👆";
+        $msg .= "\nReply with {$categoryLabel} number or name! 👆";
 
         // Update session state
         $session->catalogue_sent = true;
@@ -661,10 +662,10 @@ class AIChatbotService
             return $this->sendCatalogue($session);
         }
 
-        // Build category list for prompt
+        $categoryLabel = $this->getCategoryFieldLabel();
         $catList = $categories->map(fn($c, $i) => ($i + 1) . ". {$c->name} (ID:{$c->id})")->implode("\n");
 
-        $prompt = "User said: \"{$rawMessage}\"\n\nAvailable categories:\n{$catList}\n\nWhich category number did user select or which category name matches? Reply with ONLY the ID number. If unclear or no match, reply NONE.";
+        $prompt = "User said: \"{$rawMessage}\"\n\nAvailable {$categoryLabel}s:\n{$catList}\n\nWhich {$categoryLabel} number did user select or which name matches? Reply with ONLY the ID number. If unclear or no match, reply NONE.";
 
         $t = microtime(true);
         $matchResult = $this->vertexAI->classifyContent($prompt);
@@ -693,8 +694,8 @@ class AIChatbotService
             if ($this->isProductIntent($rawMessage)) {
                 return $this->sendCategoryList($session);
             }
-            $this->traceNode($session->id, 'CategorySelected', 'routing', 'error', ['message' => $rawMessage], ['matched' => false], 'No category matched');
-            return "Sorry, I couldn't match that to a category. Please reply with the category number or name from the list above. 🙏";
+            $this->traceNode($session->id, 'CategorySelected', 'routing', 'warning', ['message' => $rawMessage], ['matched' => false], 'No category matched. Falling back to Tier 2.');
+            return $this->handleTier2($session, $rawMessage, null, "User is currently trying to select a {$categoryLabel}.", $rawMessage);
         }
 
         $this->traceNode($session->id, 'CategorySelected', 'routing', 'success', ['message' => $rawMessage], ['category_id' => $selectedCategory->id, 'category_name' => $selectedCategory->name]);
@@ -922,7 +923,8 @@ class AIChatbotService
         }
 
         $this->traceNode($session->id, 'ProductGroupSelected', 'routing', 'warning', ['message' => $rawMessage], ['matched' => false], 'No product line matched. Falling back to Tier 2.');
-        return $this->handleTier2($session, $fullMessage, $imageUrl);
+        $terms = $this->getDynamicTerminology();
+        return $this->handleTier2($session, $fullMessage, $imageUrl, "User is currently trying to select a {$terms['base']}.", $rawMessage);
     }
 
     /**
@@ -1044,7 +1046,8 @@ class AIChatbotService
                 return $this->sendCatalogue($session);
             }
             $this->traceNode($session->id, 'ProductSelected', 'routing', 'warning', ['message' => $rawMessage], ['matched' => false], 'No product matched. Falling back to Tier 2.');
-            return $this->handleTier2($session, $fullMessage, $imageUrl);
+            $terms = $this->getDynamicTerminology();
+            return $this->handleTier2($session, $fullMessage, $imageUrl, "User is currently trying to select a {$terms['base']} or {$terms['variant']}.", $rawMessage);
         }
 
         $this->traceNode($session->id, 'ProductSelected', 'routing', 'success',
@@ -1514,9 +1517,9 @@ class AIChatbotService
     // TIER 2 — Full Conversational AI
     // ═══════════════════════════════════════════════════════
 
-    private function handleTier2(AiChatSession $session, string $fullMessage, ?string $imageUrl): string
+    private function handleTier2(AiChatSession $session, string $fullMessage, ?string $imageUrl, string $fallbackContext = '', string $rawMessage = ''): string
     {
-        $systemPrompt = $this->buildSystemPrompt($session);
+        $systemPrompt = $this->buildSystemPrompt($session, $rawMessage, $fallbackContext);
         $chatHistory = $this->buildChatHistory($session, $fullMessage, $imageUrl);
 
         $t = microtime(true);
@@ -1594,9 +1597,25 @@ class AIChatbotService
     /**
      * Build system prompt (optimized — only current context)
      */
-    private function buildSystemPrompt(AiChatSession $session): string
+    private function buildSystemPrompt(AiChatSession $session, string $rawMessage = '', string $fallbackContext = ''): string
     {
         $basePrompt = Setting::getValue('ai_bot', 'system_prompt', '', $this->companyId);
+
+        // Apply contextual prompt layers if present
+        if (!empty($rawMessage)) {
+            if ($this->isGreeting($rawMessage)) {
+                $greetingPrompt = Setting::getValue('ai_bot', 'greeting_prompt', '', $this->companyId);
+                if (!empty($greetingPrompt)) {
+                    $basePrompt .= "\n\n" . $greetingPrompt;
+                }
+            } else {
+                $businessPrompt = Setting::getValue('ai_bot', 'business_query_prompt', '', $this->companyId);
+                if (!empty($businessPrompt)) {
+                    $basePrompt .= "\n\n" . $businessPrompt;
+                }
+            }
+        }
+
         $chatflowContext = $this->buildChatflowContext($session);
         $memoryContext = $this->buildMemoryContext($session);
         $catalogueContext = $this->buildCatalogueContext($session);
@@ -1638,6 +1657,10 @@ class AIChatbotService
         $prompt .= "1. When greeting (action=greeting), NEVER list products, categories, or what you sell. Just greet warmly and ask how you can help.\n";
         $prompt .= "2. NEVER fabricate or invent product names. You must ONLY use product names from the ## CATALOGUE section above. If no CATALOGUE section exists, say you have no products.\n";
         $prompt .= "3. Only show product list when user EXPLICITLY asks about products/catalogue.\n";
+
+        if (!empty($fallbackContext)) {
+            $prompt .= "4. [IMPORTANT FALLBACK DIRECTIVE] {$fallbackContext} First, answer the user's current question conversationally. Then, politely but clearly remind them to reply with their choice from the list you sent them earlier to continue their inquiry.\n";
+        }
 
         return $prompt;
     }
@@ -2502,6 +2525,19 @@ PROMPT;
     // ═══════════════════════════════════════════════════════
     // DYNAMIC TERMINOLOGY ENGINE
     // ═══════════════════════════════════════════════════════
+
+    /**
+     * Get the label for the category field.
+     */
+    private function getCategoryFieldLabel(): string
+    {
+        $catCol = CatalogueCustomColumn::where('company_id', $this->companyId)
+            ->where('is_category', true)
+            ->where('is_active', true)
+            ->first();
+
+        return $catCol ? $catCol->name : 'Category';
+    }
 
     /**
      * Get dynamic terminology labels based on CatalogueCustomColumn settings.
