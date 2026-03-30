@@ -32,6 +32,7 @@ class CatalogueColumnController extends Controller
             'options' => 'nullable|string', // Comma-separated for select/multiselect
             'is_required' => 'nullable',
             'is_unique' => 'nullable',
+            'is_category' => 'nullable',
             'is_combo' => 'nullable',
             'show_on_list' => 'nullable|boolean',
         ]);
@@ -83,6 +84,19 @@ class CatalogueColumnController extends Controller
             }
         }
 
+        // If is_category, block if another category already exists
+        if ($request->boolean('is_category')) {
+            $existingCat = CatalogueCustomColumn::where('company_id', $companyId)
+                ->where('is_category', true)
+                ->first();
+            if ($existingCat) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "'{$existingCat->name}' is already the Category Link. Remove its category flag first before assigning a new one.",
+                ], 422);
+            }
+        }
+
         $maxOrder = CatalogueCustomColumn::where('company_id', $companyId)->max('sort_order') ?? 0;
 
         $column = CatalogueCustomColumn::create([
@@ -93,6 +107,7 @@ class CatalogueColumnController extends Controller
             'options' => $options,
             'is_required' => $request->boolean('is_required'),
             'is_unique' => $request->boolean('is_unique'),
+            'is_category' => $request->boolean('is_category'),
             'is_combo' => $request->boolean('is_combo'),
             'show_on_list' => $request->boolean('show_on_list'),
             'is_active' => true,
@@ -119,6 +134,7 @@ class CatalogueColumnController extends Controller
             'options' => 'nullable|string',
             'is_required' => 'nullable',
             'is_unique' => 'nullable',
+            'is_category' => 'nullable',
             'is_combo' => 'nullable',
             'show_on_list' => 'nullable|boolean',
         ]);
@@ -145,6 +161,20 @@ class CatalogueColumnController extends Controller
             }
         }
 
+        // If setting as category, block if another category already exists
+        if ($request->boolean('is_category')) {
+            $existingCat = CatalogueCustomColumn::where('company_id', auth()->user()->company_id)
+                ->where('id', '!=', $id)
+                ->where('is_category', true)
+                ->first();
+            if ($existingCat) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "'{$existingCat->name}' is already the Category Link. Remove its category flag first before assigning a new one.",
+                ], 422);
+            }
+        }
+
         // If it is a system column, restrict what can be updated
         if ($column->is_system) {
             $column->update([
@@ -161,6 +191,7 @@ class CatalogueColumnController extends Controller
             'options' => $options,
             'is_required' => $request->boolean('is_required'),
             'is_unique' => $request->boolean('is_unique'),
+            'is_category' => $request->boolean('is_category'),
             'is_combo' => $request->boolean('is_combo'),
             'show_on_list' => $request->boolean('show_on_list'),
         ]);

@@ -156,6 +156,10 @@ class ProductsController extends Controller
         // Save Custom Data
         if ($request->has('custom_data')) {
             foreach ($request->custom_data as $columnId => $value) {
+                // Skip if this is the category column
+                $isCategory = \App\Models\CatalogueCustomColumn::where('id', $columnId)->value('is_category');
+                if ($isCategory) continue;
+
                 if ($value !== null && $value !== '') {
                     \App\Models\CatalogueCustomValue::create([
                         'product_id' => $product->id,
@@ -221,6 +225,10 @@ class ProductsController extends Controller
         // Update Custom Data
         if ($request->has('custom_data')) {
             foreach ($request->custom_data as $columnId => $value) {
+                // Skip if this is the category column
+                $isCategory = \App\Models\CatalogueCustomColumn::where('id', $columnId)->value('is_category');
+                if ($isCategory) continue;
+
                 if ($value === null || $value === '') {
                     \App\Models\CatalogueCustomValue::where('product_id', $product->id)
                         ->where('column_id', $columnId)

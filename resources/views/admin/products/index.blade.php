@@ -220,6 +220,7 @@
                 <input type="hidden" id="form-method" name="_method" value="">
 
                 <!-- ── Top-Level Anchor: Category ── -->
+                @if(!$customColumns->where('is_category', true)->count())
                 <div style="padding:20px 24px 12px;">
                     <label style="display:block;margin-bottom:4px;font-weight:500;font-size:13px">Category *</label>
                     <select class="form-select" name="category_id" id="prod-category_id" required
@@ -240,6 +241,7 @@
                         @endforeach
                     </select>
                 </div>
+                @endif
 
                 <!-- ── Product Details (non-combo dynamic) ── -->
                 <div style="padding:8px 24px 20px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
@@ -248,15 +250,33 @@
                     </div>
                     @foreach($customColumns->where('is_combo', false) as $col)
                         @php
-                            $inputName = $col->is_system ? $col->slug : "custom_data[{$col->id}]";
-                            $inputId = $col->is_system ? "prod-{$col->slug}" : "custom-{$col->id}";
+                            $inputName = $col->is_category ? 'category_id' : ($col->is_system ? $col->slug : "custom_data[{$col->id}]");
+                            $inputId = $col->is_category ? 'prod-category_id' : ($col->is_system ? "prod-{$col->slug}" : "custom-{$col->id}");
                             $requiredStr = $col->is_required ? 'required' : '';
                             $reqLabel = $col->is_required ? ' *' : '';
                             $span = $col->type === 'textarea' ? 'grid-column: span 2;' : '';
                         @endphp
                         <div style="{{ $span }}">
                             <label style="display:block;margin-bottom:4px;font-weight:500;font-size:13px">{{ $col->name }}{{ $reqLabel }}</label>
-                            @if($col->type === 'textarea')
+                            @if($col->is_category)
+                                <select class="form-select" name="{{ $inputName }}" id="{{ $inputId }}" {{ $requiredStr }}
+                                    style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px">
+                                    <option value="">Select {{ $col->name }}</option>
+                                    @foreach($categories->whereNull('parent_category_id') as $cat)
+                                        @php $subcats = $categories->where('parent_category_id', $cat->id); @endphp
+                                        @if($subcats->count() > 0)
+                                            <optgroup label="{{ $cat->name }}">
+                                                <option value="{{ $cat->id }}">{{ $cat->name }} (Main)</option>
+                                                @foreach($subcats as $sub)
+                                                    <option value="{{ $sub->id }}">{{ $sub->name }}</option>
+                                                @endforeach
+                                            </optgroup>
+                                        @else
+                                            <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                        @endif
+                                    @endforeach
+                                </select>
+                            @elseif($col->type === 'textarea')
                                 <textarea class="form-textarea" name="{{ $inputName }}" id="{{ $inputId }}" {{ $requiredStr }} rows="3"
                                     style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px"></textarea>
                             @elseif($col->type === 'select')

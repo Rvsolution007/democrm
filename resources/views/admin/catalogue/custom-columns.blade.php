@@ -76,6 +76,9 @@
                                 @if($column->is_unique)
                                     <span class="badge badge-success" style="margin:2px">Unique</span>
                                 @endif
+                                @if($column->is_category)
+                                    <span class="badge badge-info" style="margin:2px;background:#3b82f6;color:white;border-color:#3b82f6">📂 Category</span>
+                                @endif
                                 @if($column->show_in_ai)
                                     <span class="badge badge-primary" style="margin:2px;font-size:10px">🤖 AI</span>
                                 @endif
@@ -160,6 +163,9 @@
                                 <input type="checkbox" id="col-unique"> Unique Identifier
                             </label>
                             <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                                <input type="checkbox" id="col-category"> 📂 Is Category Linked?
+                            </label>
+                            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
                                 <input type="checkbox" id="col-combo"> Combo (Variation Matrix)
                             </label>
                         </div>
@@ -198,6 +204,7 @@
         document.getElementById('col-options').value = '';
         document.getElementById('col-required').checked = false;
         document.getElementById('col-unique').checked = false;
+        document.getElementById('col-category').checked = false;
         document.getElementById('col-combo').checked = false;
         document.getElementById('col-show-list').checked = false;
         document.getElementById('col-show-ai').checked = true;
@@ -219,6 +226,7 @@
         document.getElementById('col-options').value = col.options ? col.options.join(', ') : '';
         document.getElementById('col-required').checked = col.is_required;
         document.getElementById('col-unique').checked = col.is_unique;
+        document.getElementById('col-category').checked = col.is_category;
         document.getElementById('col-combo').checked = col.is_combo;
         document.getElementById('col-show-list').checked = col.show_on_list;
         document.getElementById('col-show-ai').checked = col.show_in_ai !== undefined ? col.show_in_ai : true;
@@ -279,6 +287,7 @@
                 options: document.getElementById('col-options').value,
                 is_required: document.getElementById('col-required').checked ? 1 : 0,
                 is_unique: document.getElementById('col-unique').checked ? 1 : 0,
+                is_category: document.getElementById('col-category').checked ? 1 : 0,
                 is_combo: document.getElementById('col-combo').checked ? 1 : 0,
                 show_on_list: document.getElementById('col-show-list').checked ? 1 : 0,
                 show_in_ai: document.getElementById('col-show-ai').checked ? 1 : 0,
