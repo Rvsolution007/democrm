@@ -118,75 +118,173 @@
     </div>
 
     <!-- Add/Edit Column Modal -->
-    <div id="column-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
-        <div style="background:white;border-radius:8px;width:95%;max-width:600px;max-height:92vh;overflow-y:auto">
-            <div style="padding:20px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">
-                <h3 id="modal-title" style="margin:0">Add Custom Field</h3>
-                <button onclick="closeModal()" style="background:none;border:none;font-size:24px;cursor:pointer">&times;</button>
+    <style>
+        /* Modal UI Enhancements */
+        @keyframes fadeInScale {
+            0% { opacity: 0; transform: scale(0.95) translateY(10px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .premium-modal-backdrop {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px);
+            z-index: 9999; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 0.3s ease;
+        }
+        .premium-modal-content {
+            background: #ffffff; border-radius: 16px; width: 95%; max-width: 650px; max-height: 92vh;
+            overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            transform: scale(0.95) translateY(10px); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex; flex-direction: column;
+        }
+        .premium-input {
+            width: 100%; padding: 12px 16px; border: 1px solid #cbd5e1; border-radius: 8px;
+            font-size: 15px; color: #0f172a; transition: all 0.2s; outline: none;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); background: #fff;
+        }
+        .premium-input:focus {
+            border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59,130,246,0.1);
+        }
+        .premium-checkbox-card {
+            display: flex; align-items: flex-start; gap: 12px; padding: 16px;
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .premium-checkbox-card:hover {
+            border-color: #cbd5e1; background: #f8fafc;
+        }
+        .btn-gradient {
+            padding: 10px 24px; border: none; background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+            font-size: 14px; box-shadow: 0 4px 6px -1px rgba(59,130,246,0.3);
+        }
+        .btn-gradient:hover {
+            transform: translateY(-1px); box-shadow: 0 6px 8px -1px rgba(59,130,246,0.4);
+        }
+        .badge-anim {
+            transition: transform 0.2s;
+        }
+        .badge-anim:hover {
+            transform: scale(1.05);
+        }
+    </style>
+
+    <div id="column-modal" class="premium-modal-backdrop">
+        <div id="modal-content-box" class="premium-modal-content">
+            
+            <div style="padding:24px 32px;border-bottom:1px solid rgba(241, 245, 249, 0.8);display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.9);backdrop-filter:blur(8px);border-radius:16px 16px 0 0;position:sticky;top:0;z-index:10;">
+                <div>
+                    <h3 id="modal-title" style="margin:0;font-size:20px;font-weight:700;color:#0f172a;letter-spacing:-0.02em">Add Custom Field</h3>
+                    <p style="margin:4px 0 0 0;font-size:13px;color:#64748b;font-weight:400">Define how this property behaves across the system</p>
+                </div>
+                <button type="button" onclick="closeColumnModal()" class="btn-close-modal" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:50%;font-size:22px;cursor:pointer;color:#64748b;transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1);line-height:1;outline:none" onmouseover="this.style.background='#fee2e2';this.style.color='#ef4444';this.style.transform='rotate(90deg) scale(1.1)';this.style.borderColor='#fca5a5'" onmouseout="this.style.background='#f8fafc';this.style.color='#64748b';this.style.transform='none';this.style.borderColor='#e2e8f0'">
+                    &times;
+                </button>
             </div>
-            <form id="column-form" onsubmit="saveColumn(event)">
+
+            <form id="column-form" onsubmit="saveColumn(event)" style="display:flex;flex-direction:column;flex:1">
                 <input type="hidden" id="col-id" value="">
                 <input type="hidden" id="col-is-system" value="0">
-                <div style="padding:20px">
-                    <div id="system-warning" style="display:none;padding:12px;background:#e0f2fe;border:1px solid #bae6fd;border-radius:4px;margin-bottom:16px;font-size:13px;color:#0369a1">
-                        <i data-lucide="lock" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px"></i>
-                        This is a <strong>System Field</strong>. You can rename its label, but its type, slug, and core flags cannot be altered because core CRM modules depend on it.
+                
+                <div style="padding:32px;flex:1">
+                    <div id="system-warning" style="display:none;padding:16px;background:linear-gradient(to right, #eff6ff, #e0f2fe);border:1px solid #bae6fd;border-left:4px solid #3b82f6;border-radius:8px;margin-bottom:24px;font-size:14px;color:#0369a1;box-shadow:0 1px 2px rgba(0,0,0,0.05)">
+                        <div style="display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:4px;">
+                            <i data-lucide="lock" style="width:16px;height:16px"></i> System Field Lock
+                        </div>
+                        You can rename its label, but its type, slug, and core flags cannot be altered because core CRM modules depend on it.
                     </div>
                     
-                    <div style="margin-bottom:16px">
-                        <label style="display:block;margin-bottom:4px;font-weight:500">Field Label (Name) *</label>
-                        <input type="text" id="col-name" required placeholder="e.g., Material, Brand, Warranty" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
+                    <div style="margin-bottom:24px">
+                        <label style="display:flex;align-items:center;gap:4px;margin-bottom:8px;font-weight:600;color:#334155;font-size:14px">Field Label (Name) <span style="color:#ef4444">*</span></label>
+                        <input type="text" id="col-name" class="premium-input" required placeholder="e.g., Material, Brand, Warranty">
                     </div>
                     
-                    <div class="system-locked-group">
-                        <div style="margin-bottom:16px">
-                            <label style="display:block;margin-bottom:4px;font-weight:500">Input Type *</label>
-                            <select id="col-type" onchange="toggleOptions()" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
-                                <option value="text">Short Text</option>
-                                <option value="textarea">Long Text (Description)</option>
-                                <option value="number">Number</option>
-                                <option value="select">Select (Dropdown)</option>
-                                <option value="multiselect">Multi-Select</option>
-                                <option value="boolean">Yes/No</option>
-                            </select>
+                    <div class="system-locked-group" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:24px;margin-bottom:24px">
+                        <div style="margin-bottom:20px">
+                            <label style="display:flex;align-items:center;gap:4px;margin-bottom:8px;font-weight:600;color:#334155;font-size:14px">Input Type <span style="color:#ef4444">*</span></label>
+                            <div style="position:relative">
+                                <select id="col-type" class="premium-input" onchange="toggleOptions()" style="appearance:none;cursor:pointer;padding-right:40px">
+                                    <option value="text">Short Text</option>
+                                    <option value="textarea">Long Text (Description)</option>
+                                    <option value="number">Number</option>
+                                    <option value="select">Select (Dropdown)</option>
+                                    <option value="multiselect">Multi-Select</option>
+                                    <option value="boolean">Yes/No Switch</option>
+                                </select>
+                                <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);pointer-events:none;color:#64748b;display:flex">
+                                    <i data-lucide="chevron-down" style="width:18px;height:18px"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div id="options-group" style="margin-bottom:16px;display:none">
-                            <label style="display:block;margin-bottom:4px;font-weight:500">Dropdown Options (comma separated) *</label>
-                            <input type="text" id="col-options" placeholder="e.g., Samsung, Apple, Sony" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
-                            <small style="color:var(--text-muted)">Values that will appear in the UI list</small>
+
+                        <div id="options-group" style="margin-bottom:20px;display:none;animation:fadeIn 0.3s ease">
+                            <label style="display:flex;align-items:center;gap:4px;margin-bottom:8px;font-weight:600;color:#334155;font-size:14px">Dropdown Options <span style="color:#ef4444">*</span></label>
+                            <input type="text" id="col-options" class="premium-input" placeholder="e.g., Samsung, Apple, Sony">
+                            <p style="margin:6px 0 0;font-size:13px;color:#64748b;display:flex;align-items:center;gap:6px">
+                                <i data-lucide="info" style="width:14px;height:14px"></i> Separate multiple values with a comma
+                            </p>
                         </div>
-                        <div style="display:flex;gap:20px;margin-bottom:16px">
-                            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-                                <input type="checkbox" id="col-required"> Required Field
+
+                        <!-- Advanced Flags -->
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                            <label class="premium-checkbox-card">
+                                <input type="checkbox" id="col-required" style="margin-top:2px;width:18px;height:18px;accent-color:#3b82f6;cursor:pointer">
+                                <div>
+                                    <div style="font-weight:600;color:#1e293b;font-size:14px;margin-bottom:2px">Required Field</div>
+                                    <div style="font-size:12px;color:#64748b">Must be filled to save</div>
+                                </div>
                             </label>
-                            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-                                <input type="checkbox" id="col-unique"> Unique Identifier
+                            
+                            <label class="premium-checkbox-card">
+                                <input type="checkbox" id="col-unique" style="margin-top:2px;width:18px;height:18px;accent-color:#10b981;cursor:pointer">
+                                <div>
+                                    <div style="font-weight:600;color:#1e293b;font-size:14px;margin-bottom:2px">Unique Identifier</div>
+                                    <div style="font-size:12px;color:#64748b">Cannot duplicate across items</div>
+                                </div>
                             </label>
-                            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-                                <input type="checkbox" id="col-category"> 📂 Is Category Linked?
+
+                            <label class="premium-checkbox-card badge-anim">
+                                <input type="checkbox" id="col-category" style="margin-top:2px;width:18px;height:18px;accent-color:#3b82f6;cursor:pointer">
+                                <div>
+                                    <div style="font-weight:600;color:#1e293b;font-size:14px;margin-bottom:2px">📂 Category Linked</div>
+                                    <div style="font-size:12px;color:#64748b">Ties into Product Categories</div>
+                                </div>
                             </label>
-                            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-                                <input type="checkbox" id="col-combo"> Combo (Variation Matrix)
+
+                            <label class="premium-checkbox-card badge-anim">
+                                <input type="checkbox" id="col-combo" style="margin-top:2px;width:18px;height:18px;accent-color:#f59e0b;cursor:pointer">
+                                <div>
+                                    <div style="font-weight:600;color:#1e293b;font-size:14px;margin-bottom:2px">Variation Matrix</div>
+                                    <div style="font-size:12px;color:#64748b">Creates product variants</div>
+                                </div>
                             </label>
                         </div>
-                    </div>
-                    
-                    <div style="display:flex;flex-wrap:wrap;gap:20px;margin-bottom:16px;padding-top:16px;border-top:1px dashed #ddd">
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500">
-                            <input type="checkbox" id="col-show-list"> Show in Product Table
-                        </label>
-                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500">
-                            <input type="checkbox" id="col-show-ai"> 🤖 Show in AI Bot (WhatsApp)
-                        </label>
                     </div>
 
-                    <div id="combo-note" style="display:none;padding:8px 12px;background:#fff3cd;border:1px solid #ffc107;border-radius:4px;font-size:13px">
-                        ⚠️ Combo columns create multidimensional product variations. Max 5 allowed.
+                    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:24px;">
+                        <h4 style="margin:0 0 16px 0;font-size:13px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.05em">Visibility Settings</h4>
+                        <div style="display:flex;flex-wrap:wrap;gap:24px;">
+                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:#1e293b;font-size:14px">
+                                <input type="checkbox" id="col-show-list" style="width:18px;height:18px;accent-color:#3b82f6">
+                                Show in Product Table
+                            </label>
+                            <label class="badge-anim" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;color:#1e293b;font-size:14px">
+                                <input type="checkbox" id="col-show-ai" style="width:18px;height:18px;accent-color:#8b5cf6">
+                                <span style="display:flex;align-items:center;gap:6px;color:#7c3aed"><i data-lucide="bot" style="width:18px;height:18px"></i> AI Bot (WhatsApp) Access</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="combo-note" style="display:none;margin-top:20px;padding:16px;background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;border-radius:8px;font-size:14px;color:#b45309">
+                        <div style="display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:4px">
+                            <i data-lucide="alert-triangle" style="width:16px;height:16px"></i> Variation Limit Notice
+                        </div>
+                        Combo columns create multidimensional product variations. Maximum of 5 allowed to maintain performance.
                     </div>
                 </div>
-                <div style="padding:20px;border-top:1px solid #eee;display:flex;justify-content:flex-end;gap:10px">
-                    <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                
+                <div style="padding:20px 32px;background:rgba(248, 250, 252, 0.95);backdrop-filter:blur(8px);border-top:1px solid rgba(226, 232, 240, 0.8);display:flex;justify-content:flex-end;gap:12px;border-radius:0 0 16px 16px;position:sticky;bottom:0;z-index:10">
+                    <button type="button" onclick="closeColumnModal()" style="padding:10px 20px;border:1px solid #cbd5e1;background:#fff;border-radius:8px;font-weight:600;color:#475569;cursor:pointer;transition:all 0.2s;font-size:14px;box-shadow:0 1px 2px rgba(0,0,0,0.05)" onmouseover="this.style.background='#f1f5f9';this.style.borderColor='#94a3b8';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='#fff';this.style.borderColor='#cbd5e1';this.style.transform='none'">Cancel</button>
+                    <button type="submit" class="btn-gradient">Save Required Changes</button>
                 </div>
             </form>
         </div>
@@ -214,7 +312,7 @@
         document.querySelectorAll('.system-locked-group input[type="checkbox"]').forEach(el => el.disabled = false);
         
         toggleOptions();
-        document.getElementById('column-modal').style.display = 'flex';
+        openModalWithAnim();
     }
 
     function editColumn(col) {
@@ -223,12 +321,17 @@
         document.getElementById('col-is-system').value = col.is_system ? '1' : '0';
         document.getElementById('col-name').value = col.name;
         document.getElementById('col-type').value = col.type;
-        document.getElementById('col-options').value = col.options ? col.options.join(', ') : '';
+        // Fix for options potentially being null from JS context
+        var opts = col.options;
+        if (typeof opts === 'string') {
+            try { opts = JSON.parse(opts); } catch(e) { }
+        }
+        document.getElementById('col-options').value = (Array.isArray(opts) ? opts.join(', ') : (opts || ''));
         document.getElementById('col-required').checked = col.is_required;
         document.getElementById('col-unique').checked = col.is_unique;
         document.getElementById('col-category').checked = col.is_category;
         document.getElementById('col-combo').checked = col.is_combo;
-        document.getElementById('col-show-list').checked = col.show_on_list;
+        document.getElementById('col-show-list').checked = col.show_on_list || false;
         document.getElementById('col-show-ai').checked = col.show_in_ai !== undefined ? col.show_in_ai : true;
         
         if (col.is_system) {
@@ -242,11 +345,32 @@
         }
 
         toggleOptions();
-        document.getElementById('column-modal').style.display = 'flex';
+        openModalWithAnim();
     }
 
-    function closeModal() {
-        document.getElementById('column-modal').style.display = 'none';
+    function openModalWithAnim() {
+        var modal = document.getElementById('column-modal');
+        var content = document.getElementById('modal-content-box');
+        modal.style.display = 'flex';
+        // force reflow
+        void modal.offsetWidth;
+        modal.style.opacity = '1';
+        content.style.transform = 'scale(1) translateY(0)';
+        
+        // Reinitialize icons if any
+        if (typeof lucide !== 'undefined') {
+            setTimeout(() => lucide.createIcons(), 50);
+        }
+    }
+
+    function closeColumnModal() {
+        var modal = document.getElementById('column-modal');
+        var content = document.getElementById('modal-content-box');
+        modal.style.opacity = '0';
+        content.style.transform = 'scale(0.95) translateY(10px)';
+        setTimeout(() => {
+            modal.style.display = 'none';
+        }, 300);
     }
 
     function toggleOptions() {
@@ -316,8 +440,14 @@
         document.getElementById('alert-container').innerHTML = '<div style="padding:12px 20px;background:' + bg + ';color:' + color + ';border-radius:4px;margin-bottom:20px">' + msg + '</div>';
     }
 
-    document.getElementById('column-modal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+    document.getElementById('column-modal').addEventListener('click', function (e) {
+        if (e.target === this) closeColumnModal();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && document.getElementById('column-modal').style.display === 'flex') {
+            closeColumnModal();
+        }
+    });
 
     // ═══════════ DRAG & DROP REORDER ═══════════
     (function() {

@@ -43,7 +43,7 @@
                 <thead>
                     <tr>
                         <th style="padding:12px 16px;text-align:left;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px"
-                            data-col="name">Category</th>
+                            data-col="name">{{ $categoryColumn ? $categoryColumn->name : 'Category' }}</th>
                         <th style="padding:12px 16px;text-align:left;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px"
                             data-col="description">Description</th>
                         <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;color:var(--text-muted);font-size:12px;text-transform:uppercase;letter-spacing:0.5px"
@@ -61,8 +61,12 @@
                             <td style="padding:14px 16px" data-col="name">
                                 <div style="display:flex;align-items:center;gap:10px">
                                     <div
-                                        style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#4f46e5,#7c3aed);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                                        <i data-lucide="folder" style="width:18px;height:18px;color:#fff"></i>
+                                        style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#4f46e5,#7c3aed);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">
+                                        @if($category->image)
+                                            <img src="{{ asset('storage/' . $category->image) }}" style="width:100%;height:100%;object-fit:cover">
+                                        @else
+                                            <i data-lucide="folder" style="width:18px;height:18px;color:#fff"></i>
+                                        @endif
                                     </div>
                                     <div>
                                         <span
@@ -90,7 +94,7 @@
                                 <div style="display:flex;gap:4px;justify-content:flex-end">
                                     @if(can('categories.write'))
                                         <button class="btn btn-outline btn-sm"
-                                            onclick="editCategory({{ $category->id }}, {{ json_encode($category->name) }}, {{ json_encode($category->description ?? '') }}, {{ json_encode($category->status ?? 'active') }}, {{ $category->sort_order ?? 0 }}, {{ $category->parent_category_id ?? 'null' }})"
+                                            onclick="editCategory({{ $category->id }}, {{ json_encode($category->name) }}, {{ json_encode($category->description ?? '') }}, {{ json_encode($category->status ?? 'active') }}, {{ $category->sort_order ?? 0 }}, {{ $category->parent_category_id ?? 'null' }}, {{ json_encode($category->image ? asset('storage/' . $category->image) : null) }})"
                                             style="padding:4px 10px;font-size:12px">
                                             <i data-lucide="edit" style="width:13px;height:13px"></i>
                                         </button>
@@ -114,8 +118,12 @@
                                             style="width:6px;height:6px;border-radius:50%;background:var(--text-muted);flex-shrink:0">
                                         </div>
                                         <div
-                                            style="width:28px;height:28px;border-radius:6px;background:linear-gradient(135deg,#f59e0b,#f97316);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                                            <i data-lucide="folder-open" style="width:14px;height:14px;color:#fff"></i>
+                                            style="width:28px;height:28px;border-radius:6px;background:linear-gradient(135deg,#f59e0b,#f97316);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">
+                                            @if($child->image)
+                                                <img src="{{ asset('storage/' . $child->image) }}" style="width:100%;height:100%;object-fit:cover">
+                                            @else
+                                                <i data-lucide="folder-open" style="width:14px;height:14px;color:#fff"></i>
+                                            @endif
                                         </div>
                                         <span
                                             style="font-weight:500;font-size:13px;color:var(--text-secondary)">{{ $child->name }}</span>
@@ -136,7 +144,7 @@
                                     <div style="display:flex;gap:4px;justify-content:flex-end">
                                         @if(can('categories.write'))
                                             <button class="btn btn-outline btn-sm"
-                                                onclick="editCategory({{ $child->id }}, {{ json_encode($child->name) }}, {{ json_encode($child->description ?? '') }}, {{ json_encode($child->status ?? 'active') }}, {{ $child->sort_order ?? 0 }}, {{ $child->parent_category_id ?? 'null' }})"
+                                                onclick="editCategory({{ $child->id }}, {{ json_encode($child->name) }}, {{ json_encode($child->description ?? '') }}, {{ json_encode($child->status ?? 'active') }}, {{ $child->sort_order ?? 0 }}, {{ $child->parent_category_id ?? 'null' }}, {{ json_encode($child->image ? asset('storage/' . $child->image) : null) }})"
                                                 style="padding:4px 10px;font-size:12px">
                                                 <i data-lucide="edit" style="width:13px;height:13px"></i>
                                             </button>
@@ -175,14 +183,14 @@
                 <button type="button" onclick="closeCategoryModal(event)"
                     style="background:none;border:none;font-size:24px;cursor:pointer;padding:0;width:30px;height:30px">&times;</button>
             </div>
-            <form id="category-form" method="POST" action="{{ route('admin.categories.store') }}">
+            <form id="category-form" method="POST" action="{{ route('admin.categories.store') }}" enctype="multipart/form-data">
                 @csrf
                 <input type="hidden" id="form-method" name="_method" value="">
                 <div style="padding:20px">
                     <div data-field="name" style="margin-bottom:16px">
-                        <label style="display:block;margin-bottom:4px;font-weight:500">Category Name *</label>
+                        <label style="display:block;margin-bottom:4px;font-weight:500">{{ $categoryColumn ? $categoryColumn->name : 'Category Name' }} *</label>
                         <input type="text" class="form-input" name="name" id="cat-name" required
-                            placeholder="Enter category name"
+                            placeholder="Enter {{ strtolower($categoryColumn ? $categoryColumn->name : 'category name') }}"
                             style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
                     </div>
                     <div data-field="description" style="margin-bottom:16px">
@@ -190,6 +198,14 @@
                         <textarea class="form-textarea" name="description" id="cat-description" rows="3"
                             placeholder="Enter description (optional)"
                             style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px"></textarea>
+                    </div>
+                    <div style="margin-bottom:16px">
+                        <label style="display:block;margin-bottom:4px;font-weight:500">Category Image</label>
+                        <input type="file" class="form-input" name="image" id="cat-image" accept="image/*"
+                            style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">
+                        <div id="cat-image-preview-container" style="margin-top:8px;display:none;">
+                            <img id="cat-image-preview" src="" style="height:60px;border-radius:4px;border:1px solid #eee;object-fit:cover">
+                        </div>
                     </div>
                     <div data-field="status" style="margin-bottom:16px">
                         <label style="display:block;margin-bottom:4px;font-weight:500">Status *</label>
@@ -263,6 +279,7 @@
             document.getElementById('category-form').action = '{{ route("admin.categories.store") }}';
             document.getElementById('form-method').value = '';
             document.getElementById('category-form').reset();
+            document.getElementById('cat-image-preview-container').style.display = 'none';
             document.getElementById('category-modal').style.display = 'flex';
         }
 
@@ -278,6 +295,17 @@
             if (parentSelect) {
                 parentSelect.value = parentId || '';
             }
+            
+            var imgUrl = arguments[6];
+            var imgPreview = document.getElementById('cat-image-preview');
+            var imgContainer = document.getElementById('cat-image-preview-container');
+            if (imgUrl) {
+                imgPreview.src = imgUrl;
+                imgContainer.style.display = 'block';
+            } else {
+                imgContainer.style.display = 'none';
+            }
+
             document.getElementById('category-modal').style.display = 'flex';
         }
 

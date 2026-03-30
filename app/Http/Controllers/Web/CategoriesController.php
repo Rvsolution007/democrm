@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Models\CatalogueCustomColumn;
 
 class CategoriesController extends Controller
 {
@@ -34,7 +36,10 @@ class CategoriesController extends Controller
         $allCategories = Category::orderBy('name')->get();
 
         $columnVisibility = Setting::getValue('column_visibility', 'categories', []);
-        return view('admin.categories.index', compact('categories', 'allCategories', 'columnVisibility'));
+        $categoryColumn = \App\Models\CatalogueCustomColumn::where('company_id', auth()->user()->company_id ?? 1)
+            ->where('is_category', true)->first();
+
+        return view('admin.categories.index', compact('categories', 'allCategories', 'columnVisibility', 'categoryColumn'));
     }
 
     /**
@@ -60,6 +65,7 @@ class CategoriesController extends Controller
             'parent_category_id' => $parentRule,
             'status' => $r('status', 'required') . '|in:active,inactive',
             'sort_order' => 'nullable|integer|min:0',
+            'image' => 'nullable|image|max:5120',
         ];
     }
 
@@ -104,6 +110,10 @@ class CategoriesController extends Controller
         $validated['slug'] = $this->generateUniqueSlug($validated['name'], $validated['company_id']);
         $validated['sort_order'] = $validated['sort_order'] ?? 0;
 
+        if ($request->hasFile('image')) {
+            $validated['image'] = $request->file('image')->store('categories', 'public');
+        }
+
         Category::create($validated);
 
         return redirect()->route('admin.categories.index')
@@ -140,6 +150,15 @@ class CategoriesController extends Controller
         }
 
         $validated['slug'] = $this->generateUniqueSlug($validated['name'], $category->company_id, $category->id);
+
+        if ($request->hasFile('image')) {
+            if ($category->image) {
+                Storage::disk('public')->delete($category->image);
+            }
+            $validated['image'] = $request->file('image')->store('categories', 'public');
+        } else {
+            unset($validated['image']);
+        }
 
         $category->update($validated);
 

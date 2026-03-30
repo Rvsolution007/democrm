@@ -818,18 +818,20 @@ class AIChatbotService
             $this->sendStepMedia($session, $uniqueStep);
         }
 
-        // Send group master image if available and group was just selected
-        if ($selectedGroup) {
-            $groupProduct = $products->first(fn($p) => !empty($p->group_media_url));
-            if ($groupProduct) {
-                $this->traceNode($session->id, 'GroupMediaLookup', 'media', 'success',
-                    ['product_name' => $selectedGroup, 'company_id' => $this->companyId],
-                    ['found' => true, 'source_product_id' => $groupProduct->id, 'media_url' => $groupProduct->group_media_url]);
-                $this->sendMediaToWhatsApp($session, $groupProduct->group_media_url, 'GroupMediaSent');
-            } else {
-                $this->traceNode($session->id, 'GroupMediaLookup', 'media', 'info',
-                    ['product_name' => $selectedGroup, 'company_id' => $this->companyId],
-                    ['found' => false]);
+        // Send category image if available and category was just selected
+        if ($selectedGroup || isset($answers['category_id'])) {
+            $categoryId = $answers['category_id'] ?? ($products->first() ? $products->first()->category_id : null);
+            if ($categoryId) {
+                $category = \App\Models\Category::find($categoryId);
+                if ($category && !empty($category->image) && !$session->getAnswer('category_image_sent')) {
+                    $mediaUrl = asset('storage/' . $category->image);
+                    $this->traceNode($session->id, 'CategoryMediaLookup', 'media', 'success',
+                        ['category_id' => $category->id, 'company_id' => $this->companyId],
+                        ['found' => true, 'media_url' => $mediaUrl]);
+                    $this->sendMediaToWhatsApp($session, $mediaUrl, 'CategoryMediaSent');
+                    $session->setAnswer('category_image_sent', true);
+                    $session->save();
+                }
             }
         }
 
@@ -2669,30 +2671,7 @@ PROMPT;
         }
     }
 
-    /**
-     * Sync a Group Series Master Image across all products with the same name.
-     * When admin uploads group_media_url on any one product, this syncs it to all siblings.
-     *
-     * @param Product $product The product that was just updated with a group_media_url
-     */
-    public static function syncGroupMedia(Product $product): void
-    {
-        if (empty($product->group_media_url)) {
-            return;
-        }
 
-        // Find all products with the same name in the same company
-        Product::where('company_id', $product->company_id)
-            ->where('name', $product->name)
-            ->where('id', '!=', $product->id)
-            ->update(['group_media_url' => $product->group_media_url]);
-
-        Log::info('AIChatbot: Group media synced', [
-            'source_product_id' => $product->id,
-            'product_name' => $product->name,
-            'media_url' => $product->group_media_url,
-        ]);
-    }
 
     /**
      * Send unique model image when a specific product is selected.
@@ -2738,20 +2717,5 @@ PROMPT;
         }
     }
 
-    /**
-     * Auto-sync group master images across all products with the exact same name.
-     */
-    public static function syncGroupMedia(\App\Models\Product $product): void
-    {
-        if (empty($product->group_media_url) || empty($product->name)) {
-            return;
-        }
 
-        \App\Models\Product::where('company_id', $product->company_id)
-            ->where('id', '!=', $product->id)
-            ->where('name', $product->name) // Strict exact name match
-            ->update(['group_media_url' => $product->group_media_url]);
-            
-        \Illuminate\Support\Facades\Log::info("AIChatbot: Synced group media for product name '{$product->name}'");
-    }
 }

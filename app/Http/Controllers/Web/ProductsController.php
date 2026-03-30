@@ -44,7 +44,6 @@ class ProductsController extends Controller
         $rules = [
             'category_id' => 'required|exists:categories,id',
             'is_purchase_enabled' => 'nullable|boolean',
-            'group_media' => 'nullable|file|mimes:jpeg,png,jpg,gif,webp,pdf,mp4,mov|max:20480',
             'cover_media' => 'nullable|file|mimes:jpeg,png,jpg,gif,webp,pdf,mp4,mov|max:20480',
         ];
         
@@ -132,11 +131,6 @@ class ProductsController extends Controller
         if (isset($validated['mrp'])) $validated['mrp'] = $validated['mrp'] * 100;
         if (isset($validated['sale_price'])) $validated['sale_price'] = $validated['sale_price'] * 100;
 
-        if ($request->hasFile('group_media')) {
-            $path = $request->file('group_media')->store('products/group', 'public');
-            $validated['group_media_url'] = '/storage/' . $path;
-        }
-
         if ($request->hasFile('cover_media')) {
             $path = $request->file('cover_media')->store('products/cover', 'public');
             $validated['cover_media_url'] = '/storage/' . $path;
@@ -148,11 +142,7 @@ class ProductsController extends Controller
 
         $product = Product::create($validated);
         
-        // Sync group media across same product name models
-        if (!empty($validated['group_media_url'])) {
-            \App\Services\AIChatbotService::syncGroupMedia($product);
-        }
-        
+
         // Save Custom Data
         if ($request->has('custom_data')) {
             foreach ($request->custom_data as $columnId => $value) {
@@ -203,12 +193,6 @@ class ProductsController extends Controller
 
         $validated['is_purchase_enabled'] = $request->has('is_purchase_enabled');
 
-        if ($request->hasFile('group_media')) {
-            // Optional: delete old file if taking care of space
-            $path = $request->file('group_media')->store('products/group', 'public');
-            $validated['group_media_url'] = '/storage/' . $path;
-        }
-
         if ($request->hasFile('cover_media')) {
             // Optional: delete old file if taking care of space
             $path = $request->file('cover_media')->store('products/cover', 'public');
@@ -217,11 +201,7 @@ class ProductsController extends Controller
 
         $product->update($validated);
 
-        // Sync group media across same product name models if updated
-        if (isset($validated['group_media_url'])) {
-            \App\Services\AIChatbotService::syncGroupMedia($product);
-        }
-        
+
         // Update Custom Data
         if ($request->has('custom_data')) {
             foreach ($request->custom_data as $columnId => $value) {
