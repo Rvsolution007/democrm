@@ -919,7 +919,7 @@ class AIChatbotService
             if ($categoryId) {
                 $category = \App\Models\Category::find($categoryId);
                 if ($category && !empty($category->image) && !$session->getAnswer('category_image_sent')) {
-                    $mediaUrl = asset('storage/' . $category->image);
+                    $mediaUrl = '/storage/' . $category->image;
                     $this->traceNode($session->id, 'CategoryMediaLookup', 'media', 'success',
                         ['category_id' => $category->id, 'company_id' => $this->companyId],
                         ['found' => true, 'media_url' => $mediaUrl]);
@@ -959,7 +959,7 @@ class AIChatbotService
     private function matchProductGroupFromMessage(AiChatSession $session, string $fullMessage, string $rawMessage, ?string $imageUrl, $steps): string
     {
         $answers = $session->collected_answers ?? [];
-        $query = Product::where('company_id', $this->companyId)->where('status', 'active');
+        $query = Product::with('customValues')->where('company_id', $this->companyId)->where('status', 'active');
         if (isset($answers['category_id'])) {
             $query->where('category_id', $answers['category_id']);
         }
