@@ -870,6 +870,23 @@ class AIChatbotService
         $visibleColumns = $this->getAiVisibleColumns();
         $showPrice = $visibleColumns->contains('slug', 'sale_price') || $visibleColumns->contains('slug', 'mrp');
 
+        // ── Send category image BEFORE product listing (works for both group and flat paths) ──
+        $categoryId = $answers['category_id'] ?? ($products->first() ? $products->first()->category_id : null);
+        if ($categoryId && !$session->getAnswer('category_image_sent')) {
+            $category = $products->first() && $products->first()->relationLoaded('category')
+                ? $products->first()->category
+                : \App\Models\Category::find($categoryId);
+            if ($category && !empty($category->image)) {
+                $mediaUrl = '/storage/' . $category->image;
+                $this->traceNode($session->id, 'CategoryMediaLookup', 'media', 'success',
+                    ['category_id' => $category->id, 'company_id' => $this->companyId],
+                    ['found' => true, 'media_url' => $mediaUrl]);
+                $this->sendMediaToWhatsApp($session, $mediaUrl, 'CategoryMediaSent');
+                $session->setAnswer('category_image_sent', true);
+                $session->save();
+            }
+        }
+
         if ($needsGrouping) {
             // Check for chatflow step question text as AI reference
             $baseStep = ChatflowStep::where('company_id', $this->companyId)
@@ -932,23 +949,6 @@ class AIChatbotService
         // Send chatflow step media if attached
         if ($uniqueStep && $uniqueStep->hasMedia()) {
             $this->sendStepMedia($session, $uniqueStep);
-        }
-
-        // Send category image if available and category was just selected
-        if ($selectedGroup || isset($answers['category_id'])) {
-            $categoryId = $answers['category_id'] ?? ($products->first() ? $products->first()->category_id : null);
-            if ($categoryId) {
-                $category = \App\Models\Category::find($categoryId);
-                if ($category && !empty($category->image) && !$session->getAnswer('category_image_sent')) {
-                    $mediaUrl = '/storage/' . $category->image;
-                    $this->traceNode($session->id, 'CategoryMediaLookup', 'media', 'success',
-                        ['category_id' => $category->id, 'company_id' => $this->companyId],
-                        ['found' => true, 'media_url' => $mediaUrl]);
-                    $this->sendMediaToWhatsApp($session, $mediaUrl, 'CategoryMediaSent');
-                    $session->setAnswer('category_image_sent', true);
-                    $session->save();
-                }
-            }
         }
 
         // Update session state
