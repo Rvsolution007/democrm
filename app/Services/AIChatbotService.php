@@ -832,6 +832,20 @@ class AIChatbotService
     {
         $answers = $session->collected_answers ?? [];
         $terms = $this->getDynamicTerminology();
+
+        // ── If no category selected yet, check if categories exist → show category list first ──
+        if (!isset($answers['category_id'])) {
+            $categoryCount = \App\Models\Category::where('company_id', $this->companyId)
+                ->where('status', 'active')
+                ->whereHas('products', function ($q) {
+                    $q->where('status', 'active');
+                })
+                ->count();
+            if ($categoryCount > 0) {
+                return $this->sendCategoryList($session);
+            }
+        }
+
         $query = Product::with(['customValues', 'category'])->where('company_id', $this->companyId)
             ->where('status', 'active');
 
