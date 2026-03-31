@@ -148,16 +148,26 @@ class AIChatbotService
                         $baseNameParts[] = $val;
                     }
                 } else {
-                    if ($product->relationLoaded('customValues')) {
-                        $customVal = $product->customValues->where('column_id', $col->id)->first();
+                    // For is_category columns, get value from product's category relationship
+                    if ($col->is_category && $product->category_id) {
+                        $catModel = $product->relationLoaded('category')
+                            ? $product->category
+                            : $product->category()->first();
+                        if ($catModel && !empty($catModel->name)) {
+                            $baseNameParts[] = $catModel->name;
+                        }
                     } else {
-                        $customVal = $product->customValues()->where('column_id', $col->id)->first();
-                    }
-                    if ($customVal && !empty($customVal->value)) {
-                        $valStr = json_decode($customVal->value, true);
-                        $valStr = is_array($valStr) ? implode(', ', $valStr) : $customVal->value;
-                        if (!empty($valStr)) {
-                            $baseNameParts[] = $valStr;
+                        if ($product->relationLoaded('customValues')) {
+                            $customVal = $product->customValues->where('column_id', $col->id)->first();
+                        } else {
+                            $customVal = $product->customValues()->where('column_id', $col->id)->first();
+                        }
+                        if ($customVal && !empty($customVal->value)) {
+                            $valStr = json_decode($customVal->value, true);
+                            $valStr = is_array($valStr) ? implode(', ', $valStr) : $customVal->value;
+                            if (!empty($valStr)) {
+                                $baseNameParts[] = $valStr;
+                            }
                         }
                     }
                 }
@@ -230,16 +240,26 @@ class AIChatbotService
                             $baseNameParts[] = $val;
                         }
                     } else {
-                        if ($product->relationLoaded('customValues')) {
-                            $customVal = $product->customValues->where('column_id', $col->id)->first();
+                        // For is_category columns, get value from product's category relationship
+                        if ($col->is_category && $product->category_id) {
+                            $catModel = $product->relationLoaded('category')
+                                ? $product->category
+                                : $product->category()->first();
+                            if ($catModel && !empty($catModel->name)) {
+                                $baseNameParts[] = $catModel->name;
+                            }
                         } else {
-                            $customVal = $product->customValues()->where('column_id', $col->id)->first();
-                        }
-                        if ($customVal && !empty($customVal->value)) {
-                            $valStr = json_decode($customVal->value, true);
-                            $valStr = is_array($valStr) ? implode(', ', $valStr) : $customVal->value;
-                            if (!empty($valStr)) {
-                                $baseNameParts[] = $valStr;
+                            if ($product->relationLoaded('customValues')) {
+                                $customVal = $product->customValues->where('column_id', $col->id)->first();
+                            } else {
+                                $customVal = $product->customValues()->where('column_id', $col->id)->first();
+                            }
+                            if ($customVal && !empty($customVal->value)) {
+                                $valStr = json_decode($customVal->value, true);
+                                $valStr = is_array($valStr) ? implode(', ', $valStr) : $customVal->value;
+                                if (!empty($valStr)) {
+                                    $baseNameParts[] = $valStr;
+                                }
                             }
                         }
                     }
@@ -812,7 +832,7 @@ class AIChatbotService
     {
         $answers = $session->collected_answers ?? [];
         $terms = $this->getDynamicTerminology();
-        $query = Product::with('customValues')->where('company_id', $this->companyId)
+        $query = Product::with(['customValues', 'category'])->where('company_id', $this->companyId)
             ->where('status', 'active');
 
         // Filter by category if category was selected
@@ -842,8 +862,9 @@ class AIChatbotService
             return trim(strtolower($this->getProductBaseName($p)));
         });
 
-        // Grouping is needed if we haven't selected a group yet AND there are duplicates
-        $needsGrouping = !$selectedGroup && $groupedProducts->count() < $products->count();
+        // Grouping is needed if we haven't selected a group yet AND there are multiple distinct groups
+        // Skip grouping if all products resolve to the same base name (single group = redundant)
+        $needsGrouping = !$selectedGroup && $groupedProducts->count() > 1 && $groupedProducts->count() < $products->count();
 
         // Get AI-visible columns for price/desc mapping if needed
         $visibleColumns = $this->getAiVisibleColumns();
@@ -959,7 +980,7 @@ class AIChatbotService
     private function matchProductGroupFromMessage(AiChatSession $session, string $fullMessage, string $rawMessage, ?string $imageUrl, $steps): string
     {
         $answers = $session->collected_answers ?? [];
-        $query = Product::with('customValues')->where('company_id', $this->companyId)->where('status', 'active');
+        $query = Product::with(['customValues', 'category'])->where('company_id', $this->companyId)->where('status', 'active');
         if (isset($answers['category_id'])) {
             $query->where('category_id', $answers['category_id']);
         }
