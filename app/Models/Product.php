@@ -88,7 +88,7 @@ class Product extends Model
      * @param array|null $sessionAnswers  Key-value pairs from chatbot session (slug => answer)
      * @return string
      */
-    public function getDynamicDescription(array $sessionAnswers = null): string
+    public function getDynamicDescription(array $sessionAnswers = null, bool $onlyShowAnsweredCombos = false): string
     {
         if (!$this->company_id) return $this->description ?? '';
 
@@ -123,6 +123,11 @@ class Product extends Model
             // Try session answers first (chatbot overlay)
             if ($sessionAnswers && isset($sessionAnswers[$col->slug])) {
                 $lines[] = "{$col->name}: {$sessionAnswers[$col->slug]}";
+                continue;
+            }
+
+            // Exclude unanswered combo fields in strict chat bot output
+            if ($onlyShowAnsweredCombos && $col->is_combo) {
                 continue;
             }
 

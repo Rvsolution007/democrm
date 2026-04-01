@@ -589,6 +589,15 @@ class AIChatbotService
             }
         }
 
+        // ══ CASE 0: Awaiting Confirmation ══
+        if ($session->conversation_state === 'awaiting_confirmation') {
+            $this->routeTrace[] = 'handleConfirmationStep';
+            $this->traceNode($session->id, 'IntentRouter', 'routing', 'success',
+                ['state' => 'awaiting_confirmation'],
+                ['route' => 'handleConfirmationStep']);
+            return $this->handleConfirmationStep($session, $rawMessage);
+        }
+
         // ══ CASE 1: No product selected yet ══
         if (!isset($answers['product_id'])) {
             $this->routeTrace[] = 'handlePreProductPhase';
@@ -1309,6 +1318,40 @@ class AIChatbotService
     }
 
     /**
+     * Update the QuoteItem description dynamically using collected answers
+     */
+    private function updateQuoteDescription(AiChatSession $session): void
+    {
+        if (!$session->quote_id || !$session->getAnswer('product_id')) {
+            return;
+        }
+
+        $quoteItem = QuoteItem::where('quote_id', $session->quote_id)
+            ->where('product_id', $session->getAnswer('product_id'))
+            ->first();
+            
+        if ($quoteItem) {
+            $product = Product::find($session->getAnswer('product_id'));
+            if ($product) {
+                // Pass true to onlyShowAnsweredCombos to exclude unopened combo questions
+                $newDesc = $product->getDynamicDescription($session->collected_answers ?? [], true);
+                
+                // Add any non-product custom chatflow answers
+                $descLines = [];
+                if ($newDesc) $descLines[] = $newDesc;
+                
+                foreach ($session->collected_answers as $key => $val) {
+                    if (!in_array($key, ['product_id', 'product_name', 'category_id', 'selected_product_group']) && !$product->combos->pluck('column.slug')->contains($key)) {
+                        $descLines[] = ucfirst(str_replace('_', ' ', $key)) . ": {$val}";
+                    }
+                }
+                
+                $quoteItem->update(['description' => implode("\n", $descLines)]);
+            }
+        }
+    }
+
+    /**
      * Select product — create Lead, Quote, send details (PHP built)
      */
     private function selectProduct(AiChatSession $session, int $productId, $steps): string
@@ -1362,7 +1405,7 @@ class AIChatbotService
                 'quote_id' => $quote->id,
                 'product_id' => $productId,
                 'product_name' => $displayName,
-                'description' => $product->getDynamicDescription(),
+                'description' => $product->getDynamicDescription($session->collected_answers ?? [], true),
                 'hsn_code' => $product->hsn_code,
                 'qty' => 1,
                 'rate' => $product->sale_price,
@@ -1480,6 +1523,7 @@ class AIChatbotService
         }
 
         // Tier 1 (Fast PHP Check): Exact or Case-insensitive match first to save AI token cost and avoid AI hallucinations
+        $matchedOption = null;
         foreach ($comboValues as $opt) {
             if (trim(strtolower($rawMessage)) === strtolower(trim($opt))) {
                 $matchedOption = $opt;
@@ -1742,6 +1786,9 @@ class AIChatbotService
             }
         }
 
+        // Update quote description in real time
+        $this->updateQuoteDescription($session);
+
         // Advance
         $this->advanceChatflow($session, $steps);
         $session->save();
@@ -1798,12 +1845,38 @@ class AIChatbotService
             }
         }
 
-        $msg .= "\n✅ Our team will contact you shortly! 🙏";
+        $msg .= "\nDo you confirm this order? Reply *Yes* or *No*. 🙏";
 
-        $session->update(['status' => 'completed', 'conversation_state' => 'completed']);
+        $session->update(['conversation_state' => 'awaiting_confirmation']);
 
         Log::info("AIChatbot: Summary sent (PHP Direct)", ['session' => $session->id]);
         return $this->translateIfNeeded($session, $msg);
+    }
+    
+    // ═══════════════════════════════════════════════════════
+    // CONFIRMATION STEP
+    // ═══════════════════════════════════════════════════════
+    
+    private function handleConfirmationStep(AiChatSession $session, string $rawMessage): string
+    {
+        $msg = strtolower(trim($rawMessage));
+        
+        if (in_array($msg, ['yes', 'y', 'ha', 'haa', 'haan', 'ji', 'sure', 'ok', 'okay', 'done', 'confirm'])) {
+            $session->update(['status' => 'completed', 'conversation_state' => 'completed']);
+            $reply = "✅ Order Confirmed!\n\nOur team will contact you shortly regarding the delivery and payment. Thank you for your business! 🙏";
+            $this->traceNode($session->id, 'OrderConfirmed', 'application', 'success', ['message' => $rawMessage], ['status' => 'confirmed']);
+        } elseif (in_array($msg, ['no', 'n', 'nahi', 'cancel'])) {
+            $session->update(['status' => 'cancelled', 'conversation_state' => 'completed']);
+            if ($session->quote_id) {
+                Quote::where('id', $session->quote_id)->update(['status' => 'cancelled']);
+            }
+            $reply = "❌ Order Cancelled.\n\nYou can start a new chat anytime!";
+            $this->traceNode($session->id, 'OrderCancelled', 'application', 'success', ['message' => $rawMessage], ['status' => 'cancelled']);
+        } else {
+            return $this->translateIfNeeded($session, "Please reply *Yes* to confirm or *No* to cancel your order.");
+        }
+        
+        return $this->translateIfNeeded($session, $reply);
     }
 
     // ═══════════════════════════════════════════════════════
