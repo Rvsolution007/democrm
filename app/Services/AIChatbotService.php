@@ -1429,30 +1429,39 @@ class AIChatbotService
             return $this->buildNextStepPrompt($session, $steps);
         }
 
-        // Tier 1: Match user message to combo option
-        $optionsList = implode(', ', $comboValues);
-        $prompt = "User said: \"{$rawMessage}\"\n\nAvailable options: [{$optionsList}]\n\nWhich option matches user's choice? Reply with the EXACT option text from the list. If no clear match, reply NONE.";
-
-        $t = microtime(true);
-        $matchResult = $this->vertexAI->classifyContent($prompt);
-        $ms = (int)((microtime(true) - $t) * 1000);
-        $this->logTokens($session, 1, $matchResult);
-
-        $matchedText = trim($matchResult['text']);
-        $this->traceNode($session->id, "ComboStepAI_{$column->slug}", 'ai_call', 'success',
-            ['message' => $rawMessage, 'step_name' => $step->name, 'question' => $step->question_text ?: "Which {$column->name}?", 'available_options' => $comboValues],
-            ['raw_response' => $matchedText, 'tokens_used' => $matchResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
-
-        // Verify match is in options (case-insensitive)
-        $matchedOption = null;
+        // Tier 1 (Fast PHP Check): Exact or Case-insensitive match first to save AI token cost and avoid AI hallucinations
         foreach ($comboValues as $opt) {
-            if (strtolower($opt) === strtolower($matchedText)) {
+            if (trim(strtolower($rawMessage)) === strtolower(trim($opt))) {
                 $matchedOption = $opt;
                 break;
             }
         }
 
-        if (!$matchedOption || strtoupper($matchedText) === 'NONE') {
+        // Tier 2: AI Match if PHP fast check fails
+        if (!$matchedOption) {
+            $optionsList = implode(', ', $comboValues);
+            $prompt = "User said: \"{$rawMessage}\"\n\nAvailable options: [{$optionsList}]\n\nWhich option matches user's choice? Reply with ONLY the EXACT option text from the list. If no clear match, reply NONE.";
+
+            $t = microtime(true);
+            $matchResult = $this->vertexAI->classifyContent($prompt);
+            $ms = (int)((microtime(true) - $t) * 1000);
+            $this->logTokens($session, 1, $matchResult);
+
+            $matchedText = trim($matchResult['text']);
+            $this->traceNode($session->id, "ComboStepAI_{$column->slug}", 'ai_call', 'success',
+                ['message' => $rawMessage, 'step_name' => $step->name, 'question' => $step->question_text ?: "Which {$column->name}?", 'available_options' => $comboValues],
+                ['raw_response' => $matchedText, 'tokens_used' => $matchResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
+
+            // Verify match is in options (case-insensitive)
+            foreach ($comboValues as $opt) {
+                if (strtolower($opt) === strtolower($matchedText)) {
+                    $matchedOption = $opt;
+                    break;
+                }
+            }
+        }
+
+        if (!$matchedOption) {
             // OUT OF ORDER CHECK LOGIC
             // Check if user's input matches any OTHER unanswered combo options for this product
             $answers = $session->collected_answers ?? [];
@@ -2010,13 +2019,16 @@ class AIChatbotService
     {
         $result = ['action' => 'continue', 'data' => [], 'response_text' => $response];
 
-        if (preg_match('/```json\s*(.*?)\s*```/s', $response, $matches)) {
+        if (preg_match('/({[\s\S]*?"action"\s*:\s*"[^"]+"[\s\S]*?})/', $response, $matches)) {
             $parsed = json_decode($matches[1], true);
             if ($parsed && isset($parsed['action'])) {
                 $result['action'] = $parsed['action'];
                 $result['data'] = $parsed['data'] ?? [];
             }
-            $result['response_text'] = trim(preg_replace('/```json\s*.*?\s*```/s', '', $response));
+            // Strip the JSON block completely from the remaining text
+            $cleanText = str_replace($matches[1], '', $response);
+            $cleanText = preg_replace('/```json|```/i', '', $cleanText);
+            $result['response_text'] = trim($cleanText);
         }
 
         return $result;
@@ -2888,9 +2900,9 @@ PROMPT;
     private function sendStepMedia(AiChatSession $session, ChatflowStep $step): void
     {
         if (!$step->hasMedia()) {
-            $this->traceNode($session->id, 'ChatflowMediaCheck', 'media', 'info',
+            $this->traceNode($session->id, 'ChatflowMediaCheck', 'media', 'warning',
                 ['step_id' => $step->id, 'step_type' => $step->step_type, 'has_media' => false],
-                ['media_found' => false]);
+                ['media_found' => false, 'message' => 'No media attached securely to this step.']);
             return;
         }
 
@@ -2913,7 +2925,7 @@ PROMPT;
         // If the stored path is relative (e.g., "/storage/products/cover/abc.jpg"),
         // convert it to an absolute URL using the Laravel asset() helper.
         if (!empty($mediaUrl) && !preg_match('#^https?://#i', $mediaUrl)) {
-            $mediaUrl = rtrim(config('app.url'), '/') . '/' . ltrim($mediaUrl, '/');
+            $mediaUrl = asset(ltrim($mediaUrl, '/'));
         }
 
         $config = Setting::getValue('whatsapp', 'api_config', [
@@ -2974,9 +2986,24 @@ PROMPT;
                     ['media_url' => $mediaUrl, 'media_type' => $mediaType],
                     ['whatsapp_status' => 'sent', 'http_status' => $response->status()]);
             } else {
+                $status = $response->status();
+                $responseBody = $response->body();
+                $isAxiosError = str_contains($responseBody, 'AxiosError') || str_contains($responseBody, '404');
+                $suggestion = null;
+                
+                if ($isAxiosError) {
+                    $suggestion = "Evolution API could not reach your network at '{$mediaUrl}'. Ensure your server's public network/DNS resolves this path, or that 'APP_URL' in your .env doesn't point to an internal-only domain inaccessible by Evolution. Also ensure the file actually exists.";
+                }
+
                 $this->traceNode($session->id, 'MediaSendFailed', 'media', 'error',
                     ['media_url' => $mediaUrl, 'error_type' => 'api_error'],
-                    ['error_message' => $response->body(), 'http_status' => $response->status()]);
+                    [
+                        'error_message' => $responseBody, 
+                        'http_status' => $status,
+                        'is_network_routing_issue' => $isAxiosError,
+                        'fix_suggestion' => $suggestion
+                    ]
+                );
             }
         } catch (\Exception $e) {
             $this->traceNode($session->id, 'MediaSendFailed', 'media', 'error',
@@ -3012,9 +3039,9 @@ PROMPT;
             $session->markMediaSent($mediaKey);
             $session->save();
         } else {
-            $this->traceNode($session->id, 'UniqueModelMediaLookup', 'media', 'info',
+            $this->traceNode($session->id, 'UniqueModelMediaLookup', 'media', 'warning',
                 ['product_id' => $product->id, 'model_name' => $this->getProductDisplayName($product)],
-                ['found' => false]);
+                ['found' => false, 'message' => 'No cover_media_url found for this product.']);
         }
     }
 
