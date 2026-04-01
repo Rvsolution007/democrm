@@ -1104,6 +1104,37 @@ class AIChatbotService
             }
         }
 
+        // ── If PHP + spell correction couldn't match, fall back to AI ──
+        if (!$selectedGroupName) {
+            $groupListStr = collect($groupsList)->map(fn($g, $i) => ($i + 1) . ". " . $g['name'])->implode("\n");
+            $prompt = "User said: \"{$rawMessage}\"\n\nAvailable categories/models:\n{$groupListStr}\n\nWhich one did the user select? User might refer by number, partial name, or typo. Reply with ONLY the exact name from the list. If truly unclear, reply NONE.";
+
+            $t = microtime(true);
+            $matchResult = $this->vertexAI->classifyContent($prompt);
+            $ms = (int)((microtime(true) - $t) * 1000);
+            $this->logTokens($session, 1, $matchResult);
+
+            $matchText = trim($matchResult['text']);
+            $this->traceNode($session->id, 'ProductGroupMatchAI', 'ai_call', 'success',
+                ['message' => $rawMessage, 'groups_available' => count($groupsList)],
+                ['raw_response' => $matchText, 'tokens_used' => $matchResult['total_tokens'] ?? 0], null, $ms);
+
+            if (strtoupper($matchText) !== 'NONE') {
+                foreach ($groupsList as $g) {
+                    if (trim(strtolower($g['name'])) === trim(strtolower($matchText))) {
+                        $selectedGroupName = $g['name'];
+                        break;
+                    }
+                }
+                if (!$selectedGroupName && preg_match('/^(\d+)$/', $matchText, $m)) {
+                    $num = (int)$m[1];
+                    if ($num >= 1 && $num <= count($groupsList)) {
+                        $selectedGroupName = $groupsList[$num - 1]['name'];
+                    }
+                }
+            }
+        }
+
         if ($selectedGroupName) {
             $this->traceNode($session->id, 'ProductGroupSelected', 'routing', 'success', ['message' => $rawMessage], ['group_name' => $selectedGroupName]);
             $session->setAnswer('selected_product_group', $selectedGroupName);
