@@ -917,7 +917,7 @@
                         <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
                             <thead>
                                 <tr style="background:#f8f9fa;text-align:left">
-                                    <th style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px;font-weight:600">Label (e.g. Day 1)</th>
+                                    <th style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px;font-weight:600">Schedule Name <span style="font-weight:400;color:#888;font-size:11px;">(AI will auto-write message)</span></th>
                                     <th style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px;font-weight:600;width:150px">Delay (Minutes)</th>
                                     <th style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px;font-weight:600;width:100px">Active</th>
                                     <th style="padding:10px 14px;border-bottom:1px solid #eee;width:60px"></th>
@@ -2033,36 +2033,65 @@
         // ═══════════════════════════════════════
         let followupSchedules = @json($followupSchedules ?? []);
 
+        function syncFollowupSchedulesFromDOM() {
+            const tbody = document.getElementById('followup-schedules-tbody');
+            if (!tbody) return;
+            const rows = tbody.querySelectorAll('tr');
+            const newSchedules = [];
+            let hasInputs = false;
+            rows.forEach((row) => {
+                const nameInput = row.querySelector('.followup-name');
+                if (!nameInput) return; 
+                hasInputs = true;
+                const delayInput = row.querySelector('.followup-delay');
+                const activeChkbx = row.querySelector('.followup-active');
+
+                newSchedules.push({
+                    name: nameInput.value,
+                    delay_minutes: parseInt(delayInput.value) || 0,
+                    is_active: activeChkbx.checked
+                });
+            });
+            if (hasInputs || rows.length === 0) {
+                followupSchedules = newSchedules;
+            } else if (rows.length === 1 && !hasInputs) {
+                followupSchedules = [];
+            }
+        }
+
         function renderFollowupSchedules() {
             const tbody = document.getElementById('followup-schedules-tbody');
             if (!tbody) return;
-            tbody.innerHTML = '';
+            
+            let html = '';
 
             if (!followupSchedules || followupSchedules.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:#999;font-size:13px">No schedules added yet. Click "+ Add Schedule" to create one.</td></tr>';
-                return;
+                html = '<tr><td colspan="4" style="text-align:center;padding:24px;color:#999;font-size:13px">No schedules added yet. Click "+ Add Schedule" to create one.</td></tr>';
+            } else {
+                followupSchedules.forEach((schedule, idx) => {
+                    const isActiveChecked = schedule.is_active ? 'checked' : '';
+                    html += `
+                        <tr>
+                            <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0"><input type="text" class="form-input followup-name" value="${escapeHtml(schedule.name || '')}" placeholder="Ex: Day 1 (Not the message)"></td>
+                            <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0"><input type="number" min="0" class="form-input followup-delay" value="${schedule.delay_minutes || 0}" placeholder="Minutes"></td>
+                            <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:center"><label class="column-toggle" style="margin:0;justify-content:center"><input type="checkbox" class="followup-active" ${isActiveChecked}></label></td>
+                            <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right"><button type="button" class="btn btn-icon btn-ghost btn-sm" style="color:var(--destructive)" onclick="removeFollowupSchedule(${idx})" title="Remove"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button></td>
+                        </tr>
+                    `;
+                });
             }
-
-            followupSchedules.forEach((schedule, idx) => {
-                const isActiveChecked = schedule.is_active ? 'checked' : '';
-                tbody.innerHTML += `
-                    <tr>
-                        <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0"><input type="text" class="form-input followup-name" value="${escapeHtml(schedule.name || '')}" placeholder="e.g. Day 1 Followup"></td>
-                        <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0"><input type="number" min="0" class="form-input followup-delay" value="${schedule.delay_minutes || 0}" placeholder="Minutes"></td>
-                        <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:center"><label class="column-toggle" style="margin:0;justify-content:center"><input type="checkbox" class="followup-active" ${isActiveChecked}></label></td>
-                        <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right"><button type="button" class="btn btn-icon btn-ghost btn-sm" style="color:var(--destructive)" onclick="removeFollowupSchedule(${idx})" title="Remove"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button></td>
-                    </tr>
-                `;
-            });
+            tbody.innerHTML = html;
             lucide.createIcons();
         }
 
         function addFollowupSchedule() {
+            syncFollowupSchedulesFromDOM();
             followupSchedules.push({ name: '', delay_minutes: 60, is_active: true });
             renderFollowupSchedules();
         }
 
         function removeFollowupSchedule(idx) {
+            syncFollowupSchedulesFromDOM();
             followupSchedules.splice(idx, 1);
             renderFollowupSchedules();
         }
