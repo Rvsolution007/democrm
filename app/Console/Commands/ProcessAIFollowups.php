@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\AiChatSession;
+use App\Models\AiChatTrace;
 use App\Models\ChatFollowupSchedule;
 use App\Models\Lead;
 use App\Models\Setting;
@@ -54,10 +55,15 @@ class ProcessAIFollowups extends Command
             $stopStage = Setting::getValue('ai_bot', 'stop_stage', '', $company->id);
             
             // Get active sessions that are not completed or cancelled, and still eligible for followups.
-            // followup_status stores the count of followups already sent. If it's -1, it means stopped.
+            // followup_status is integer: 0=active, 1+=followups sent, -1=stopped
+            // Legacy string 'active' is treated as 0
             $sessions = AiChatSession::where('company_id', $company->id)
                 ->whereNotIn('status', ['completed', 'cancelled', 'stopped'])
-                ->where('followup_status', '>=', 0)
+                ->where(function ($q) {
+                    $q->where('followup_status', '>=', 0)
+                      ->orWhere('followup_status', 'active')
+                      ->orWhereNull('followup_status');
+                })
                 ->get();
                 
             $processedCount = 0;
@@ -76,8 +82,14 @@ class ProcessAIFollowups extends Command
                     continue;
                 }
                 
-                // Which schedule is next?
-                $nextIndex = $session->followup_status ?? 0;
+                // Normalize followup_status: treat 'active', null, '' as 0
+                $rawStatus = $session->followup_status;
+                $nextIndex = is_numeric($rawStatus) ? (int)$rawStatus : 0;
+                
+                // If followup_status is -1 (stopped), skip
+                if ($nextIndex < 0) {
+                    continue;
+                }
                 
                 // If we've sent all schedules, mark as stopped
                 if ($nextIndex >= $schedules->count()) {
@@ -114,6 +126,24 @@ class ProcessAIFollowups extends Command
                     try {
                         $this->info("Sending followup {$nextSchedule->name} for session {$session->id}");
                         
+                        // ── TRACE: Follow-up Schedule Matched ──
+                        AiChatTrace::create([
+                            'session_id' => $session->id,
+                            'node_name' => 'FollowupScheduleMatched',
+                            'node_group' => 'followup',
+                            'status' => 'success',
+                            'input_data' => [
+                                'schedule_name' => $nextSchedule->name,
+                                'delay_minutes' => $nextSchedule->delay_minutes,
+                                'elapsed_minutes' => round($elapsedMinutes, 1),
+                                'followup_index' => $nextIndex,
+                            ],
+                            'output_data' => [
+                                'action' => 'generating_message',
+                                'phone' => $session->phone_number,
+                            ],
+                        ]);
+
                         // Generate Context-Aware Message via Vertex AI Flash
                         $prompt = "You are a helpful sales assistant following up with a customer.\n";
                         $prompt .= "The customer hasn't replied to your last message.\n";
@@ -126,11 +156,30 @@ class ProcessAIFollowups extends Command
                         // Pass recent history for context
                         $history = $this->buildMiniHistory($session);
                         
+                        $t = microtime(true);
                         $aiResult = $vertexAI->generateContent($prompt, $history, null);
+                        $aiMs = (int)((microtime(true) - $t) * 1000);
                         $replyText = trim($aiResult['text'] ?? "Hi there, just checking in to see if you have any questions!");
                         
                         // Clean markdown
                         $replyText = preg_replace('/```.*?```/s', '', $replyText);
+
+                        // ── TRACE: Follow-up AI Message Generated ──
+                        AiChatTrace::create([
+                            'session_id' => $session->id,
+                            'node_name' => 'FollowupAIGenerated',
+                            'node_group' => 'followup',
+                            'status' => 'success',
+                            'input_data' => [
+                                'prompt_preview' => mb_substr($prompt, 0, 150),
+                                'history_length' => count($history),
+                            ],
+                            'output_data' => [
+                                'response' => mb_substr($replyText, 0, 200),
+                                'tokens_used' => $aiResult['total_tokens'] ?? 0,
+                            ],
+                            'execution_time_ms' => $aiMs,
+                        ]);
 
                         // Use company settings for evolution API
                         $config = Setting::getValue('whatsapp', 'api_config', [
@@ -185,18 +234,69 @@ class ProcessAIFollowups extends Command
                                     'time' => now()->toTimeString()
                                 ]);
                                 
-                                // And add to lead notes
+                                // Set next_follow_up_at on lead for CRM visibility
+                                $nextScheduleAfterThis = $schedules[$nextIndex + 1] ?? null;
+                                if ($nextScheduleAfterThis) {
+                                    $nextFollowupTime = now()->addMinutes($nextScheduleAfterThis->delay_minutes);
+                                    $lead->update(['next_follow_up_at' => $nextFollowupTime]);
+                                } else {
+                                    $lead->update(['next_follow_up_at' => null]);
+                                }
+                                
+                                // Add to lead notes
                                 $lead->update([
                                     'notes' => ($lead->notes ? $lead->notes . "\n" : '') . "[AI Smart Followup] " . $replyText
                                 ]);
                             }
                             
+                            // ── TRACE: Follow-up Sent Successfully ──
+                            AiChatTrace::create([
+                                'session_id' => $session->id,
+                                'node_name' => 'FollowupSent',
+                                'node_group' => 'followup',
+                                'status' => 'success',
+                                'input_data' => [
+                                    'phone' => $session->phone_number,
+                                    'schedule_name' => $nextSchedule->name,
+                                ],
+                                'output_data' => [
+                                    'message_preview' => mb_substr($replyText, 0, 150),
+                                    'followup_index' => $nextIndex + 1,
+                                    'lead_id' => $lead ? $lead->id : null,
+                                    'next_followup_at' => isset($nextScheduleAfterThis) ? $nextFollowupTime->toDateTimeString() : 'none (last)',
+                                ],
+                            ]);
+                            
                             $processedCount++;
                             Log::info("ProcessAIFollowups: Sent schedule {$nextSchedule->id} for session {$session->id}");
                         } else {
+                            // ── TRACE: Follow-up Send Failed ──
+                            AiChatTrace::create([
+                                'session_id' => $session->id,
+                                'node_name' => 'FollowupSendFailed',
+                                'node_group' => 'followup',
+                                'status' => 'error',
+                                'input_data' => [
+                                    'phone' => $session->phone_number,
+                                    'schedule_name' => $nextSchedule->name,
+                                ],
+                                'error_message' => 'Evolution API returned: ' . mb_substr($response->body(), 0, 200),
+                            ]);
                             Log::error("ProcessAIFollowups: Failed to send via Evolution for session {$session->id}", ['error' => $response->body()]);
                         }
                     } catch (\Exception $e) {
+                        // ── TRACE: Follow-up Exception ──
+                        try {
+                            AiChatTrace::create([
+                                'session_id' => $session->id,
+                                'node_name' => 'FollowupException',
+                                'node_group' => 'followup',
+                                'status' => 'error',
+                                'error_message' => $e->getMessage(),
+                            ]);
+                        } catch (\Exception $traceErr) {
+                            // Ignore trace save errors
+                        }
                          Log::error("ProcessAIFollowups Exception: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine());
                     }
                 }

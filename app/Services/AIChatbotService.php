@@ -7,6 +7,7 @@ use App\Models\AiChatMessage;
 use App\Models\AiChatTrace;
 use App\Models\AiTokenLog;
 use App\Models\ChatflowStep;
+use App\Models\ChatFollowupSchedule;
 use App\Models\CatalogueCustomColumn;
 use App\Models\Product;
 use App\Models\ProductVariation;
@@ -350,6 +351,34 @@ class AIChatbotService
 
                 $session->update(['last_message_at' => now()]);
 
+                // ── Early Lead Creation (on first message) ──
+                if (!$session->lead_id) {
+                    // Calculate first follow-up time if schedules exist
+                    $firstSchedule = ChatFollowupSchedule::where('company_id', $this->companyId)
+                        ->where('is_active', true)
+                        ->orderBy('delay_minutes', 'asc')
+                        ->first();
+                    $nextFollowUpAt = $firstSchedule ? now()->addMinutes($firstSchedule->delay_minutes) : null;
+
+                    $lead = Lead::create([
+                        'company_id' => $this->companyId,
+                        'created_by_user_id' => $this->userId,
+                        'source' => 'whatsapp',
+                        'name' => $phone,
+                        'phone' => $phone,
+                        'stage' => 'new',
+                        'next_follow_up_at' => $nextFollowUpAt,
+                    ]);
+                    $session->lead_id = $lead->id;
+                    $session->save();
+
+                    $this->traceNode($session->id, 'EarlyLeadCreated', 'database', 'success',
+                        ['phone' => $phone, 'trigger' => 'first_message'],
+                        ['lead_id' => $lead->id, 'lead_source' => 'whatsapp', 'next_follow_up_at' => $nextFollowUpAt ? $nextFollowUpAt->toDateTimeString() : 'none']);
+
+                    Log::info('AIChatbot: Early lead created on first message', ['session' => $session->id, 'lead_id' => $lead->id]);
+                }
+
                 // Save incoming user message
                 $userMsg = AiChatMessage::create([
                     'session_id' => $session->id,
@@ -491,6 +520,9 @@ class AIChatbotService
                 $sendStart = microtime(true);
                 $sendResult = $this->sendWhatsAppMessage($instanceName, $phone, $responseText);
                 $sendMs = (int)((microtime(true) - $sendStart) * 1000);
+
+                // ── Update last_bot_message_at for follow-up timing ──
+                $session->update(['last_bot_message_at' => now()]);
 
                 // ── TRACE: Send Reply
                 $this->traceNode($session->id, 'SendWhatsAppReply', 'delivery',
@@ -1114,9 +1146,19 @@ class AIChatbotService
 
         if (!$selectedGroupName) {
             foreach ($groupsList as $g) {
-                if (str_contains($msg, strtolower($g['name']))) {
+                $gNameLower = strtolower($g['name']);
+                // Bidirectional substring match: user message contains group name OR group name contains user message
+                if (str_contains($msg, $gNameLower) || (strlen($msg) >= 3 && str_contains($gNameLower, $msg))) {
                     $selectedGroupName = $g['name'];
                     break;
+                }
+                // Also check individual words from user message against group name
+                $userWords = preg_split('/[\s,]+/', $msg);
+                foreach ($userWords as $word) {
+                    if (strlen($word) >= 3 && str_contains($gNameLower, $word)) {
+                        $selectedGroupName = $g['name'];
+                        break 2;
+                    }
                 }
             }
         }
@@ -1257,13 +1299,34 @@ class AIChatbotService
 
         // ── Also try direct name matching (PHP level) ──
         if (!$selectedProduct && !$listNumber) {
+            // First try strict equality
             foreach ($products as $product) {
                 $displayName = strtolower($this->getProductDisplayName($product));
                 $productName = strtolower($product->name);
-                // Strict equality check instead of greedy str_contains
                 if ($msg === $displayName || $msg === $productName) {
                     $selectedProduct = $product;
                     break;
+                }
+            }
+            // Then try bidirectional substring/partial match
+            if (!$selectedProduct) {
+                foreach ($products as $product) {
+                    $displayName = strtolower($this->getProductDisplayName($product));
+                    $productName = strtolower($product->name);
+                    // User message contains product name, or product name contains user message
+                    if (str_contains($msg, $displayName) || str_contains($msg, $productName)
+                        || (strlen($msg) >= 3 && (str_contains($displayName, $msg) || str_contains($productName, $msg)))) {
+                        $selectedProduct = $product;
+                        break;
+                    }
+                    // Check individual words from user message against product name
+                    $userWords = preg_split('/[\s,]+/', $msg);
+                    foreach ($userWords as $word) {
+                        if (strlen($word) >= 3 && (str_contains($displayName, $word) || str_contains($productName, $word))) {
+                            $selectedProduct = $product;
+                            break 2;
+                        }
+                    }
                 }
             }
         }
@@ -1388,8 +1451,21 @@ class AIChatbotService
         $session->setAnswer('product_name', $displayName);
         $session->conversation_state = 'product_selected';
 
-        // Create Lead
-        if (!$session->lead_id) {
+        // Attach product to existing lead (lead is now created on first message)
+        if ($session->lead_id) {
+            $lead = Lead::find($session->lead_id);
+            if ($lead) {
+                // Attach product if not already attached
+                if (!$lead->products()->where('product_id', $productId)->exists()) {
+                    $lead->products()->attach($productId, ['quantity' => 1, 'price' => $product->sale_price]);
+                }
+                $lead->update(['product_name' => $displayName]);
+                $this->traceNode($session->id, 'ProductAttachedToLead', 'database', 'success',
+                    ['product_id' => $productId, 'product_name' => $displayName],
+                    ['lead_id' => $lead->id, 'lead_phone' => $session->phone_number]);
+            }
+        } else {
+            // Fallback: create lead if somehow it doesn't exist yet
             $lead = Lead::create([
                 'company_id' => $this->companyId,
                 'created_by_user_id' => $this->userId,
@@ -2203,17 +2279,34 @@ class AIChatbotService
     {
         $result = ['action' => 'continue', 'data' => [], 'response_text' => $response];
 
-        if (preg_match('/({[\s\S]*?"action"\s*:\s*"[^"]+"[\s\S]*?})/', $response, $matches)) {
+        // First, try to match the entire ```json...``` code fence block
+        $cleanText = $response;
+        if (preg_match('/```(?:json)?\s*\n?\s*(\{[\s\S]*?"action"\s*:\s*"[^"]+"[\s\S]*?\})\s*\n?\s*```/i', $response, $fenceMatch)) {
+            $parsed = json_decode($fenceMatch[1], true);
+            if ($parsed && isset($parsed['action'])) {
+                $result['action'] = $parsed['action'];
+                $result['data'] = $parsed['data'] ?? [];
+            }
+            // Strip the entire code fence block (including backticks and all content between)
+            $cleanText = str_replace($fenceMatch[0], '', $response);
+        } elseif (preg_match('/(\{[\s\S]*?"action"\s*:\s*"[^"]+"[\s\S]*?\})/', $response, $matches)) {
+            // Fallback: bare JSON without code fences
             $parsed = json_decode($matches[1], true);
             if ($parsed && isset($parsed['action'])) {
                 $result['action'] = $parsed['action'];
                 $result['data'] = $parsed['data'] ?? [];
             }
-            // Strip the JSON block completely from the remaining text
             $cleanText = str_replace($matches[1], '', $response);
-            $cleanText = preg_replace('/```json|```/i', '', $cleanText);
-            $result['response_text'] = trim($cleanText);
         }
+
+        // Clean up any remaining stray markdown artifacts
+        $cleanText = preg_replace('/```(?:json)?\s*```/i', '', $cleanText);
+        $cleanText = preg_replace('/```(?:json)?|```/i', '', $cleanText);
+        // Remove stray lone } or { at the beginning of lines (leftover from incomplete JSON stripping)
+        $cleanText = preg_replace('/^\s*[{}]\s*$/m', '', $cleanText);
+        // Clean up leading/trailing whitespace and extra blank lines
+        $cleanText = preg_replace('/\n{3,}/', "\n\n", trim($cleanText));
+        $result['response_text'] = trim($cleanText);
 
         return $result;
     }

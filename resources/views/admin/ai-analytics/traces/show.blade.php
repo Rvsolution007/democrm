@@ -179,6 +179,8 @@
     .badge-delivery { background: #dcfce7; color: #166534; }
     .badge-database { background: #f0e4ff; color: #7c3aed; }
     .badge-data_update { background: #f0e4ff; color: #7c3aed; }
+    .badge-media { background: #fce7f3; color: #9d174d; }
+    .badge-followup { background: #fff7ed; color: #c2410c; }
     
     .node-time {
         font-size: 11px;
@@ -274,6 +276,34 @@
     .msg-type-document { background: #f0e4ff; color: #7c3aed; }
     .msg-type-other { background: #f1f5f9; color: #475569; }
 
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+        padding: 16px 20px;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 16px;
+    }
+    .section-header-sales {
+        background: linear-gradient(135deg, #eff6ff, #dbeafe);
+        color: #1e40af;
+        border: 1px solid #bfdbfe;
+    }
+    .section-header-followup {
+        background: linear-gradient(135deg, #fff7ed, #ffedd5);
+        color: #c2410c;
+        border: 1px solid #fed7aa;
+    }
+    .section-count {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 20px;
+        margin-left: auto;
+    }
+
     @media (max-width: 768px) {
         .node-wrapper { padding-left: 40px; }
         .timeline-line { left: 28px; }
@@ -338,10 +368,20 @@
     </div>
 
     @php
-        $groupedTraces = $traces->groupBy('message_id')->reverse();
+        // Split traces into Sales and Follow-up sections
+        $salesTraces = $traces->where('node_group', '!=', 'followup');
+        $followupTraces = $traces->where('node_group', 'followup');
+        $groupedSalesTraces = $salesTraces->groupBy('message_id')->reverse();
     @endphp
 
-    @forelse($groupedTraces as $msgId => $msgTraces)
+    <!-- ═══ SECTION 1: Sales Trace ═══ -->
+    <div class="section-header section-header-sales">
+        <i data-lucide="shopping-cart" style="width:22px;height:22px"></i>
+        Sales Trace
+        <span class="section-count" style="background:#dbeafe;color:#1e40af">{{ $salesTraces->count() }} nodes</span>
+    </div>
+
+    @forelse($groupedSalesTraces as $msgId => $msgTraces)
         @php
             $firstTrace = $msgTraces->first();
             $userMessageText = $firstTrace->message->message ?? 'Background Process / System Trigger';
@@ -490,14 +530,151 @@
             </div>
         </div>
     @empty
-        <div class="empty-state">
-            <div style="background:white;padding:32px;border-radius:12px;display:inline-block;box-shadow:0 10px 15px -3px rgb(0 0 0/0.05);border:1px solid #e2e8f0">
-                <i data-lucide="ghost" style="width:56px;height:56px;color:#cbd5e1;margin-bottom:16px"></i>
-                <h3 style="font-weight:700;font-size:18px;margin-bottom:8px;color:#0f172a">No traces found</h3>
-                <p style="color:#64748b;font-size:15px">Tracing wasn't active, the message errored out completely, or logs were purged.</p>
+        <div class="empty-state" style="padding:30px 20px">
+            <div style="background:white;padding:24px;border-radius:12px;display:inline-block;box-shadow:0 4px 6px -1px rgb(0 0 0/0.05);border:1px solid #e2e8f0">
+                <i data-lucide="shopping-cart" style="width:40px;height:40px;color:#cbd5e1;margin-bottom:12px"></i>
+                <h3 style="font-weight:700;font-size:16px;margin-bottom:6px;color:#0f172a">No sales traces</h3>
+                <p style="color:#64748b;font-size:13px">No sales interaction traces found for this session.</p>
             </div>
         </div>
     @endforelse
+
+    <!-- ═══ SECTION 2: Follow-up Trace ═══ -->
+    <div style="margin-top:40px">
+        <div class="section-header section-header-followup">
+            <i data-lucide="bell" style="width:22px;height:22px"></i>
+            Follow-up Trace
+            <span class="section-count" style="background:#ffedd5;color:#c2410c">{{ $followupTraces->count() }} nodes</span>
+        </div>
+
+        @if($followupTraces->isNotEmpty())
+            <div class="message-accordion" style="border-left:3px solid #f97316">
+                <div class="message-header active" id="header-followups" onclick="toggleAccordion('followups')">
+                    <div class="message-info">
+                        <span class="message-id-badge" style="background:#c2410c">
+                            <i data-lucide="bell" style="width:14px;height:14px"></i>
+                            Smart Follow-ups
+                        </span>
+                        <span class="user-message-text" style="color:#c2410c;font-style:normal">{{ $followupTraces->count() }} follow-up event(s) recorded</span>
+                    </div>
+                    <div class="message-meta">
+                        @php $fuErrors = $followupTraces->where('status', 'error')->count(); @endphp
+                        @if($fuErrors > 0)
+                            <span style="color: #b91c1c; background: #fee2e2; padding: 4px 10px; border-radius: 20px; display:flex; align-items:center; gap:4px">
+                                <i data-lucide="alert-circle" style="width:14px;height:14px"></i> {{ $fuErrors }} Error(s)
+                            </span>
+                        @endif
+                        <span style="display:flex; align-items:center; gap:4px">
+                            <i data-lucide="activity" style="width:14px;height:14px"></i> {{ $followupTraces->count() }} Nodes
+                        </span>
+                        <i data-lucide="chevron-down" id="icon-followups" style="width:20px;height:20px;transition: transform 0.2s; transform: rotate(180deg)"></i>
+                    </div>
+                </div>
+                
+                <div class="message-content" id="content-followups" style="display: block;">
+                    <div class="flow-container">
+                        <div class="timeline-line" style="background:#fed7aa"></div>
+                        
+                        @foreach($followupTraces as $traceIndex => $trace)
+                            @php $isFirstNode = $traceIndex === 0; @endphp
+                            <div class="node-wrapper">
+                                <div class="node-card" data-status="{{ $trace->status }}" style="border-left-color: {{ $trace->status === 'success' ? '#f97316' : ($trace->status === 'error' ? '#ef4444' : '#f59e0b') }}">
+                                    <div class="timeline-dot" style="border-color:{{ $trace->status === 'success' ? '#f97316' : '#ef4444' }}"></div>
+                                    
+                                    <div class="node-header" onclick="toggleNode('{{ $trace->id }}')" style="cursor:pointer; transition: background 0.2s; background: #fffbf5;">
+                                        <div class="node-title">
+                                            <i data-lucide="{{ $trace->getGroupIcon() }}" style="width:18px;height:18px;color:{{ $trace->status === 'success' ? '#f97316' : '#ef4444' }}"></i>
+                                            {{ $trace->node_name }}
+                                        </div>
+                                        <div style="display:flex; align-items:center; gap:16px">
+                                            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+                                                <span class="node-type-badge badge-followup">followup</span>
+                                                @if($trace->execution_time_ms > 0)
+                                                    <span class="node-time"><i data-lucide="clock" style="width:12px;height:12px"></i> {{ $trace->execution_time_ms }}ms</span>
+                                                @endif
+                                                <span class="node-time"><i data-lucide="calendar" style="width:12px;height:12px"></i> {{ $trace->created_at->format('d M, h:i A') }}</span>
+                                            </div>
+                                            <i data-lucide="chevron-down" id="node-icon-{{ $trace->id }}" style="width:18px;height:18px;color:#94a3b8;transition: transform 0.2s; transform: {{ $isFirstNode ? 'rotate(180deg)' : 'rotate(0deg)' }}"></i>
+                                        </div>
+                                    </div>
+                                    <div class="node-body" id="node-body-{{ $trace->id }}" style="display: {{ $isFirstNode ? 'block' : 'none' }};">
+                                        <div class="data-grid {{ ($trace->input_data && $trace->output_data) ? 'split' : '' }}">
+                                            @if($trace->input_data)
+                                                <div>
+                                                    <div class="data-key" style="color:#c2410c">
+                                                        <i data-lucide="log-in" style="width:14px;height:14px"></i> Input Data
+                                                    </div>
+                                                    <div class="data-value" style="background:#fffbf5;border-color:#fed7aa">
+                                                        @foreach($trace->input_data as $k => $v)
+                                                            <div class="kv-pair">
+                                                                <span class="kv-key">{{ $k }}:</span>
+                                                                @if(is_bool($v) || $v === true || $v === false)
+                                                                    <span class="{{ $v ? 'kv-val-true' : 'kv-val-false' }}">{{ $v ? 'true' : 'false' }}</span>
+                                                                @elseif(is_null($v))
+                                                                    <span class="kv-val-null">null</span>
+                                                                @elseif(is_numeric($v))
+                                                                    <span class="kv-val-number">{{ $v }}</span>
+                                                                @elseif(is_array($v))
+                                                                    <span class="text-gray-700" style="font-size:12px">{{ mb_substr(json_encode($v), 0, 150) }}</span>
+                                                                @else
+                                                                    <span class="text-gray-700">{{ mb_substr((string)$v, 0, 200) }}</span>
+                                                                @endif
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                </div>
+                                            @endif
+
+                                            @if($trace->output_data)
+                                                <div>
+                                                    <div class="data-key" style="color:#166534">
+                                                        <i data-lucide="log-out" style="width:14px;height:14px"></i> Output Data
+                                                    </div>
+                                                    <div class="data-value" style="background:#fffbf5;border-color:#fed7aa">
+                                                        @foreach($trace->output_data as $k => $v)
+                                                            <div class="kv-pair">
+                                                                <span class="kv-key">{{ $k }}:</span>
+                                                                @if(is_bool($v) || $v === true || $v === false)
+                                                                    <span class="{{ $v ? 'kv-val-true' : 'kv-val-false' }}">{{ $v ? 'true' : 'false' }}</span>
+                                                                @elseif(is_null($v))
+                                                                    <span class="kv-val-null">null</span>
+                                                                @elseif(is_numeric($v))
+                                                                    <span class="kv-val-number">{{ $v }}</span>
+                                                                @elseif(is_array($v))
+                                                                    <span class="text-gray-700" style="font-size:12px">{{ mb_substr(json_encode($v), 0, 150) }}</span>
+                                                                @else
+                                                                    <span class="text-gray-700">{{ mb_substr((string)$v, 0, 200) }}</span>
+                                                                @endif
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                </div>
+                                            @endif
+                                        </div>
+                                        
+                                        @if($trace->error_message)
+                                            <div class="error-msg">
+                                                <i data-lucide="alert-triangle" style="width:16px;height:16px;flex-shrink:0;margin-top:2px"></i>
+                                                <div>{{ $trace->error_message }}</div>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+        @else
+            <div class="empty-state" style="padding:30px 20px">
+                <div style="background:white;padding:24px;border-radius:12px;display:inline-block;box-shadow:0 4px 6px -1px rgb(0 0 0/0.05);border:1px solid #e2e8f0">
+                    <i data-lucide="bell-off" style="width:40px;height:40px;color:#cbd5e1;margin-bottom:12px"></i>
+                    <h3 style="font-weight:700;font-size:16px;margin-bottom:6px;color:#0f172a">No follow-up traces yet</h3>
+                    <p style="color:#64748b;font-size:13px">Follow-up events will appear here when smart follow-ups are triggered.</p>
+                </div>
+            </div>
+        @endif
+    </div>
 
 @endsection
 

@@ -64,6 +64,8 @@ class AiChatTrace extends Model
             'database'    => 'database',
             'data_update' => 'database',
             'delivery'    => 'send',
+            'media'       => 'image',
+            'followup'    => 'bell',
             default       => 'circle',
         };
     }
