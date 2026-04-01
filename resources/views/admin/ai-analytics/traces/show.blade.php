@@ -375,11 +375,14 @@
     @endphp
 
     <!-- ═══ SECTION 1: Sales Trace ═══ -->
-    <div class="section-header section-header-sales">
-        <i data-lucide="shopping-cart" style="width:22px;height:22px"></i>
-        Sales Trace
-        <span class="section-count" style="background:#dbeafe;color:#1e40af">{{ $salesTraces->count() }} nodes</span>
-    </div>
+    <div class="message-accordion" style="margin-bottom: 30px; border-radius: 12px; overflow: hidden; border: 1px solid #bfdbfe;">
+        <div class="section-header section-header-sales" id="header-section-sales" onclick="toggleAccordion('section-sales')" style="cursor: pointer; margin-bottom: 0; border: none; border-radius: 0;">
+            <i data-lucide="shopping-cart" style="width:22px;height:22px"></i>
+            Sales Trace
+            <span class="section-count" style="background:#dbeafe;color:#1e40af">{{ $salesTraces->count() }} nodes</span>
+            <i data-lucide="chevron-down" id="icon-section-sales" style="width:20px;height:20px;margin-left:8px;transition: transform 0.2s; transform: rotate(0deg)"></i>
+        </div>
+        <div id="content-section-sales" style="display: none; padding: 20px; background: #f8fafc; border-top: 1px solid #bfdbfe;">
 
     @forelse($groupedSalesTraces as $msgId => $msgTraces)
         @php
@@ -538,14 +541,18 @@
             </div>
         </div>
     @endforelse
+        </div>
+    </div>
 
     <!-- ═══ SECTION 2: Follow-up Trace ═══ -->
-    <div style="margin-top:40px">
-        <div class="section-header section-header-followup">
+    <div class="message-accordion" style="margin-bottom: 30px; border-radius: 12px; overflow: hidden; border: 1px solid #fed7aa;">
+        <div class="section-header section-header-followup" id="header-section-followup" onclick="toggleAccordion('section-followup')" style="cursor: pointer; margin-bottom: 0; border: none; border-radius: 0;">
             <i data-lucide="bell" style="width:22px;height:22px"></i>
             Follow-up Trace
             <span class="section-count" style="background:#ffedd5;color:#c2410c">{{ $followupTraces->count() }} nodes</span>
+            <i data-lucide="chevron-down" id="icon-section-followup" style="width:20px;height:20px;margin-left:8px;transition: transform 0.2s; transform: rotate(0deg)"></i>
         </div>
+        <div id="content-section-followup" style="display: none; padding: 20px; background: #fffbf5; border-top: 1px solid #fed7aa;">
 
         @if($followupTraces->isNotEmpty())
             <div class="message-accordion" style="border-left:3px solid #f97316">
@@ -674,6 +681,7 @@
                 </div>
             </div>
         @endif
+        </div>
     </div>
 
 @endsection

@@ -878,32 +878,70 @@ class AIChatbotService
         $categoryLabel = $this->getCategoryFieldLabel();
         $catList = $categories->map(fn($c, $i) => ($i + 1) . ". {$c->name} (ID:{$c->id})")->implode("\n");
 
-        $prompt = "User said: \"{$rawMessage}\"\n\nAvailable {$categoryLabel}s:\n{$catList}\n\nWhich {$categoryLabel} number did user select or which name matches? Reply with ONLY the ID number. If unclear or no match, reply NONE.";
-
-        $t = microtime(true);
-        $matchResult = $this->vertexAI->classifyContent($prompt);
-        $ms = (int)((microtime(true) - $t) * 1000);
-        $this->logTokens($session, 1, $matchResult);
-
-        $matchText = trim($matchResult['text']);
-        $this->traceNode($session->id, 'CategoryMatchAI', 'ai_call', 'success',
-            ['message' => $rawMessage, 'categories_available' => $categories->count()],
-            ['raw_response' => $matchText, 'tokens_used' => $matchResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
-
-        // Extract number from response
-        preg_match('/(\d+)/', $matchText, $matches);
-        $matchedId = $matches[1] ?? null;
-
-        // Check if it's a valid category ID or list number
+        // ── PHP Level Matching (Number & Substring) ──
+        $msg = strtolower(trim($rawMessage));
         $selectedCategory = null;
-        if ($matchedId) {
-            $selectedCategory = $categories->firstWhere('id', (int)$matchedId);
-            if (!$selectedCategory && (int)$matchedId <= $categories->count()) {
-                $selectedCategory = $categories->values()[(int)$matchedId - 1] ?? null;
+        
+        // 1. Try strict number extraction
+        $listNumber = null;
+        if (preg_match('/^\s*(?:category|type|#|no\.?\s*|number\s*)?\s*(\d+)\s*$/i', $msg, $numMatch)) {
+            $listNumber = (int)$numMatch[1];
+        }
+        
+        if ($listNumber && $listNumber >= 1 && $listNumber <= $categories->count()) {
+            $selectedCategory = $categories->values()[$listNumber - 1] ?? null;
+        }
+
+        // 2. Try partial/substring match if number wasn't found
+        if (!$selectedCategory) {
+            foreach ($categories as $cat) {
+                $cNameLower = strtolower($cat->name);
+                
+                // Bidirectional substring match
+                if (str_contains($msg, $cNameLower) || (strlen($msg) >= 3 && str_contains($cNameLower, $msg))) {
+                    $selectedCategory = $cat;
+                    break;
+                }
+                
+                // Word-by-word match
+                $userWords = preg_split('/[\s,]+/', $msg);
+                foreach ($userWords as $word) {
+                    if (strlen($word) >= 3 && str_contains($cNameLower, $word)) {
+                        $selectedCategory = $cat;
+                        break 2;
+                    }
+                }
             }
         }
 
-        if (!$selectedCategory || strtoupper($matchText) === 'NONE') {
+        // ── AI Fallback if PHP matching fails ──
+        if (!$selectedCategory) {
+            $prompt = "User said: \"{$rawMessage}\"\n\nAvailable {$categoryLabel}s:\n{$catList}\n\nWhich {$categoryLabel} number did user select or which name matches? Reply with ONLY the ID number. If unclear or no match, reply NONE.";
+
+            $t = microtime(true);
+            $matchResult = $this->vertexAI->classifyContent($prompt);
+            $ms = (int)((microtime(true) - $t) * 1000);
+            $this->logTokens($session, 1, $matchResult);
+
+            $matchText = trim($matchResult['text']);
+            $this->traceNode($session->id, 'CategoryMatchAI', 'ai_call', 'success',
+                ['message' => $rawMessage, 'categories_available' => $categories->count()],
+                ['raw_response' => $matchText, 'tokens_used' => $matchResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
+
+            // Extract number from response
+            preg_match('/(\d+)/', $matchText, $matches);
+            $matchedId = $matches[1] ?? null;
+
+            // Check if it's a valid category ID or list number
+            if ($matchedId) {
+                $selectedCategory = $categories->firstWhere('id', (int)$matchedId);
+                if (!$selectedCategory && (int)$matchedId <= $categories->count()) {
+                    $selectedCategory = $categories->values()[(int)$matchedId - 1] ?? null;
+                }
+            }
+        }
+
+        if (!$selectedCategory) {
             if ($this->isProductIntent($rawMessage)) {
                 return $this->sendCategoryList($session);
             }
@@ -1181,7 +1219,7 @@ class AIChatbotService
         // ── If PHP + spell correction couldn't match, fall back to AI ──
         if (!$selectedGroupName) {
             $groupListStr = collect($groupsList)->map(fn($g, $i) => ($i + 1) . ". " . $g['name'])->implode("\n");
-            $prompt = "User said: \"{$rawMessage}\"\n\nAvailable categories/models:\n{$groupListStr}\n\nWhich one is the user asking for or trying to select? User might use conversational language (e.g. 'show me cabinet', 'cabine kya he', 'cabine me dikhao'). Focus on their underlying product intent. Reply with ONLY the exact name from the list. If it completely does not map to any category, reply NONE.";
+            $prompt = "User said: \"{$rawMessage}\"\n\nAvailable categories/models:\n{$groupListStr}\n\nWhich one is the user asking for or trying to select? The user might use conversational language (e.g. 'show me cabinet', 'cabine kya he'). Target their underlying intent. Reply with ONLY the exact name from the list. If it completely does not map to any category, reply NONE.";
 
             $t = microtime(true);
             $matchResult = $this->vertexAI->classifyContent($prompt);
@@ -1359,7 +1397,7 @@ class AIChatbotService
         if (!$selectedProduct) {
             $productList = $products->map(fn($p, $i) => ($i + 1) . ". " . $this->getProductDisplayName($p) . " (ID:{$p->id})")->implode("\n");
 
-            $prompt = "User said: \"{$rawMessage}\"\n\nAvailable products:\n{$productList}\n\nWhich product is the user asking for or trying to select? User may refer by number (e.g. 'product 1' means list item #1), by name, or conversational description. Focus on their underlying product intent. Reply with ONLY the product ID number. If it completely does not map to any product, reply NONE.";
+            $prompt = "User said: \"{$rawMessage}\"\n\nAvailable products:\n{$productList}\n\nWhich product is the user asking for or trying to select? The user might use conversational language (e.g. 'show me cabinet', 'cabine kya he'). Target their underlying intent. Reply with ONLY the product ID number from the list. If it completely does not map to any product, reply NONE.";
 
             $t = microtime(true);
             $matchResult = $this->vertexAI->classifyContent($prompt);
@@ -3472,7 +3510,7 @@ PROMPT;
 
         $prompt = $this->spellCorrectionPrompt;
         if (empty($prompt)) {
-            $prompt = 'Fix spelling: "{text}". Items: [{items}]. Reply corrected text only.';
+            $prompt = 'Extract the core product/category name from the conversational user text: "{text}". Match it to the closest item in: [{items}]. Ignore conversational filler words (like "me kya he", "dikhao", "btao"). Reply with ONLY the corrected text. If completely irrevelant, return the original text.';
         }
 
         $prompt = str_replace(

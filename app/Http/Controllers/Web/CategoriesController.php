@@ -114,7 +114,15 @@ class CategoriesController extends Controller
             $validated['image'] = $request->file('image')->store('categories', 'public');
         }
 
-        Category::create($validated);
+        $category = Category::create($validated);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'category' => $category,
+                'message' => 'Category created successfully',
+            ]);
+        }
 
         return redirect()->route('admin.categories.index')
             ->with('success', 'Category created successfully');
@@ -161,6 +169,14 @@ class CategoriesController extends Controller
         }
 
         $category->update($validated);
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'category' => $category,
+                'message' => 'Category updated successfully',
+            ]);
+        }
 
         return redirect()->route('admin.categories.index')
             ->with('success', 'Category updated successfully');

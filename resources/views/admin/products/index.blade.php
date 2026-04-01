@@ -222,23 +222,34 @@
                 @if(!$customColumns->where('is_category', true)->count())
                 <div style="padding:20px 24px 12px;">
                     <label style="display:block;margin-bottom:4px;font-weight:500;font-size:13px">Category *</label>
-                    <select class="form-select" name="category_id" id="prod-category_id" required
-                        style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px">
-                        <option value="">Select Category</option>
-                        @foreach($categories->whereNull('parent_category_id') as $cat)
-                            @php $subcats = $categories->where('parent_category_id', $cat->id); @endphp
-                            @if($subcats->count() > 0)
-                                <optgroup label="{{ $cat->name }}">
-                                    <option value="{{ $cat->id }}">{{ $cat->name }} (Main)</option>
-                                    @foreach($subcats as $sub)
-                                        <option value="{{ $sub->id }}">{{ $sub->name }}</option>
-                                    @endforeach
-                                </optgroup>
-                            @else
-                                <option value="{{ $cat->id }}">{{ $cat->name }}</option>
-                            @endif
-                        @endforeach
-                    </select>
+                    <div style="display:flex; gap:8px;">
+                        <select class="form-select inline-category-select" name="category_id" id="prod-category_id" required
+                            style="flex-grow:1;width:auto;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px" onchange="toggleCategoryButtons(this)">
+                            <option value="">Select Category</option>
+                            @foreach($categories->whereNull('parent_category_id') as $cat)
+                                @php $subcats = $categories->where('parent_category_id', $cat->id); @endphp
+                                @if($subcats->count() > 0)
+                                    <optgroup label="{{ $cat->name }}">
+                                        <option value="{{ $cat->id }}">{{ $cat->name }} (Main)</option>
+                                        @foreach($subcats as $sub)
+                                            <option value="{{ $sub->id }}">{{ $sub->name }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                @else
+                                    <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                @endif
+                            @endforeach
+                        </select>
+                        <button type="button" class="btn btn-outline" onclick="openInlineCategoryModal(this, 'Category')" title="Add Category" style="padding:4px 10px; border:1.5px solid #e2e8f0; border-radius:8px; background:white; color:#6366f1;">
+                            <i data-lucide="plus" style="width:16px;height:16px"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline inline-cat-edit-btn" onclick="editInlineCategory(this, 'Category')" title="Edit Selected Category" style="padding:4px 10px; border:1.5px solid #e2e8f0; border-radius:8px; background:white; color:#f59e0b; display:none;">
+                            <i data-lucide="edit-2" style="width:16px;height:16px"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline inline-cat-delete-btn" onclick="deleteInlineCategory(this)" title="Delete Selected Category" style="padding:4px 10px; border:1.5px solid #ef4444; border-radius:8px; background:white; color:#ef4444; display:none;">
+                            <i data-lucide="trash-2" style="width:16px;height:16px"></i>
+                        </button>
+                    </div>
                 </div>
                 @endif
 
@@ -258,23 +269,34 @@
                         <div style="{{ $span }}">
                             <label style="display:block;margin-bottom:4px;font-weight:500;font-size:13px">{{ $col->name }}{{ $reqLabel }}</label>
                             @if($col->is_category)
-                                <select class="form-select" name="{{ $inputName }}" id="{{ $inputId }}" {{ $requiredStr }}
-                                    style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px">
-                                    <option value="">Select {{ $col->name }}</option>
-                                    @foreach($categories->whereNull('parent_category_id') as $cat)
-                                        @php $subcats = $categories->where('parent_category_id', $cat->id); @endphp
-                                        @if($subcats->count() > 0)
-                                            <optgroup label="{{ $cat->name }}">
-                                                <option value="{{ $cat->id }}">{{ $cat->name }} (Main)</option>
-                                                @foreach($subcats as $sub)
-                                                    <option value="{{ $sub->id }}">{{ $sub->name }}</option>
-                                                @endforeach
-                                            </optgroup>
-                                        @else
-                                            <option value="{{ $cat->id }}">{{ $cat->name }}</option>
-                                        @endif
-                                    @endforeach
-                                </select>
+                                <div style="display:flex; gap:8px;">
+                                    <select class="form-select inline-category-select" name="{{ $inputName }}" id="{{ $inputId }}" {{ $requiredStr }}
+                                        style="flex-grow:1;width:auto;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px" onchange="toggleCategoryButtons(this)">
+                                        <option value="">Select {{ $col->name }}</option>
+                                        @foreach($categories->whereNull('parent_category_id') as $cat)
+                                            @php $subcats = $categories->where('parent_category_id', $cat->id); @endphp
+                                            @if($subcats->count() > 0)
+                                                <optgroup label="{{ $cat->name }}">
+                                                    <option value="{{ $cat->id }}">{{ $cat->name }} (Main)</option>
+                                                    @foreach($subcats as $sub)
+                                                        <option value="{{ $sub->id }}">{{ $sub->name }}</option>
+                                                    @endforeach
+                                                </optgroup>
+                                            @else
+                                                <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                            @endif
+                                        @endforeach
+                                    </select>
+                                    <button type="button" class="btn btn-outline" onclick="openInlineCategoryModal(this, '{{ addslashes($col->name) }}')" title="Add {{ $col->name }}" style="padding:4px 10px; border:1.5px solid #e2e8f0; border-radius:8px; background:white; color:#6366f1;">
+                                        <i data-lucide="plus" style="width:16px;height:16px"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline inline-cat-edit-btn" onclick="editInlineCategory(this, '{{ addslashes($col->name) }}')" title="Edit Selected {{ $col->name }}" style="padding:4px 10px; border:1.5px solid #e2e8f0; border-radius:8px; background:white; color:#f59e0b; display:none;">
+                                        <i data-lucide="edit-2" style="width:16px;height:16px"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline inline-cat-delete-btn" onclick="deleteInlineCategory(this)" title="Delete Selected {{ $col->name }}" style="padding:4px 10px; border:1.5px solid #ef4444; border-radius:8px; background:white; color:#ef4444; display:none;">
+                                        <i data-lucide="trash-2" style="width:16px;height:16px"></i>
+                                    </button>
+                                </div>
                             @elseif($col->type === 'textarea')
                                 <textarea class="form-textarea" name="{{ $inputName }}" id="{{ $inputId }}" {{ $requiredStr }} rows="3"
                                     style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px"></textarea>
@@ -397,10 +419,249 @@
             </form>
         </div>
     </div>
+
+    <!-- ════════════ Add/Edit Category Modal (Inline AJAX) ════════════ -->
+    <div id="category-ajax-modal"
+        style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:2000;align-items:center;justify-content:center">
+        <div style="background:white;border-radius:12px;width:90%;max-width:500px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1),0 10px 10px -5px rgba(0,0,0,0.04);">
+            <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border-top-left-radius:12px;border-top-right-radius:12px;">
+                <h3 id="cat-modal-title" style="margin:0;font-size:16px;font-weight:600;color:#1e293b;display:flex;align-items:center;gap:8px">
+                    <i data-lucide="folder-plus" style="width:18px;height:18px;color:#6366f1"></i>
+                    <span>Add New Category</span>
+                </h3>
+                <button type="button" onclick="closeInlineCategoryModal()" style="background:none;border:none;cursor:pointer;color:#64748b;display:flex;align-items:center">
+                    <i data-lucide="x" style="width:20px;height:20px"></i>
+                </button>
+            </div>
+            <form id="category-ajax-form" enctype="multipart/form-data">
+                @csrf
+                <input type="hidden" id="cat-form-method" name="_method" value="POST">
+                <input type="hidden" id="cat-id" value="">
+                
+                <div style="padding:20px;">
+                    <div style="margin-bottom:16px">
+                        <label style="display:block;margin-bottom:6px;font-weight:500;font-size:13px;color:#334155">Name <span style="color:#ef4444">*</span></label>
+                        <input type="text" name="name" id="cat-name-input" required class="form-input" style="width:100%;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px" placeholder="Enter name...">
+                    </div>
+                    
+                    <div>
+                        <label style="display:block;margin-bottom:6px;font-weight:500;font-size:13px;color:#334155">Image (Optional)</label>
+                        <div style="border:1.5px dashed #cbd5e1;padding:12px;border-radius:8px;background:#f8fafc;text-align:center">
+                            <input type="file" name="image" id="cat-image-input" accept="image/*" style="width:100%;font-size:12px;color:#64748b">
+                            <div id="cat-current-image-wrapper" style="display:none;margin-top:10px;text-align:left;font-size:12px;color:#6366f1;display:flex;align-items:center;gap:6px">
+                                <i data-lucide="image" style="width:14px;height:14px"></i>
+                                <span>Existing Image Attached</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="padding:16px 20px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:10px;background:#f8fafc;border-bottom-left-radius:12px;border-bottom-right-radius:12px;">
+                    <button type="button" class="btn btn-outline" onclick="closeInlineCategoryModal()" style="padding:8px 16px;border:1.5px solid #e2e8f0;background:white;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500">Cancel</button>
+                    <button type="submit" id="cat-submit-btn" class="btn btn-primary" style="padding:8px 16px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;display:inline-flex;align-items:center;gap:6px">
+                        <i data-lucide="save" style="width:16px;height:16px"></i> Save
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
 <script>
+var allSysCategories = @json($categories); // Raw array of all categories
+var activeCategorySelect = null; // Store reference to the dropdown being modified
+
+function toggleCategoryButtons(select) {
+    var val = select.value;
+    var wrapper = select.parentElement;
+    var editBtn = wrapper.querySelector('.inline-cat-edit-btn');
+    var delBtn = wrapper.querySelector('.inline-cat-delete-btn');
+    
+    if (val && !select.options[select.selectedIndex].parentElement.label) {
+        // Exists and is not an optgroup placeholder... Actually wait, parent element label applies to children of optgroup
+        // Any option inside optgroup is valid!
+        if (editBtn) editBtn.style.display = '';
+        if (delBtn) delBtn.style.display = '';
+    } else {
+        if (editBtn) editBtn.style.display = 'none';
+        if (delBtn) delBtn.style.display = 'none';
+    }
+}
+
+function openInlineCategoryModal(btn, label) {
+    activeCategorySelect = btn.parentElement.querySelector('select');
+    
+    document.getElementById('cat-modal-title').innerHTML = '<i data-lucide="folder-plus" style="width:18px;height:18px;color:#6366f1"></i> <span>Add New ' + label + '</span>';
+    document.getElementById('cat-form-method').value = 'POST';
+    document.getElementById('cat-id').value = '';
+    document.getElementById('category-ajax-form').reset();
+    document.getElementById('cat-current-image-wrapper').style.display = 'none';
+    
+    document.getElementById('category-ajax-modal').style.display = 'flex';
+    if(typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function editInlineCategory(btn, label) {
+    activeCategorySelect = btn.parentElement.querySelector('select');
+    var catId = activeCategorySelect.value;
+    if(!catId) return;
+    
+    // Find category from global var
+    var catObj = allSysCategories.find(c => c.id == catId);
+    if(!catObj) { alert('Category data missing!'); return; }
+    
+    document.getElementById('cat-modal-title').innerHTML = '<i data-lucide="edit-3" style="width:18px;height:18px;color:#f59e0b"></i> <span>Edit ' + label + '</span>';
+    document.getElementById('cat-form-method').value = 'PUT';
+    document.getElementById('cat-id').value = catId;
+    document.getElementById('category-ajax-form').reset();
+    document.getElementById('cat-name-input').value = catObj.name;
+    
+    document.getElementById('cat-current-image-wrapper').style.display = catObj.image ? 'flex' : 'none';
+    
+    document.getElementById('category-ajax-modal').style.display = 'flex';
+    if(typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closeInlineCategoryModal() {
+    document.getElementById('category-ajax-modal').style.display = 'none';
+    activeCategorySelect = null;
+}
+
+document.getElementById('category-ajax-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    if(!activeCategorySelect) return;
+    
+    var form = e.target;
+    var btn = document.getElementById('cat-submit-btn');
+    var isEdit = document.getElementById('cat-form-method').value === 'PUT';
+    var catId = document.getElementById('cat-id').value;
+    
+    var url = '{{ route("admin.categories.store") }}';
+    if(isEdit) url = '{{ url("admin/categories") }}/' + catId;
+    
+    var formData = new FormData(form);
+    
+    btn.disabled = true;
+    btn.innerHTML = 'Saving...';
+    
+    fetch(url, {
+        method: 'POST', // Note: Laravel treats PUT via _method field, so actual method is POST
+        body: formData,
+        headers: { 'Accept': 'application/json' }
+    })
+    .then(res => res.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="save" style="width:16px;height:16px"></i> Save';
+        
+        if(data.success) {
+            var newCat = data.category;
+            
+            if(isEdit) {
+                // Update local array
+                for(var i=0; i<allSysCategories.length; i++){
+                    if(allSysCategories[i].id == newCat.id) {
+                        allSysCategories[i] = newCat; break;
+                    }
+                }
+                // Update text in all dropdowns
+                document.querySelectorAll('.inline-category-select option[value="'+newCat.id+'"]').forEach(opt => {
+                    opt.textContent = newCat.name;
+                });
+            } else {
+                // Add to local array
+                allSysCategories.push(newCat);
+                // Append to ALL category dropdowns
+                document.querySelectorAll('.inline-category-select').forEach(sel => {
+                    var opt = new Option(newCat.name, newCat.id);
+                    sel.add(opt);
+                });
+                // Autoselect in the active one
+                activeCategorySelect.value = newCat.id;
+                toggleCategoryButtons(activeCategorySelect);
+            }
+            
+            closeInlineCategoryModal();
+            
+            // Optional: Show toast
+            var alertDiv = document.createElement('div');
+            alertDiv.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 20px;background:#10b981;color:white;border-radius:8px;z-index:9999;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1);animation:chipIn 0.3s ease;';
+            alertDiv.textContent = data.message;
+            document.body.appendChild(alertDiv);
+            setTimeout(() => { alertDiv.remove(); }, 3000);
+            
+        } else {
+            alert(data.message || 'Validation error');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="save" style="width:16px;height:16px"></i> Save';
+        alert('Server Error. Check console.');
+        console.error(err);
+    });
+});
+
+function deleteInlineCategory(btn) {
+    activeCategorySelect = btn.parentElement.querySelector('select');
+    var catId = activeCategorySelect.value;
+    if(!catId) return;
+    
+    if(!confirm("Are you sure you want to delete this Category? Warning: Products linked to this will lose their category association!")) {
+        return;
+    }
+    
+    var originalBtnHTML = btn.innerHTML;
+    btn.innerHTML = '...';
+    btn.disabled = true;
+    
+    fetch('{{ url("admin/categories") }}/' + catId, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = originalBtnHTML;
+        
+        if(data.success) {
+            // Remove from local tracking array
+            allSysCategories = allSysCategories.filter(c => c.id != catId);
+            
+            // Remove option from ALL select dropdowns!
+            document.querySelectorAll('.inline-category-select').forEach(sel => {
+                var opt = sel.querySelector('option[value="'+catId+'"]');
+                if(opt) {
+                    // if it was selected, reset
+                    if(sel.value == catId) {
+                        sel.value = '';
+                        toggleCategoryButtons(sel);
+                    }
+                    opt.remove();
+                }
+            });
+            
+            var alertDiv = document.createElement('div');
+            alertDiv.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 20px;background:#ef4444;color:white;border-radius:8px;z-index:9999;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1);animation:chipIn 0.3s ease;';
+            alertDiv.textContent = "Category deleted successfully!";
+            document.body.appendChild(alertDiv);
+            setTimeout(() => { alertDiv.remove(); }, 3000);
+        } else {
+            alert(data.message || 'Could not delete category.');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = originalBtnHTML;
+        alert('Server Error during deletion.');
+        console.error(err);
+    });
+}
+
 var comboColDefs = @json(isset($comboCols) ? $comboCols->values() : collect());
 var comboSelections = {}; // { comboId: [val1, val2..] }
 var existingVariationData = {}; // { "black|large": { price: 100, discount: 10 } }
