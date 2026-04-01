@@ -564,31 +564,6 @@ class AIChatbotService
         $this->traceNode($session->id, 'GreetingDetector', 'routing', 'success',
             ['message' => $rawMessage, 'detection_method' => 'PHP'], ['detected' => false]);
 
-        // ══ Business Query check ══
-        if (!isset($answers['product_id']) && !empty($this->businessPrompt) && $this->isBusinessQuery($rawMessage)) {
-            $this->routeTrace[] = 'business_query';
-            // ── TRACE: Business Query Detected
-            $this->traceNode($session->id, 'BusinessQueryDetector', 'routing', 'success',
-                ['message' => $rawMessage, 'detection_method' => 'PHP', 'has_business_prompt' => true],
-                ['detected' => true]);
-            $t = microtime(true);
-            $bizResult = $this->vertexAI->generateContent(
-                $this->businessPrompt . "\n\n## LANGUAGE\nReply in the same language the customer is using.",
-                [['role' => 'user', 'text' => $rawMessage]],
-                null
-            );
-            $ms = (int)((microtime(true) - $t) * 1000);
-            $this->logTokens($session, 2, $bizResult);
-            $responseText = trim($bizResult['text'] ?? '');
-            $this->traceNode($session->id, 'BusinessQueryAI', 'ai_call',
-                !empty($responseText) ? 'success' : 'error',
-                ['message' => $rawMessage, 'prompt_type' => 'business_prompt', 'prompt_preview' => mb_substr($this->businessPrompt, 0, 150)],
-                ['response' => mb_substr($responseText, 0, 200), 'tokens_used' => $bizResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
-            if (!empty($responseText)) {
-                return $responseText;
-            }
-        }
-
         // ══ CASE 0: Awaiting Confirmation ══
         if ($session->conversation_state === 'awaiting_confirmation') {
             $this->routeTrace[] = 'handleConfirmationStep';
@@ -1158,9 +1133,8 @@ class AIChatbotService
             return $this->sendCatalogue($session);
         }
 
-        $this->traceNode($session->id, 'ProductGroupSelected', 'routing', 'warning', ['message' => $rawMessage], ['matched' => false], 'No product line matched. Falling back to Tier 2.');
-        $terms = $this->getDynamicTerminology();
-        return $this->handleTier2($session, $fullMessage, $imageUrl, "User is currently trying to select a {$terms['base']}.", $rawMessage);
+        $this->traceNode($session->id, 'ProductGroupSelected', 'routing', 'warning', ['message' => $rawMessage], ['matched' => false], 'No product line matched. Falling back to OOB Handler.');
+        return $this->handleOutOfContextQuestion($session, $rawMessage, $steps);
     }
 
     /**
@@ -1304,9 +1278,8 @@ class AIChatbotService
             if ($this->isProductIntent($rawMessage)) {
                 return $this->sendCatalogue($session);
             }
-            $this->traceNode($session->id, 'ProductSelected', 'routing', 'warning', ['message' => $rawMessage], ['matched' => false], 'No product matched. Falling back to Tier 2.');
-            $terms = $this->getDynamicTerminology();
-            return $this->handleTier2($session, $fullMessage, $imageUrl, "User is currently trying to select a {$terms['base']} or {$terms['variant']}.", $rawMessage);
+            $this->traceNode($session->id, 'ProductSelected', 'routing', 'warning', ['message' => $rawMessage], ['matched' => false], 'No product matched. Falling back to OOB Handler.');
+            return $this->handleOutOfContextQuestion($session, $rawMessage, $steps);
         }
 
         $this->traceNode($session->id, 'ProductSelected', 'routing', 'success',
@@ -1547,7 +1520,7 @@ class AIChatbotService
         // Tier 2: AI Match if PHP fast check fails
         if (!$matchedOption) {
             $optionsList = implode(', ', $comboValues);
-            $prompt = "User said: \"{$rawMessage}\"\n\nAvailable options: [{$optionsList}]\n\nWhich option matches user's choice? Reply with ONLY the EXACT option text from the list. If no clear match, reply NONE.";
+            $prompt = "User said: \"{$rawMessage}\"\n\nAvailable options: [{$optionsList}]\n\nWhich option matches user's choice? Reply with ONLY the EXACT option text from the list. If the user is asking a general completely unrelated question, reply OOB. If no clear match, reply NONE.";
 
             $t = microtime(true);
             $matchResult = $this->vertexAI->classifyContent($prompt);
@@ -1558,6 +1531,10 @@ class AIChatbotService
             $this->traceNode($session->id, "ComboStepAI_{$column->slug}", 'ai_call', 'success',
                 ['message' => $rawMessage, 'step_name' => $step->name, 'question' => $step->question_text ?: "Which {$column->name}?", 'available_options' => $comboValues],
                 ['raw_response' => $matchedText, 'tokens_used' => $matchResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
+
+            if (strtoupper($matchedText) === 'OOB') {
+                return $this->handleOutOfContextQuestion($session, $rawMessage, $steps);
+            }
 
             // Verify match is in options (case-insensitive)
             foreach ($comboValues as $opt) {
@@ -1716,7 +1693,7 @@ class AIChatbotService
 
         // Tier 1: Extract answer
         $question = $step->question_text ?: "What is your {$fieldKey}?";
-        $prompt = "Question asked: \"{$question}\"\nUser replied: \"{$rawMessage}\"\n\nExtract the user's answer. Reply with ONLY the extracted answer text. If user seems to skip or says 'no' / 'skip', reply SKIP.";
+        $prompt = "Question asked: \"{$question}\"\nUser replied: \"{$rawMessage}\"\n\nExtract the user's answer. Reply with ONLY the extracted answer text. If user seems to skip or says 'no' / 'skip', reply SKIP. If the user is asking a general completely unrelated question, reply OOB.";
 
         $t = microtime(true);
         $extractResult = $this->vertexAI->classifyContent($prompt);
@@ -1727,6 +1704,10 @@ class AIChatbotService
         $this->traceNode($session->id, "CustomStepAI_{$fieldKey}", 'ai_call', 'success',
             ['message' => $rawMessage, 'step_name' => $step->name, 'question' => $question, 'step_type' => $step->step_type],
             ['raw_response' => $extractedText, 'tokens_used' => $extractResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
+
+        if (strtoupper($extractedText) === 'OOB') {
+            return $this->handleOutOfContextQuestion($session, $rawMessage, $steps);
+        }
 
         if (strtoupper($extractedText) === 'SKIP' || empty($extractedText)) {
             if ($step->isOptionalStep()) {
@@ -2561,6 +2542,39 @@ PROMPT;
     // ═══════════════════════════════════════════════════════
     // HELPERS
     // ═══════════════════════════════════════════════════════
+
+    /**
+     * Intercept out-of-bounds questions while in a chatflow step.
+     */
+    private function handleOutOfContextQuestion(AiChatSession $session, string $rawMessage, $steps): string
+    {
+        $this->traceNode($session->id, 'OutOfContextQuery', 'ai_call', 'success', ['message' => $rawMessage], ['action' => 'answering_business_query']);
+
+        $company = Company::find($this->companyId);
+        $systemPrompt = "You are a highly helpful sales representative for {$company->name}.\n";
+        $systemPrompt .= "The user is currently in the middle of a product selection/survey flow, but they just asked an off-topic question or made a generic remark.\n\n";
+
+        if (!empty($this->businessPrompt)) {
+            $systemPrompt .= "---\n### BUSINESS DETAILS:\n{$this->businessPrompt}\n---\n\n";
+        }
+
+        $systemPrompt .= "Your task: Answer the user's inquiry concisely and naturally (1-2 sentences maximum). If their question cannot be answered using the Business Details provided, politely formulate a general response (e.g. 'I am only equipped to help with product inquiries').\n";
+        $systemPrompt .= "DO NOT append a question about the chatflow, just answer the query.";
+
+        $t = microtime(true);
+        $aiResult = $this->vertexAI->generateContent($systemPrompt, [['role' => 'user', 'text' => $rawMessage]]);
+        $ms = (int)((microtime(true) - $t) * 1000);
+        $this->logTokens($session, 2, $aiResult);
+
+        $answer = trim($aiResult['text'] ?? "Sorry, I am not sure about that. Let's continue with your order!");
+
+        // Safely strip markdown or JSON if AI hallucinates it
+        $answer = preg_replace('/```.*?```/s', '', $answer);
+        
+        $currentPrompt = $this->buildNextStepPrompt($session, $steps) ?: "How can I further assist you?";
+
+        return trim($answer) . "\n\n" . "👇\n" . $currentPrompt;
+    }
 
     /**
      * Fast PHP-level greeting detection (no AI call needed).
