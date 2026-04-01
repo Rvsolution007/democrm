@@ -491,7 +491,7 @@
                                             @php $displayPrice = ($product->mrp ?: $product->sale_price) / 100; @endphp
                                             <option value="{{ $product->id }}" data-name="{{ $product->display_name }}"
                                                 data-price="{{ $displayPrice }}" data-mrp="{{ $product->mrp }}"
-                                                data-desc="{{ Str::limit($product->description ?? '', 60) }}">
+                                                data-desc="{{ Str::limit($product->getDynamicDescription(), 120) }}">
                                                 {{ $product->display_name }} — ₹{{ number_format($displayPrice, 2) }}
                                             </option>
                                         @endforeach
@@ -508,7 +508,10 @@
                                 <table id="selected-products-table" style="width:100%;border-collapse:separate;border-spacing:0;display:none;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
                                     <thead>
                                         <tr style="background:linear-gradient(135deg,#f8fafc,#f1f5f9);text-align:left">
-                                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0">Product Name</th>
+                                            @php
+                                                $leadTitleHeader = $products->count() > 0 ? $products->first()->title_column_name : 'Product Name';
+                                            @endphp
+                                            <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0">{{ $leadTitleHeader }}</th>
                                             <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;width:100px">Price (₹)</th>
                                             <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0">Description</th>
                                             <th style="padding:10px 12px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;width:70px">Qty</th>

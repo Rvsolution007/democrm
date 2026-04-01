@@ -978,6 +978,25 @@ class AIChatbotService
             ->first();
 
         $msg = "🛍️ *" . ($selectedGroup ? "{$selectedGroup} {$terms['plural_variant']}" : "Our {$terms['plural_base']}") . ":*\n\n";
+
+        // If a specific group is selected, try to send a representative image (GroupMedia) first
+        if ($selectedGroup && !$session->hasMediaBeenSent("group_{$selectedGroup}")) {
+            $groupMediaProduct = $products->firstWhere('cover_media_url', '!=', null);
+            if ($groupMediaProduct) {
+                $mediaUrl = $groupMediaProduct->cover_media_url;
+                $this->traceNode($session->id, 'GroupMediaLookup', 'media', 'success',
+                    ['group_name' => $selectedGroup],
+                    ['found' => true, 'media_url' => $mediaUrl]);
+                $this->sendMediaToWhatsApp($session, $mediaUrl, 'GroupMediaSent');
+                $session->markMediaSent("group_{$selectedGroup}");
+                $session->save();
+            } else {
+                $this->traceNode($session->id, 'GroupMediaLookup', 'media', 'info',
+                    ['group_name' => $selectedGroup],
+                    ['found' => false, 'message' => 'No media found for any product in this group']);
+            }
+        }
+
         foreach ($products as $i => $product) {
             $num = $i + 1;
             $displayName = $this->getProductDisplayName($product);
@@ -1312,7 +1331,7 @@ class AIChatbotService
                 'quote_id' => $quote->id,
                 'product_id' => $productId,
                 'product_name' => $displayName,
-                'description' => $product->description,
+                'description' => $product->getDynamicDescription(),
                 'hsn_code' => $product->hsn_code,
                 'qty' => 1,
                 'rate' => $product->sale_price,
@@ -1437,6 +1456,19 @@ class AIChatbotService
             }
         }
 
+        // Tier 1b (Relaxed PHP Check): Handle cases like "166mm" vs "166 mm" by removing spaces/symbols
+        if (!$matchedOption) {
+            $normalizedMessage = preg_replace('/[^a-z0-9]/', '', strtolower($rawMessage));
+            foreach ($comboValues as $opt) {
+                $normalizedOpt = preg_replace('/[^a-z0-9]/', '', strtolower($opt));
+                // Only consider it a match if they are completely identical when stripped of spacing/symbols
+                if (!empty($normalizedOpt) && $normalizedMessage === $normalizedOpt) {
+                    $matchedOption = $opt;
+                    break;
+                }
+            }
+        }
+
         // Tier 2: AI Match if PHP fast check fails
         if (!$matchedOption) {
             $optionsList = implode(', ', $comboValues);
@@ -1488,13 +1520,22 @@ class AIChatbotService
                 }
             }
 
-            // Fallback to substring exact boundary match if strict full match failed
+            $normalizedRawMessage = preg_replace('/[^a-z0-9]/', '', strtolower($rawMessage));
+            
             if (!$outOfOrderMatch) {
                 foreach ($unansweredComboSteps as $uStep) {
                     $uCol = $uStep->linkedColumn;
                     $uComboValues = $product ? $this->getComboValuesForProduct($product, $uCol) : [];
                     foreach ($uComboValues as $opt) {
+                         // 1. Regex word boundary
                          if (preg_match('/\b' . preg_quote(trim($opt), '/') . '\b/i', $rawMessage)) {
+                              $outOfOrderMatch = $opt;
+                              $outOfOrderStep = $uStep;
+                              break 2;
+                         }
+                         // 2. Stripped substring (handles "166mm" in "i want 166mm" when option is "166 mm")
+                         $normalizedOpt = preg_replace('/[^a-z0-9]/', '', strtolower($opt));
+                         if (!empty($normalizedOpt) && str_contains($normalizedRawMessage, $normalizedOpt)) {
                               $outOfOrderMatch = $opt;
                               $outOfOrderStep = $uStep;
                               break 2;
@@ -2637,19 +2678,13 @@ PROMPT;
 
     private function updateQuoteItemDescription(AiChatSession $session, Product $product): void
     {
-        $descriptionLines = [];
-        foreach ($product->combos as $combo) {
-            $slug = $combo->column->slug;
-            $val = $session->getAnswer($slug);
-            if ($val) {
-                $descriptionLines[] = "{$combo->column->name} : {$val}";
-            }
-        }
+        // Build session answers map from collected answers
+        $sessionAnswers = $session->collected_answers ?? [];
 
-        if (empty($descriptionLines)) return;
+        // Use the product's dynamic description builder with session overlay
+        $fullDesc = $product->getDynamicDescription($sessionAnswers);
 
-        $baseDesc = $product->description ? $product->description . "\n" : "";
-        $fullDesc = $baseDesc . implode("\n", $descriptionLines);
+        if (empty($fullDesc)) return;
 
         // Update QuoteItem
         if ($session->quote_id) {

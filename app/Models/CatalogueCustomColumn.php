@@ -29,6 +29,7 @@ class CatalogueCustomColumn extends Model
         'show_in_ai',
         'sort_order',
         'is_category',
+        'is_title',
     ];
 
     protected $casts = [
@@ -43,6 +44,7 @@ class CatalogueCustomColumn extends Model
         'show_in_ai' => 'boolean',
         'sort_order' => 'integer',
         'is_category' => 'boolean',
+        'is_title' => 'boolean',
     ];
 
     protected static function boot()

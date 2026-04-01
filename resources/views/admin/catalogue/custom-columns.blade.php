@@ -79,6 +79,9 @@
                                 @if($column->is_category)
                                     <span class="badge badge-info" style="margin:2px;background:#3b82f6;color:white;border-color:#3b82f6">📂 Category</span>
                                 @endif
+                                @if($column->is_title)
+                                    <span class="badge badge-info" style="margin:2px;background:#8b5cf6;color:white;border-color:#8b5cf6">🏷️ Title</span>
+                                @endif
                                 @if($column->show_in_ai)
                                     <span class="badge badge-primary" style="margin:2px;font-size:10px">🤖 AI</span>
                                 @endif
@@ -257,6 +260,14 @@
                                     <div style="font-size:12px;color:#64748b">Creates product variants</div>
                                 </div>
                             </label>
+
+                            <label class="premium-checkbox-card badge-anim">
+                                <input type="checkbox" id="col-title" style="margin-top:2px;width:18px;height:18px;accent-color:#8b5cf6;cursor:pointer">
+                                <div>
+                                    <div style="font-weight:600;color:#1e293b;font-size:14px;margin-bottom:2px">🏷️ Quote/Lead Title</div>
+                                    <div style="font-size:12px;color:#64748b">This column's value becomes the Product Name heading in Quotes & Leads</div>
+                                </div>
+                            </label>
                         </div>
                     </div>
 
@@ -304,6 +315,7 @@
         document.getElementById('col-unique').checked = false;
         document.getElementById('col-category').checked = false;
         document.getElementById('col-combo').checked = false;
+        document.getElementById('col-title').checked = false;
         document.getElementById('col-show-list').checked = false;
         document.getElementById('col-show-ai').checked = true;
         
@@ -331,13 +343,16 @@
         document.getElementById('col-unique').checked = col.is_unique;
         document.getElementById('col-category').checked = col.is_category;
         document.getElementById('col-combo').checked = col.is_combo;
+        document.getElementById('col-title').checked = col.is_title || false;
         document.getElementById('col-show-list').checked = col.show_on_list || false;
         document.getElementById('col-show-ai').checked = col.show_in_ai !== undefined ? col.show_in_ai : true;
         
         if (col.is_system) {
             document.getElementById('system-warning').style.display = 'block';
             document.querySelectorAll('.system-locked-group input:not([type="checkbox"]), .system-locked-group select').forEach(el => el.disabled = true);
-            document.querySelectorAll('.system-locked-group input[type="checkbox"]').forEach(el => el.disabled = true);
+            document.querySelectorAll('.system-locked-group input[type="checkbox"]').forEach(el => {
+                if (el.id !== 'col-title') el.disabled = true;
+            });
         } else {
             document.getElementById('system-warning').style.display = 'none';
             document.querySelectorAll('.system-locked-group input:not([type="checkbox"]), .system-locked-group select').forEach(el => el.disabled = false);
@@ -412,6 +427,7 @@
                 is_required: document.getElementById('col-required').checked ? 1 : 0,
                 is_unique: document.getElementById('col-unique').checked ? 1 : 0,
                 is_category: document.getElementById('col-category').checked ? 1 : 0,
+                is_title: document.getElementById('col-title').checked ? 1 : 0,
                 is_combo: document.getElementById('col-combo').checked ? 1 : 0,
                 show_on_list: document.getElementById('col-show-list').checked ? 1 : 0,
                 show_in_ai: document.getElementById('col-show-ai').checked ? 1 : 0,

@@ -417,11 +417,11 @@
                             <option value="">-- Select Product --</option>
                             @foreach($products as $product)
                                 @php $qDisplayPrice = ($product->mrp ?: $product->sale_price) / 100; @endphp
-                                <option value="{{ $product->id }}" data-name="{{ $product->name }}"
+                                <option value="{{ $product->id }}" data-name="{{ $product->display_name }}"
                                     data-price="{{ $qDisplayPrice }}"
-                                    data-desc="{{ Str::limit($product->description ?? '', 60) }}"
+                                    data-desc="{{ Str::limit($product->getDynamicDescription(), 120) }}"
                                     data-purchase="{{ $product->is_purchase_enabled ? '1' : '0' }}">
-                                    {{ $product->name }} — ₹{{ number_format($qDisplayPrice, 2) }}
+                                    {{ $product->display_name }} — ₹{{ number_format($qDisplayPrice, 2) }}
                                 </option>
                             @endforeach
                         </select>
@@ -432,7 +432,10 @@
                         <table id="quote-products-table" style="width:100%;border-collapse:collapse;display:none">
                             <thead>
                                 <tr style="background:#f8f9fa;text-align:left">
-                                    <th style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px">Product Name</th>
+                                    @php
+                                        $titleColHeader = $products->count() > 0 ? $products->first()->title_column_name : 'Product Name';
+                                    @endphp
+                                    <th style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px">{{ $titleColHeader }}</th>
                                     <th style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px;width:100px">Price
                                         (₹)</th>
                                     <th style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px">Description</th>

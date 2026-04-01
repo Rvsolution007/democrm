@@ -33,6 +33,7 @@ class CatalogueColumnController extends Controller
             'is_required' => 'nullable',
             'is_unique' => 'nullable',
             'is_category' => 'nullable',
+            'is_title' => 'nullable',
             'is_combo' => 'nullable',
             'show_on_list' => 'nullable|boolean',
         ]);
@@ -97,6 +98,19 @@ class CatalogueColumnController extends Controller
             }
         }
 
+        // If is_title, block if another title already exists
+        if ($request->boolean('is_title')) {
+            $existingTitle = CatalogueCustomColumn::where('company_id', $companyId)
+                ->where('is_title', true)
+                ->first();
+            if ($existingTitle) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "'{$existingTitle->name}' is already the Title column. Remove its title flag first before assigning a new one.",
+                ], 422);
+            }
+        }
+
         $maxOrder = CatalogueCustomColumn::where('company_id', $companyId)->max('sort_order') ?? 0;
 
         $column = CatalogueCustomColumn::create([
@@ -108,6 +122,7 @@ class CatalogueColumnController extends Controller
             'is_required' => $request->boolean('is_required'),
             'is_unique' => $request->boolean('is_unique'),
             'is_category' => $request->boolean('is_category'),
+            'is_title' => $request->boolean('is_title'),
             'is_combo' => $request->boolean('is_combo'),
             'show_on_list' => $request->boolean('show_on_list'),
             'is_active' => true,
@@ -135,6 +150,7 @@ class CatalogueColumnController extends Controller
             'is_required' => 'nullable',
             'is_unique' => 'nullable',
             'is_category' => 'nullable',
+            'is_title' => 'nullable',
             'is_combo' => 'nullable',
             'show_on_list' => 'nullable|boolean',
         ]);
@@ -175,11 +191,26 @@ class CatalogueColumnController extends Controller
             }
         }
 
+        // If setting as title, block if another title already exists
+        if ($request->boolean('is_title')) {
+            $existingTitle = CatalogueCustomColumn::where('company_id', auth()->user()->company_id)
+                ->where('id', '!=', $id)
+                ->where('is_title', true)
+                ->first();
+            if ($existingTitle) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "'{$existingTitle->name}' is already the Title column. Remove its title flag first before assigning a new one.",
+                ], 422);
+            }
+        }
+
         // If it is a system column, restrict what can be updated
         if ($column->is_system) {
             $column->update([
                 'name' => $request->name,
                 'is_active' => $request->has('is_active') ? $request->boolean('is_active') : $column->is_active,
+                'is_title' => $request->has('is_title') ? $request->boolean('is_title') : $column->is_title,
                 'show_on_list' => $request->boolean('show_on_list'),
             ]);
             return response()->json(['success' => true, 'message' => 'System field updated successfully', 'column' => $column]);
@@ -192,6 +223,7 @@ class CatalogueColumnController extends Controller
             'is_required' => $request->boolean('is_required'),
             'is_unique' => $request->boolean('is_unique'),
             'is_category' => $request->boolean('is_category'),
+            'is_title' => $request->boolean('is_title'),
             'is_combo' => $request->boolean('is_combo'),
             'show_on_list' => $request->boolean('show_on_list'),
         ]);
