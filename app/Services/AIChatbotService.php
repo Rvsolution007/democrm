@@ -1295,24 +1295,21 @@ class AIChatbotService
                 ['database_id' => $quote->id, 'quote_sequence_id' => $quoteSequence, 'quote_no' => $quote->quote_no, 'grand_total' => '₹' . number_format($quote->grand_total / 100, 2)]);
         }
 
-        // Send unique model image if available (Tier 2 Media)
+        // Send unique model image if available
         $this->sendProductMedia($session, $product);
 
-        // Build product details message
-        $msg = $this->buildProductDetailsMessage($product);
+        // Simple confirmation — NO detail dump
+        // The chatflow steps will ask questions one-by-one
+        $msg = "✅ *{$displayName}* selected! 🛍️";
 
-        // Advance to next step after ask_product
+        // Advance to next step after product selection
         $this->advanceChatflow($session, $steps);
         $session->save();
 
-        // Append next step question if it's a combo step
-        $nextStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
-        if ($nextStep && $nextStep->step_type === 'ask_combo' && $nextStep->linkedColumn) {
-            $comboValues = $this->getComboValuesForProduct($product, $nextStep->linkedColumn);
-            if (!empty($comboValues)) {
-                $msg .= "\n\n" . ($nextStep->question_text ?: "Which {$nextStep->linkedColumn->name}?") . " 👇\n";
-                $msg .= implode(' | ', $comboValues);
-            }
+        // Append first chatflow question (step-by-step)
+        $nextPrompt = $this->buildNextStepPrompt($session, $steps);
+        if ($nextPrompt) {
+            $msg .= "\n\n" . $nextPrompt;
         }
 
         Log::info("AIChatbot: Product selected (PHP Direct)", ['session' => $session->id, 'product' => $product->name]);
@@ -1516,8 +1513,8 @@ class AIChatbotService
             ['combo' => $column->slug, 'value' => $matchedOption, 'product_name' => $session->getAnswer('product_name')],
             ['quote_id' => $session->quote_id]);
 
-        // Send combo-level media if available (Tier 3 Media)
-        $this->sendComboMedia($session, $product, $column->slug, $matchedOption);
+        // Combo-level media: not required per business rules
+        // Media is only sent for category (image) and unique product (cover_media_url)
 
         // Advance chatflow
         $this->advanceChatflow($session, $steps);
@@ -2627,6 +2624,16 @@ PROMPT;
     {
         $nextStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
         if (!$nextStep) return $this->translateIfNeeded($session, "✅ All done! Our team will contact you. 🙏");
+
+        // Send step-level media BEFORE asking the question (once per session)
+        if ($nextStep->hasMedia()) {
+            $mediaKey = "step_{$nextStep->id}";
+            if (!$session->hasMediaBeenSent($mediaKey)) {
+                $this->sendMediaToWhatsApp($session, $nextStep->media_path, 'ChatflowStepMedia');
+                $session->markMediaSent($mediaKey);
+                $session->save();
+            }
+        }
 
         if ($nextStep->step_type === 'ask_combo' && $nextStep->linkedColumn) {
             $productId = $session->getAnswer('product_id');
