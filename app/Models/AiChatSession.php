@@ -26,6 +26,8 @@ class AiChatSession extends Model
         'conversation_state',
         'catalogue_sent',
         'last_message_at',
+        'detected_language',
+        'media_sent_keys',
     ];
 
     protected $casts = [
@@ -34,6 +36,7 @@ class AiChatSession extends Model
         'current_step_retries' => 'integer',
         'catalogue_sent' => 'boolean',
         'last_message_at' => 'datetime',
+        'media_sent_keys' => 'array',
     ];
 
     // Relationships
@@ -115,6 +118,27 @@ class AiChatSession extends Model
         if (!in_array($fieldKey, $asked)) {
             $asked[] = $fieldKey;
             $this->optional_asked = $asked;
+        }
+    }
+
+    /**
+     * Check if a media item has already been sent in this session
+     */
+    public function hasMediaBeenSent(string $key): bool
+    {
+        $keys = $this->media_sent_keys ?? [];
+        return in_array($key, $keys);
+    }
+
+    /**
+     * Mark a media item as sent in this session
+     */
+    public function markMediaSent(string $key): void
+    {
+        $keys = $this->media_sent_keys ?? [];
+        if (!in_array($key, $keys)) {
+            $keys[] = $key;
+            $this->media_sent_keys = $keys;
         }
     }
 

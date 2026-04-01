@@ -28,6 +28,7 @@ class AIChatbotService
     private array $pendingTraces = [];
     private string $greetingPrompt;
     private string $businessPrompt;
+    private string $spellCorrectionPrompt;
 
     public function __construct(int $companyId, int $userId)
     {
@@ -37,6 +38,7 @@ class AIChatbotService
         $this->replyLanguage = Setting::getValue('ai_bot', 'reply_language', 'auto', $companyId);
         $this->greetingPrompt = Setting::getValue('ai_bot', 'greeting_prompt', '', $companyId);
         $this->businessPrompt = Setting::getValue('ai_bot', 'business_prompt', '', $companyId);
+        $this->spellCorrectionPrompt = Setting::getValue('ai_bot', 'spell_correction_prompt', '', $companyId);
     }
 
     /**
@@ -447,6 +449,12 @@ class AIChatbotService
                             'combined_message' => mb_substr($fullMessage, 0, 200),
                         ]
                     );
+                }
+
+                // ═══ Detect language ONCE per session ═══
+                if (empty($session->detected_language) && !empty($messageText)) {
+                    $session->detected_language = $this->detectLanguage($messageText);
+                    $session->save();
                 }
 
                 // ═══ SMART ROUTER — decide Tier 1, Tier 2, or PHP Direct ═══
@@ -922,7 +930,7 @@ class AIChatbotService
                 ['groups_count' => $groupedProducts->count(), 'group_names' => array_slice($groupNamesForTrace, 0, 10), 'terminology' => $terms]);
             Log::info("AIChatbot: Catalogue Group sent (PHP Direct)", ['session' => $session->id]);
 
-            return $msg;
+            return $this->translateIfNeeded($session, $msg);
         }
 
         // Standard flat listing logic
@@ -972,7 +980,7 @@ class AIChatbotService
             ['trigger' => $selectedGroup ? 'group_selected' : 'product_intent', 'group_filter' => $selectedGroup],
             ['products_count' => $products->count(), 'product_names' => array_slice($productNames, 0, 10), 'terminology' => $terms]);
         Log::info("AIChatbot: Catalogue sent (PHP Direct)", ['session' => $session->id]);
-        return $msg;
+        return $this->translateIfNeeded($session, $msg);
     }
 
     /**
@@ -1021,6 +1029,21 @@ class AIChatbotService
                 if (str_contains($msg, strtolower($g['name']))) {
                     $selectedGroupName = $g['name'];
                     break;
+                }
+            }
+        }
+
+        // Spell correction: if PHP direct match failed, try AI micro-correction
+        if (!$selectedGroupName && !empty($this->spellCorrectionPrompt)) {
+            $groupNames = array_column($groupsList, 'name');
+            $correctedText = $this->spellCorrect($session, $rawMessage, $groupNames);
+            $correctedLower = strtolower(trim($correctedText));
+            if ($correctedLower !== $msg) {
+                foreach ($groupsList as $g) {
+                    if (str_contains($correctedLower, strtolower($g['name']))) {
+                        $selectedGroupName = $g['name'];
+                        break;
+                    }
                 }
             }
         }
@@ -1134,7 +1157,24 @@ class AIChatbotService
                 ['product_id' => $selectedProduct->id, 'product_name' => $this->getProductDisplayName($selectedProduct)]);
         }
 
-        // ── If PHP couldn't match, fall back to AI ──
+        // ── Spell correction: if PHP couldn't match, try fixing typos first ──
+        if (!$selectedProduct && !$listNumber && !empty($this->spellCorrectionPrompt)) {
+            $productNames = $products->map(fn($p) => $this->getProductDisplayName($p))->toArray();
+            $correctedText = $this->spellCorrect($session, $rawMessage, $productNames);
+            $correctedLower = strtolower(trim($correctedText));
+            if ($correctedLower !== $msg) {
+                foreach ($products as $product) {
+                    $displayName = strtolower($this->getProductDisplayName($product));
+                    $productName = strtolower($product->name);
+                    if ($correctedLower === $displayName || $correctedLower === $productName) {
+                        $selectedProduct = $product;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // ── If PHP + spell correction couldn't match, fall back to AI ──
         if (!$selectedProduct) {
             $productList = $products->map(fn($p, $i) => ($i + 1) . ". " . $this->getProductDisplayName($p) . " (ID:{$p->id})")->implode("\n");
 
@@ -1276,7 +1316,7 @@ class AIChatbotService
         }
 
         Log::info("AIChatbot: Product selected (PHP Direct)", ['session' => $session->id, 'product' => $product->name]);
-        return $msg;
+        return $this->translateIfNeeded($session, $msg);
     }
 
     /**
@@ -1458,7 +1498,7 @@ class AIChatbotService
             }
 
             $session->save();
-            return "Sorry, I didn't understand. Please choose from:\n" . implode(' | ', $comboValues);
+            return $this->translateIfNeeded($session, "Sorry, I didn't understand. Please choose from:\n" . implode(' | ', $comboValues));
         }
 
         // Matched! Save to session
@@ -1486,6 +1526,12 @@ class AIChatbotService
         // Build response
         $msg = "✅ {$column->name}: *{$matchedOption}* selected!";
 
+        // Check if all combo steps are done — append progress summary
+        $progressSummary = $this->buildProgressSummary($session, $steps);
+        if (!empty($progressSummary)) {
+            $msg .= $progressSummary;
+        }
+
         // Append next step
         $nextPrompt = $this->buildNextStepPrompt($session, $steps);
         if ($nextPrompt) {
@@ -1493,7 +1539,7 @@ class AIChatbotService
         }
 
         Log::info("AIChatbot: Combo matched (Tier 1)", ['session' => $session->id, 'column' => $column->slug, 'value' => $matchedOption]);
-        return $msg;
+        return $this->translateIfNeeded($session, $msg);
     }
 
     // ═══════════════════════════════════════════════════════
@@ -1539,8 +1585,17 @@ class AIChatbotService
             $this->traceNode($session->id, 'ChatflowRetry', 'routing', 'warning',
                 ['step_name' => $step->name, 'step_type' => $step->step_type, 'user_answer' => $rawMessage],
                 ['retries' => $session->current_step_retries, 'max_retries' => $step->max_retries ?? 2, 'action' => 'retry']);
+            // Auto-skip if max retries reached and step is optional
+            if ($session->current_step_retries >= ($step->max_retries ?? 2)) {
+                if ($step->isOptionalStep()) {
+                    $session->markOptionalAsked($fieldKey);
+                    $this->advanceChatflow($session, $steps);
+                    $session->save();
+                    return $this->buildNextStepPrompt($session, $steps);
+                }
+            }
             $session->save();
-            return $question;
+            return $this->translateIfNeeded($session, $question);
         }
 
         // Save answer
@@ -1583,7 +1638,7 @@ class AIChatbotService
         }
 
         Log::info("AIChatbot: Custom answer (Tier 1)", ['session' => $session->id, 'field' => $fieldKey, 'value' => $extractedText]);
-        return $msg;
+        return $this->translateIfNeeded($session, $msg);
     }
 
     // ═══════════════════════════════════════════════════════
@@ -1633,7 +1688,7 @@ class AIChatbotService
         $session->update(['status' => 'completed', 'conversation_state' => 'completed']);
 
         Log::info("AIChatbot: Summary sent (PHP Direct)", ['session' => $session->id]);
-        return $msg;
+        return $this->translateIfNeeded($session, $msg);
     }
 
     // ═══════════════════════════════════════════════════════
@@ -2571,21 +2626,21 @@ PROMPT;
     private function buildNextStepPrompt(AiChatSession $session, $steps): string
     {
         $nextStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
-        if (!$nextStep) return "✅ All done! Our team will contact you. 🙏";
+        if (!$nextStep) return $this->translateIfNeeded($session, "✅ All done! Our team will contact you. 🙏");
 
         if ($nextStep->step_type === 'ask_combo' && $nextStep->linkedColumn) {
             $productId = $session->getAnswer('product_id');
             $product = Product::with('combos.column')->find($productId);
             $comboValues = $product ? $this->getComboValuesForProduct($product, $nextStep->linkedColumn) : [];
             $question = $nextStep->question_text ?: "Which {$nextStep->linkedColumn->name}?";
-            return "{$question} 👇\n" . implode(' | ', $comboValues);
+            return $this->translateIfNeeded($session, "{$question} 👇\n" . implode(' | ', $comboValues));
         }
 
         if ($nextStep->step_type === 'send_summary') {
             return $this->handleSummaryStep($session);
         }
 
-        return $nextStep->question_text ?: "Please provide your {$nextStep->field_key}:";
+        return $this->translateIfNeeded($session, $nextStep->question_text ?: "Please provide your {$nextStep->field_key}:");
     }
 
     /**
@@ -2852,12 +2907,23 @@ PROMPT;
      */
     private function sendProductMedia(AiChatSession $session, Product $product): void
     {
+        // Once-per-session guard
+        $mediaKey = "product_{$product->id}";
+        if ($session->hasMediaBeenSent($mediaKey)) {
+            $this->traceNode($session->id, 'UniqueModelMediaLookup', 'media', 'info',
+                ['product_id' => $product->id, 'model_name' => $this->getProductDisplayName($product)],
+                ['found' => true, 'skipped' => 'already_sent_this_session']);
+            return;
+        }
+
         // Check for unique model image
         if (!empty($product->cover_media_url)) {
             $this->traceNode($session->id, 'UniqueModelMediaLookup', 'media', 'success',
                 ['product_id' => $product->id, 'model_name' => $this->getProductDisplayName($product)],
                 ['found' => true, 'media_url' => $product->cover_media_url]);
             $this->sendMediaToWhatsApp($session, $product->cover_media_url, 'UniqueModelMediaSent');
+            $session->markMediaSent($mediaKey);
+            $session->save();
         } else {
             $this->traceNode($session->id, 'UniqueModelMediaLookup', 'media', 'info',
                 ['product_id' => $product->id, 'model_name' => $this->getProductDisplayName($product)],
@@ -2888,6 +2954,171 @@ PROMPT;
                 ['product_id' => $product->id, 'combo_key' => $comboSlug, 'combo_value' => $selectedValue],
                 ['found' => false]);
         }
+    }
+
+
+    // ═══════════════════════════════════════════════════════
+    // LANGUAGE DETECTION (PHP — zero AI tokens)
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Detect language from message text using PHP regex.
+     * Zero AI tokens — pure script detection + Hinglish keyword matching.
+     */
+    private function detectLanguage(string $message): string
+    {
+        // Devanagari script (Hindi)
+        if (preg_match('/[\x{0900}-\x{097F}]/u', $message)) return 'hi';
+        // Gujarati script
+        if (preg_match('/[\x{0A80}-\x{0AFF}]/u', $message)) return 'gu';
+        // Tamil script
+        if (preg_match('/[\x{0B80}-\x{0BFF}]/u', $message)) return 'ta';
+        // Telugu script
+        if (preg_match('/[\x{0C00}-\x{0C7F}]/u', $message)) return 'te';
+        // Bengali script
+        if (preg_match('/[\x{0980}-\x{09FF}]/u', $message)) return 'bn';
+        // Kannada script
+        if (preg_match('/[\x{0C80}-\x{0CFF}]/u', $message)) return 'kn';
+        // Malayalam script
+        if (preg_match('/[\x{0D00}-\x{0D7F}]/u', $message)) return 'ml';
+        // Punjabi/Gurmukhi script
+        if (preg_match('/[\x{0A00}-\x{0A7F}]/u', $message)) return 'pa';
+
+        // Hinglish detection (Hindi words written in Latin script)
+        $hindiWords = ['kya','mujhe','chahiye','dikhao','btao','batao','bechte','hai','he','ho','haan','nahi','acha','theek','kaise','kaha','bhai','ji','dekho','bolo','karo','kru','krdo','muje','krna','dedo','bhejo','product','price','kitna','kitne','konsa','kaunsa','aur','ek','do','teen'];
+        $wordCount = 0;
+        $lowerMsg = strtolower($message);
+        foreach ($hindiWords as $hw) {
+            if (preg_match('/\b' . preg_quote($hw, '/') . '\b/i', $lowerMsg)) $wordCount++;
+        }
+        if ($wordCount >= 2) return 'hi';  // Hinglish → treat as Hindi
+
+        return 'en'; // Default English
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SMART TRANSLATION (AI — minimal tokens)
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Translate PHP-hardcoded response to user's detected language.
+     * Skips if user language is English (zero tokens).
+     * Uses micro-prompt (~30-40 tokens per call).
+     */
+    private function translateIfNeeded(AiChatSession $session, string $phpResponse): string
+    {
+        $lang = $session->detected_language ?? 'en';
+
+        // English users → no translation needed (zero tokens)
+        if ($lang === 'en') return $phpResponse;
+
+        // Map language codes to names for the prompt
+        $langNames = [
+            'hi' => 'Hindi (Hinglish using Latin script)',
+            'gu' => 'Gujarati',
+            'ta' => 'Tamil',
+            'te' => 'Telugu',
+            'bn' => 'Bengali',
+            'kn' => 'Kannada',
+            'ml' => 'Malayalam',
+            'pa' => 'Punjabi',
+        ];
+        $langName = $langNames[$lang] ?? 'Hindi';
+
+        try {
+            $prompt = "Translate to {$langName}. Keep emojis, *bold*, numbers, product names as-is. Only translate connecting words/phrases. Reply with translated text only:\n\n{$phpResponse}";
+
+            $result = $this->vertexAI->classifyContent($prompt);
+            $this->logTokens($session, 1, $result);
+
+            $translated = trim($result['text'] ?? '');
+            return !empty($translated) ? $translated : $phpResponse;
+        } catch (\Exception $e) {
+            Log::warning('AIChatbot: Translation failed, using original', ['error' => $e->getMessage()]);
+            return $phpResponse;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SPELL CORRECTION (AI micro-prompt — minimal tokens)
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Fix spelling mistakes in user input before product/option matching.
+     * Uses configurable micro-prompt from settings.
+     * Only called when PHP direct match fails to save tokens.
+     */
+    private function spellCorrect(AiChatSession $session, string $userText, array $availableItems): string
+    {
+        if (empty($availableItems)) return $userText;
+
+        $prompt = $this->spellCorrectionPrompt;
+        if (empty($prompt)) {
+            $prompt = 'Fix spelling: "{text}". Items: [{items}]. Reply corrected text only.';
+        }
+
+        $prompt = str_replace(
+            ['{text}', '{items}'],
+            [$userText, implode(', ', $availableItems)],
+            $prompt
+        );
+
+        try {
+            $t = microtime(true);
+            $result = $this->vertexAI->classifyContent($prompt);
+            $ms = (int)((microtime(true) - $t) * 1000);
+            $this->logTokens($session, 1, $result);
+
+            $corrected = trim($result['text'] ?? '');
+
+            $this->traceNode($session->id, 'SpellCorrection', 'ai_call', 'success',
+                ['original' => $userText, 'available_items' => array_slice($availableItems, 0, 10)],
+                ['corrected' => $corrected, 'tokens_used' => $result['total_tokens'] ?? 0], null, $ms);
+
+            return !empty($corrected) ? $corrected : $userText;
+        } catch (\Exception $e) {
+            Log::warning('AIChatbot: Spell correction failed', ['error' => $e->getMessage()]);
+            return $userText;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // PROGRESS SUMMARY (after all combo steps done)
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Build progress summary showing confirmed selections.
+     * Returns non-empty string ONLY when all combo steps are answered.
+     */
+    private function buildProgressSummary(AiChatSession $session, $steps): string
+    {
+        $answers = $session->collected_answers ?? [];
+        $comboSteps = $steps->where('step_type', 'ask_combo');
+
+        if ($comboSteps->isEmpty()) return '';
+
+        $allComboDone = true;
+        $confirmedItems = [];
+
+        foreach ($comboSteps as $cs) {
+            if ($cs->linkedColumn && isset($answers[$cs->linkedColumn->slug])) {
+                $confirmedItems[] = "✅ {$cs->linkedColumn->name}: {$answers[$cs->linkedColumn->slug]}";
+            } else if ($cs->linkedColumn) {
+                $allComboDone = false;
+            }
+        }
+
+        // Only show when ALL combos are done
+        if (!$allComboDone || empty($confirmedItems)) return '';
+
+        $productName = $answers['product_name'] ?? '';
+        $msg = "\n\n📋 *Your Selection:*\n";
+        $msg .= "✅ Product: {$productName}\n";
+        foreach ($confirmedItems as $item) {
+            $msg .= "{$item}\n";
+        }
+
+        return $msg;
     }
 
 

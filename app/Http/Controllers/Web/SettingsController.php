@@ -51,6 +51,7 @@ class SettingsController extends Controller
         $aiReplyLanguage = Setting::getValue('ai_bot', 'reply_language', 'auto');
         $aiArchitectureRules = Setting::getValue('ai_bot', 'architecture_rules', '');
         $aiSessionValidDays = Setting::getValue('ai_bot', 'session_valid_days', 10);
+        $aiSpellPrompt = Setting::getValue('ai_bot', 'spell_correction_prompt', '');
 
         // Load backup files for Backup & Restore tab
         $backupFiles = [];
@@ -81,7 +82,7 @@ class SettingsController extends Controller
         return view('admin.settings.index', compact(
             'company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources',
             'taskStatuses', 'paymentTypes', 'whatsappApiConfig', 'backupFiles',
-            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiGreetingPrompt', 'aiBusinessPrompt', 'aiReplyLanguage', 'aiArchitectureRules', 'aiSessionValidDays'
+            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiGreetingPrompt', 'aiBusinessPrompt', 'aiReplyLanguage', 'aiArchitectureRules', 'aiSessionValidDays', 'aiSpellPrompt'
         ));
     }
 
@@ -388,11 +389,13 @@ class SettingsController extends Controller
             'system_prompt' => 'required|string',
             'greeting_prompt' => 'nullable|string',
             'business_prompt' => 'nullable|string',
+            'spell_correction_prompt' => 'nullable|string',
         ]);
 
         Setting::setValue('ai_bot', 'system_prompt', $request->system_prompt);
         Setting::setValue('ai_bot', 'greeting_prompt', $request->greeting_prompt ?? '');
         Setting::setValue('ai_bot', 'business_prompt', $request->business_prompt ?? '');
+        Setting::setValue('ai_bot', 'spell_correction_prompt', $request->spell_correction_prompt ?? '');
 
         return response()->json(['success' => true, 'message' => 'AI prompts saved']);
     }

@@ -801,6 +801,12 @@
                             <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: Provide business details like address, support number, and business hours to use when user wants to know about the company.</small>
                         </div>
 
+                        <div style="margin-bottom:16px">
+                            <label style="display:block;margin-bottom:4px;font-weight:600">Spell Correction Prompt (Optional)</label>
+                            <textarea class="form-textarea" id="ai-spell-prompt" rows="3" placeholder="Fix spelling: {text}. Items: [{items}]. Reply corrected text only.">{{ $aiSpellPrompt ?? '' }}</textarea>
+                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: This micro-prompt corrects user typos before product matching. Use {text} for user input and {items} for available options. Keep it short to save tokens.</small>
+                        </div>
+
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <button type="button" class="btn btn-primary" onclick="saveAiPrompt()">
                                 <i data-lucide="save" style="width:16px;height:16px"></i> Save Prompt
@@ -1929,6 +1935,7 @@
                     system_prompt: document.getElementById('ai-system-prompt').value,
                     greeting_prompt: document.getElementById('ai-greeting-prompt').value,
                     business_prompt: document.getElementById('ai-business-prompt').value,
+                    spell_correction_prompt: document.getElementById('ai-spell-prompt').value,
                 })
             }).then(r => r.json()).then(data => {
                 alert(data.message || 'Saved');
