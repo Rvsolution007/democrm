@@ -448,10 +448,11 @@
                     <div>
                         <label style="display:block;margin-bottom:6px;font-weight:500;font-size:13px;color:#334155">Image (Optional)</label>
                         <div style="border:1.5px dashed #cbd5e1;padding:12px;border-radius:8px;background:#f8fafc;text-align:center">
-                            <input type="file" name="image" id="cat-image-input" accept="image/*" style="width:100%;font-size:12px;color:#64748b">
-                            <div id="cat-current-image-wrapper" style="display:none;margin-top:10px;text-align:left;font-size:12px;color:#6366f1;display:flex;align-items:center;gap:6px">
-                                <i data-lucide="image" style="width:14px;height:14px"></i>
-                                <span>Existing Image Attached</span>
+                            <input type="file" name="image" id="cat-image-input" accept="image/*" style="width:100%;font-size:12px;color:#64748b" onchange="previewCatModalImage(this)">
+                            <div id="cat-current-image-wrapper" style="display:none;margin-top:10px;text-align:center;background:white;padding:4px;border:1px solid #e2e8f0;border-radius:8px;position:relative;overflow:hidden;">
+                                <a id="cat-image-link" href="#" target="_blank" title="Click to view full image">
+                                    <img id="cat-image-preview" src="" alt="Preview" style="max-width:100%;height:100px;object-fit:contain;border-radius:4px;transition:transform 0.2s" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                                </a>
                             </div>
                         </div>
                     </div>
@@ -518,10 +519,53 @@ function editInlineCategory(btn, label) {
     document.getElementById('category-ajax-form').reset();
     document.getElementById('cat-name-input').value = catObj.name;
     
-    document.getElementById('cat-current-image-wrapper').style.display = catObj.image ? 'flex' : 'none';
+    if(catObj.image) {
+        var url = '{{ asset("storage") }}/' + catObj.image;
+        document.getElementById('cat-image-preview').src = url;
+        document.getElementById('cat-image-link').href = url;
+        document.getElementById('cat-image-link').target = '_blank';
+        document.getElementById('cat-current-image-wrapper').style.display = 'block';
+    } else {
+        document.getElementById('cat-current-image-wrapper').style.display = 'none';
+        document.getElementById('cat-image-preview').src = '';
+    }
     
     document.getElementById('category-ajax-modal').style.display = 'flex';
     if(typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+window.previewCatModalImage = function(input) {
+    var wrapper = document.getElementById('cat-current-image-wrapper');
+    var img = document.getElementById('cat-image-preview');
+    var link = document.getElementById('cat-image-link');
+    
+    if (input.files && input.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            img.src = e.target.result;
+            link.href = '#';
+            link.removeAttribute('target');
+            wrapper.style.display = 'block';
+        }
+        reader.readAsDataURL(input.files[0]);
+    } else {
+        // Fallback to existing image
+        var catId = document.getElementById('cat-id').value;
+        if(catId) {
+            var catObj = allSysCategories.find(c => c.id == catId);
+            if(catObj && catObj.image) {
+                var url = '{{ asset("storage") }}/' + catObj.image;
+                img.src = url;
+                link.href = url;
+                link.target = '_blank';
+                wrapper.style.display = 'block';
+            } else {
+                wrapper.style.display = 'none';
+            }
+        } else {
+            wrapper.style.display = 'none';
+        }
+    }
 }
 
 function closeInlineCategoryModal() {
