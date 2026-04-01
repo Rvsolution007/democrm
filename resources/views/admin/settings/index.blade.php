@@ -2103,6 +2103,7 @@
             const rows = document.querySelectorAll('#followup-schedules-tbody tr');
             const schedules = [];
             
+            let index = 1;
             // Re-read schedules from DOM
             rows.forEach((row) => {
                 const nameInput = row.querySelector('.followup-name');
@@ -2110,13 +2111,18 @@
                 const delayInput = row.querySelector('.followup-delay');
                 const activeChkbx = row.querySelector('.followup-active');
 
-                if (nameInput.value.trim() !== '') {
-                    schedules.push({
-                        name: nameInput.value.trim(),
-                        delay_minutes: parseInt(delayInput.value) || 0,
-                        is_active: activeChkbx.checked
-                    });
+                let sName = nameInput.value.trim();
+                if (sName === '') {
+                    sName = 'Follow-up ' + index;
+                    nameInput.value = sName; // update UI so user sees the fallback
                 }
+
+                schedules.push({
+                    name: sName,
+                    delay_minutes: parseInt(delayInput.value) || 0,
+                    is_active: activeChkbx.checked
+                });
+                index++;
             });
 
             const btn = event.currentTarget;
