@@ -142,18 +142,7 @@
                         <i data-lucide="package"></i> <span>Products</span>
                     </a>
                 @endif
-                @if(can('categories.read'))
-                    @php
-                        $categoryColumn = \App\Models\CatalogueCustomColumn::where('company_id', auth()->user()->company_id)
-                            ->where('is_category', true)->first();
-                    @endphp
-                    @if($categoryColumn)
-                        <a href="{{ route('admin.categories.index') }}"
-                            class="nav-link {{ request()->routeIs('admin.categories.*') ? 'active' : '' }}">
-                            <i data-lucide="folder"></i> <span>{{ Str::plural($categoryColumn->name) }}</span>
-                        </a>
-                    @endif
-                @endif
+
                 @if(can('projects.global') || can('quotes.global'))
                     <a href="{{ route('admin.vendors.index') }}"
                         class="nav-link {{ request()->routeIs('admin.vendors.*') ? 'active' : '' }}">

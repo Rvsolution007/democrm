@@ -437,6 +437,7 @@
                 @csrf
                 <input type="hidden" id="cat-form-method" name="_method" value="POST">
                 <input type="hidden" id="cat-id" value="">
+                <input type="hidden" name="status" value="active">
                 
                 <div style="padding:20px;">
                     <div style="margin-bottom:16px">
