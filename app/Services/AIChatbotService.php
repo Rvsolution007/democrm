@@ -457,8 +457,27 @@ class AIChatbotService
                     $session->save();
                 }
 
+                // ═══ Build conversation context from last 5 messages ═══
+                $recentMessages = AiChatMessage::where('session_id', $session->id)
+                    ->where('id', '!=', $userMsg->id) // exclude current message
+                    ->orderBy('id', 'desc')
+                    ->take(5)
+                    ->get()
+                    ->reverse();
+
+                $contextMessage = $fullMessage;
+                if ($recentMessages->isNotEmpty()) {
+                    $contextParts = [];
+                    foreach ($recentMessages as $rm) {
+                        $prefix = $rm->role === 'bot' ? 'Bot' : 'User';
+                        $contextParts[] = "{$prefix}: {$rm->message}";
+                    }
+                    $contextParts[] = "User: {$messageText}";
+                    $contextMessage = implode("\n", $contextParts);
+                }
+
                 // ═══ SMART ROUTER — decide Tier 1, Tier 2, or PHP Direct ═══
-                $responseText = $this->routeMessage($session, $fullMessage, $messageText, $imageUrl);
+                $responseText = $this->routeMessage($session, $contextMessage, $messageText, $imageUrl);
 
                 // Save bot response
                 AiChatMessage::create([
@@ -651,6 +670,14 @@ class AIChatbotService
                 return $this->sendCategoryList($session);
             }
 
+            // Check if user is giving an affirmative response to bot's product question
+            // (e.g. bot asked "Aap kis tarah ke products mein interested hain?" and user says "yes")
+            if ($this->isAffirmativeResponse($rawMessage) && $this->botLastAskedAboutProducts($session)) {
+                $this->routeTrace[] = 'affirmativeToProductQuery → sendCategoryList';
+                $this->traceNode($session->id, 'ProductIntentDetector', 'routing', 'success', ['message' => $rawMessage, 'method' => 'PHP', 'match_type' => 'affirmative_response'], ['is_product_intent' => true]);
+                return $this->sendCategoryList($session);
+            }
+
             // AI fallback for ambiguous messages
             $intentPrompt = "User said: \"{$rawMessage}\"\n\nIs the user asking about products, catalogue, prices, or what you sell? This includes messages in ANY language like Hindi, Hinglish, etc. Examples of YES: 'products dikhao', 'kya bechte ho', 'show me products', 'muje product ke bare me btao', 'catalogue', 'what do you sell'. Examples of NO: 'hi', 'hello', 'namaste', 'good morning', 'how are you', 'thanks'. Reply with ONLY 'YES' or 'NO'.";
             $t = microtime(true);
@@ -685,6 +712,12 @@ class AIChatbotService
         if ($this->isProductIntent($rawMessage)) {
             $this->routeTrace[] = 'isProductIntent(PHP) → sendCatalogue';
             $this->traceNode($session->id, 'ProductIntentDetector', 'routing', 'success', ['message' => $rawMessage, 'method' => 'PHP', 'match_type' => 'keyword'], ['is_product_intent' => true, 'matched_keyword' => $this->findMatchedProductKeyword($rawMessage)]);
+            return $this->sendCatalogue($session);
+        }
+
+        // Affirmative response check (same as category flow)
+        if ($this->isAffirmativeResponse($rawMessage) && $this->botLastAskedAboutProducts($session)) {
+            $this->routeTrace[] = 'affirmativeToProductQuery → sendCatalogue';
             return $this->sendCatalogue($session);
         }
 
@@ -881,7 +914,7 @@ class AIChatbotService
 
         // ── Send category image BEFORE product listing (works for both group and flat paths) ──
         $categoryId = $answers['category_id'] ?? ($products->first() ? $products->first()->category_id : null);
-        if ($categoryId && !$session->getAnswer('category_image_sent')) {
+        if ($categoryId && !$session->hasMediaBeenSent("category_{$categoryId}")) {
             $category = $products->first() && $products->first()->relationLoaded('category')
                 ? $products->first()->category
                 : \App\Models\Category::find($categoryId);
@@ -889,10 +922,14 @@ class AIChatbotService
                 $mediaUrl = '/storage/' . $category->image;
                 $this->traceNode($session->id, 'CategoryMediaLookup', 'media', 'success',
                     ['category_id' => $category->id, 'company_id' => $this->companyId],
-                    ['found' => true, 'media_url' => $mediaUrl]);
+                    ['found' => true, 'media_url' => $mediaUrl, 'raw_image_path' => $category->image]);
                 $this->sendMediaToWhatsApp($session, $mediaUrl, 'CategoryMediaSent');
-                $session->setAnswer('category_image_sent', true);
+                $session->markMediaSent("category_{$categoryId}");
                 $session->save();
+            } else {
+                $this->traceNode($session->id, 'CategoryMediaLookup', 'media', 'info',
+                    ['category_id' => $categoryId],
+                    ['found' => false, 'category_exists' => (bool)$category, 'has_image' => $category ? !empty($category->image) : false]);
             }
         }
 
@@ -2471,6 +2508,49 @@ PROMPT;
             }
         }
         return null;
+    }
+
+    /**
+     * Check if user's message is an affirmative response (yes, ok, haan, etc.)
+     */
+    private function isAffirmativeResponse(string $message): bool
+    {
+        $msg = strtolower(trim($message));
+        $affirmatives = [
+            'yes', 'yeah', 'yep', 'yup', 'sure', 'ok', 'okay', 'alright',
+            'haan', 'ha', 'haa', 'ji', 'ji ha', 'ha ji', 'theek hai', 'thik hai',
+            'bilkul', 'zaroor', 'sahi', 'correct', 'right', 'done',
+            'ho', 'han', 'hmm', 'accha', 'achha', 'acha',
+        ];
+        return in_array($msg, $affirmatives);
+    }
+
+    /**
+     * Check if the bot's last message was asking about products/catalogue.
+     * This helps handle "yes" → product list flow when bot asked "interested in products?"
+     */
+    private function botLastAskedAboutProducts(AiChatSession $session): bool
+    {
+        $lastBotMsg = AiChatMessage::where('session_id', $session->id)
+            ->where('role', 'bot')
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if (!$lastBotMsg) return false;
+
+        $botText = strtolower($lastBotMsg->message);
+        $productHints = [
+            'product', 'catalogue', 'catalog', 'interested',
+            'kya chahiye', 'kis tarah', 'madad', 'help',
+            'what are you looking', 'what would you like',
+        ];
+
+        foreach ($productHints as $hint) {
+            if (str_contains($botText, $hint)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function getAiVisibleColumns()
