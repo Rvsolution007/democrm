@@ -1091,7 +1091,7 @@ class AIChatbotService
         // ── If PHP + spell correction couldn't match, fall back to AI ──
         if (!$selectedGroupName) {
             $groupListStr = collect($groupsList)->map(fn($g, $i) => ($i + 1) . ". " . $g['name'])->implode("\n");
-            $prompt = "User said: \"{$rawMessage}\"\n\nAvailable categories/models:\n{$groupListStr}\n\nWhich one did the user select? User might refer by number, partial name, or typo. Reply with ONLY the exact name from the list. If truly unclear, reply NONE.";
+            $prompt = "User said: \"{$rawMessage}\"\n\nAvailable categories/models:\n{$groupListStr}\n\nWhich one is the user asking for or trying to select? User might use conversational language (e.g. 'show me cabinet', 'cabine kya he', 'cabine me dikhao'). Focus on their underlying product intent. Reply with ONLY the exact name from the list. If it completely does not map to any category, reply NONE.";
 
             $t = microtime(true);
             $matchResult = $this->vertexAI->classifyContent($prompt);
@@ -1248,7 +1248,7 @@ class AIChatbotService
         if (!$selectedProduct) {
             $productList = $products->map(fn($p, $i) => ($i + 1) . ". " . $this->getProductDisplayName($p) . " (ID:{$p->id})")->implode("\n");
 
-            $prompt = "User said: \"{$rawMessage}\"\n\nAvailable products:\n{$productList}\n\nWhich product did user select? User may refer by number (e.g. 'product 1' means list item #1), by name, or description. Reply with ONLY the product ID number. If truly unclear or no match, reply NONE.";
+            $prompt = "User said: \"{$rawMessage}\"\n\nAvailable products:\n{$productList}\n\nWhich product is the user asking for or trying to select? User may refer by number (e.g. 'product 1' means list item #1), by name, or conversational description. Focus on their underlying product intent. Reply with ONLY the product ID number. If it completely does not map to any product, reply NONE.";
 
             $t = microtime(true);
             $matchResult = $this->vertexAI->classifyContent($prompt);
@@ -2550,7 +2550,7 @@ PROMPT;
     {
         $this->traceNode($session->id, 'OutOfContextQuery', 'ai_call', 'success', ['message' => $rawMessage], ['action' => 'answering_business_query']);
 
-        $company = Company::find($this->companyId);
+        $company = \App\Models\Company::find($this->companyId);
         $systemPrompt = "You are a highly helpful sales representative for {$company->name}.\n";
         $systemPrompt .= "The user is currently in the middle of a product selection/survey flow, but they just asked an off-topic question or made a generic remark.\n\n";
 
