@@ -52,6 +52,12 @@ class SettingsController extends Controller
         $aiArchitectureRules = Setting::getValue('ai_bot', 'architecture_rules', '');
         $aiSessionValidDays = Setting::getValue('ai_bot', 'session_valid_days', 10);
         $aiSpellPrompt = Setting::getValue('ai_bot', 'spell_correction_prompt', '');
+        $aiFollowupStopStage = Setting::getValue('ai_bot', 'followup_stop_stage', '');
+        $aiTargetStage = Setting::getValue('ai_bot', 'target_stage', '');
+
+        $followupSchedules = \App\Models\ChatFollowupSchedule::where('company_id', auth()->user()->company_id)
+            ->orderBy('delay_minutes')
+            ->get();
 
         // Load backup files for Backup & Restore tab
         $backupFiles = [];
@@ -82,7 +88,7 @@ class SettingsController extends Controller
         return view('admin.settings.index', compact(
             'company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources',
             'taskStatuses', 'paymentTypes', 'whatsappApiConfig', 'backupFiles',
-            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiGreetingPrompt', 'aiBusinessPrompt', 'aiReplyLanguage', 'aiArchitectureRules', 'aiSessionValidDays', 'aiSpellPrompt'
+            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiGreetingPrompt', 'aiBusinessPrompt', 'aiReplyLanguage', 'aiArchitectureRules', 'aiSessionValidDays', 'aiSpellPrompt', 'aiFollowupStopStage', 'aiTargetStage', 'followupSchedules'
         ));
     }
 
@@ -534,5 +540,39 @@ class SettingsController extends Controller
         }
 
         return redirect()->route('admin.system-logs.index')->with('success', 'System error logs have been cleared.');
+    }
+
+    /**
+     * Save AI Bot Follow-up Settings
+     */
+    public function saveFollowupSettings(Request $request)
+    {
+        $request->validate([
+            'followup_stop_stage' => 'nullable|string',
+            'target_stage' => 'nullable|string',
+            'schedules' => 'present|array',
+            'schedules.*.name' => 'required|string',
+            'schedules.*.delay_minutes' => 'required|integer|min:0',
+            'schedules.*.is_active' => 'required|boolean',
+        ]);
+
+        Setting::setValue('ai_bot', 'followup_stop_stage', $request->followup_stop_stage ?? '');
+        Setting::setValue('ai_bot', 'target_stage', $request->target_stage ?? '');
+
+        $companyId = auth()->user()->company_id;
+        
+        // Remove old schedules and recreate
+        \App\Models\ChatFollowupSchedule::where('company_id', $companyId)->delete();
+        
+        foreach ($request->schedules as $schedule) {
+            \App\Models\ChatFollowupSchedule::create([
+                'company_id' => $companyId,
+                'name' => $schedule['name'],
+                'delay_minutes' => $schedule['delay_minutes'],
+                'is_active' => $schedule['is_active'],
+            ]);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Follow-up settings saved']);
     }
 }

@@ -26,7 +26,9 @@ class AiChatSession extends Model
         'conversation_state',
         'catalogue_sent',
         'last_message_at',
+        'last_bot_message_at',
         'detected_language',
+        'followup_status',
         'media_sent_keys',
     ];
 
@@ -36,6 +38,7 @@ class AiChatSession extends Model
         'current_step_retries' => 'integer',
         'catalogue_sent' => 'boolean',
         'last_message_at' => 'datetime',
+        'last_bot_message_at' => 'datetime',
         'media_sent_keys' => 'array',
     ];
 

@@ -1046,6 +1046,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::post('/settings/ai-architecture-rules', [SettingsController::class, 'saveAiArchitectureRules'])->name('settings.ai-architecture-rules.save');
     Route::post('/settings/ai-language', [SettingsController::class, 'saveAiLanguage'])->name('settings.ai-language.save');
     Route::post('/settings/ai-toggle', [SettingsController::class, 'toggleAiBot'])->name('settings.ai-toggle');
+    Route::post('/settings/followup', [SettingsController::class, 'saveFollowupSettings'])->name('settings.followup.save');
 
     // AI Token Analytics
     Route::get('/ai-analytics', [AiAnalyticsController::class, 'index'])->name('ai-analytics.index');

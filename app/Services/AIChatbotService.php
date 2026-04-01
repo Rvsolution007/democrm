@@ -561,6 +561,54 @@ class AIChatbotService
             return $this->handleTier2($session, $fullMessage, $imageUrl);
         }
 
+        // ══ BUSINESS QUERY INTERCEPT ══
+        if ($this->isBusinessQuery($rawMessage)) {
+            $this->routeTrace[] = 'business_query_intercept';
+            $this->traceNode($session->id, 'BusinessQueryDetector', 'routing', 'success',
+                ['message' => $rawMessage, 'detection_method' => 'PHP'],
+                ['detected' => true, 'business_prompt_configured' => !empty($this->businessPrompt), 'business_prompt_preview' => mb_substr($this->businessPrompt, 0, 100)]);
+
+            if (!empty($this->businessPrompt)) {
+                $this->routeTrace[] = 'handleBusinessPrompt';
+                $t = microtime(true);
+                $systemContext = "You are a helpful sales representative.\n" . $this->businessPrompt . "\n\nAnswer the user's business query concisely (1-2 sentences).";
+                $businessResult = $this->vertexAI->generateContent(
+                    $systemContext . "\n\n## LANGUAGE\nReply in the same language the customer is using.",
+                    [['role' => 'user', 'text' => $rawMessage]],
+                    null
+                );
+                $ms = (int)((microtime(true) - $t) * 1000);
+                $this->logTokens($session, 2, $businessResult);
+                $responseText = trim($businessResult['text'] ?? '');
+                
+                $this->traceNode($session->id, 'BusinessQueryAIResponse', 'ai_call',
+                    !empty($responseText) ? 'success' : 'error',
+                    ['message' => $rawMessage, 'prompt_type' => 'business_prompt', 'prompt_preview' => mb_substr($this->businessPrompt, 0, 150)],
+                    ['response' => mb_substr($responseText, 0, 200), 'tokens_used' => $businessResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
+                
+                if (!empty($responseText)) {
+                    // Check if we should append the next chatflow question
+                    $nextPrompt = "";
+                    if ($session->conversation_state !== 'product_selected') {
+                        // User hasn't finished product flow, don't nudge them yet or naturally fall back
+                    } else {
+                        // In the middle of chatflow
+                        $steps = ChatflowStep::where('company_id', $this->companyId)->orderBy('sort_order')->get();
+                        $nextPrompt = $this->buildNextStepPrompt($session, $steps);
+                    }
+                    
+                    if ($nextPrompt) {
+                        return $responseText . "\n\n👇\n" . $nextPrompt;
+                    }
+                    return $responseText;
+                }
+            }
+
+            $this->routeTrace[] = 'handleTier2';
+            Log::info('AIChatbot: Business Query → Tier 2', ['session' => $session->id]);
+            return $this->handleTier2($session, $fullMessage, $imageUrl);
+        }
+
         $this->traceNode($session->id, 'GreetingDetector', 'routing', 'success',
             ['message' => $rawMessage, 'detection_method' => 'PHP'], ['detected' => false]);
 
@@ -1845,7 +1893,17 @@ class AIChatbotService
         if (in_array($msg, ['yes', 'y', 'ha', 'haa', 'haan', 'ji', 'sure', 'ok', 'okay', 'done', 'confirm'])) {
             $session->update(['status' => 'completed', 'conversation_state' => 'completed']);
             $reply = "✅ Order Confirmed!\n\nOur team will contact you shortly regarding the delivery and payment. Thank you for your business! 🙏";
-            $this->traceNode($session->id, 'OrderConfirmed', 'application', 'success', ['message' => $rawMessage], ['status' => 'confirmed']);
+            
+            // Move Lead to Target Stage
+            $targetStage = Setting::getValue('ai_bot', 'target_stage', '', $this->companyId);
+            if (!empty($targetStage) && $session->lead_id) {
+                $lead = \App\Models\Lead::find($session->lead_id);
+                if ($lead) {
+                    $lead->update(['stage' => $targetStage]);
+                }
+            }
+            
+            $this->traceNode($session->id, 'OrderConfirmed', 'application', 'success', ['message' => $rawMessage], ['status' => 'confirmed', 'new_lead_stage' => $targetStage]);
         } elseif (in_array($msg, ['no', 'n', 'nahi', 'cancel'])) {
             $session->update(['status' => 'cancelled', 'conversation_state' => 'completed']);
             if ($session->quote_id) {
@@ -1956,7 +2014,7 @@ class AIChatbotService
                     $basePrompt .= "\n\n" . $greetingPrompt;
                 }
             } else {
-                $businessPrompt = Setting::getValue('ai_bot', 'business_query_prompt', '', $this->companyId);
+                $businessPrompt = Setting::getValue('ai_bot', 'business_prompt', '', $this->companyId);
                 if (!empty($businessPrompt)) {
                     $basePrompt .= "\n\n" . $businessPrompt;
                 }

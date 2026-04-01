@@ -874,6 +874,65 @@
                         </button>
                     </div>
                 </div>
+                
+                <!-- Smart Follow-Up Automation -->
+                <div class="card" style="margin-bottom:24px">
+                    <div class="card-header">
+                        <h3 class="card-title" style="display:flex;align-items:center;gap:8px">
+                            <i data-lucide="clock" style="width:20px;height:20px;color:#0ea5e9"></i>
+                            Smart Follow-Up Automation
+                        </h3>
+                        <p class="text-sm text-muted" style="margin-top:4px">Automatically push leads to complete their orders using Vertex AI generated follow-ups.</p>
+                    </div>
+                    <div class="card-content">
+                        <!-- Stop/Target Stages -->
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #eee">
+                            <div>
+                                <label style="display:block;margin-bottom:4px;font-weight:600">Stop Follow-ups At Stage</label>
+                                <select class="form-input" id="ai-followup-stop-stage">
+                                    <option value="">-- Select Stage --</option>
+                                    @foreach($leadStages ?? [] as $stage)
+                                        <option value="{{ $stage['name'] }}" {{ ($aiFollowupStopStage ?? '') === $stage['name'] ? 'selected' : '' }}>{{ $stage['name'] }}</option>
+                                    @endforeach
+                                </select>
+                                <small style="color:#999;font-size:12px;margin-top:4px;display:block">If Lead reaches this stage, AI will stop chasing them.</small>
+                            </div>
+                            <div>
+                                <label style="display:block;margin-bottom:4px;font-weight:600">Post-Completion Target Stage</label>
+                                <select class="form-input" id="ai-target-stage">
+                                    <option value="">-- Select Stage --</option>
+                                    @foreach($leadStages ?? [] as $stage)
+                                        <option value="{{ $stage['name'] }}" {{ ($aiTargetStage ?? '') === $stage['name'] ? 'selected' : '' }}>{{ $stage['name'] }}</option>
+                                    @endforeach
+                                </select>
+                                <small style="color:#999;font-size:12px;margin-top:4px;display:block">Once the chatflow is completely finished, move Lead to this stage.</small>
+                            </div>
+                        </div>
+
+                        <!-- Schedules Table -->
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                            <h4 style="font-weight:600;margin:0">Follow-Up Delays</h4>
+                            <button class="btn btn-primary btn-sm" onclick="addFollowupSchedule()">+ Add Schedule</button>
+                        </div>
+                        <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+                            <thead>
+                                <tr style="background:#f8f9fa;text-align:left">
+                                    <th style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px;font-weight:600">Label (e.g. Day 1)</th>
+                                    <th style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px;font-weight:600;width:150px">Delay (Minutes)</th>
+                                    <th style="padding:10px 14px;border-bottom:1px solid #eee;font-size:13px;font-weight:600;width:100px">Active</th>
+                                    <th style="padding:10px 14px;border-bottom:1px solid #eee;width:60px"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="followup-schedules-tbody">
+                                <!-- Populated dynamically via JS -->
+                            </tbody>
+                        </table>
+
+                        <button type="button" class="btn btn-primary" onclick="saveFollowupSettings()">
+                            <i data-lucide="save" style="width:16px;height:16px"></i> Save Follow-Up Settings
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Backup & Restore Tab -->
@@ -1667,6 +1726,7 @@
             renderStages('source'); // Initialize lead sources
             renderStages('task'); // Initialize task statuses
             renderStages('payment'); // Initialize payment types
+            renderFollowupSchedules(); // Initialize followup schedules
 
             // Initialize Drag & Drop for Lead Stages
             const leadStagesContainer = document.getElementById('lead-stages-container');
@@ -1966,6 +2026,97 @@
                 if (data.success) showSavedToast();
                 else alert('Error saving language');
             }).catch(() => alert('Request failed'));
+        }
+
+        // ═══════════════════════════════════════
+        // Smart Follow-Up JS
+        // ═══════════════════════════════════════
+        let followupSchedules = @json($followupSchedules ?? []);
+
+        function renderFollowupSchedules() {
+            const tbody = document.getElementById('followup-schedules-tbody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            if (!followupSchedules || followupSchedules.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;color:#999;font-size:13px">No schedules added yet. Click "+ Add Schedule" to create one.</td></tr>';
+                return;
+            }
+
+            followupSchedules.forEach((schedule, idx) => {
+                const isActiveChecked = schedule.is_active ? 'checked' : '';
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0"><input type="text" class="form-input followup-name" value="${escapeHtml(schedule.name || '')}" placeholder="e.g. Day 1 Followup"></td>
+                        <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0"><input type="number" min="0" class="form-input followup-delay" value="${schedule.delay_minutes || 0}" placeholder="Minutes"></td>
+                        <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:center"><label class="column-toggle" style="margin:0;justify-content:center"><input type="checkbox" class="followup-active" ${isActiveChecked}></label></td>
+                        <td style="padding:8px 14px;border-bottom:1px solid #f0f0f0;text-align:right"><button type="button" class="btn btn-icon btn-ghost btn-sm" style="color:var(--destructive)" onclick="removeFollowupSchedule(${idx})" title="Remove"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button></td>
+                    </tr>
+                `;
+            });
+            lucide.createIcons();
+        }
+
+        function addFollowupSchedule() {
+            followupSchedules.push({ name: '', delay_minutes: 60, is_active: true });
+            renderFollowupSchedules();
+        }
+
+        function removeFollowupSchedule(idx) {
+            followupSchedules.splice(idx, 1);
+            renderFollowupSchedules();
+        }
+
+        function saveFollowupSettings() {
+            const stopStage = document.getElementById('ai-followup-stop-stage').value;
+            const targetStage = document.getElementById('ai-target-stage').value;
+
+            const rows = document.querySelectorAll('#followup-schedules-tbody tr');
+            const schedules = [];
+            
+            // Re-read schedules from DOM
+            rows.forEach((row) => {
+                const nameInput = row.querySelector('.followup-name');
+                if (!nameInput) return; // skip empty placeholder
+                const delayInput = row.querySelector('.followup-delay');
+                const activeChkbx = row.querySelector('.followup-active');
+
+                if (nameInput.value.trim() !== '') {
+                    schedules.push({
+                        name: nameInput.value.trim(),
+                        delay_minutes: parseInt(delayInput.value) || 0,
+                        is_active: activeChkbx.checked
+                    });
+                }
+            });
+
+            const btn = event.currentTarget;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader" class="animate-spin" style="width:16px;height:16px"></i> Saving...';
+            btn.disabled = true;
+
+            fetch('{{ route("admin.settings.followup.save") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    followup_stop_stage: stopStage,
+                    target_stage: targetStage,
+                    schedules: schedules
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    showSavedToast();
+                    followupSchedules = schedules;
+                    renderFollowupSchedules();
+                } else if (data.errors) {
+                    alert(Object.values(data.errors).flat().join('\n'));
+                }
+            }).catch(() => alert('Request failed'))
+            .finally(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                lucide.createIcons();
+            });
         }
     </script>
 @endpush

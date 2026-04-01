@@ -62,3 +62,8 @@ Schedule::command('backup:clean')
     ->name('daily-db-backup-clean')
     ->withoutOverlapping();
 
+// Process AI Smart Follow-Ups for WhatsApp
+Schedule::command('ai:process-followups')
+    ->everyMinute()
+    ->name('ai-smart-followups')
+    ->withoutOverlapping();
