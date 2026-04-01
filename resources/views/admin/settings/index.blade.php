@@ -892,7 +892,7 @@
                                 <select class="form-input" id="ai-followup-stop-stage">
                                     <option value="">-- Select Stage --</option>
                                     @foreach($leadStages ?? [] as $stage)
-                                        <option value="{{ $stage['name'] }}" {{ ($aiFollowupStopStage ?? '') === $stage['name'] ? 'selected' : '' }}>{{ $stage['name'] }}</option>
+                                        <option value="{{ (is_array($stage) ? ($stage['name'] ?? '') : $stage) }}" {{ ($aiFollowupStopStage ?? '') === (is_array($stage) ? ($stage['name'] ?? '') : $stage) ? 'selected' : '' }}>{{ ucwords(str_replace('_', ' ', (is_array($stage) ? ($stage['name'] ?? '') : $stage))) }}</option>
                                     @endforeach
                                 </select>
                                 <small style="color:#999;font-size:12px;margin-top:4px;display:block">If Lead reaches this stage, AI will stop chasing them.</small>
@@ -902,7 +902,7 @@
                                 <select class="form-input" id="ai-target-stage">
                                     <option value="">-- Select Stage --</option>
                                     @foreach($leadStages ?? [] as $stage)
-                                        <option value="{{ $stage['name'] }}" {{ ($aiTargetStage ?? '') === $stage['name'] ? 'selected' : '' }}>{{ $stage['name'] }}</option>
+                                        <option value="{{ (is_array($stage) ? ($stage['name'] ?? '') : $stage) }}" {{ ($aiTargetStage ?? '') === (is_array($stage) ? ($stage['name'] ?? '') : $stage) ? 'selected' : '' }}>{{ ucwords(str_replace('_', ' ', (is_array($stage) ? ($stage['name'] ?? '') : $stage))) }}</option>
                                     @endforeach
                                 </select>
                                 <small style="color:#999;font-size:12px;margin-top:4px;display:block">Once the chatflow is completely finished, move Lead to this stage.</small>
