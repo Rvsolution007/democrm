@@ -480,9 +480,7 @@ function toggleCategoryButtons(select) {
     var editBtn = wrapper.querySelector('.inline-cat-edit-btn');
     var delBtn = wrapper.querySelector('.inline-cat-delete-btn');
     
-    if (val && !select.options[select.selectedIndex].parentElement.label) {
-        // Exists and is not an optgroup placeholder... Actually wait, parent element label applies to children of optgroup
-        // Any option inside optgroup is valid!
+    if (val) {
         if (editBtn) editBtn.style.display = '';
         if (delBtn) delBtn.style.display = '';
     } else {
@@ -964,6 +962,11 @@ document.addEventListener('click', function (e) {
 
     document.getElementById('product-modal').style.display = 'flex';
     if(typeof lucide !== 'undefined') lucide.createIcons();
+
+    // Trigger category button visibility for pre-selected values
+    document.querySelectorAll('.inline-category-select').forEach(function(sel) {
+        toggleCategoryButtons(sel);
+    });
 });
 
 function closeProductModal(e) {

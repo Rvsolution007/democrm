@@ -892,25 +892,43 @@ class AIChatbotService
             $selectedCategory = $categories->values()[$listNumber - 1] ?? null;
         }
 
-        // 2. Try partial/substring match if number wasn't found
+        // 2. Try partial/substring match — collect ALL matches to detect ambiguity
         if (!$selectedCategory) {
+            $phpMatches = [];
             foreach ($categories as $cat) {
                 $cNameLower = strtolower($cat->name);
+                $matched = false;
                 
                 // Bidirectional substring match
                 if (str_contains($msg, $cNameLower) || (strlen($msg) >= 3 && str_contains($cNameLower, $msg))) {
-                    $selectedCategory = $cat;
-                    break;
+                    $matched = true;
                 }
                 
                 // Word-by-word match
-                $userWords = preg_split('/[\s,]+/', $msg);
-                foreach ($userWords as $word) {
-                    if (strlen($word) >= 3 && str_contains($cNameLower, $word)) {
-                        $selectedCategory = $cat;
-                        break 2;
+                if (!$matched) {
+                    $userWords = preg_split('/[\s,]+/', $msg);
+                    foreach ($userWords as $word) {
+                        if (strlen($word) >= 3 && str_contains($cNameLower, $word)) {
+                            $matched = true;
+                            break;
+                        }
                     }
                 }
+                
+                if ($matched) {
+                    $phpMatches[] = $cat;
+                }
+            }
+            
+            // If exactly 1 match → use it. If multiple → let AI disambiguate.
+            if (count($phpMatches) === 1) {
+                $selectedCategory = $phpMatches[0];
+            } elseif (count($phpMatches) > 1) {
+                $this->traceNode($session->id, 'CategoryPHPMultiMatch', 'routing', 'info',
+                    ['message' => $rawMessage, 'match_count' => count($phpMatches)],
+                    ['matched_names' => collect($phpMatches)->pluck('name')->toArray()],
+                    'Multiple PHP matches found, forwarding to AI for disambiguation.');
+                // Don't set $selectedCategory — let AI contextual matcher handle it
             }
         }
 
@@ -1175,21 +1193,39 @@ class AIChatbotService
         }
 
         if (!$selectedGroupName) {
+            $phpGroupMatches = [];
             foreach ($groupsList as $g) {
                 $gNameLower = strtolower($g['name']);
-                // Bidirectional substring match: user message contains group name OR group name contains user message
+                $matched = false;
+                
+                // Bidirectional substring match
                 if (str_contains($msg, $gNameLower) || (strlen($msg) >= 3 && str_contains($gNameLower, $msg))) {
-                    $selectedGroupName = $g['name'];
-                    break;
+                    $matched = true;
                 }
-                // Also check individual words from user message against group name
-                $userWords = preg_split('/[\s,]+/', $msg);
-                foreach ($userWords as $word) {
-                    if (strlen($word) >= 3 && str_contains($gNameLower, $word)) {
-                        $selectedGroupName = $g['name'];
-                        break 2;
+                
+                // Word-by-word match
+                if (!$matched) {
+                    $userWords = preg_split('/[\s,]+/', $msg);
+                    foreach ($userWords as $word) {
+                        if (strlen($word) >= 3 && str_contains($gNameLower, $word)) {
+                            $matched = true;
+                            break;
+                        }
                     }
                 }
+                
+                if ($matched) {
+                    $phpGroupMatches[] = $g;
+                }
+            }
+            
+            if (count($phpGroupMatches) === 1) {
+                $selectedGroupName = $phpGroupMatches[0]['name'];
+            } elseif (count($phpGroupMatches) > 1) {
+                $this->traceNode($session->id, 'GroupPHPMultiMatch', 'routing', 'info',
+                    ['message' => $rawMessage, 'match_count' => count($phpGroupMatches)],
+                    ['matched_names' => array_column($phpGroupMatches, 'name')],
+                    'Multiple PHP matches found, forwarding to AI for disambiguation.');
             }
         }
 
@@ -1326,8 +1362,9 @@ class AIChatbotService
                     break;
                 }
             }
-            // Then try bidirectional substring/partial match
+            // Then try bidirectional substring/partial match — collect ALL matches
             if (!$selectedProduct) {
+                $phpProductMatches = [];
                 foreach ($products as $product) {
                     $displayName = strtolower($this->getProductDisplayName($product));
                     $productName = strtolower($product->name);
@@ -1337,20 +1374,35 @@ class AIChatbotService
                         return strtolower(is_string($cv->value) ? $cv->value : json_encode($cv->value));
                     })->implode(' ');
 
+                    $matched = false;
                     // User message contains product name, or product name contains user message
                     if (str_contains($msg, $displayName) || str_contains($msg, $productName) || (strlen($msg) >= 3 && str_contains($attributes, $msg))
                         || (strlen($msg) >= 3 && (str_contains($displayName, $msg) || str_contains($productName, $msg)))) {
-                        $selectedProduct = $product;
-                        break;
+                        $matched = true;
                     }
                     // Check individual words from user message against product name and attributes
-                    $userWords = preg_split('/[\s,]+/', $msg);
-                    foreach ($userWords as $word) {
-                        if (strlen($word) >= 3 && (str_contains($displayName, $word) || str_contains($productName, $word) || str_contains($attributes, $word))) {
-                            $selectedProduct = $product;
-                            break 2;
+                    if (!$matched) {
+                        $userWords = preg_split('/[\s,]+/', $msg);
+                        foreach ($userWords as $word) {
+                            if (strlen($word) >= 3 && (str_contains($displayName, $word) || str_contains($productName, $word) || str_contains($attributes, $word))) {
+                                $matched = true;
+                                break;
+                            }
                         }
                     }
+                    
+                    if ($matched) {
+                        $phpProductMatches[] = $product;
+                    }
+                }
+                
+                if (count($phpProductMatches) === 1) {
+                    $selectedProduct = $phpProductMatches[0];
+                } elseif (count($phpProductMatches) > 1) {
+                    $this->traceNode($session->id, 'ProductPHPMultiMatch', 'routing', 'info',
+                        ['message' => $rawMessage, 'match_count' => count($phpProductMatches)],
+                        ['matched_names' => collect($phpProductMatches)->map(fn($p) => $this->getProductDisplayName($p))->toArray()],
+                        'Multiple PHP matches found, forwarding to AI for disambiguation.');
                 }
             }
         }
