@@ -1684,7 +1684,7 @@ class AIChatbotService
                 ['lead_id' => $lead->id, 'lead_phone' => $session->phone_number, 'lead_source' => 'whatsapp']);
         }
 
-        // Create Quote
+        // Create or update Quote
         if (!$session->quote_id) {
             $company = \App\Models\Company::find($this->companyId);
             $quote = Quote::create([
@@ -1715,13 +1715,45 @@ class AIChatbotService
             ]);
             $session->quote_id = $quote->id;
             
-            // Extract the sequence number from quote_no (e.g. Q-25-26-000017 -> 17) for clearer tracing
             $quoteSeqParts = explode('-', $quote->quote_no);
             $quoteSequence = (int) end($quoteSeqParts);
 
             $this->traceNode($session->id, 'QuoteCreated', 'database', 'success',
                 ['lead_id' => $session->lead_id, 'product_id' => $productId, 'product_name' => $displayName],
                 ['database_id' => $quote->id, 'quote_sequence_id' => $quoteSequence, 'quote_no' => $quote->quote_no, 'grand_total' => '₹' . number_format($quote->grand_total / 100, 2)]);
+        } else {
+            // Add new item to existing quote
+            $quote = Quote::find($session->quote_id);
+            if ($quote) {
+                $maxSortOrder = QuoteItem::where('quote_id', $quote->id)->max('sort_order') ?? 0;
+                QuoteItem::create([
+                    'quote_id' => $quote->id,
+                    'product_id' => $productId,
+                    'product_name' => $displayName,
+                    'description' => $product->getDynamicDescription($session->collected_answers ?? [], true),
+                    'hsn_code' => $product->hsn_code,
+                    'qty' => 1,
+                    'rate' => $product->sale_price,
+                    'unit' => $product->unit,
+                    'unit_price' => $product->sale_price,
+                    'gst_percent' => $product->gst_percent,
+                    'sort_order' => $maxSortOrder + 1,
+                ]);
+
+                // Recalculate quote totals
+                $allItems = QuoteItem::where('quote_id', $quote->id)->get();
+                $subtotal = $allItems->sum(fn($item) => $item->rate * $item->qty);
+                $gstTotal = $allItems->sum(fn($item) => ($item->rate * $item->qty * ($item->gst_percent ?? 0)) / 100);
+                $quote->update([
+                    'subtotal' => $subtotal,
+                    'gst_total' => $gstTotal,
+                    'grand_total' => $subtotal + $gstTotal,
+                ]);
+
+                $this->traceNode($session->id, 'QuoteItemAdded', 'database', 'success',
+                    ['product_id' => $productId, 'product_name' => $displayName],
+                    ['quote_id' => $quote->id, 'item_count' => $allItems->count(), 'new_grand_total' => '₹' . number_format(($subtotal + $gstTotal) / 100, 2)]);
+            }
         }
 
         // Send unique model image if available
@@ -2225,16 +2257,7 @@ class AIChatbotService
         $msg = strtolower(trim($rawMessage));
         
         if (in_array($msg, ['yes', 'y', 'ha', 'haa', 'haan', 'ji', 'sure', 'ok', 'okay', 'done', 'confirm'])) {
-            $session->update(['status' => 'completed', 'conversation_state' => 'completed']);
-            
             $productName = $session->getAnswer('product_name') ?? 'your selected product';
-            $reply = "✅ *Order Confirmed!*\n\n";
-            $reply .= "Thank you for choosing *{$productName}*! 🙏\n\n";
-            $reply .= "📞 Our team will reach out to you shortly to discuss:\n";
-            $reply .= "• Delivery details\n";
-            $reply .= "• Payment options\n";
-            $reply .= "• Any customization requirements\n\n";
-            $reply .= "We appreciate your trust in us! If you have any questions in the meantime, feel free to message us. 😊";
             
             // Move Lead to Target Stage
             $targetStage = Setting::getValue('ai_bot', 'target_stage', '', $this->companyId);
@@ -2245,16 +2268,87 @@ class AIChatbotService
                 }
             }
             
-            $this->traceNode($session->id, 'OrderConfirmed', 'application', 'success', ['message' => $rawMessage], ['status' => 'confirmed', 'new_lead_stage' => $targetStage]);
-        } elseif (in_array($msg, ['no', 'n', 'nahi', 'cancel'])) {
-            $session->update(['status' => 'cancelled', 'conversation_state' => 'completed']);
-            if ($session->quote_id) {
-                Quote::where('id', $session->quote_id)->update(['status' => 'cancelled']);
+            $this->traceNode($session->id, 'OrderConfirmed', 'application', 'success', 
+                ['message' => $rawMessage, 'product' => $productName], 
+                ['status' => 'confirmed', 'new_lead_stage' => $targetStage, 'lead_id' => $session->lead_id, 'quote_id' => $session->quote_id]);
+
+            // Reset chatflow for next product — keep lead_id and quote_id intact
+            $answers = $session->collected_answers ?? [];
+            $keysToKeep = []; // Lead and quote are on session model, not in answers
+            $keysToRemove = ['product_id', 'product_name', 'product_price', 'category_id', 'category_name', 'selected_product_group'];
+            
+            // Also remove combo answer keys (finish, size, etc.)
+            $productId = $answers['product_id'] ?? null;
+            if ($productId) {
+                $product = Product::with('combos.column')->find($productId);
+                if ($product) {
+                    foreach ($product->combos as $combo) {
+                        if ($combo->column) {
+                            $keysToRemove[] = $combo->column->slug;
+                        }
+                    }
+                }
             }
+            
+            // Clear product-specific answers
+            $newAnswers = [];
+            foreach ($answers as $key => $val) {
+                if (!in_array($key, $keysToRemove)) {
+                    $newAnswers[$key] = $val;
+                }
+            }
+            $session->collected_answers = $newAnswers;
+            
+            // Reset chatflow state — session stays ACTIVE, lead_id and quote_id stay
+            $session->current_step_id = null;
+            $session->current_step_retries = 0;
+            $session->conversation_state = 'new';
+            $session->catalogue_sent = false;
+            $session->status = 'active';
+            $session->media_sent_keys = []; // Allow fresh media for next product
+            $session->save();
+
+            $reply = "✅ *{$productName} Confirmed!*\n\n";
+            $reply .= "Thank you! 🙏\n\n";
+            $reply .= "Would you like to add another product? Just tell me what you're looking for!\n\n";
+            $reply .= "Or if you're done, our team will reach out to you for delivery & payment details. 😊";
+
+        } elseif (in_array($msg, ['no', 'n', 'nahi', 'cancel'])) {
+            // Check if this is cancelling the LAST product or the entire order
+            // If quote has items already confirmed, just remove the current uncommitted product
+            $session->update(['conversation_state' => 'new']);
+            
+            // Reset product-specific answers
+            $answers = $session->collected_answers ?? [];
+            $keysToRemove = ['product_id', 'product_name', 'product_price', 'category_id', 'category_name', 'selected_product_group'];
+            $productId = $answers['product_id'] ?? null;
+            if ($productId) {
+                $product = Product::with('combos.column')->find($productId);
+                if ($product) {
+                    foreach ($product->combos as $combo) {
+                        if ($combo->column) {
+                            $keysToRemove[] = $combo->column->slug;
+                        }
+                    }
+                }
+            }
+            $newAnswers = [];
+            foreach ($answers as $key => $val) {
+                if (!in_array($key, $keysToRemove)) {
+                    $newAnswers[$key] = $val;
+                }
+            }
+            $session->collected_answers = $newAnswers;
+            $session->current_step_id = null;
+            $session->current_step_retries = 0;
+            $session->catalogue_sent = false;
+            $session->media_sent_keys = [];
+            $session->save();
+
             $reply = "No worries! 🙏\n\n";
-            $reply .= "I understand. If you'd like to explore other products or have any questions, just send a message anytime.\n\n";
-            $reply .= "We're always here to help! 😊";
-            $this->traceNode($session->id, 'OrderCancelled', 'application', 'success', ['message' => $rawMessage], ['status' => 'cancelled']);
+            $reply .= "Would you like to explore other products? Just tell me what you need!\n\n";
+            $reply .= "I'm here to help! 😊";
+            $this->traceNode($session->id, 'ProductCancelled', 'application', 'success', ['message' => $rawMessage], ['status' => 'cancelled']);
         } else {
             return $this->translateIfNeeded($session, "Please reply *Yes* to confirm or *No* to cancel your order.");
         }
