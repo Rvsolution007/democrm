@@ -394,6 +394,11 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::put('/service-templates/{id}', [ServiceTemplatesController::class, 'update'])->name('service-templates.update');
     Route::delete('/service-templates/{id}', [ServiceTemplatesController::class, 'destroy'])->name('service-templates.destroy');
 
+    // Products — Excel Import/Export (must be before resource routes)
+    Route::get('/products/demo-excel', [ProductsController::class, 'downloadDemoExcel'])->name('products.demo-excel');
+    Route::post('/products/import-excel/validate', [ProductsController::class, 'validateImportExcel'])->name('products.import-validate');
+    Route::post('/products/import-excel/process', [ProductsController::class, 'processImportExcel'])->name('products.import-process');
+
     // Products
     Route::get('/products', [ProductsController::class, 'index'])->name('products.index');
     Route::post('/products', [ProductsController::class, 'store'])->name('products.store');

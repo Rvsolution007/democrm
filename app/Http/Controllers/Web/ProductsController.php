@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Category;
 use App\Models\Setting;
+use App\Services\ProductExcelService;
 use Illuminate\Http\Request;
 
 class ProductsController extends Controller
@@ -288,6 +289,86 @@ class ProductsController extends Controller
                 'price' => $price,
                 'discount' => $discount,
             ]);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // EXCEL IMPORT / EXPORT
+    // ═══════════════════════════════════════════════════════
+
+    public function downloadDemoExcel()
+    {
+        if (!can('products.read')) abort(403);
+
+        $service = new ProductExcelService(auth()->user()->company_id, auth()->id());
+        $spreadsheet = $service->generateDemoExcel();
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $fileName = 'product_import_template_' . date('Y-m-d') . '.xlsx';
+
+        $tempDir = storage_path('app/temp');
+        if (!is_dir($tempDir)) mkdir($tempDir, 0755, true);
+        $tempPath = $tempDir . '/' . $fileName;
+        $writer->save($tempPath);
+
+        return response()->download($tempPath, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    public function validateImportExcel(Request $request)
+    {
+        if (!can('products.write')) abort(403);
+
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls|max:10240',
+        ]);
+
+        $file = $request->file('file');
+        $tempName = 'import_' . auth()->id() . '_' . time() . '.' . $file->getClientOriginalExtension();
+
+        $tempDir = storage_path('app/temp');
+        if (!is_dir($tempDir)) mkdir($tempDir, 0755, true);
+        $file->move($tempDir, $tempName);
+
+        $filePath = $tempDir . '/' . $tempName;
+
+        try {
+            $service = new ProductExcelService(auth()->user()->company_id, auth()->id());
+            $results = $service->validateExcel($filePath);
+            $results['temp_file'] = $tempName;
+            return response()->json($results);
+        } catch (\Exception $e) {
+            @unlink($filePath);
+            return response()->json(['error' => 'Failed to parse Excel: ' . $e->getMessage()], 422);
+        }
+    }
+
+    public function processImportExcel(Request $request)
+    {
+        if (!can('products.write')) abort(403);
+
+        $request->validate([
+            'temp_file' => 'required|string',
+            'category_action' => 'required|in:skip,create',
+        ]);
+
+        // Sanitize filename to prevent path traversal
+        $tempFile = basename($request->temp_file);
+        $filePath = storage_path('app/temp/' . $tempFile);
+
+        if (!file_exists($filePath)) {
+            return response()->json(['error' => 'Uploaded file expired. Please re-upload.'], 422);
+        }
+
+        try {
+            $service = new ProductExcelService(auth()->user()->company_id, auth()->id());
+            $results = $service->processImport($filePath, $request->category_action);
+            @unlink($filePath);
+            return response()->json($results);
+        } catch (\Exception $e) {
+            @unlink($filePath);
+            return response()->json(['error' => 'Import failed: ' . $e->getMessage()], 500);
         }
     }
 
