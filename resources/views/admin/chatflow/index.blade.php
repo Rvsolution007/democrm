@@ -5,50 +5,12 @@
 
 @section('content')
     <div class="page-header" style="margin-bottom:24px">
-        <div class="page-header-content" style="display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap">
-            <div style="flex:1;min-width:200px">
+        <div class="page-header-content">
+            <div>
                 <h1 class="page-title">Chatflow Builder</h1>
                 <p class="page-description">Design the conversation flow for your AI WhatsApp bot</p>
             </div>
-
-            <div style="flex:4;min-width:500px;max-width:900px">
-                <div style="display:flex;gap:20px;flex-wrap:wrap">
-                    {{-- Total Steps Card --}}
-                    <div style="flex:1;min-width:180px;background:linear-gradient(135deg,#4f46e5 0%,#3b82f6 100%);padding:14px 24px;border-radius:12px;box-shadow:0 4px 10px rgba(59,130,246,0.3);color:white;display:flex;align-items:center;justify-content:space-between">
-                        <div>
-                            <p style="margin:0 0 4px 0;font-size:12px;font-weight:600;color:#e0e7ff;text-transform:uppercase;letter-spacing:0.05em">Total Steps</p>
-                            <h3 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px">{{ $steps->count() }}</h3>
-                        </div>
-                        <div style="width:44px;height:44px;background:rgba(255,255,255,0.2);backdrop-filter:blur(4px);border-radius:12px;display:flex;align-items:center;justify-content:center">
-                            <i data-lucide="layers" style="width:24px;height:24px;stroke-width:2.5px;"></i>
-                        </div>
-                    </div>
-
-                    {{-- Filter Columns Card --}}
-                    <div style="flex:1;min-width:180px;background:linear-gradient(135deg,#ec4899 0%,#f43f5e 100%);padding:14px 24px;border-radius:12px;box-shadow:0 4px 10px rgba(244,63,94,0.3);color:white;display:flex;align-items:center;justify-content:space-between">
-                        <div>
-                            <p style="margin:0 0 4px 0;font-size:12px;font-weight:600;color:#fce7f3;text-transform:uppercase;letter-spacing:0.05em">Filter Columns</p>
-                            <h3 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px">{{ $filterableColumns->count() }}</h3>
-                        </div>
-                        <div style="width:44px;height:44px;background:rgba(255,255,255,0.2);backdrop-filter:blur(4px);border-radius:12px;display:flex;align-items:center;justify-content:center">
-                            <i data-lucide="filter" style="width:24px;height:24px;stroke-width:2.5px;"></i>
-                        </div>
-                    </div>
-
-                    {{-- Combo Steps Card --}}
-                    <div style="flex:1;min-width:180px;background:linear-gradient(135deg,#f59e0b 0%,#ea580c 100%);padding:14px 24px;border-radius:12px;box-shadow:0 4px 10px rgba(245,158,11,0.3);color:white;display:flex;align-items:center;justify-content:space-between">
-                        <div>
-                            <p style="margin:0 0 4px 0;font-size:12px;font-weight:600;color:#fef3c7;text-transform:uppercase;letter-spacing:0.05em">Combo Steps</p>
-                            <h3 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px">{{ $steps->where('step_type', 'ask_combo')->count() }}</h3>
-                        </div>
-                        <div style="width:44px;height:44px;background:rgba(255,255,255,0.2);backdrop-filter:blur(4px);border-radius:12px;display:flex;align-items:center;justify-content:center">
-                            <i data-lucide="palette" style="width:24px;height:24px;stroke-width:2.5px;"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="page-actions" style="display:flex;gap:12px;align-items:center;align-self:flex-end;margin-bottom:8px">
+            <div class="page-actions">
                 <button class="btn btn-primary" onclick="openAddStep()" style="gap:6px;font-weight:600">
                     <i data-lucide="plus" style="width:16px;height:16px"></i> Add Step
                 </button>
@@ -79,8 +41,8 @@
     {{-- Flow Preview --}}
     <div style="background:linear-gradient(135deg,#4f46e5 0%,#3b82f6 100%);border-radius:12px;padding:24px;margin-bottom:24px;box-shadow:0 4px 10px rgba(59,130,246,0.3)">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
-            <div style="width:8px;height:8px;border-radius:50%;background:var(--primary);animation:cfPulse 2s infinite"></div>
-            <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.5px;text-transform:uppercase">Live Flow Preview</span>
+            <div style="width:8px;height:8px;border-radius:50%;background:#ffffff;animation:cfPulse 2s infinite"></div>
+            <span style="font-size:13px;font-weight:600;color:#ffffff;letter-spacing:0.5px;text-transform:uppercase">Live Flow Preview</span>
         </div>
         <div id="flow-preview" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-height:38px">
             @forelse($steps as $index => $step)
