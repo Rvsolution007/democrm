@@ -77,7 +77,7 @@
     @endif
 
     {{-- Flow Preview --}}
-    <div style="background:var(--sidebar-bg);border-radius:var(--radius);padding:24px;margin-bottom:24px;box-shadow:var(--shadow-md)">
+    <div style="background:linear-gradient(135deg,#4f46e5 0%,#3b82f6 100%);border-radius:12px;padding:24px;margin-bottom:24px;box-shadow:0 4px 10px rgba(59,130,246,0.3)">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
             <div style="width:8px;height:8px;border-radius:50%;background:var(--primary);animation:cfPulse 2s infinite"></div>
             <span style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.7);letter-spacing:0.5px;text-transform:uppercase">Live Flow Preview</span>
@@ -133,7 +133,7 @@
                         <tr data-id="{{ $step->id }}">
                             <td style="cursor:grab;color:var(--muted-foreground);font-size:16px">⠿</td>
                             <td style="text-align:center">
-                                <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-sm);background:linear-gradient(135deg,var(--primary),var(--accent));color:white;font-size:12px;font-weight:700">{{ $step->sort_order }}</span>
+                                <span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-sm);background:linear-gradient(135deg,#f59e0b,#ea580c);color:white;font-size:12px;font-weight:700;box-shadow:0 2px 6px rgba(245,158,11,0.3)">{{ $step->sort_order }}</span>
                             </td>
                             <td style="font-weight:600;font-size:14px">{{ $step->name }}</td>
                             <td style="text-align:center">
