@@ -556,7 +556,7 @@ class AIChatbotService
     private function routeMessage(AiChatSession $session, string $fullMessage, string $rawMessage, ?string $imageUrl): string
     {
         $this->routeTrace = [];
-        $steps = ChatflowStep::where('company_id', $this->companyId)->orderBy('sort_order')->get();
+        $steps = ChatflowStep::with('linkedColumn')->where('company_id', $this->companyId)->orderBy('sort_order')->get();
         $currentStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
         $answers = $session->collected_answers ?? [];
 
@@ -1830,13 +1830,24 @@ class AIChatbotService
             }
         }
 
-        // Tier 1b (Relaxed PHP Check): Handle cases like "166mm" vs "166 mm" by removing spaces/symbols
+        // Tier 1b (Relaxed PHP Check): Handle partial numeric matches like "166" → "166mm"
         if (!$matchedOption) {
             $normalizedMessage = preg_replace('/[^a-z0-9]/', '', strtolower($rawMessage));
             foreach ($comboValues as $opt) {
                 $normalizedOpt = preg_replace('/[^a-z0-9]/', '', strtolower($opt));
-                // Only consider it a match if they are completely identical when stripped of spacing/symbols
-                if (!empty($normalizedOpt) && $normalizedMessage === $normalizedOpt) {
+                if (empty($normalizedOpt)) continue;
+                // Exact normalized match
+                if ($normalizedMessage === $normalizedOpt) {
+                    $matchedOption = $opt;
+                    break;
+                }
+                // Partial: option starts with user input (e.g. user "166" → option "166mm")
+                if (strlen($normalizedMessage) >= 2 && str_starts_with($normalizedOpt, $normalizedMessage)) {
+                    $matchedOption = $opt;
+                    break;
+                }
+                // Partial: user input starts with option (e.g. user "166mm black" → option "166mm")
+                if (strlen($normalizedOpt) >= 2 && str_starts_with($normalizedMessage, $normalizedOpt)) {
                     $matchedOption = $opt;
                     break;
                 }
@@ -3141,9 +3152,16 @@ PROMPT;
             $session->current_step_id = $nextStep->id;
             $session->current_step_retries = 0;
             $session->conversation_state = 'in_chatflow';
+            $this->traceNode($session->id, 'ChatflowAdvanced', 'routing', 'info',
+                ['next_step' => $nextStep->name, 'next_step_type' => $nextStep->step_type],
+                ['next_step_id' => $nextStep->id, 'answers_count' => count($answers)]);
         } else {
+            $session->current_step_id = null;
             $session->conversation_state = 'completed';
             $session->update(['status' => 'completed']);
+            $this->traceNode($session->id, 'ChatflowCompleted', 'routing', 'success',
+                [],
+                ['answers_count' => count($answers), 'final_state' => 'completed']);
         }
     }
 
@@ -3221,7 +3239,14 @@ PROMPT;
     private function buildNextStepPrompt(AiChatSession $session, $steps): string
     {
         $nextStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
-        if (!$nextStep) return $this->translateIfNeeded($session, "✅ All done! Our team will contact you. 🙏");
+        if (!$nextStep) {
+            // No next step — if chatflow is completed and we have product answers, show summary + confirm
+            if ($session->getAnswer('product_id') && $session->conversation_state === 'completed') {
+                // Auto-generate summary since there's no explicit send_summary step
+                return $this->handleSummaryStep($session);
+            }
+            return $this->translateIfNeeded($session, "✅ All done! Our team will contact you. 🙏");
+        }
 
         // Send step-level media BEFORE asking the question (once per session)
         if ($nextStep->hasMedia()) {
