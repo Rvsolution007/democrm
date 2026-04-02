@@ -947,10 +947,11 @@ class AIChatbotService
             }
             
             if (!$selectedCategory && strtoupper(trim($aiResponse)) !== 'NONE') {
-                // If it's not a match, and not NONE, it's a clarification question!
-                // Strip markdown, JSON symbols, just in case
-                $cleanResponse = trim(preg_replace('/[\{\}\[\]\*_]/', '', $aiResponse));
-                return $this->translateIfNeeded($session, $cleanResponse);
+                $cleanResponse = $this->sanitizeAiResponseForUser($aiResponse);
+                if ($cleanResponse) {
+                    return $this->translateIfNeeded($session, $cleanResponse);
+                }
+                // Sanitization emptied the response (was technical gibberish) — fall through to re-send list
             }
         }
 
@@ -1263,8 +1264,10 @@ class AIChatbotService
             }
             
             if (!$selectedGroupName && strtoupper(trim($aiResponse)) !== 'NONE') {
-                $cleanResponse = trim(preg_replace('/[\{\}\[\]\*_]/', '', $aiResponse));
-                return $this->translateIfNeeded($session, $cleanResponse);
+                $cleanResponse = $this->sanitizeAiResponseForUser($aiResponse);
+                if ($cleanResponse) {
+                    return $this->translateIfNeeded($session, $cleanResponse);
+                }
             }
         }
 
@@ -1452,8 +1455,10 @@ class AIChatbotService
             }
             
             if (!$selectedProduct && strtoupper(trim($aiResponse)) !== 'NONE') {
-                $cleanResponse = trim(preg_replace('/[\{\}\[\]\*_]/', '', $aiResponse));
-                return $this->translateIfNeeded($session, $cleanResponse);
+                $cleanResponse = $this->sanitizeAiResponseForUser($aiResponse);
+                if ($cleanResponse) {
+                    return $this->translateIfNeeded($session, $cleanResponse);
+                }
             }
         }
 
@@ -1500,6 +1505,42 @@ class AIChatbotService
             ['raw_response' => $matchText, 'tokens_used' => $matchResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
 
         return $matchText;
+    }
+
+    /**
+     * Sanitize AI matcher response before sending to WhatsApp user.
+     * Removes all technical artifacts (MATCH_ID, MATCH, ID:, markdown, JSON)
+     * and returns clean conversational text, or null if nothing usable remains.
+     */
+    private function sanitizeAiResponseForUser(string $aiResponse): ?string
+    {
+        $clean = $aiResponse;
+
+        // Remove any line containing MATCH keyword (MATCH_ID, MATCH_, MATCH etc.)
+        $clean = preg_replace('/.*\bMATCH\b.*/i', '', $clean);
+
+        // Remove ID: references (e.g. "ID:15", "ID: 3")
+        $clean = preg_replace('/\bID:\s*\d+/i', '', $clean);
+
+        // Remove NONE keyword if it snuck in partially
+        $clean = preg_replace('/\bNONE\b/i', '', $clean);
+
+        // Remove markdown/JSON formatting symbols: { } [ ] * _ ` # :
+        $clean = preg_replace('/[{}\[\]*_`#]/', '', $clean);
+
+        // Remove excessive colons at start of lines
+        $clean = preg_replace('/^\s*:\s*/m', '', $clean);
+
+        // Collapse multiple blank lines into one
+        $clean = preg_replace('/\n{2,}/', "\n", $clean);
+        $clean = trim($clean);
+
+        // Only return if we have a meaningful conversational message (>= 15 chars)
+        if (empty($clean) || mb_strlen($clean) < 15) {
+            return null;
+        }
+
+        return $clean;
     }
 
     /**
