@@ -351,6 +351,17 @@ class AIChatbotService
 
                 $session->update(['last_message_at' => now()]);
 
+                // Save incoming user message FIRST (so traceNode has message context)
+                $userMsg = AiChatMessage::create([
+                    'session_id' => $session->id,
+                    'role' => 'user',
+                    'message' => $messageText,
+                    'message_type' => $imageUrl ? 'image' : 'text',
+                    'image_url' => $imageUrl,
+                    'reply_context' => $replyContext,
+                ]);
+                $this->currentMessageId = $userMsg->id;
+
                 // ── Early Lead Creation (on first message) ──
                 if (!$session->lead_id) {
                     // Calculate first follow-up time if schedules exist
@@ -378,17 +389,6 @@ class AIChatbotService
 
                     Log::info('AIChatbot: Early lead created on first message', ['session' => $session->id, 'lead_id' => $lead->id]);
                 }
-
-                // Save incoming user message
-                $userMsg = AiChatMessage::create([
-                    'session_id' => $session->id,
-                    'role' => 'user',
-                    'message' => $messageText,
-                    'message_type' => $imageUrl ? 'image' : 'text',
-                    'image_url' => $imageUrl,
-                    'reply_context' => $replyContext,
-                ]);
-                $this->currentMessageId = $userMsg->id;
 
                 // ── Session Health Check (Deleted Quotes/Leads or Closed Leads) ──
                 $needsReset = false;
