@@ -3,11 +3,16 @@ set -e
 
 echo "=== RV_CRM Container Starting ==="
 
-# Create required storage directories
+# Create required storage directories (volume-mounted, persists across deploys)
 mkdir -p /app/storage/framework/{cache,sessions,views}
 mkdir -p /app/storage/logs
 mkdir -p /app/bootstrap/cache
 
+# Create media upload directories (CRITICAL: these MUST exist for file uploads to work)
+mkdir -p /app/storage/app/public/categories
+mkdir -p /app/storage/app/public/products/cover
+mkdir -p /app/storage/app/public/chatflow-media
+mkdir -p /app/storage/app/public/company-logos
 
 # Create storage symlink (public/storage → storage/app/public)
 php artisan storage:link --force 2>/dev/null || true
