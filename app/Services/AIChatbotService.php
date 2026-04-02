@@ -904,13 +904,30 @@ class AIChatbotService
                     $matched = true;
                 }
                 
-                // Word-by-word match
+                // Word-by-word exact match
                 if (!$matched) {
                     $userWords = preg_split('/[\s,]+/', $msg);
                     foreach ($userWords as $word) {
                         if (strlen($word) >= 3 && str_contains($cNameLower, $word)) {
                             $matched = true;
                             break;
+                        }
+                    }
+                }
+
+                // Fuzzy word match (handles typos like 'cabinat' → 'cabinet')
+                if (!$matched) {
+                    $userWords = preg_split('/[\s,]+/', $msg);
+                    $catWords = preg_split('/[\s,]+/', $cNameLower);
+                    foreach ($userWords as $uWord) {
+                        if (strlen($uWord) < 3) continue;
+                        foreach ($catWords as $cWord) {
+                            if (strlen($cWord) < 3) continue;
+                            $maxDist = strlen($uWord) <= 4 ? 1 : 2;
+                            if (levenshtein($uWord, $cWord) <= $maxDist) {
+                                $matched = true;
+                                break 2;
+                            }
                         }
                     }
                 }
@@ -1014,6 +1031,16 @@ class AIChatbotService
 
         if ($products->isEmpty()) {
             return "Sorry, we don't have any {$terms['plural_base']} available right now.";
+        }
+
+        // AUTO-SELECT: If only 1 product exists in this filtered set, auto-select it
+        if ($products->count() === 1) {
+            $onlyProduct = $products->first();
+            $this->traceNode($session->id, 'AutoSelectSingleProduct', 'routing', 'success',
+                ['trigger' => 'single_product_in_category'],
+                ['product_id' => $onlyProduct->id, 'product_name' => $this->getProductDisplayName($onlyProduct)]);
+            $steps = ChatflowStep::where('company_id', $this->companyId)->orderBy('sort_order')->get();
+            return $this->selectProduct($session, $onlyProduct->id, $steps);
         }
 
         $groupedProducts = $products->groupBy(function($p) {
@@ -1398,6 +1425,22 @@ class AIChatbotService
                             }
                         }
                     }
+                    // Fuzzy word match for typos
+                    if (!$matched) {
+                        $userWords = preg_split('/[\s,]+/', $msg);
+                        $nameWords = preg_split('/[\s,]+/', $displayName . ' ' . $productName);
+                        foreach ($userWords as $uWord) {
+                            if (strlen($uWord) < 3) continue;
+                            foreach ($nameWords as $nWord) {
+                                if (strlen($nWord) < 3) continue;
+                                $maxDist = strlen($uWord) <= 4 ? 1 : 2;
+                                if (levenshtein($uWord, $nWord) <= $maxDist) {
+                                    $matched = true;
+                                    break 2;
+                                }
+                            }
+                        }
+                    }
                     
                     if ($matched) {
                         $phpProductMatches[] = $product;
@@ -1552,29 +1595,46 @@ class AIChatbotService
             return;
         }
 
-        $quoteItem = QuoteItem::where('quote_id', $session->quote_id)
-            ->where('product_id', $session->getAnswer('product_id'))
-            ->first();
-            
-        if ($quoteItem) {
-            $product = Product::find($session->getAnswer('product_id'));
-            if ($product) {
-                // Pass true to onlyShowAnsweredCombos to exclude unopened combo questions
-                $newDesc = $product->getDynamicDescription($session->collected_answers ?? [], true);
-                
-                // Add any non-product custom chatflow answers
-                $descLines = [];
-                if ($newDesc) $descLines[] = $newDesc;
-                
-                foreach ($session->collected_answers as $key => $val) {
-                    if (!in_array($key, ['product_id', 'product_name', 'category_id', 'selected_product_group']) && !$product->combos->pluck('column.slug')->contains($key)) {
-                        $descLines[] = ucfirst(str_replace('_', ' ', $key)) . ": {$val}";
-                    }
-                }
-                
-                $quoteItem->update(['description' => implode("\n", $descLines)]);
+        $productId = $session->getAnswer('product_id');
+        $product = Product::with('combos.column')->find($productId);
+        if (!$product) return;
+
+        // Pass true to onlyShowAnsweredCombos to exclude unopened combo questions
+        $newDesc = $product->getDynamicDescription($session->collected_answers ?? [], true);
+        
+        // Add any non-product custom chatflow answers
+        $descLines = [];
+        if ($newDesc) $descLines[] = $newDesc;
+        
+        foreach ($session->collected_answers as $key => $val) {
+            if (!in_array($key, ['product_id', 'product_name', 'category_id', 'category_name', 'selected_product_group']) && !$product->combos->pluck('column.slug')->contains($key)) {
+                $descLines[] = ucfirst(str_replace('_', ' ', $key)) . ": {$val}";
             }
         }
+        
+        $fullDesc = implode("\n", $descLines);
+
+        // Update QuoteItem description
+        $quoteItem = QuoteItem::where('quote_id', $session->quote_id)
+            ->where('product_id', $productId)
+            ->first();
+        if ($quoteItem) {
+            $quoteItem->update(['description' => $fullDesc]);
+        }
+
+        // ALSO update Lead→Product pivot description so it shows in Lead edit modal
+        if ($session->lead_id) {
+            $lead = Lead::find($session->lead_id);
+            if ($lead && $lead->products()->where('product_id', $productId)->exists()) {
+                $lead->products()->updateExistingPivot($productId, [
+                    'description' => $fullDesc,
+                ]);
+            }
+        }
+
+        $this->traceNode($session->id, 'DescriptionSynced', 'database', 'success',
+            ['product_id' => $productId],
+            ['quote_updated' => (bool)$quoteItem, 'lead_updated' => (bool)($session->lead_id), 'desc_preview' => mb_substr($fullDesc, 0, 100)]);
     }
 
     /**
@@ -3366,19 +3426,14 @@ PROMPT;
      */
     private function sendMediaToWhatsApp(AiChatSession $session, string $mediaUrl, string $traceNodeName): void
     {
-        // ── Resolve relative URLs to Absolute/Base64 ──
-        // Evolution API needs either a fully public http(s):// URL or a base64 string.
-        // If the stored path is relative (e.g., "/storage/products/cover/abc.jpg"),
-        // check if it exists locally and convert to base64 to avoid localhost/firewall fetch issues.
+        // ── Resolve relative URLs to full public URLs ──
+        // Evolution API needs a fully accessible http(s):// URL to fetch the media.
+        // Use APP_URL from .env to build the absolute URL.
+        $originalMediaUrl = $mediaUrl; // keep for tracing
         if (!empty($mediaUrl) && !preg_match('#^https?://#i', $mediaUrl)) {
-            $localPath = public_path(ltrim($mediaUrl, '/'));
-            if (file_exists($localPath)) {
-                $mimeType = mime_content_type($localPath);
-                $fileData = base64_encode(file_get_contents($localPath));
-                $mediaUrl = "data:{$mimeType};base64,{$fileData}";
-            } else {
-                $mediaUrl = asset(ltrim($mediaUrl, '/'));
-            }
+            // Build public URL using APP_URL (e.g., https://bot.rvallsolutions.com)
+            $appUrl = rtrim(config('app.url', ''), '/');
+            $mediaUrl = $appUrl . '/' . ltrim($mediaUrl, '/');
         }
 
         $config = Setting::getValue('whatsapp', 'api_config', [
@@ -3436,7 +3491,7 @@ PROMPT;
 
             if ($response->successful()) {
                 $this->traceNode($session->id, $traceNodeName, 'media', 'success',
-                    ['media_url' => $mediaUrl, 'media_type' => $mediaType],
+                    ['original_url' => $originalMediaUrl, 'resolved_url' => $mediaUrl, 'media_type' => $mediaType],
                     ['whatsapp_status' => 'sent', 'http_status' => $response->status()]);
             } else {
                 $status = $response->status();
