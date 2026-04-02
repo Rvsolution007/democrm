@@ -2131,10 +2131,51 @@ class AIChatbotService
         $visibleColumns = $this->getAiVisibleColumns();
 
         $msg = "📋 *Order Summary:*\n\n";
-        $msg .= "Product: *{$answers['product_name']}*\n";
 
-        // Combo selections
-        $product = Product::with('combos.column')->find($answers['product_id'] ?? null);
+        // Show each AI-visible catalogue column with its value from the selected product
+        $productId = $answers['product_id'] ?? null;
+        $product = $productId ? Product::with(['combos.column', 'customValues', 'category'])->find($productId) : null;
+
+        // Internal keys that should NEVER show in customer-facing summary
+        $internalKeys = ['product_id', 'product_name', 'category_id', 'category_name', 'selected_product_group', 'product_price'];
+
+        if ($product && $visibleColumns->isNotEmpty()) {
+            foreach ($visibleColumns as $col) {
+                // Skip combo columns — they are shown separately below
+                if ($product->combos->pluck('column_id')->contains($col->id)) {
+                    continue;
+                }
+
+                $value = null;
+
+                // System columns
+                if ($col->is_system) {
+                    $slug = $col->slug;
+                    if ($slug === 'product_name') $slug = 'name';
+                    $value = $product->{$slug} ?? null;
+                } elseif ($col->is_category) {
+                    // Category column → show category name
+                    $cat = $product->category;
+                    $value = $cat ? $cat->name : null;
+                } else {
+                    // Custom column
+                    $customVal = $product->customValues->where('column_id', $col->id)->first();
+                    if ($customVal && !empty($customVal->value)) {
+                        $decoded = json_decode($customVal->value, true);
+                        $value = is_array($decoded) ? implode(', ', $decoded) : $customVal->value;
+                    }
+                }
+
+                if (!empty($value)) {
+                    $msg .= "{$col->name}: *{$value}*\n";
+                }
+            }
+        } else {
+            // Fallback: just show product_name if no visible columns configured
+            $msg .= "Product: *{$answers['product_name']}*\n";
+        }
+
+        // Combo selections (Finish, Size, etc.)
         if ($product) {
             foreach ($product->combos as $combo) {
                 $col = $combo->column;
@@ -2156,11 +2197,15 @@ class AIChatbotService
             }
         }
 
-        // Custom answers
+        // Custom chatflow answers (ask_custom/ask_optional fields only)
+        $comboSlugs = $product ? $product->combos->pluck('column.slug')->filter()->toArray() : [];
+        $visibleSlugs = $visibleColumns->pluck('slug')->toArray();
         foreach ($answers as $key => $val) {
-            if (!in_array($key, ['product_id', 'product_name']) && !$product?->combos->pluck('column.slug')->contains($key)) {
-                $msg .= ucfirst(str_replace('_', ' ', $key)) . ": {$val}\n";
+            // Skip internal keys, combo keys, and catalogue column keys
+            if (in_array($key, $internalKeys) || in_array($key, $comboSlugs) || in_array($key, $visibleSlugs)) {
+                continue;
             }
+            $msg .= ucfirst(str_replace('_', ' ', $key)) . ": {$val}\n";
         }
 
         $msg .= "\nDo you confirm this order? Reply *Yes* or *No*. 🙏";
@@ -2181,7 +2226,15 @@ class AIChatbotService
         
         if (in_array($msg, ['yes', 'y', 'ha', 'haa', 'haan', 'ji', 'sure', 'ok', 'okay', 'done', 'confirm'])) {
             $session->update(['status' => 'completed', 'conversation_state' => 'completed']);
-            $reply = "✅ Order Confirmed!\n\nOur team will contact you shortly regarding the delivery and payment. Thank you for your business! 🙏";
+            
+            $productName = $session->getAnswer('product_name') ?? 'your selected product';
+            $reply = "✅ *Order Confirmed!*\n\n";
+            $reply .= "Thank you for choosing *{$productName}*! 🙏\n\n";
+            $reply .= "📞 Our team will reach out to you shortly to discuss:\n";
+            $reply .= "• Delivery details\n";
+            $reply .= "• Payment options\n";
+            $reply .= "• Any customization requirements\n\n";
+            $reply .= "We appreciate your trust in us! If you have any questions in the meantime, feel free to message us. 😊";
             
             // Move Lead to Target Stage
             $targetStage = Setting::getValue('ai_bot', 'target_stage', '', $this->companyId);
@@ -2198,7 +2251,9 @@ class AIChatbotService
             if ($session->quote_id) {
                 Quote::where('id', $session->quote_id)->update(['status' => 'cancelled']);
             }
-            $reply = "❌ Order Cancelled.\n\nYou can start a new chat anytime!";
+            $reply = "No worries! 🙏\n\n";
+            $reply .= "I understand. If you'd like to explore other products or have any questions, just send a message anytime.\n\n";
+            $reply .= "We're always here to help! 😊";
             $this->traceNode($session->id, 'OrderCancelled', 'application', 'success', ['message' => $rawMessage], ['status' => 'cancelled']);
         } else {
             return $this->translateIfNeeded($session, "Please reply *Yes* to confirm or *No* to cancel your order.");
@@ -3758,9 +3813,42 @@ PROMPT;
         // Only show when ALL combos are done
         if (!$allComboDone || empty($confirmedItems)) return '';
 
-        $productName = $answers['product_name'] ?? '';
         $msg = "\n\n📋 *Your Selection:*\n";
-        $msg .= "✅ Product: {$productName}\n";
+
+        // Show each AI-visible catalogue column value (non-combo) from the product
+        $productId = $answers['product_id'] ?? null;
+        $product = $productId ? Product::with(['customValues', 'category'])->find($productId) : null;
+        $visibleColumns = $this->getAiVisibleColumns();
+        $comboColumnIds = $product ? $product->combos->pluck('column_id')->toArray() : [];
+
+        if ($product && $visibleColumns->isNotEmpty()) {
+            foreach ($visibleColumns as $col) {
+                if (in_array($col->id, $comboColumnIds)) continue;
+
+                $value = null;
+                if ($col->is_system) {
+                    $slug = $col->slug;
+                    if ($slug === 'product_name') $slug = 'name';
+                    $value = $product->{$slug} ?? null;
+                } elseif ($col->is_category) {
+                    $cat = $product->category;
+                    $value = $cat ? $cat->name : null;
+                } else {
+                    $customVal = $product->customValues->where('column_id', $col->id)->first();
+                    if ($customVal && !empty($customVal->value)) {
+                        $decoded = json_decode($customVal->value, true);
+                        $value = is_array($decoded) ? implode(', ', $decoded) : $customVal->value;
+                    }
+                }
+
+                if (!empty($value)) {
+                    $msg .= "✅ {$col->name}: {$value}\n";
+                }
+            }
+        } else {
+            $msg .= "✅ Product: {$answers['product_name']}\n";
+        }
+
         foreach ($confirmedItems as $item) {
             $msg .= "{$item}\n";
         }
