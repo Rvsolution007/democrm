@@ -47,10 +47,14 @@ class ProcessAIChatJob implements ShouldQueue
             $companyId = $user->company_id ?? 1;
 
             // Use advisory lock to prevent race conditions for same phone number
+            // block() waits up to 30s for the lock — ensures ALL messages get processed
+            // even when multiple arrive simultaneously (sync connection can't use release())
             $lockKey = "ai_chat_lock_{$companyId}_{$this->senderPhone}";
-            $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 60); // 60 second lock
+            $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 60); // 60 second max hold
 
-            if ($lock->get()) {
+            try {
+                $lock->block(30); // Wait up to 30 seconds to acquire lock
+
                 try {
                     $service = new AIChatbotService($companyId, $userId);
                     $result = $service->processMessage(
@@ -64,11 +68,18 @@ class ProcessAIChatJob implements ShouldQueue
                 } finally {
                     $lock->release();
                 }
-            } else {
-                // Could not acquire lock — another job is processing this phone number
-                // Release back to queue with delay
-                $this->release(5); // Retry in 5 seconds
-                Log::info("AIChatJob: Lock held for {$this->senderPhone}, retrying in 5s");
+            } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
+                // Lock couldn't be acquired in 30 seconds — process anyway to avoid message loss
+                Log::warning("AIChatJob: Lock timeout for {$this->senderPhone}, processing without lock");
+                $service = new AIChatbotService($companyId, $userId);
+                $result = $service->processMessage(
+                    $this->instanceName,
+                    $this->senderPhone,
+                    $this->messageText,
+                    $this->replyContext,
+                    $this->imageUrl
+                );
+                Log::info("AIChatJob: Processed (after lock timeout) from {$this->senderPhone}", $result);
             }
 
         } catch (\Exception $e) {
