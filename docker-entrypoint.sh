@@ -12,7 +12,7 @@ mkdir -p /app/bootstrap/cache
 mkdir -p /app/storage/app/public/categories
 mkdir -p /app/storage/app/public/products/cover
 mkdir -p /app/storage/app/public/chatflow-media
-mkdir -p /app/storage/app/public/company-logos
+mkdir -p /app/storage/app/public/company_logos
 mkdir -p /app/storage/app/public/whatsapp_media
 
 # Create storage symlink (public/storage → storage/app/public)
