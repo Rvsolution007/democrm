@@ -688,9 +688,9 @@ class AIChatbotService
                     $this->routeTrace[] = 'handleSummaryStep';
                     return $this->handleSummaryStep($session);
 
-                case 'ask_base_column':
-                    $this->routeTrace[] = 'handleBaseColumnStep';
-                    return $this->matchProductGroupFromMessage($session, $fullMessage, $rawMessage, $imageUrl, $steps);
+                case 'ask_column':
+                    $this->routeTrace[] = 'handleColumnFilterStep';
+                    return $this->handleColumnFilterStep($session, $currentStep, $rawMessage, $steps);
 
                 case 'ask_unique_column':
                     $this->routeTrace[] = 'handleUniqueColumnStep';
@@ -759,12 +759,6 @@ class AIChatbotService
 
             $this->routeTrace[] = 'handleTier2';
             return $this->handleTier2($session, $fullMessage, $imageUrl);
-        }
-
-        // ══ Standard product flow (no category step or category already selected) ══
-        if ($session->conversation_state === 'awaiting_product_group') {
-            $this->routeTrace[] = 'matchProductGroupFromMessage';
-            return $this->matchProductGroupFromMessage($session, $fullMessage, $rawMessage, $imageUrl, $steps);
         }
 
         if ($session->catalogue_sent) {
@@ -1015,19 +1009,19 @@ class AIChatbotService
             $query->where('category_id', $answers['category_id']);
         }
 
-        // Apply group filter if already selected
-        // Note: selectedGroup filtering is done post-query via getProductBaseName()
-        // because the group name may come from custom columns, not the native `name` field
-        $selectedGroup = $answers['selected_product_group'] ?? null;
+        // Apply any column filters
+        // Identify which prefix 'column_filter_' exists in answers
+        foreach ($answers as $key => $val) {
+            if (str_starts_with($key, 'column_filter_')) {
+                $colId = str_replace('column_filter_', '', $key);
+                $query->whereHas('customValues', function($q) use ($colId, $val) {
+                    $q->where('column_id', $colId)
+                      ->where('value', $val);
+                });
+            }
+        }
 
         $products = $query->get();
-
-        // Filter by selected group using computed base name (not native `name` column)
-        if ($selectedGroup) {
-            $products = $products->filter(function($p) use ($selectedGroup) {
-                return trim(strtolower($this->getProductBaseName($p))) === trim(strtolower($selectedGroup));
-            })->values();
-        }
 
         if ($products->isEmpty()) {
             return "Sorry, we don't have any {$terms['plural_base']} available right now.";
@@ -1043,19 +1037,11 @@ class AIChatbotService
             return $this->selectProduct($session, $onlyProduct->id, $steps);
         }
 
-        $groupedProducts = $products->groupBy(function($p) {
-            return trim(strtolower($this->getProductBaseName($p)));
-        });
-
-        // Grouping is needed if we haven't selected a group yet AND there are multiple distinct groups
-        // Skip grouping if all products resolve to the same base name (single group = redundant)
-        $needsGrouping = !$selectedGroup && $groupedProducts->count() > 1 && $groupedProducts->count() < $products->count();
-
         // Get AI-visible columns for price/desc mapping if needed
         $visibleColumns = $this->getAiVisibleColumns();
         $showPrice = $visibleColumns->contains('slug', 'sale_price') || $visibleColumns->contains('slug', 'mrp');
 
-        // ── Send category image BEFORE product listing (works for both group and flat paths) ──
+        // ── Send category image BEFORE product listing ──
         $categoryId = $answers['category_id'] ?? ($products->first() ? $products->first()->category_id : null);
         if ($categoryId && !$session->hasMediaBeenSent("category_{$categoryId}")) {
             $category = $products->first() && $products->first()->relationLoaded('category')
@@ -1076,43 +1062,6 @@ class AIChatbotService
             }
         }
 
-        if ($needsGrouping) {
-            // Check for chatflow step question text as AI reference
-            $baseStep = ChatflowStep::where('company_id', $this->companyId)
-                ->whereIn('step_type', ['ask_base_column'])
-                ->orderBy('sort_order')
-                ->first();
-            $questionRef = $baseStep && $baseStep->question_text ? $baseStep->question_text : "Kaunsa {$terms['base']} chahiye?";
-
-            $msg = "🛍️ *Our {$terms['base']} Lines:*\n\n";
-            $i = 1;
-            $groupNamesForTrace = [];
-            foreach ($groupedProducts as $key => $group) {
-                $actualName = $this->getProductBaseName($group->first());
-                $msg .= "{$i}️⃣ *{$actualName}* ({$group->count()} {$terms['plural_variant']})\n";
-                $groupNamesForTrace[] = $actualName;
-                $i++;
-            }
-            $msg .= "\nReply with {$terms['base']} number or name! 👆";
-
-            // Send chatflow step media if attached
-            if ($baseStep && $baseStep->hasMedia()) {
-                $this->sendStepMedia($session, $baseStep);
-            }
-
-            $session->catalogue_sent = true;
-            $session->conversation_state = 'awaiting_product_group';
-            $session->save();
-
-            $categoryFilter = isset($answers['category_id']) ? ($answers['category_name'] ?? 'ID:' . $answers['category_id']) : null;
-            $this->traceNode($session->id, 'CatalogueGroupSent', 'routing', 'success',
-                $categoryFilter ? ['trigger' => 'category_selected', 'category_filter' => $categoryFilter] : ['trigger' => 'product_intent'],
-                ['groups_count' => $groupedProducts->count(), 'group_names' => array_slice($groupNamesForTrace, 0, 10), 'terminology' => $terms]);
-            Log::info("AIChatbot: Catalogue Group sent (PHP Direct)", ['session' => $session->id]);
-
-            return $this->translateIfNeeded($session, $msg);
-        }
-
         // Standard flat listing logic
         // Check for unique column step question text as AI reference
         $uniqueStep = ChatflowStep::where('company_id', $this->companyId)
@@ -1120,25 +1069,7 @@ class AIChatbotService
             ->orderBy('sort_order')
             ->first();
 
-        $msg = "🛍️ *" . ($selectedGroup ? "{$selectedGroup} {$terms['plural_variant']}" : "Our {$terms['plural_base']}") . ":*\n\n";
-
-        // If a specific group is selected, try to send a representative image (GroupMedia) first
-        if ($selectedGroup && !$session->hasMediaBeenSent("group_{$selectedGroup}")) {
-            $groupMediaProduct = $products->firstWhere('cover_media_url', '!=', null);
-            if ($groupMediaProduct) {
-                $mediaUrl = $groupMediaProduct->cover_media_url;
-                $this->traceNode($session->id, 'GroupMediaLookup', 'media', 'success',
-                    ['group_name' => $selectedGroup],
-                    ['found' => true, 'media_url' => $mediaUrl]);
-                $this->sendMediaToWhatsApp($session, $mediaUrl, 'GroupMediaSent');
-                $session->markMediaSent("group_{$selectedGroup}");
-                $session->save();
-            } else {
-                $this->traceNode($session->id, 'GroupMediaLookup', 'media', 'info',
-                    ['group_name' => $selectedGroup],
-                    ['found' => false, 'message' => 'No media found for any product in this group']);
-            }
-        }
+        $msg = "🛍️ *Our {$terms['plural_base']}:*\n\n";
 
         foreach ($products as $i => $product) {
             $num = $i + 1;
@@ -1153,11 +1084,6 @@ class AIChatbotService
             }
         }
         $msg .= "\nReply with {$terms['variant']} number or name! 👆";
-
-        // Send chatflow step media if attached
-        if ($uniqueStep && $uniqueStep->hasMedia()) {
-            $this->sendStepMedia($session, $uniqueStep);
-        }
 
         // Update session state
         $session->catalogue_sent = true;
@@ -1176,144 +1102,135 @@ class AIChatbotService
 
         $productNames = $products->map(fn($p) => $this->getProductDisplayName($p))->toArray();
         $this->traceNode($session->id, 'CatalogueSent', 'routing', 'success',
-            ['trigger' => $selectedGroup ? 'group_selected' : 'product_intent', 'group_filter' => $selectedGroup],
+            ['trigger' => 'product_intent'],
             ['products_count' => $products->count(), 'product_names' => array_slice($productNames, 0, 10), 'terminology' => $terms]);
         Log::info("AIChatbot: Catalogue sent (PHP Direct)", ['session' => $session->id]);
         return $this->translateIfNeeded($session, $msg);
     }
 
     /**
-     * Match user's message to a product group
+     * Handle ask_column step (e.g., Ask Material, Ask Brand)
      */
-    private function matchProductGroupFromMessage(AiChatSession $session, string $fullMessage, string $rawMessage, ?string $imageUrl, $steps): string
+    private function handleColumnFilterStep(AiChatSession $session, $currentStep, string $rawMessage, $steps): string
     {
         $answers = $session->collected_answers ?? [];
-        $query = Product::with(['customValues', 'category'])->where('company_id', $this->companyId)->where('status', 'active');
+        $colId = $currentStep->linked_column_id;
+        
+        if (!$colId) {
+            $this->advanceChatflow($session, $steps); // Skip if invalid setup
+            return $this->translateIfNeeded($session, $this->buildNextStepPrompt($session, $steps) ?: "Continuing...");
+        }
+
+        $column = $currentStep->linkedColumn;
+        if (!$column) {
+            $this->advanceChatflow($session, $steps);
+            return $this->translateIfNeeded($session, $this->buildNextStepPrompt($session, $steps) ?: "Continuing...");
+        }
+
+        // 1. Get filtered products for context
+        $query = Product::where('company_id', $this->companyId)->where('status', 'active');
         if (isset($answers['category_id'])) {
             $query->where('category_id', $answers['category_id']);
         }
-        $products = $query->get();
-
-        if ($products->isEmpty()) {
-            return "Sorry, no product lines available right now.";
-        }
-
-        $groupedProducts = [];
-        foreach ($products as $p) {
-            $baseName = $this->getProductBaseName($p);
-            $key = trim(strtolower($baseName));
-            if (!isset($groupedProducts[$key])) {
-                $groupedProducts[$key] = ['name' => $baseName, 'count' => 0];
+        
+        // Apply existing filters before this one
+        foreach ($answers as $key => $val) {
+            if (str_starts_with($key, 'column_filter_') && $key !== "column_filter_{$colId}") {
+                $extColId = str_replace('column_filter_', '', $key);
+                $query->whereHas('customValues', function($q) use ($extColId, $val) {
+                    $q->where('column_id', $extColId)->where('value', $val);
+                });
             }
-            $groupedProducts[$key]['count']++;
         }
         
-        $groupsList = array_values($groupedProducts);
+        $productSet = $query->with('customValues')->get();
 
+        // 2. Extract distinct values for this column from the active product set
+        $availableValues = [];
+        foreach ($productSet as $p) {
+            $val = $p->customValues->firstWhere('column_id', $colId)?->value;
+            if (!empty($val)) {
+                $availableValues[$val] = true; // Use array keys for uniqueness
+            }
+        }
+        
+        $valuesList = array_keys($availableValues);
+        sort($valuesList); // Alphabetical sort for now
+
+        if (empty($valuesList)) {
+            // Nothing to choose, advance flow
+            $this->advanceChatflow($session, $steps);
+            $session->save();
+            return $this->translateIfNeeded($session, $this->buildNextStepPrompt($session, $steps) ?: "Continuing...");
+        }
+
+        // If bot just asked the question, or user answered out of context
         $msg = strtolower(trim($rawMessage));
-        $selectedGroupName = null;
+        $selectedValue = null;
 
         // Try strict number extraction
-        $listNumber = null;
-        if (preg_match('/^\s*(?:group|line|#|no\.?\s*|number\s*)?\s*(\d+)\s*$/i', $msg, $numMatch)) {
-            $listNumber = (int)$numMatch[1];
+        if (preg_match('/^\s*(?:#|no\.?\s*|number\s*)?\s*(\d+)\s*$/i', $msg, $numMatch)) {
+            $num = (int)$numMatch[1];
+            if ($num >= 1 && $num <= count($valuesList)) {
+                $selectedValue = $valuesList[$num - 1];
+            }
         }
 
-        if ($listNumber && $listNumber >= 1 && $listNumber <= count($groupsList)) {
-            $selectedGroupName = $groupsList[$listNumber - 1]['name'];
-        }
-
-        if (!$selectedGroupName) {
-            $phpGroupMatches = [];
-            foreach ($groupsList as $g) {
-                $gNameLower = strtolower($g['name']);
-                $matched = false;
-                
-                // Bidirectional substring match
-                if (str_contains($msg, $gNameLower) || (strlen($msg) >= 3 && str_contains($gNameLower, $msg))) {
-                    $matched = true;
-                }
-                
-                // Word-by-word match
-                if (!$matched) {
-                    $userWords = preg_split('/[\s,]+/', $msg);
-                    foreach ($userWords as $word) {
-                        if (strlen($word) >= 3 && str_contains($gNameLower, $word)) {
-                            $matched = true;
-                            break;
-                        }
-                    }
-                }
-                
-                if ($matched) {
-                    $phpGroupMatches[] = $g;
+        // If not number, try substring match via PHP
+        if (!$selectedValue) {
+            $matches = [];
+            foreach ($valuesList as $val) {
+                if (str_contains(strtolower($val), $msg) || str_contains($msg, strtolower($val))) {
+                    $matches[] = $val;
                 }
             }
+            if (count($matches) === 1) {
+                $selectedValue = $matches[0];
+            }
+        }
+
+        // Fallback to AI matching
+        if (!$selectedValue) {
+            $listStr = collect($valuesList)->map(fn($v, $i) => ($i + 1) . ". {$v}")->implode("\n");
+            $aiResponse = $this->matchContextuallyUsingAI($session, $rawMessage, $listStr, $column->name, count($valuesList));
             
-            if (count($phpGroupMatches) === 1) {
-                $selectedGroupName = $phpGroupMatches[0]['name'];
-            } elseif (count($phpGroupMatches) > 1) {
-                $this->traceNode($session->id, 'GroupPHPMultiMatch', 'routing', 'info',
-                    ['message' => $rawMessage, 'match_count' => count($phpGroupMatches)],
-                    ['matched_names' => array_column($phpGroupMatches, 'name')],
-                    'Multiple PHP matches found, forwarding to AI for disambiguation.');
-            }
-        }
-
-        // Spell correction: if PHP direct match failed, try AI micro-correction
-        if (!$selectedGroupName && !empty($this->spellCorrectionPrompt)) {
-            $groupNames = array_column($groupsList, 'name');
-            $correctedText = $this->spellCorrect($session, $rawMessage, $groupNames);
-            $correctedLower = strtolower(trim($correctedText));
-            if ($correctedLower !== $msg) {
-                foreach ($groupsList as $g) {
-                    if (str_contains($correctedLower, strtolower($g['name']))) {
-                        $selectedGroupName = $g['name'];
-                        break;
-                    }
+            if (preg_match('/MATCH_ID:\s*(\d+)/i', $aiResponse, $aiMatch)) {
+                $num = (int)$aiMatch[1];
+                if ($num >= 1 && $num <= count($valuesList)) {
+                    $selectedValue = $valuesList[$num - 1];
                 }
             }
         }
 
-        // ── If PHP + spell correction couldn't match, fall back to AI Contextual ──
-        if (!$selectedGroupName) {
-            $groupListStr = collect($groupsList)->map(fn($g, $i) => ($i + 1) . ". {$g['name']} (ID: ".($i+1).")")->implode("\n");
-            $aiResponse = $this->matchContextuallyUsingAI($session, $rawMessage, $groupListStr, 'Product Line/Group', count($groupsList));
-            
-            if (preg_match('/MATCH_ID:\s*(\d+)/i', $aiResponse, $matches)) {
-                $matchedId = $matches[1] ?? null;
-                if ($matchedId) {
-                    $num = (int)$matchedId;
-                    if ($num >= 1 && $num <= count($groupsList)) {
-                        $selectedGroupName = $groupsList[$num - 1]['name'];
-                    }
-                }
-            }
-            
-            if (!$selectedGroupName && strtoupper(trim($aiResponse)) !== 'NONE') {
-                $cleanResponse = $this->sanitizeAiResponseForUser($aiResponse);
-                if ($cleanResponse) {
-                    return $this->translateIfNeeded($session, $cleanResponse);
-                }
-            }
-        }
-
-        if ($selectedGroupName) {
-            $this->traceNode($session->id, 'ProductGroupSelected', 'routing', 'success', ['message' => $rawMessage], ['group_name' => $selectedGroupName]);
-            $session->setAnswer('selected_product_group', $selectedGroupName);
+        if ($selectedValue) {
+            $this->traceNode($session->id, 'ColumnFilterSelected', 'routing', 'success', ['column' => $column->name, 'message' => $rawMessage], ['selected' => $selectedValue]);
+            $session->setAnswer("column_filter_{$colId}", $selectedValue);
+            // $session->setAnswer("{$column->slug}", $selectedValue); // optional if you want natural keys too
             $session->save();
-
-            $replyMsg = "✅ *{$selectedGroupName}* selected!\n\n";
-            $replyMsg .= $this->sendCatalogue($session);
-            return $replyMsg;
+            
+            // Advance chatflow
+            $this->advanceChatflow($session, $steps);
+            $session->save();
+            
+            $msg = "✅ *{$selectedValue}* selected!";
+            $nextPrompt = $this->buildNextStepPrompt($session, $steps);
+            if ($nextPrompt) {
+                $msg .= "\n\n" . $nextPrompt;
+            }
+            return $this->translateIfNeeded($session, $msg);
         }
 
-        if ($this->isProductIntent($rawMessage)) {
-            return $this->sendCatalogue($session);
+        // If we get here, user gave an invalid selection. Ask them nicely.
+        // Or if this is the first time the step is being executed (from advanceChatflow)
+        $qText = $currentStep->question_text ?: "Please select {$column->name}:";
+        
+        $output = "{$qText}\n\n";
+        foreach ($valuesList as $i => $val) {
+            $output .= ($i + 1) . "️⃣ *{$val}*\n";
         }
-
-        $this->traceNode($session->id, 'ProductGroupSelected', 'routing', 'warning', ['message' => $rawMessage], ['matched' => false], 'No product line matched. Falling back to OOB Handler.');
-        return $this->handleOutOfContextQuestion($session, $rawMessage, $steps);
+        $output .= "\nReply with number or name! 👆";
+        
+        return $this->translateIfNeeded($session, $output);
     }
 
     /**
@@ -3268,8 +3185,8 @@ PROMPT;
                 if (isset($answers['product_id'])) {
                     $isAnswered = true;
                 }
-            } elseif ($step->step_type === 'ask_base_column') {
-                if (isset($answers['selected_product_group'])) {
+            } elseif ($step->step_type === 'ask_column' && $step->linkedColumn) {
+                if (isset($answers['column_filter_' . $step->linked_column_id])) {
                     $isAnswered = true;
                 }
             } elseif ($step->step_type === 'ask_category') {

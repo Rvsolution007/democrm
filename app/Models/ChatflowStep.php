@@ -57,9 +57,9 @@ class ChatflowStep extends Model
         return in_array($this->step_type, ['ask_product', 'ask_unique_column']);
     }
 
-    public function isBaseColumnStep(): bool
+    public function isColumnFilterStep(): bool
     {
-        return $this->step_type === 'ask_base_column';
+        return $this->step_type === 'ask_column';
     }
 
     public function isUniqueColumnStep(): bool

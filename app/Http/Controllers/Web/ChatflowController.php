@@ -33,14 +33,15 @@ class ChatflowController extends Controller
             ->orderBy('sort_order')
             ->get();
 
-        // Determine which column is the Unique column and which is the Base column
+        // Determine which column is the Unique column
         $uniqueColumn = $allColumns->firstWhere('is_unique', true);
-        $baseColumn = null;
-        if ($uniqueColumn) {
-            $baseColumn = $allColumns->where('sort_order', '<', $uniqueColumn->sort_order)->first();
-        }
 
-        return view('admin.chatflow.index', compact('steps', 'comboColumns', 'allColumns', 'uniqueColumn', 'baseColumn'));
+        // Filterable columns: active columns that are NOT category/unique/combo
+        $filterableColumns = $allColumns->filter(function ($col) {
+            return !$col->is_category && !$col->is_unique && !$col->is_combo;
+        });
+
+        return view('admin.chatflow.index', compact('steps', 'comboColumns', 'allColumns', 'uniqueColumn', 'filterableColumns'));
     }
 
     /**
@@ -50,22 +51,20 @@ class ChatflowController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'step_type' => 'required|in:ask_category,ask_product,ask_base_column,ask_unique_column,ask_combo,ask_optional,ask_custom,send_summary',
+            'step_type' => 'required|in:ask_category,ask_product,ask_unique_column,ask_combo,ask_column,ask_optional,ask_custom,send_summary',
             'linked_column_id' => 'nullable|exists:catalogue_custom_columns,id',
             'question_text' => 'nullable|string|max:500',
-            'media_path' => 'nullable|string|max:500',
             'field_key' => 'nullable|string|max:100',
-            'is_optional' => 'nullable',
             'max_retries' => 'nullable|integer|min:1|max:5',
         ]);
 
         $companyId = auth()->user()->company_id;
 
-        // Validation: ask_combo must have linked_column_id
-        if ($request->step_type === 'ask_combo' && !$request->linked_column_id) {
+        // Validation: ask_combo and ask_column must have linked_column_id
+        if (in_array($request->step_type, ['ask_combo', 'ask_column']) && !$request->linked_column_id) {
             return response()->json([
                 'success' => false,
-                'message' => 'Combo step requires a linked column.',
+                'message' => 'This step type requires a linked column.',
             ], 422);
         }
 
@@ -85,9 +84,8 @@ class ChatflowController extends Controller
             'step_type' => $request->step_type,
             'linked_column_id' => $request->linked_column_id,
             'question_text' => $request->question_text,
-            'media_path' => $request->media_path,
             'field_key' => $request->field_key,
-            'is_optional' => $request->boolean('is_optional'),
+            'is_optional' => $request->step_type === 'ask_optional',
             'max_retries' => $request->max_retries ?? 2,
             'sort_order' => $maxOrder + 1,
         ]);
@@ -108,12 +106,10 @@ class ChatflowController extends Controller
 
         $request->validate([
             'name' => 'required|string|max:255',
-            'step_type' => 'required|in:ask_category,ask_product,ask_base_column,ask_unique_column,ask_combo,ask_optional,ask_custom,send_summary',
+            'step_type' => 'required|in:ask_category,ask_product,ask_unique_column,ask_combo,ask_column,ask_optional,ask_custom,send_summary',
             'linked_column_id' => 'nullable|exists:catalogue_custom_columns,id',
             'question_text' => 'nullable|string|max:500',
-            'media_path' => 'nullable|string|max:500',
             'field_key' => 'nullable|string|max:100',
-            'is_optional' => 'nullable',
             'max_retries' => 'nullable|integer|min:1|max:5',
         ]);
 
@@ -122,9 +118,8 @@ class ChatflowController extends Controller
             'step_type' => $request->step_type,
             'linked_column_id' => $request->linked_column_id,
             'question_text' => $request->question_text,
-            'media_path' => $request->media_path,
             'field_key' => $request->field_key,
-            'is_optional' => $request->boolean('is_optional'),
+            'is_optional' => $request->step_type === 'ask_optional',
             'max_retries' => $request->max_retries ?? 2,
         ]);
 
