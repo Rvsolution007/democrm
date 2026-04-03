@@ -368,10 +368,12 @@
     </div>
 
     @php
-        // Split traces into Sales and Follow-up sections
-        $salesTraces = $traces->where('node_group', '!=', 'followup');
+        // Split traces into Sales, Follow-up, and Database sections
+        $salesTraces = $traces->whereNotIn('node_group', ['followup', 'database']);
         $followupTraces = $traces->where('node_group', 'followup');
+        $dbTraces = $traces->where('node_group', 'database');
         $groupedSalesTraces = $salesTraces->groupBy('message_id')->reverse();
+        $groupedDbTraces = $dbTraces->groupBy('message_id')->reverse();
     @endphp
 
     <!-- ═══ SECTION 1: Sales Trace ═══ -->
@@ -444,6 +446,14 @@
                     @foreach($msgTraces as $traceIndex => $trace)
                         @php
                             $isFirstNode = $traceIndex === 0;
+                            $aiTier = '';
+                            if (in_array($trace->node_name, ['Tier2GenerativeAI', 'Tier2GenerativeAI_Retry', 'OutOfContextQuery'])) {
+                                $aiTier = 'Tier 2 AI';
+                            } elseif (in_array($trace->node_name, ['ContextualMatchAI', 'SpellCorrection', 'ProductModifyIntentAI']) || str_starts_with($trace->node_name, 'ComboStepAI_') || str_starts_with($trace->node_name, 'CustomStepAI_')) {
+                                $aiTier = 'Tier 1 AI';
+                            } elseif (in_array($trace->node_name, ['CategoryPHPMultiMatch', 'ProductPHPMultiMatch', 'ProductMatchPHP', 'ColumnFilterSelected', 'CategorySelected', 'ProductSelected'])) {
+                                $aiTier = 'Tier 0 Logic';
+                            }
                         @endphp
                         <div class="node-wrapper">
                             <div class="node-card" data-status="{{ $trace->status }}">
@@ -456,6 +466,9 @@
                                     </div>
                                     <div style="display:flex; align-items:center; gap:16px">
                                         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+                                            @if($aiTier)
+                                                <span class="node-type-badge" style="background:#1e293b; color:white;">{{ $aiTier }}</span>
+                                            @endif
                                             <span class="node-type-badge badge-{{ $trace->node_group }}">{{ $trace->node_group }}</span>
                                             @if($trace->execution_time_ms > 0)
                                                 <span class="node-time"><i data-lucide="clock" style="width:12px;height:12px"></i> {{ $trace->execution_time_ms }}ms</span>
@@ -538,6 +551,114 @@
                 <i data-lucide="shopping-cart" style="width:40px;height:40px;color:#cbd5e1;margin-bottom:12px"></i>
                 <h3 style="font-weight:700;font-size:16px;margin-bottom:6px;color:#0f172a">No sales traces</h3>
                 <p style="color:#64748b;font-size:13px">No sales interaction traces found for this session.</p>
+            </div>
+        </div>
+    @endforelse
+        </div>
+    </div>
+
+    <!-- ═══ SECTION 1.5: Database Operations Trace ═══ -->
+    <div class="message-accordion" style="margin-bottom: 30px; border-radius: 12px; overflow: hidden; border: 1px solid #c084fc;">
+        <div class="section-header" id="header-section-database" onclick="toggleAccordion('section-database')" style="cursor: pointer; margin-bottom: 0; border: none; border-radius: 0; background: linear-gradient(135deg, #faf5ff, #f3e8ff); color: #7e22ce;">
+            <i data-lucide="database" style="width:22px;height:22px"></i>
+            Database Operations
+            <span class="section-count" style="background:#e9d5ff;color:#7e22ce">{{ $dbTraces->count() }} nodes</span>
+            <i data-lucide="chevron-down" id="icon-section-database" style="width:20px;height:20px;margin-left:8px;transition: transform 0.2s; transform: rotate(0deg)"></i>
+        </div>
+        <div id="content-section-database" style="display: none; padding: 20px; background: #faf5ff; border-top: 1px solid #c084fc;">
+
+    @forelse($groupedDbTraces as $msgId => $msgTraces)
+        @php
+            $firstTrace = $msgTraces->first();
+            $userMessageText = $firstTrace->message->message ?? 'Background Process / System Trigger';
+            $userMsgType = $firstTrace->message->message_type ?? 'text';
+            $timeMs = $msgTraces->sum('execution_time_ms');
+            $isFirst = $loop->first;
+            if (mb_strlen($userMessageText) > 80) $userMessageText = mb_substr($userMessageText, 0, 80) . '...';
+        @endphp
+
+        <div class="message-accordion" style="border-left:3px solid #a855f7">
+            <div class="message-header {{ $isFirst ? 'active' : '' }}" id="header-db-{{ $msgId }}" onclick="toggleAccordion('db-{{ $msgId }}')">
+                <div class="message-info">
+                    <span class="message-id-badge" style="background:#7e22ce">
+                        <i data-lucide="database" style="width:14px;height:14px"></i>
+                        ID #{{ $msgId ?: 'N/A' }}
+                    </span>
+                    <span class="user-message-text">"{!! htmlspecialchars($userMessageText) !!}"</span>
+                </div>
+                <div class="message-meta">
+                    <span style="display:flex; align-items:center; gap:4px">
+                        <i data-lucide="activity" style="width:14px;height:14px"></i> {{ $msgTraces->count() }} Operations
+                    </span>
+                    <i data-lucide="chevron-down" id="icon-db-{{ $msgId }}" style="width:20px;height:20px;transition: transform 0.2s; transform: {{ $isFirst ? 'rotate(180deg)' : 'rotate(0deg)' }}"></i>
+                </div>
+            </div>
+            
+            <div class="message-content" id="content-db-{{ $msgId }}" style="display: {{ $isFirst ? 'block' : 'none' }};">
+                <div class="flow-container">
+                    <div class="timeline-line"></div>
+                    
+                    @foreach($msgTraces as $traceIndex => $trace)
+                        @php $isFirstNode = $traceIndex === 0; @endphp
+                        <div class="node-wrapper">
+                            <div class="node-card" data-status="{{ $trace->status }}">
+                                <div class="timeline-dot"></div>
+                                
+                                <div class="node-header" onclick="toggleNode('db-trace-{{ $trace->id }}')" style="cursor:pointer; transition: background 0.2s;">
+                                    <div class="node-title">
+                                        <i data-lucide="{{ $trace->getGroupIcon() }}" style="width:18px;height:18px;color:{{ $trace->getStatusColor() }}"></i>
+                                        {{ $trace->node_name }}
+                                    </div>
+                                    <div style="display:flex; align-items:center; gap:16px">
+                                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+                                            <span class="node-type-badge badge-database">database</span>
+                                            @if($trace->execution_time_ms > 0)
+                                                <span class="node-time"><i data-lucide="clock" style="width:12px;height:12px"></i> {{ $trace->execution_time_ms }}ms</span>
+                                            @endif
+                                        </div>
+                                        <i data-lucide="chevron-down" id="node-icon-db-trace-{{ $trace->id }}" style="width:18px;height:18px;color:#94a3b8;transition: transform 0.2s; transform: {{ $isFirstNode ? 'rotate(180deg)' : 'rotate(0deg)' }}"></i>
+                                    </div>
+                                </div>
+                                <div class="node-body" id="node-body-db-trace-{{ $trace->id }}" style="display: {{ $isFirstNode ? 'block' : 'none' }};">
+                                    <div class="data-grid {{ ($trace->input_data && $trace->output_data) ? 'split' : '' }}">
+                                        @if($trace->input_data)
+                                            <div>
+                                                <div class="data-key text-blue-600">
+                                                    <i data-lucide="log-in" style="width:14px;height:14px"></i> Query / Payload
+                                                </div>
+                                                <div class="data-value">
+                                                    @foreach($trace->input_data as $k => $v)
+                                                        <div class="kv-pair"><span class="kv-key">{{ $k }}:</span><span class="text-gray-700">{{ is_array($v) ? json_encode($v) : $v }}</span></div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        @endif
+                                        @if($trace->output_data)
+                                            <div>
+                                                <div class="data-key text-green-600">
+                                                    <i data-lucide="log-out" style="width:14px;height:14px"></i> Result
+                                                </div>
+                                                <div class="data-value">
+                                                    @foreach($trace->output_data as $k => $v)
+                                                        <div class="kv-pair"><span class="kv-key">{{ $k }}:</span><span class="text-gray-700">{{ is_array($v) ? json_encode($v) : $v }}</span></div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    @empty
+        <div class="empty-state" style="padding:30px 20px">
+            <div style="background:white;padding:24px;border-radius:12px;display:inline-block;box-shadow:0 4px 6px -1px rgb(0 0 0/0.05);border:1px solid #e2e8f0">
+                <i data-lucide="database" style="width:40px;height:40px;color:#cbd5e1;margin-bottom:12px"></i>
+                <h3 style="font-weight:700;font-size:16px;margin-bottom:6px;color:#0f172a">No database actions</h3>
+                <p style="color:#64748b;font-size:13px">No Leads or Quotes were created/updated in this session.</p>
             </div>
         </div>
     @endforelse
