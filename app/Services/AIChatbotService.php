@@ -298,6 +298,47 @@ class AIChatbotService
         return $product->name;
     }
 
+    /**
+     * Get a summary of ALL show_in_ai catalogue column values for a product.
+     * Used to enrich Tier 1 AI input with full context (like combo step).
+     * Returns: "Category: Door Handle | Size: 225mm | Finish: Chrome"
+     */
+    private function getProductColumnSummary(Product $product): string
+    {
+        // Ensure aiVisibleColumns is loaded
+        if ($this->aiVisibleColumns === null) {
+            $this->aiVisibleColumns = CatalogueCustomColumn::where('company_id', $this->companyId)
+                ->where('show_in_ai', true)
+                ->where('is_active', true)
+                ->orderBy('sort_order', 'asc')
+                ->get();
+        }
+
+        $parts = [];
+        foreach ($this->aiVisibleColumns as $col) {
+            $val = '';
+            if ($col->is_category && $product->category_id) {
+                $cat = $product->relationLoaded('category') ? $product->category : $product->category()->first();
+                $val = $cat?->name ?? '';
+            } elseif ($col->is_system) {
+                $slug = $col->slug === 'product_name' ? 'name' : $col->slug;
+                $val = $product->{$slug} ?? '';
+            } else {
+                $cv = $product->relationLoaded('customValues')
+                    ? $product->customValues->where('column_id', $col->id)->first()
+                    : $product->customValues()->where('column_id', $col->id)->first();
+                if ($cv && !empty($cv->value)) {
+                    $decoded = json_decode($cv->value, true);
+                    $val = is_array($decoded) ? implode(', ', $decoded) : $cv->value;
+                }
+            }
+            if (!empty(trim((string)$val))) {
+                $parts[] = $col->name . ': ' . trim((string)$val);
+            }
+        }
+        return implode(' | ', $parts);
+    }
+
     // ═══════════════════════════════════════════════════════
     // MAIN ENTRY POINT
     // ═══════════════════════════════════════════════════════
@@ -1407,7 +1448,14 @@ class AIChatbotService
         // ── If PHP + spell correction couldn't match, fall back to AI Contextual ──
         $queuePrefixMessage = '';
         if (!$selectedProduct) {
-            $productList = $products->map(fn($p, $i) => ($i + 1) . ". " . $this->getProductDisplayName($p) . " (ID:{$p->id})")->implode("\n");
+            $productList = $products->map(function($p, $i) {
+                $line = ($i + 1) . ". " . $this->getProductDisplayName($p) . " (ID:{$p->id})";
+                $colSummary = $this->getProductColumnSummary($p);
+                if ($colSummary) {
+                    $line .= " | " . $colSummary;
+                }
+                return $line;
+            })->implode("\n");
             $aiResponse = $this->matchContextuallyUsingAI($session, $rawMessage, $productList, 'Product/Item', $products->count());
             
             if (preg_match('/QUEUE_MATCHES:\s*([\d,\s]+)/i', $aiResponse, $matches)) {
