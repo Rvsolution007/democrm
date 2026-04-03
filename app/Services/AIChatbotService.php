@@ -1400,11 +1400,41 @@ class AIChatbotService
         }
 
         // ── If PHP + spell correction couldn't match, fall back to AI Contextual ──
+        $queuePrefixMessage = '';
         if (!$selectedProduct) {
             $productList = $products->map(fn($p, $i) => ($i + 1) . ". " . $this->getProductDisplayName($p) . " (ID:{$p->id})")->implode("\n");
             $aiResponse = $this->matchContextuallyUsingAI($session, $rawMessage, $productList, 'Product/Item', $products->count());
             
-            if (preg_match('/MATCH_ID:\s*(\d+)/i', $aiResponse, $matches)) {
+            if (preg_match('/QUEUE_MATCHES:\s*([\d,\s]+)/i', $aiResponse, $matches)) {
+                $ids = array_filter(array_map('trim', explode(',', $matches[1])));
+                if (!empty($ids)) {
+                    $matchedId = $ids[0];
+                    $selectedProduct = $products->firstWhere('id', (int)$matchedId);
+                    if (!$selectedProduct && (int)$matchedId <= $products->count()) {
+                        $selectedProduct = $products->values()[(int)$matchedId - 1] ?? null;
+                    }
+                    
+                    if ($selectedProduct && count($ids) > 1) {
+                        $pendingQueue = [];
+                        for ($i = 1; $i < count($ids); $i++) {
+                            $qId = $ids[$i];
+                            $qProd = $products->firstWhere('id', (int)$qId);
+                            if (!$qProd && (int)$qId <= $products->count()) {
+                                $qProd = $products->values()[(int)$qId - 1] ?? null;
+                            }
+                            if ($qProd) {
+                                $pendingQueue[] = $qProd->id;
+                            }
+                        }
+                        if (!empty($pendingQueue)) {
+                            // Fetch existing queue if they somehow add to it? No, just overwrite to start fresh
+                            $session->setAnswer('pending_product_queue', $pendingQueue);
+                            $session->save();
+                            $queuePrefixMessage = "Behtareen! Main aapke sabhi items order mein add kar dunga. Chaliye abhi ke liye iski details fill karna shuru karte hain...";
+                        }
+                    }
+                }
+            } elseif (preg_match('/MATCH_ID:\s*(\d+)/i', $aiResponse, $matches)) {
                 $matchedId = $matches[1] ?? null;
                 if ($matchedId) {
                     $selectedProduct = $products->firstWhere('id', (int)$matchedId);
@@ -1434,7 +1464,7 @@ class AIChatbotService
             ['message' => $rawMessage],
             ['product_id' => $selectedProduct->id, 'product_name' => $this->getProductDisplayName($selectedProduct), 'product_price' => $selectedProduct->sale_price > 0 ? '₹' . number_format($selectedProduct->sale_price / 100, 2) : 'N/A']);
 
-        return $this->selectProduct($session, $selectedProduct->id, $steps);
+        return $this->selectProduct($session, $selectedProduct->id, $steps, $queuePrefixMessage);
     }
 
     /**
@@ -1448,11 +1478,11 @@ class AIChatbotService
         $prompt .= "AVAILABLE OPTIONS:\n{$optionsList}\n\n";
         $prompt .= "USER REPLIED: \"{$rawMessage}\"\n\n";
         $prompt .= "YOUR TASK:\n";
-        $prompt .= "1. Analyze the user's reply against the Exact Option Names or IDs. Does it clearly resolve to EXACTLY ONE of the options above based on semantic matching or numbering? (e.g., if user says 'cabinet me btao' and the only option with cabinet is 'Cabinet Handle', it matches exactly one).\n";
-        $prompt .= "   If EXACTLY ONE matches perfectly, you MUST reply strictly with EXACTLY: MATCH_ID: <ID> (Replace <ID> with the matching option's explicitly stated ID or Number if ID is missing. Do NOT return the name text).\n";
-        $prompt .= "2. If the user's reply is ambiguous and aligns with MULTIPLE options (e.g. 'cabinet' is requested but there is 'Cabinet Handle 12 inch' and 'Cabinet Handle 14 inch'), you must ask the user a polite clarifying question in conversational Hindi/English mix listing ONLY the matched options to help them narrow it down. (e.g. \"Aap 'Cabinet Handle (12 inch)' dekhna chahte hain ya 'Cabinet Handle (14 inch)'?\"). \n";
-        $prompt .= "3. If the user message has absolutely NO relation to any of the options, reply strictly with: NONE.\n\n";
-        $prompt .= "CRITICAL INSTRUCTION: When asking a clarification question, DO NOT use markdown format, JSON, arrays, asterisks, or braces. Output ONLY plain, conversational natural text.\n";
+        $prompt .= "1. Does the user's reply clearly resolve to EXACTLY ONE option? If so, reply strictly with: MATCH_ID: <ID>\n";
+        $prompt .= "2. Did the user explicitly specify MULTIPLE distinct options at the same time (e.g. \"1 and 2\", \"door and cabinet\")? If so, reply STRICTLY with: QUEUE_MATCHES: <ID1>,<ID2> replacing the IDs with the explicit matching IDs from the list. Do not include any other text.\n";
+        $prompt .= "3. Is the user's reply ambiguous and could match multiple different options (e.g. they say 'cabinet' but there are multiple sizes of cabinets)? If so, ask a clarifying question in Hinglish/Hindi, listing ONLY the relevant matched options to help them narrow it down.\n";
+        $prompt .= "4. If the message has absolutely NO relation to any of the options, reply strictly with: NONE.\n\n";
+        $prompt .= "CRITICAL INSTRUCTION: When outputting conversational text (rule 3), DO NOT use markdown format, JSON, arrays, asterisks, or braces. Output ONLY plain natural text.\n";
 
         $t = microtime(true);
         $matchResult = $this->vertexAI->classifyContent($prompt);
@@ -1559,7 +1589,7 @@ class AIChatbotService
     /**
      * Select product — create Lead, Quote, send details (PHP built)
      */
-    private function selectProduct(AiChatSession $session, int $productId, $steps): string
+    private function selectProduct(AiChatSession $session, int $productId, $steps, string $prefixMsg = ''): string
     {
         $product = Product::with(['combos.column', 'activeVariations', 'customValues'])->find($productId);
         if (!$product || $product->company_id !== $this->companyId) {
@@ -1680,7 +1710,7 @@ class AIChatbotService
 
         // Simple confirmation — NO detail dump
         // The chatflow steps will ask questions one-by-one
-        $msg = "✅ *{$displayName}* selected! 🛍️";
+        $msg = $prefixMsg ? $prefixMsg . "\n\n✅ *{$displayName}* selected! 🛍️" : "✅ *{$displayName}* selected! 🛍️";
 
         // Advance to next step after product selection
         $this->advanceChatflow($session, $steps);
@@ -3383,6 +3413,34 @@ PROMPT;
 
         if ($nextStep->step_type === 'send_summary') {
             $prefix = !empty($autoMessages) ? implode("\n", $autoMessages) . "\n\n" : "";
+            
+            // Cart Loop Check: Are there pending products to configure?
+            $queue = $session->getAnswer('pending_product_queue');
+            if (!empty($queue) && is_array($queue)) {
+                $nextProductId = array_shift($queue);
+                // Resave the remaining queue
+                $session->setAnswer('pending_product_queue', array_values($queue));
+                
+                // Soft reset session: remove product-specific answers to provide clean slate for next item
+                $answers = $session->collected_answers ?? [];
+                foreach ($answers as $key => $val) {
+                    if (str_starts_with($key, 'column_filter_') || $key === 'product_id' || $key === 'product_name' || (!in_array($key, ['category_id', 'selected_product_group', 'pending_product_queue', 'name', 'phone', 'email', 'company_name']))) {
+                        unset($answers[$key]);
+                    }
+                }
+                $session->collected_answers = $answers;
+                $session->current_step_id = null;
+                $session->save();
+                
+                $loopPrefix = "✅ Picchla item order mein add ho gaya! Ab chaliye aapke agle product ke options dekhte hain...";
+                if ($prefix) {
+                    $loopPrefix = $prefix . $loopPrefix;
+                }
+                
+                // Jump to the next product in the queue. selectProduct will reset the chatflow and build the next prompt automatically.
+                return $this->selectProduct($session, $nextProductId, $steps, $loopPrefix);
+            }
+
             return $this->handleSummaryStep($session, $prefix);
         }
 
