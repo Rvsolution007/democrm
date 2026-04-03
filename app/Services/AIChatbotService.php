@@ -1484,7 +1484,11 @@ class AIChatbotService
         $prompt .= "USER REPLIED: \"{$rawMessage}\"\n\n";
         $prompt .= "YOUR TASK:\n";
         $prompt .= "1. Does the user's reply clearly resolve to EXACTLY ONE option? If so, reply strictly with: MATCH_ID: <ID>\n";
-        $prompt .= "2. Did the user specify MULTIPLE distinct options at the same time (e.g. \"1 and 2\", \"door and cabinet\")? Find the EXACT FIRST matching option ID for each distinct request (ignore loose matches like 'wardrobe' for 'door') and reply STRICTLY with: QUEUE_MATCHES: <ID1>,<ID2>. Even if the request is ambiguous among variations, pick exactly ONE initial ID per requested product and output QUEUE_MATCHES. Do not include any observational text or extra options the user did not explicitly name.\n";
+        if ($entityType === 'Product/Item') {
+            $prompt .= "2. Did the user specify MULTIPLE distinct options at the same time (e.g. \"1 and 2\", \"door and cabinet\")? Find the EXACT FIRST matching option ID for each distinct request (ignore loose matches like 'wardrobe' for 'door') and reply STRICTLY with: QUEUE_MATCHES: <ID1>,<ID2>. Even if the request is ambiguous among variations, pick exactly ONE initial ID per requested product and output QUEUE_MATCHES. Do not include any observational text or extra options the user did not explicitly name.\n";
+        } else {
+            $prompt .= "2. Did the user explicitly specify MULTIPLE distinct options at perfectly the same time? If so, politely inform them in Hindi/Hinglish that they can only select one {$entityType} at a time right now, but they can browse the others later. Ask them which one they would like to start with.\n";
+        }
         $prompt .= "3. Is the user's reply ambiguous and could match multiple different options (e.g. they say 'cabinet' but there are multiple sizes of cabinets)? If so, ask a clarifying question in Hinglish/Hindi, listing ONLY the relevant matched options to help them narrow it down.\n";
         $prompt .= "4. If the message has absolutely NO relation to any of the options, reply strictly with: NONE.\n\n";
         $prompt .= "CRITICAL INSTRUCTION: When outputting conversational text (rule 3), DO NOT use markdown format, JSON, arrays, asterisks, or braces. Output ONLY plain natural text.\n";
