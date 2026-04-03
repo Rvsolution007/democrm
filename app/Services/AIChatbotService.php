@@ -1524,6 +1524,8 @@ class AIChatbotService
         if ($newDesc) $descLines[] = $newDesc;
         
         foreach ($session->collected_answers as $key => $val) {
+            if (str_starts_with($key, 'column_filter_')) continue;
+
             if (!in_array($key, ['product_id', 'product_name', 'category_id', 'category_name', 'selected_product_group']) && !$product->combos->pluck('column.slug')->contains($key)) {
                 $descLines[] = ucfirst(str_replace('_', ' ', $key)) . ": {$val}";
             }
@@ -1948,15 +1950,10 @@ class AIChatbotService
         // Build response
         $msg = "✅ {$column->name}: *{$matchedOption}* selected!";
 
-        // Check if all combo steps are done — append progress summary
-        $progressSummary = $this->buildProgressSummary($session, $steps);
-        if (!empty($progressSummary)) {
-            $msg .= $progressSummary;
-        }
-
         // Append next step
         $nextPrompt = $this->buildNextStepPrompt($session, $steps);
         if ($nextPrompt) {
+            // Progress summary is removed so it doesn't interrupt flow before send_summary
             $msg .= "\n\n" . $nextPrompt;
         }
 
@@ -2074,12 +2071,12 @@ class AIChatbotService
     // SUMMARY STEP — PHP Direct (no AI)
     // ═══════════════════════════════════════════════════════
 
-    private function handleSummaryStep(AiChatSession $session): string
+    private function handleSummaryStep(AiChatSession $session, string $prefix = ''): string
     {
         $answers = $session->collected_answers ?? [];
         $visibleColumns = $this->getAiVisibleColumns();
 
-        $msg = "📋 *Order Summary:*\n\n";
+        $msg = $prefix . "📋 *Order Summary:*\n\n";
 
         // Show each AI-visible catalogue column with its value from the selected product
         $productId = $answers['product_id'] ?? null;
@@ -2150,6 +2147,7 @@ class AIChatbotService
         $comboSlugs = $product ? $product->combos->pluck('column.slug')->filter()->toArray() : [];
         $visibleSlugs = $visibleColumns->pluck('slug')->toArray();
         foreach ($answers as $key => $val) {
+            if (str_starts_with($key, 'column_filter_')) continue;
             // Skip internal keys, combo keys, and catalogue column keys
             if (in_array($key, $internalKeys) || in_array($key, $comboSlugs) || in_array($key, $visibleSlugs)) {
                 continue;
@@ -3302,16 +3300,16 @@ PROMPT;
         }
     }
 
-    private function buildNextStepPrompt(AiChatSession $session, $steps): string
+    private function buildNextStepPrompt(AiChatSession $session, $steps, array $autoMessages = []): string
     {
         $nextStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
         if (!$nextStep) {
             // No next step — if chatflow is completed and we have product answers, show summary + confirm
+            $prefix = !empty($autoMessages) ? implode("\n", $autoMessages) . "\n\n" : "";
             if ($session->getAnswer('product_id') && $session->conversation_state === 'completed') {
-                // Auto-generate summary since there's no explicit send_summary step
-                return $this->handleSummaryStep($session);
+                return $this->handleSummaryStep($session, $prefix);
             }
-            return $this->translateIfNeeded($session, "✅ All done! Our team will contact you. 🙏");
+            return $this->translateIfNeeded($session, $prefix . "✅ All done! Our team will contact you. 🙏");
         }
 
         // Send step-level media BEFORE asking the question (once per session)
@@ -3328,15 +3326,68 @@ PROMPT;
             $productId = $session->getAnswer('product_id');
             $product = Product::with('combos.column')->find($productId);
             $comboValues = $product ? $this->getComboValuesForProduct($product, $nextStep->linkedColumn) : [];
+            
+            if (empty($comboValues)) {
+                $this->advanceChatflow($session, $steps);
+                $session->save();
+                return $this->buildNextStepPrompt($session, $steps, $autoMessages);
+            }
+            
             $question = $nextStep->question_text ?: "Which {$nextStep->linkedColumn->name}?";
-            return $this->translateIfNeeded($session, "{$question} 👇\n" . implode(' | ', $comboValues));
+            $prefix = !empty($autoMessages) ? implode("\n", $autoMessages) . "\n\n" : "";
+            return $this->translateIfNeeded($session, $prefix . "{$question} 👇\n" . implode(' | ', $comboValues));
+        }
+
+        if ($nextStep->step_type === 'ask_column' && $nextStep->linkedColumn) {
+            $answers = $session->collected_answers ?? [];
+            $colId = $nextStep->linked_column_id;
+            
+            $query = Product::where('company_id', $this->companyId)->where('status', 'active');
+            if (isset($answers['product_id'])) {
+                $query->where('id', $answers['product_id']);
+            } else {
+                if (isset($answers['category_id'])) {
+                    $query->where('category_id', $answers['category_id']);
+                }
+                foreach ($answers as $key => $val) {
+                    if (str_starts_with($key, 'column_filter_') && $key !== "column_filter_{$colId}") {
+                        $extColId = str_replace('column_filter_', '', $key);
+                        $query->whereHas('customValues', function($q) use ($extColId, $val) {
+                            $q->where('column_id', $extColId)->where('value', $val);
+                        });
+                    }
+                }
+            }
+            $productSet = $query->with('customValues')->get();
+            $availableValues = [];
+            foreach ($productSet as $p) {
+                $val = $p->customValues->firstWhere('column_id', $colId)?->value;
+                if (!empty($val)) {
+                    $availableValues[$val] = true;
+                }
+            }
+            $valuesList = array_keys($availableValues);
+            sort($valuesList);
+            
+            if (count($valuesList) >= 1) {
+                 $question = $nextStep->question_text ?: "Please select {$nextStep->linkedColumn->name}:";
+                 $optionsStr = implode(' | ', $valuesList);
+                 $prefix = !empty($autoMessages) ? implode("\n", $autoMessages) . "\n\n" : "";
+                 return $this->translateIfNeeded($session, $prefix . "{$question} 👇\n" . $optionsStr);
+            } else {
+                 $this->advanceChatflow($session, $steps);
+                 $session->save();
+                 return $this->buildNextStepPrompt($session, $steps, $autoMessages);
+            }
         }
 
         if ($nextStep->step_type === 'send_summary') {
-            return $this->handleSummaryStep($session);
+            $prefix = !empty($autoMessages) ? implode("\n", $autoMessages) . "\n\n" : "";
+            return $this->handleSummaryStep($session, $prefix);
         }
 
-        return $this->translateIfNeeded($session, $nextStep->question_text ?: "Please provide your {$nextStep->field_key}:");
+        $prefix = !empty($autoMessages) ? implode("\n", $autoMessages) . "\n\n" : "";
+        return $this->translateIfNeeded($session, $prefix . ($nextStep->question_text ?: "Please provide your {$nextStep->field_key}:"));
     }
 
     /**
@@ -3793,78 +3844,6 @@ PROMPT;
             Log::warning('AIChatbot: Spell correction failed', ['error' => $e->getMessage()]);
             return $userText;
         }
-    }
-
-    // ═══════════════════════════════════════════════════════
-    // PROGRESS SUMMARY (after all combo steps done)
-    // ═══════════════════════════════════════════════════════
-
-    /**
-     * Build progress summary showing confirmed selections.
-     * Returns non-empty string ONLY when all combo steps are answered.
-     */
-    private function buildProgressSummary(AiChatSession $session, $steps): string
-    {
-        $answers = $session->collected_answers ?? [];
-        $comboSteps = $steps->where('step_type', 'ask_combo');
-
-        if ($comboSteps->isEmpty()) return '';
-
-        $allComboDone = true;
-        $confirmedItems = [];
-
-        foreach ($comboSteps as $cs) {
-            if ($cs->linkedColumn && isset($answers[$cs->linkedColumn->slug])) {
-                $confirmedItems[] = "✅ {$cs->linkedColumn->name}: {$answers[$cs->linkedColumn->slug]}";
-            } else if ($cs->linkedColumn) {
-                $allComboDone = false;
-            }
-        }
-
-        // Only show when ALL combos are done
-        if (!$allComboDone || empty($confirmedItems)) return '';
-
-        $msg = "\n\n📋 *Your Selection:*\n";
-
-        // Show each AI-visible catalogue column value (non-combo) from the product
-        $productId = $answers['product_id'] ?? null;
-        $product = $productId ? Product::with(['customValues', 'category'])->find($productId) : null;
-        $visibleColumns = $this->getAiVisibleColumns();
-        $comboColumnIds = $product ? $product->combos->pluck('column_id')->toArray() : [];
-
-        if ($product && $visibleColumns->isNotEmpty()) {
-            foreach ($visibleColumns as $col) {
-                if (in_array($col->id, $comboColumnIds)) continue;
-
-                $value = null;
-                if ($col->is_system) {
-                    $slug = $col->slug;
-                    if ($slug === 'product_name') $slug = 'name';
-                    $value = $product->{$slug} ?? null;
-                } elseif ($col->is_category) {
-                    $cat = $product->category;
-                    $value = $cat ? $cat->name : null;
-                } else {
-                    $customVal = $product->customValues->where('column_id', $col->id)->first();
-                    if ($customVal && !empty($customVal->value)) {
-                        $decoded = json_decode($customVal->value, true);
-                        $value = is_array($decoded) ? implode(', ', $decoded) : $customVal->value;
-                    }
-                }
-
-                if (!empty($value)) {
-                    $msg .= "✅ {$col->name}: {$value}\n";
-                }
-            }
-        } else {
-            $msg .= "✅ Product: {$answers['product_name']}\n";
-        }
-
-        foreach ($confirmedItems as $item) {
-            $msg .= "{$item}\n";
-        }
-
-        return $msg;
     }
 
 
