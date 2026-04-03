@@ -988,7 +988,17 @@ class AIChatbotService
         if (!$selectedCategory) {
             $aiResponse = $this->matchContextuallyUsingAI($session, $rawMessage, $catList, $categoryLabel, $categories->count());
             
-            if (preg_match('/MATCH_ID:\s*(\d+)/i', $aiResponse, $matches)) {
+            // Handle QUEUE_MATCHES (user asked for multiple categories) — pick the first one
+            if (preg_match('/QUEUE_MATCHES:\s*([\d,\s]+)/i', $aiResponse, $matches)) {
+                $ids = array_filter(array_map('trim', explode(',', $matches[1])));
+                if (!empty($ids)) {
+                    $matchedId = $ids[0]; // Pick first category
+                    $selectedCategory = $categories->firstWhere('id', (int)$matchedId);
+                    if (!$selectedCategory && (int)$matchedId <= $categories->count()) {
+                        $selectedCategory = $categories->values()[(int)$matchedId - 1] ?? null;
+                    }
+                }
+            } elseif (preg_match('/MATCH_ID:\s*(\d+)/i', $aiResponse, $matches)) {
                 $matchedId = $matches[1] ?? null;
                 if ($matchedId) {
                     $selectedCategory = $categories->firstWhere('id', (int)$matchedId);
@@ -1558,17 +1568,12 @@ class AIChatbotService
         $prompt .= "MATCH_ID: <ID>\n";
         $prompt .= "Example: User says \"{$ex1Short}\" → MATCH_ID: {$ex1Id}\n\n";
 
-        // Rule 2: Multiple matches (only for Product/Item)
-        if ($entityType === 'Product/Item') {
-            $prompt .= "RULE 2 — MULTIPLE MATCHES:\n";
-            $prompt .= "If the user names MULTIPLE DISTINCT options (e.g. \"{$ex1Short} and {$ex2Short}\", \"1 and 2\", \"dono chahiye\"), output:\n";
-            $prompt .= "QUEUE_MATCHES: <ID1>,<ID2>\n";
-            $prompt .= "Example: User says \"{$ex1Short} and {$ex2Short}\" → QUEUE_MATCHES: {$ex1Id},{$ex2Id}\n";
-            $prompt .= "STRICT: Only include IDs the user EXPLICITLY named. Do NOT add extra options the user did not ask for.\n\n";
-        } else {
-            $prompt .= "RULE 2 — MULTIPLE REQUESTS:\n";
-            $prompt .= "If the user asks for multiple {$entityType}s at once, politely tell them in Hindi/Hinglish to pick one at a time. Ask which one to start with.\n\n";
-        }
+        // Rule 2: Multiple matches — ALWAYS use QUEUE_MATCHES for deterministic output
+        $prompt .= "RULE 2 — MULTIPLE MATCHES:\n";
+        $prompt .= "If the user names MULTIPLE DISTINCT options (e.g. \"{$ex1Short} and {$ex2Short}\", \"1 and 2\", \"dono chahiye\"), output:\n";
+        $prompt .= "QUEUE_MATCHES: <ID1>,<ID2>\n";
+        $prompt .= "Example: User says \"{$ex1Short} and {$ex2Short}\" → QUEUE_MATCHES: {$ex1Id},{$ex2Id}\n";
+        $prompt .= "STRICT: Only include IDs the user EXPLICITLY named. Do NOT add extra options the user did not ask for.\n\n";
 
         // Rule 3: Ambiguous
         $prompt .= "RULE 3 — AMBIGUOUS:\n";
@@ -1581,9 +1586,7 @@ class AIChatbotService
         // Output format enforcement
         $prompt .= "═══ OUTPUT FORMAT ═══\n";
         $prompt .= "- For Rule 1: MATCH_ID: <number>\n";
-        if ($entityType === 'Product/Item') {
-            $prompt .= "- For Rule 2: QUEUE_MATCHES: <number>,<number>\n";
-        }
+        $prompt .= "- For Rule 2: QUEUE_MATCHES: <number>,<number>\n";
         $prompt .= "- For Rule 3: Plain Hindi/Hinglish text (NO markdown, NO asterisks, NO JSON)\n";
         $prompt .= "- For Rule 4: NONE\n";
         $prompt .= "Output ONLY one of the above. Nothing else.\n";
