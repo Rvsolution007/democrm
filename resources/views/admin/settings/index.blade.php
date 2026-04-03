@@ -787,14 +787,18 @@
                             <label style="display:block;margin-bottom:4px;font-weight:600;display:flex;align-items:center;gap:6px;color:#b91c1c;">
                                 <i data-lucide="lock" style="width:16px;height:16px;"></i> Tier 1 Contextual AI (Locked)
                             </label>
-                            <textarea class="form-textarea" rows="7" readonly style="background-color:#fee2e2; border-color:#fca5a5; cursor:not-allowed; font-family:monospace; font-size:12px; color:#991b1b;">[DO NOT EDIT: HARDCODED IN SYSTEM SOURCE]
-CONTEXT: The bot is currently asking the user to select an item.
-AVAILABLE OPTIONS: [Auto-Injected by System]
+                            <textarea class="form-textarea" rows="10" readonly style="background-color:#fee2e2; border-color:#fca5a5; cursor:not-allowed; font-family:monospace; font-size:12px; color:#991b1b;">[LOCKED — Dynamic Prompt Engine]
+AVAILABLE OPTIONS: [Auto-Injected from Product Database]
+USER MESSAGE: [Customer ka WhatsApp message]
 
-YOUR TASK:
-1. Does the user's reply clearly resolve to EXACTLY ONE option? If so, reply strictly with: MATCH_ID: <ID>
-2. Did the user specify MULTIPLE distinct options? Find the EXACT FIRST matching option ID...
-...</textarea>
+═══ RULES (follow in order, stop at first match) ═══
+
+RULE 1 — SINGLE MATCH → MATCH_ID: <ID>
+RULE 2 — MULTIPLE MATCHES → QUEUE_MATCHES: <ID1>,<ID2>
+   (Examples dynamically generated from actual product names)
+   STRICT: Only include IDs user EXPLICITLY named.
+RULE 3 — AMBIGUOUS → Ask clarifying question in Hindi/Hinglish
+RULE 4 — NO MATCH → NONE</textarea>
                             <small style="color:#ef4444;font-size:12px;margin-top:4px;display:block">
                                 Ye Backend System Manager ka core algorithm hai jo orders nikalta hai. Security aur stability ke liye ye backend code me locked hai uper admin settings format me.
                             </small>

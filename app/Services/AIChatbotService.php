@@ -1475,23 +1475,70 @@ class AIChatbotService
     /**
      * Contextual AI Default Matcher for Categories, Groups, and Products
      * Handles ambiguity dynamically by returning clarification questions.
+     * All examples are generated from actual option names — zero hardcoding.
      */
     private function matchContextuallyUsingAI(AiChatSession $session, string $rawMessage, string $optionsList, string $entityType, int $optionsCount): string
     {
-        $prompt = "You are a helpful e-commerce AI assistant on WhatsApp.\n";
-        $prompt .= "CONTEXT: The bot is currently asking the user to select a '{$entityType}'.\n";
-        $prompt .= "AVAILABLE OPTIONS:\n{$optionsList}\n\n";
-        $prompt .= "USER REPLIED: \"{$rawMessage}\"\n\n";
-        $prompt .= "YOUR TASK:\n";
-        $prompt .= "1. Does the user's reply clearly resolve to EXACTLY ONE option? If so, reply strictly with: MATCH_ID: <ID>\n";
-        if ($entityType === 'Product/Item') {
-            $prompt .= "2. Did the user specify MULTIPLE distinct options at the same time (e.g. \"1 and 2\", \"door and cabinet\")? Find the EXACT FIRST matching option ID for each distinct request (ignore loose matches like 'wardrobe' for 'door') and reply STRICTLY with: QUEUE_MATCHES: <ID1>,<ID2>. Even if the request is ambiguous among variations, pick exactly ONE initial ID per requested product and output QUEUE_MATCHES. Do not include any observational text or extra options the user did not explicitly name.\n";
-        } else {
-            $prompt .= "2. Did the user explicitly specify MULTIPLE distinct options at perfectly the same time? If so, politely inform them in Hindi/Hinglish that they can only select one {$entityType} at a time right now, but they can browse the others later. Ask them which one they would like to start with.\n";
+        // ── Build dynamic examples from actual options ──
+        $optionLines = array_filter(explode("\n", $optionsList));
+        $optionNames = [];
+        $optionIds = [];
+        foreach ($optionLines as $line) {
+            if (preg_match('/^\d+\.\s*(.+?)\s*\(ID:(\d+)\)/', $line, $m)) {
+                $optionNames[] = preg_replace('/\s*\(.*$/', '', trim($m[1])); // Clean name without parenthetical
+                $optionIds[] = $m[2];
+            }
         }
-        $prompt .= "3. Is the user's reply ambiguous and could match multiple different options (e.g. they say 'cabinet' but there are multiple sizes of cabinets)? If so, ask a clarifying question in Hinglish/Hindi, listing ONLY the relevant matched options to help them narrow it down.\n";
-        $prompt .= "4. If the message has absolutely NO relation to any of the options, reply strictly with: NONE.\n\n";
-        $prompt .= "CRITICAL INSTRUCTION: When outputting conversational text (rule 3), DO NOT use markdown format, JSON, arrays, asterisks, or braces. Output ONLY plain natural text.\n";
+
+        // Pick first 2 option names for dynamic examples (or fallback to generic)
+        $ex1Name = $optionNames[0] ?? 'Option A';
+        $ex2Name = $optionNames[1] ?? 'Option B';
+        $ex1Id = $optionIds[0] ?? '1';
+        $ex2Id = $optionIds[1] ?? '2';
+        // Extract short keyword from name (first word) for realistic user example
+        $ex1Short = explode(' ', $ex1Name)[0];
+        $ex2Short = explode(' ', $ex2Name)[0];
+
+        $prompt  = "You are a strict product-matching engine. Your job is to map the user's message to option IDs.\n\n";
+        $prompt .= "AVAILABLE OPTIONS:\n{$optionsList}\n\n";
+        $prompt .= "USER MESSAGE: \"{$rawMessage}\"\n\n";
+        $prompt .= "═══ RULES (follow in order, stop at first match) ═══\n\n";
+
+        // Rule 1: Single match
+        $prompt .= "RULE 1 — SINGLE MATCH:\n";
+        $prompt .= "If the user clearly wants EXACTLY ONE option, output:\n";
+        $prompt .= "MATCH_ID: <ID>\n";
+        $prompt .= "Example: User says \"{$ex1Short}\" → MATCH_ID: {$ex1Id}\n\n";
+
+        // Rule 2: Multiple matches (only for Product/Item)
+        if ($entityType === 'Product/Item') {
+            $prompt .= "RULE 2 — MULTIPLE MATCHES:\n";
+            $prompt .= "If the user names MULTIPLE DISTINCT options (e.g. \"{$ex1Short} and {$ex2Short}\", \"1 and 2\", \"dono chahiye\"), output:\n";
+            $prompt .= "QUEUE_MATCHES: <ID1>,<ID2>\n";
+            $prompt .= "Example: User says \"{$ex1Short} and {$ex2Short}\" → QUEUE_MATCHES: {$ex1Id},{$ex2Id}\n";
+            $prompt .= "STRICT: Only include IDs the user EXPLICITLY named. Do NOT add extra options the user did not ask for.\n\n";
+        } else {
+            $prompt .= "RULE 2 — MULTIPLE REQUESTS:\n";
+            $prompt .= "If the user asks for multiple {$entityType}s at once, politely tell them in Hindi/Hinglish to pick one at a time. Ask which one to start with.\n\n";
+        }
+
+        // Rule 3: Ambiguous
+        $prompt .= "RULE 3 — AMBIGUOUS:\n";
+        $prompt .= "If the user's message partially matches multiple options and you cannot determine which one, ask a SHORT clarifying question in Hindi/Hinglish listing only the relevant options.\n\n";
+
+        // Rule 4: No match
+        $prompt .= "RULE 4 — NO MATCH:\n";
+        $prompt .= "If the message has NO relation to any option, output exactly: NONE\n\n";
+
+        // Output format enforcement
+        $prompt .= "═══ OUTPUT FORMAT ═══\n";
+        $prompt .= "- For Rule 1: MATCH_ID: <number>\n";
+        if ($entityType === 'Product/Item') {
+            $prompt .= "- For Rule 2: QUEUE_MATCHES: <number>,<number>\n";
+        }
+        $prompt .= "- For Rule 3: Plain Hindi/Hinglish text (NO markdown, NO asterisks, NO JSON)\n";
+        $prompt .= "- For Rule 4: NONE\n";
+        $prompt .= "Output ONLY one of the above. Nothing else.\n";
 
         $t = microtime(true);
         $matchResult = $this->vertexAI->classifyContent($prompt);
@@ -1500,7 +1547,7 @@ class AIChatbotService
 
         $matchText = trim($matchResult['text']);
         $this->traceNode($session->id, 'ContextualMatchAI', 'ai_call', 'success',
-            ['message' => $rawMessage, 'entity' => $entityType, 'options_available' => $optionsCount],
+            ['message' => $rawMessage, 'entity' => $entityType, 'options_available' => $optionsCount, 'prompt_sent' => $prompt],
             ['raw_response' => $matchText, 'tokens_used' => $matchResult['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'], null, $ms);
 
         return $matchText;
