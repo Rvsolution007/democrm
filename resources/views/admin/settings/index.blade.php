@@ -784,7 +784,26 @@
                     </div>
                     <div class="card-content">
                         <div style="margin-bottom:16px">
-                            <label style="display:block;margin-bottom:4px;font-weight:600">Primary System Prompt</label>
+                            <label style="display:block;margin-bottom:4px;font-weight:600;display:flex;align-items:center;gap:6px;color:#b91c1c;">
+                                <i data-lucide="lock" style="width:16px;height:16px;"></i> Tier 1 Contextual AI (Locked)
+                            </label>
+                            <textarea class="form-textarea" rows="7" readonly style="background-color:#fee2e2; border-color:#fca5a5; cursor:not-allowed; font-family:monospace; font-size:12px; color:#991b1b;">[DO NOT EDIT: HARDCODED IN SYSTEM SOURCE]
+CONTEXT: The bot is currently asking the user to select an item.
+AVAILABLE OPTIONS: [Auto-Injected by System]
+
+YOUR TASK:
+1. Does the user's reply clearly resolve to EXACTLY ONE option? If so, reply strictly with: MATCH_ID: <ID>
+2. Did the user specify MULTIPLE distinct options? Find the EXACT FIRST matching option ID...
+...</textarea>
+                            <small style="color:#ef4444;font-size:12px;margin-top:4px;display:block">
+                                Ye Backend System Manager ka core algorithm hai jo orders nikalta hai. Security aur stability ke liye ye backend code me locked hai uper admin settings format me.
+                            </small>
+                        </div>
+                        
+                        <hr style="margin:20px 0;border-top:1px dashed #e2e8f0;">
+
+                        <div style="margin-bottom:16px">
+                            <label style="display:block;margin-bottom:4px;font-weight:600">Primary System Prompt (Tier 2)</label>
                             <textarea class="form-textarea" id="ai-system-prompt" rows="6" placeholder="Tum ek helpful WhatsApp AI assistant ho...">{{ $aiSystemPrompt ?? '' }}</textarea>
                             <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: Explain general bot persona and rules.</small>
                         </div>
