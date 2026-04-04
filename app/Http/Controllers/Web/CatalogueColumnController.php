@@ -129,6 +129,9 @@ class CatalogueColumnController extends Controller
             'sort_order' => $maxOrder + 1,
         ]);
 
+        // Clear Product Group Match cache
+        \App\Services\AIChatbotService::clearProductGroupCache($companyId);
+
         return response()->json([
             'success' => true,
             'message' => 'Column created successfully',
@@ -213,6 +216,7 @@ class CatalogueColumnController extends Controller
                 'is_title' => $request->has('is_title') ? $request->boolean('is_title') : $column->is_title,
                 'show_on_list' => $request->boolean('show_on_list'),
             ]);
+            \App\Services\AIChatbotService::clearProductGroupCache(auth()->user()->company_id);
             return response()->json(['success' => true, 'message' => 'System field updated successfully', 'column' => $column]);
         }
 
@@ -227,6 +231,9 @@ class CatalogueColumnController extends Controller
             'is_combo' => $request->boolean('is_combo'),
             'show_on_list' => $request->boolean('show_on_list'),
         ]);
+
+        // Clear Product Group Match cache
+        \App\Services\AIChatbotService::clearProductGroupCache(auth()->user()->company_id);
 
         return response()->json([
             'success' => true,
@@ -250,6 +257,9 @@ class CatalogueColumnController extends Controller
         }
         
         $column->delete();
+
+        // Clear Product Group Match cache
+        \App\Services\AIChatbotService::clearProductGroupCache(auth()->user()->company_id);
 
         return response()->json([
             'success' => true,

@@ -842,6 +842,115 @@ RULE 4 — NO MATCH → NONE</textarea>
                     </div>
                 </div>
 
+                <!-- Tier 3 Column Analytics Prompt -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">🧠 Tier 3 — Column Analytics AI Prompt</h3>
+                        <p class="text-sm text-muted" style="margin-top:4px">Jab user koi product-related keyword bole jo current chatflow step se match nahi kare, tab ye prompt use hoga.</p>
+                    </div>
+                    <div class="card-content">
+                        <div style="margin-bottom:16px">
+                            <label style="display:block;margin-bottom:4px;font-weight:600">Tier 3 Prompt (Editable)</label>
+                            <textarea class="form-textarea" id="ai-tier3-prompt" rows="6" placeholder="You are a senior sales executive...">{{ $aiTier3Prompt ?? '' }}</textarea>
+                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">
+                                Hint: Define AI's sales persona for product column queries. AI ko product data match results ke sath ye prompt milega. Khali chhodne pe default prompt use hoga.
+                            </small>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveAiTier3Prompt()">
+                            <i data-lucide="save" style="width:16px;height:16px"></i> Save Tier 3 Prompt
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Greeting Detection Settings -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">👋 Greeting Detection Settings</h3>
+                        <p class="text-sm text-muted" style="margin-top:4px">System me 200+ greetings builtin hain (hi, hello, namaste, etc). Aap apne custom words add kar sakte hain.</p>
+                    </div>
+                    <div class="card-content">
+                        <div style="margin-bottom:16px; padding:12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px;">
+                            <div style="font-weight:600; color:#166534; margin-bottom:8px;">🔒 System Default Greetings (200+ words)</div>
+                            <p style="font-size:12px; color:#15803d; line-height:1.6; max-height:60px; overflow:hidden;">
+                                hi, hello, hey, namaste, namaskar, good morning, good afternoon, good evening, jai shri ram, ram ram, radhe radhe, sat sri akal, assalamu alaikum, kem cho, vanakkam, hare krishna, jai mata di, pranam, shukriya, dhanyavaad, hii, hiii, hlw, helo, kaise ho, kya haal hai...
+                            </p>
+                            <small style="color:#166534; font-size:11px; font-weight:500;">Ye words read-only hain aur system me built-in hain. Inhe edit nahi kar sakte.</small>
+                        </div>
+                        
+                        <div style="margin-bottom:16px">
+                            <label style="display:block;margin-bottom:4px;font-weight:600">Your Custom Greeting Words</label>
+                            <textarea class="form-textarea" id="ai-greeting-words" rows="5" placeholder="radhe radhe&#10;khamma ghani&#10;padharo mhare des&#10;(ek word per line)">{{ $aiGreetingWords ?? '' }}</textarea>
+                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">
+                                One word/phrase per line. Ye words system defaults ke sath merge honge. Total: <strong>200+ system + your custom</strong>
+                            </small>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveAiGreetingWords()">
+                            <i data-lucide="save" style="width:16px;height:16px"></i> Save Greeting Words
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Match Playground & Cache -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">🎮 Match Playground & Cache</h3>
+                        <p class="text-sm text-muted" style="margin-top:4px">PHP Product Group Match engine test karo — live confidence % dekho. Cache controls bhi yahan hain.</p>
+                    </div>
+                    <div class="card-content">
+                        <!-- Confidence Threshold -->
+                        <div style="margin-bottom:20px; padding:16px; background:linear-gradient(135deg, #fef3c7, #fde68a); border:1px solid #fbbf24; border-radius:10px;">
+                            <label style="display:block;margin-bottom:8px;font-weight:700;color:#92400e;font-size:15px;">⚙️ Minimum Match Confidence</label>
+                            <div style="display:flex; align-items:center; gap:12px;">
+                                <input type="range" id="ai-match-confidence-slider" min="0" max="100" value="{{ $aiMatchConfidence ?? 60 }}" 
+                                    style="flex:1; accent-color:#f59e0b; height:6px;" oninput="document.getElementById('ai-match-confidence-val').value=this.value">
+                                <input type="number" id="ai-match-confidence-val" min="0" max="100" value="{{ $aiMatchConfidence ?? 60 }}" 
+                                    style="width:70px; text-align:center; font-weight:700; font-size:18px; border:2px solid #f59e0b; border-radius:8px; padding:4px;" 
+                                    oninput="document.getElementById('ai-match-confidence-slider').value=this.value">
+                                <span style="font-weight:600; color:#92400e;">%</span>
+                                <button type="button" class="btn btn-primary btn-sm" onclick="saveAiMatchConfidence()" style="background:#f59e0b; border-color:#f59e0b;">
+                                    <i data-lucide="save" style="width:14px;height:14px"></i> Save
+                                </button>
+                            </div>
+                            <div style="margin-top:10px; display:grid; grid-template-columns:repeat(4,1fr); gap:4px; font-size:11px; color:#92400e;">
+                                <span>50-60% Aggressive</span>
+                                <span style="font-weight:700;">60-75% Balanced ✅</span>
+                                <span>75-90% Strict</span>
+                                <span>90-100% Very Strict</span>
+                            </div>
+                            <small style="color:#b45309; font-size:12px; margin-top:6px; display:block;">
+                                ℹ️ Is % se neeche ke matches bot IGNORE karega. Bot ko Tier 2 AI pe bhejega.
+                            </small>
+                        </div>
+
+                        <!-- Match Test -->
+                        <div style="margin-bottom:16px">
+                            <label style="display:block;margin-bottom:4px;font-weight:600;font-size:15px;">🧪 Test Message</label>
+                            <div style="display:flex;gap:8px;">
+                                <input type="text" class="form-input" id="pgm-test-message" placeholder="Eg: mujhe chrome handle chahiye..." style="flex:1">
+                                <button type="button" class="btn btn-primary" onclick="testProductGroupMatch()" id="pgm-test-btn">
+                                    <i data-lucide="search" style="width:16px;height:16px"></i> Test
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="pgm-results" style="display:none;">
+                            <div id="pgm-stats" style="margin-bottom:12px; padding:10px; background:#f8fafc; border-radius:8px; display:grid; grid-template-columns:repeat(4,1fr); gap:8px; font-size:13px;"></div>
+                            <div id="pgm-matches" style="margin-bottom:12px;"></div>
+                            <div id="pgm-index" style="margin-bottom:12px;"></div>
+                        </div>
+                        
+                        <hr style="margin:20px 0;border-top:1px dashed #e2e8f0;">
+                        
+                        <!-- Cache Controls -->
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <button type="button" class="btn btn-outline" onclick="clearPgmCache()" style="border-color:#ef4444; color:#ef4444;">
+                                <i data-lucide="refresh-cw" style="width:16px;height:16px"></i> Clear Product Match Cache
+                            </button>
+                            <small style="color:#999; font-size:12px;">Cache auto-clears on product/category/column changes. Manual clear for testing.</small>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- AI Architecture Rules -->
                 <div class="card">
                     <div class="card-header">
@@ -2049,6 +2158,111 @@ RULE 4 — NO MATCH → NONE</textarea>
                 if (data.success) showSavedToast();
                 else alert('Error saving language');
             }).catch(() => alert('Request failed'));
+        }
+
+        // ═══════════════════════════════════════
+        // AI V2 — Tier 3, Greetings, Playground
+        // ═══════════════════════════════════════
+        function saveAiTier3Prompt() {
+            fetch('{{ route("admin.settings.ai-tier3-prompt.save") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({ tier3_prompt: document.getElementById('ai-tier3-prompt').value })
+            }).then(r => r.json()).then(data => {
+                alert(data.message || 'Saved');
+            }).catch(() => alert('Request failed'));
+        }
+
+        function saveAiGreetingWords() {
+            fetch('{{ route("admin.settings.ai-greeting-words.save") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({ greeting_words: document.getElementById('ai-greeting-words').value })
+            }).then(r => r.json()).then(data => {
+                alert(data.message || 'Saved');
+            }).catch(() => alert('Request failed'));
+        }
+
+        function saveAiMatchConfidence() {
+            fetch('{{ route("admin.settings.ai-match-confidence.save") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({ match_min_confidence: parseInt(document.getElementById('ai-match-confidence-val').value) })
+            }).then(r => r.json()).then(data => {
+                alert(data.message || 'Saved');
+            }).catch(() => alert('Request failed'));
+        }
+
+        function clearPgmCache() {
+            if (!confirm('Product Match Cache clear karein?')) return;
+            fetch('{{ route("admin.settings.ai-clear-pgm-cache") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }
+            }).then(r => r.json()).then(data => {
+                alert(data.message || 'Cache cleared');
+            }).catch(() => alert('Request failed'));
+        }
+
+        function testProductGroupMatch() {
+            const msg = document.getElementById('pgm-test-message').value.trim();
+            if (!msg) { alert('Please enter a test message'); return; }
+            const btn = document.getElementById('pgm-test-btn');
+            btn.disabled = true; btn.innerHTML = '<i data-lucide="loader" style="width:16px;height:16px"></i> Testing...';
+
+            fetch('{{ route("admin.settings.ai-test-pgm") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({ message: msg })
+            }).then(r => r.json()).then(data => {
+                btn.disabled = false; btn.innerHTML = '<i data-lucide="search" style="width:16px;height:16px"></i> Test';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                document.getElementById('pgm-results').style.display = 'block';
+
+                // Stats
+                document.getElementById('pgm-stats').innerHTML = `
+                    <div style="text-align:center"><strong>${data.total_products}</strong><br><small style="color:#666">Products</small></div>
+                    <div style="text-align:center"><strong>${data.total_columns}</strong><br><small style="color:#666">AI Columns</small></div>
+                    <div style="text-align:center"><strong>${data.total_words}</strong><br><small style="color:#666">Indexable Values</small></div>
+                    <div style="text-align:center"><strong style="color:${data.match_count > 0 ? '#16a34a' : '#dc2626'}">${data.match_count}</strong><br><small style="color:#666">Matches Found</small></div>
+                `;
+
+                // Matches Table
+                let matchHtml = '';
+                if (data.matches && data.matches.length > 0) {
+                    matchHtml = '<div style="font-weight:600;margin-bottom:8px;color:#16a34a;">✅ Matches Found</div>';
+                    matchHtml += '<table style="width:100%;border-collapse:collapse;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">';
+                    matchHtml += '<thead><tr style="background:#f8fafc;"><th style="padding:8px;text-align:left;border-bottom:2px solid #e2e8f0;">Column</th><th style="padding:8px;text-align:left;border-bottom:2px solid #e2e8f0;">Matched Value</th><th style="padding:8px;text-align:center;border-bottom:2px solid #e2e8f0;">Type</th><th style="padding:8px;text-align:center;border-bottom:2px solid #e2e8f0;">Confidence</th></tr></thead><tbody>';
+                    data.matches.forEach(m => {
+                        let confColor = m.confidence >= 90 ? '#16a34a' : (m.confidence >= 75 ? '#f59e0b' : '#dc2626');
+                        let confBg = m.confidence >= 90 ? '#dcfce7' : (m.confidence >= 75 ? '#fef3c7' : '#fef2f2');
+                        let typeLabel = m.match_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                        matchHtml += `<tr style="border-bottom:1px solid #f0f0f0;">
+                            <td style="padding:8px;font-weight:500;">${m.column_name}${m.is_category ? ' <span style="color:#7c3aed;font-size:11px;">[Category]</span>' : ''}${m.is_unique ? ' <span style="color:#2563eb;font-size:11px;">[Unique]</span>' : ''}</td>
+                            <td style="padding:8px;">${m.matched_value}</td>
+                            <td style="padding:8px;text-align:center;"><span style="background:#f0f9ff;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">${typeLabel}</span></td>
+                            <td style="padding:8px;text-align:center;"><span style="background:${confBg};color:${confColor};padding:3px 10px;border-radius:20px;font-weight:700;font-size:13px;">${m.confidence}%</span></td>
+                        </tr>`;
+                    });
+                    matchHtml += '</tbody></table>';
+                } else {
+                    matchHtml = '<div style="padding:16px;background:#fef2f2;border-radius:8px;color:#dc2626;font-weight:600;text-align:center;">❌ No Matches Found — Message will go to Tier 2 AI</div>';
+                }
+                document.getElementById('pgm-matches').innerHTML = matchHtml;
+
+                // Index Summary
+                let idxHtml = '<details style="margin-top:8px;"><summary style="cursor:pointer;font-weight:600;color:#6b7280;font-size:13px;">📚 Product Group Index (Click to expand)</summary><div style="margin-top:8px;">';
+                if (data.index) {
+                    data.index.forEach(col => {
+                        idxHtml += `<div style="margin-bottom:8px;padding:8px;background:#f8fafc;border-radius:6px;"><strong>${col.column_name}</strong> <small style="color:#999;">(${col.count} values)</small><br><small style="color:#64748b;">${col.values.slice(0,10).join(', ')}${col.count > 10 ? '...' : ''}</small></div>`;
+                    });
+                }
+                idxHtml += '</div></details>';
+                document.getElementById('pgm-index').innerHTML = idxHtml;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }).catch(e => {
+                btn.disabled = false; btn.innerHTML = '<i data-lucide="search" style="width:16px;height:16px"></i> Test';
+                alert('Test failed: ' + e.message);
+            });
         }
 
         // ═══════════════════════════════════════

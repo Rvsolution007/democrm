@@ -1052,6 +1052,11 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::post('/settings/ai-language', [SettingsController::class, 'saveAiLanguage'])->name('settings.ai-language.save');
     Route::post('/settings/ai-toggle', [SettingsController::class, 'toggleAiBot'])->name('settings.ai-toggle');
     Route::post('/settings/followup', [SettingsController::class, 'saveFollowupSettings'])->name('settings.followup.save');
+    Route::post('/settings/ai-tier3-prompt', [SettingsController::class, 'saveAiTier3Prompt'])->name('settings.ai-tier3-prompt.save');
+    Route::post('/settings/ai-greeting-words', [SettingsController::class, 'saveAiGreetingWords'])->name('settings.ai-greeting-words.save');
+    Route::post('/settings/ai-match-confidence', [SettingsController::class, 'saveAiMatchConfidence'])->name('settings.ai-match-confidence.save');
+    Route::post('/settings/ai-clear-pgm-cache', [SettingsController::class, 'clearPgmCache'])->name('settings.ai-clear-pgm-cache');
+    Route::post('/settings/ai-test-pgm', [SettingsController::class, 'testProductGroupMatch'])->name('settings.ai-test-pgm');
 
     // AI Token Analytics
     Route::get('/ai-analytics', [AiAnalyticsController::class, 'index'])->name('ai-analytics.index');

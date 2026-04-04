@@ -449,9 +449,13 @@
                             $aiTier = '';
                             if (in_array($trace->node_name, ['Tier2GenerativeAI', 'Tier2GenerativeAI_Retry', 'OutOfContextQuery'])) {
                                 $aiTier = 'Tier 2 AI';
+                            } elseif (in_array($trace->node_name, ['Tier3ColumnAnalytics'])) {
+                                $aiTier = 'Tier 3 AI';
                             } elseif (in_array($trace->node_name, ['ContextualMatchAI', 'SpellCorrection', 'ProductModifyIntentAI']) || str_starts_with($trace->node_name, 'ComboStepAI_') || str_starts_with($trace->node_name, 'CustomStepAI_')) {
                                 $aiTier = 'Tier 1 AI';
-                            } elseif (in_array($trace->node_name, ['CategoryPHPMultiMatch', 'ProductPHPMultiMatch', 'ProductMatchPHP', 'ColumnFilterSelected', 'CategorySelected', 'ProductSelected'])) {
+                            } elseif (in_array($trace->node_name, ['GreetingAIResponse'])) {
+                                $aiTier = 'Tier 0 AI';
+                            } elseif (in_array($trace->node_name, ['CategoryPHPMultiMatch', 'ProductPHPMultiMatch', 'ProductMatchPHP', 'ColumnFilterSelected', 'CategorySelected', 'ProductSelected', 'PHPProductGroupMatch'])) {
                                 $aiTier = 'Tier 0 Logic';
                             }
                         @endphp

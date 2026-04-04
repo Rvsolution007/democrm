@@ -167,6 +167,9 @@ class ProductsController extends Controller
         // Save Variations from the combo matrix
         $this->saveVariations($request, $product);
 
+        // Clear Product Group Match cache
+        \App\Services\AIChatbotService::clearProductGroupCache(auth()->user()->company_id);
+
         return redirect()->route('admin.products.index')
             ->with('success', 'Product created successfully');
     }
@@ -228,6 +231,9 @@ class ProductsController extends Controller
         
         // Update Variations
         $this->saveVariations($request, $product);
+
+        // Clear Product Group Match cache
+        \App\Services\AIChatbotService::clearProductGroupCache(auth()->user()->company_id);
 
         return redirect()->route('admin.products.index')
             ->with('success', 'Product updated successfully');
@@ -365,6 +371,8 @@ class ProductsController extends Controller
             $service = new ProductExcelService(auth()->user()->company_id, auth()->id());
             $results = $service->processImport($filePath, $request->category_action);
             @unlink($filePath);
+            // Clear Product Group Match cache after import
+            \App\Services\AIChatbotService::clearProductGroupCache(auth()->user()->company_id);
             return response()->json($results);
         } catch (\Exception $e) {
             @unlink($filePath);
@@ -386,6 +394,9 @@ class ProductsController extends Controller
         }
 
         $product->delete();
+
+        // Clear Product Group Match cache
+        \App\Services\AIChatbotService::clearProductGroupCache(auth()->user()->company_id);
 
         if (request()->wantsJson() || request()->ajax()) {
             return response()->json([

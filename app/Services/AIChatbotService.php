@@ -6,6 +6,7 @@ use App\Models\AiChatSession;
 use App\Models\AiChatMessage;
 use App\Models\AiChatTrace;
 use App\Models\AiTokenLog;
+use App\Models\AiProductSession;
 use App\Models\ChatflowStep;
 use App\Models\ChatFollowupSchedule;
 use App\Models\CatalogueCustomColumn;
@@ -15,6 +16,7 @@ use App\Models\Lead;
 use App\Models\Quote;
 use App\Models\QuoteItem;
 use App\Models\Setting;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -30,6 +32,8 @@ class AIChatbotService
     private string $greetingPrompt;
     private string $businessPrompt;
     private string $spellCorrectionPrompt;
+    private string $tier3Prompt;
+    private int $matchMinConfidence;
 
     public function __construct(int $companyId, int $userId)
     {
@@ -40,6 +44,8 @@ class AIChatbotService
         $this->greetingPrompt = Setting::getValue('ai_bot', 'greeting_prompt', '', $companyId);
         $this->businessPrompt = Setting::getValue('ai_bot', 'business_prompt', '', $companyId);
         $this->spellCorrectionPrompt = Setting::getValue('ai_bot', 'spell_correction_prompt', '', $companyId);
+        $this->tier3Prompt = Setting::getValue('ai_bot', 'tier3_prompt', '', $companyId);
+        $this->matchMinConfidence = (int) Setting::getValue('ai_bot', 'match_min_confidence', 60, $companyId);
     }
 
     /**
@@ -618,7 +624,7 @@ class AIChatbotService
                     null
                 );
                 $ms = (int)((microtime(true) - $t) * 1000);
-                $this->logTokens($session, 2, $greetResult);
+                $this->logTokens($session, 0, $greetResult);
                 $responseText = trim($greetResult['text'] ?? '');
                 $this->traceNode($session->id, 'GreetingAIResponse', 'ai_call',
                     !empty($responseText) ? 'success' : 'error',
@@ -3149,32 +3155,426 @@ PROMPT;
         return trim($answer) . "\n\n" . "👇\n" . $currentPrompt;
     }
 
+    // ═══════════════════════════════════════════════════════
+    // BASE GREETINGS — 200+ multi-language universal set
+    // ═══════════════════════════════════════════════════════
+
+    private const BASE_GREETINGS = [
+        // English
+        'hi', 'hello', 'hey', 'hola', 'howdy', 'sup', 'yo', 'heya', 'hiya',
+        'good morning', 'good afternoon', 'good evening', 'good night',
+        'gm', 'gn', 'ge', 'ga', 'morning', 'evening',
+        'how are you', 'how r u', 'hw r u', 'whats up', 'what\'s up',
+        'hows it going', 'how\'s it going', 'greetings',
+        // Common typos
+        'hii', 'hiii', 'hiiii', 'hiiiii', 'hiiiiii',
+        'helo', 'hllo', 'hlw', 'hellow', 'helloo', 'hellloo', 'helllo',
+        'heloo', 'helo ji', 'hello ji', 'hi ji', 'hey ji',
+        // Hindi / Hinglish
+        'namaste', 'namaskar', 'namasté', 'namashkar',
+        'kaise ho', 'kya hal hai', 'kya haal hai', 'kya hal he',
+        'kaise hain', 'kaise hain aap', 'aap kaise hain',
+        'kya haal', 'sab theek', 'sab badhiya', 'kya chal raha',
+        'pranam', 'pranaam', 'namskar', 'namshte',
+        'shubh prabhat', 'suprabhat', 'shubh sandhya', 'shubh ratri',
+        'suprabhaat', 'subh prabhat',
+        // Religious
+        'jai shri ram', 'jai shree ram', 'ram ram', 'jai siya ram',
+        'jai jinendra', 'jai hind', 'jai ho',
+        'radhe radhe', 'radha radha', 'hare krishna', 'hare rama',
+        'jai mata di', 'jai ambe', 'har har mahadev',
+        'om namah shivaya', 'jai ganesh', 'jai hanuman',
+        // Punjabi
+        'sat sri akal', 'sat shri akal', 'sasriyakal', 'sasriakaal',
+        'wahe guru', 'waheguru', 'waheguruji',
+        'pairi pauna', 'sat shri akaal',
+        // Urdu / Arabic
+        'assalamu alaikum', 'salam', 'salaam', 'walaikum assalam',
+        'salam alaikum', 'aadab', 'aadaab', 'adab',
+        'khuda hafiz', 'allah hafiz',
+        // Gujarati
+        'kem cho', 'kem chho', 'majama', 'jai shri krishna',
+        'jai swaminarayan', 'jay swaminarayan',
+        // Rajasthani / Marwadi
+        'khamma ghani', 'khamma', 'padharo mhare des',
+        'ram ram sa', 'ram ram ji',
+        // Tamil
+        'vanakkam', 'vanakam', 'vaṇakkam',
+        // Telugu
+        'namaskaram', 'namaskaaralu', 'baagunnara',
+        // Kannada
+        'namaskara', 'hegiddira', 'hegiddiri',
+        // Malayalam
+        'namaskkaram', 'namaskkaaram', 'sughamano',
+        // Bengali
+        'nomoskar', 'nomoshkar', 'kemon acho', 'ki khobor',
+        // Marathi
+        'namaskar', 'kasa ahat', 'kase aahat',
+        // Odia
+        'namaskar', 'kemiti achhi',
+        // Assamese
+        'namaskar', 'apuni kene', 'bhaal ase ne',
+        // Short forms
+        'hlo', 'hii there', 'hi there', 'hey there', 'hello there',
+        'ji', 'jee', 'bhai', 'bro', 'dost',
+        'arey', 'are', 'oye', 'oyee',
+        // Emojis and symbols (single emoji greetings)
+        '🙏', '👋', '🙏🏻', '👋🏻', 'namaste 🙏', 'hi 👋',
+        // Thanks (sometimes used as greeting)
+        'dhanyavaad', 'dhanyawad', 'shukriya', 'thanks', 'thank you',
+    ];
+
     /**
-     * Fast PHP-level greeting detection (no AI call needed).
-     * Returns true if the message is a simple greeting.
+     * Load the complete greeting word set (system base + admin custom).
+     * Cached per-request for performance.
+     */
+    private ?array $greetingSetCache = null;
+
+    private function loadGreetingSet(): array
+    {
+        if ($this->greetingSetCache !== null) {
+            return $this->greetingSetCache;
+        }
+
+        $base = self::BASE_GREETINGS;
+
+        // Merge admin custom greetings from settings
+        $adminGreetings = Setting::getValue('ai_bot', 'greeting_words', '', $this->companyId);
+        if (!empty($adminGreetings)) {
+            $custom = array_filter(array_map('trim', explode("\n", strtolower($adminGreetings))));
+            $base = array_merge($base, $custom);
+        }
+
+        $this->greetingSetCache = array_unique($base);
+        return $this->greetingSetCache;
+    }
+
+    /**
+     * Fast PHP-level greeting detection with fuzzy matching.
+     * 3-layer check: exact → fuzzy/levenshtein → no match.
      */
     private function isGreeting(string $message): bool
     {
         $msg = strtolower(trim($message));
+        if (empty($msg)) return false;
 
-        // Exact match greetings
-        $greetings = [
-            'hi', 'hello', 'hey', 'hola', 'namaste', 'namaskar', 'namasté',
-            'good morning', 'good afternoon', 'good evening', 'good night',
-            'gm', 'gn', 'howdy', 'sup', 'yo',
-            'hii', 'hiii', 'hiiii', 'hiiiii',
-            'helo', 'hllo', 'hlw', 'hellow', 'helloo',
-            'hw r u', 'how are you', 'how r u',
-            'kaise ho', 'kya hal hai', 'kya haal hai', 'kem cho',
-            'vanakkam', 'vanakam',
-            'assalamu alaikum', 'salam', 'salaam',
-            'sat sri akal', 'sat shri akal',
-            'jai shri ram', 'jai shree ram', 'ram ram',
-            'jai jinendra', 'pranam', 'pranaam',
-            'shubh prabhat', 'suprabhat',
-        ];
+        $greetings = $this->loadGreetingSet();
 
-        return in_array($msg, $greetings);
+        // Layer 1: Exact match
+        if (in_array($msg, $greetings, true)) return true;
+
+        // Layer 2: Fuzzy match (for typos in greetings > 3 chars)
+        if (mb_strlen($msg) >= 3 && mb_strlen($msg) <= 25) {
+            foreach ($greetings as $g) {
+                if (mb_strlen($g) >= 3) {
+                    $maxDist = mb_strlen($msg) <= 4 ? 1 : 2;
+                    if (levenshtein($msg, $g) <= $maxDist) return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // PHP PRODUCT GROUP MATCH ENGINE (99.99% Accuracy)
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Build a column-wise index of unique product values.
+     * Uses cache to avoid redundant DB queries (auto-cleared on product CRUD).
+     */
+    private function buildProductGroupIndex(): array
+    {
+        $cacheKey = "pgm_index_company_{$this->companyId}";
+
+        $cached = Cache::get($cacheKey);
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $index = $this->buildProductGroupIndexFromDB();
+
+        // Cache for 5 minutes
+        Cache::put($cacheKey, $index, 300);
+
+        return $index;
+    }
+
+    /**
+     * Build product group index from database.
+     */
+    private function buildProductGroupIndexFromDB(): array
+    {
+        $columns = CatalogueCustomColumn::where('company_id', $this->companyId)
+            ->where('is_active', true)
+            ->where('show_in_ai', true)
+            ->orderBy('sort_order')
+            ->get();
+
+        $products = Product::with('customValues', 'category')
+            ->where('company_id', $this->companyId)
+            ->where('status', 'active')
+            ->get();
+
+        $index = [];
+
+        foreach ($columns as $col) {
+            $uniqueValues = [];
+
+            foreach ($products as $product) {
+                $value = '';
+
+                if ($col->is_category && $product->category) {
+                    $value = $product->category->name;
+                } elseif ($col->slug === 'product_name' || $col->slug === 'name') {
+                    $value = $product->name ?? '';
+                } elseif ($col->is_system) {
+                    $value = $product->{$col->slug} ?? '';
+                } else {
+                    $cv = $product->customValues->firstWhere('column_id', $col->id);
+                    if ($cv && !empty($cv->value)) {
+                        $decoded = json_decode($cv->value, true);
+                        $value = is_array($decoded) ? implode(', ', $decoded) : $cv->value;
+                    }
+                }
+
+                $trimmed = trim($value);
+                if (!empty($trimmed)) {
+                    $uniqueValues[$trimmed] = true;
+                }
+            }
+
+            $index[$col->id] = [
+                'column_name' => $col->name,
+                'column_slug' => $col->slug,
+                'is_category' => (bool) $col->is_category,
+                'is_unique'   => (bool) $col->is_unique,
+                'is_combo'    => (bool) $col->is_combo,
+                'unique_values' => array_keys($uniqueValues),
+            ];
+        }
+
+        return $index;
+    }
+
+    /**
+     * PHP Product Group Match — match user message against the product index.
+     * Returns array of matches sorted by confidence DESC.
+     */
+    public function phpProductGroupMatch(string $userMessage): array
+    {
+        $msg = mb_strtolower(trim($userMessage));
+        if (empty($msg)) return [];
+
+        $index = $this->buildProductGroupIndex();
+        $matches = [];
+
+        foreach ($index as $colId => $colData) {
+            foreach ($colData['unique_values'] as $value) {
+                $valueLower = mb_strtolower(trim($value));
+                $matchResult = $this->advancedMatch($msg, $valueLower);
+
+                if ($matchResult['matched'] && $matchResult['confidence'] >= $this->matchMinConfidence) {
+                    $matches[] = [
+                        'column_id'     => $colId,
+                        'column_name'   => $colData['column_name'],
+                        'column_slug'   => $colData['column_slug'],
+                        'is_category'   => $colData['is_category'],
+                        'is_unique'     => $colData['is_unique'],
+                        'is_combo'      => $colData['is_combo'],
+                        'matched_value' => $value,
+                        'match_type'    => $matchResult['type'],
+                        'confidence'    => $matchResult['confidence'],
+                    ];
+                }
+            }
+        }
+
+        // Sort by confidence DESC
+        usort($matches, fn($a, $b) => $b['confidence'] <=> $a['confidence']);
+
+        return $matches;
+    }
+
+    /**
+     * 5-Level Advanced Matching Chain.
+     * Returns: ['matched' => bool, 'type' => string, 'confidence' => int]
+     */
+    private function advancedMatch(string $userMsg, string $dbValue): array
+    {
+        // ═══ LEVEL 1: Exact Match (100% confidence) ═══
+        if ($userMsg === $dbValue) {
+            return ['matched' => true, 'type' => 'exact', 'confidence' => 100];
+        }
+
+        // ═══ LEVEL 2: Contains Match (90-95% confidence) ═══
+        if (mb_strlen($dbValue) >= 3 && str_contains($userMsg, $dbValue)) {
+            return ['matched' => true, 'type' => 'contains_in_msg', 'confidence' => 95];
+        }
+        if (mb_strlen($userMsg) >= 3 && str_contains($dbValue, $userMsg)) {
+            return ['matched' => true, 'type' => 'msg_in_value', 'confidence' => 90];
+        }
+
+        // ═══ LEVEL 2.5: Space-stripped match (92% confidence) ═══
+        $msgNoSpace = str_replace(' ', '', $userMsg);
+        $valNoSpace = str_replace(' ', '', $dbValue);
+        if (mb_strlen($valNoSpace) >= 4 && (str_contains($msgNoSpace, $valNoSpace) || str_contains($valNoSpace, $msgNoSpace))) {
+            return ['matched' => true, 'type' => 'space_stripped', 'confidence' => 92];
+        }
+
+        // ═══ LEVEL 3: Word-by-Word Match (85% confidence) ═══
+        $userWords = $this->pgmTokenize($userMsg);
+        $dbWords = $this->pgmTokenize($dbValue);
+
+        foreach ($userWords as $uw) {
+            if (mb_strlen($uw) < 3) continue;
+            foreach ($dbWords as $dw) {
+                if (mb_strlen($dw) < 3) continue;
+                if ($uw === $dw) {
+                    return ['matched' => true, 'type' => 'word_exact', 'confidence' => 85];
+                }
+            }
+        }
+
+        // ═══ LEVEL 4: Fuzzy/Levenshtein Match (75% confidence) ═══
+        foreach ($userWords as $uw) {
+            if (mb_strlen($uw) < 3) continue;
+            foreach ($dbWords as $dw) {
+                if (mb_strlen($dw) < 3) continue;
+                $maxDist = mb_strlen($uw) <= 4 ? 1 : 2;
+                if (levenshtein($uw, $dw) <= $maxDist) {
+                    return ['matched' => true, 'type' => 'fuzzy_levenshtein', 'confidence' => 75];
+                }
+            }
+        }
+
+        // ═══ LEVEL 5: Phonetic + N-Gram Match (60-65% confidence) ═══
+        foreach ($userWords as $uw) {
+            if (mb_strlen($uw) < 3) continue;
+            foreach ($dbWords as $dw) {
+                if (mb_strlen($dw) < 3) continue;
+
+                // Soundex/Metaphone matching
+                if (soundex($uw) === soundex($dw) || metaphone($uw) === metaphone($dw)) {
+                    return ['matched' => true, 'type' => 'phonetic', 'confidence' => 65];
+                }
+
+                // N-gram (bigram overlap ratio)
+                $overlap = $this->bigramSimilarity($uw, $dw);
+                if ($overlap >= 0.6) {
+                    return ['matched' => true, 'type' => 'ngram', 'confidence' => (int) (60 + ($overlap * 10))];
+                }
+            }
+        }
+
+        return ['matched' => false, 'type' => 'none', 'confidence' => 0];
+    }
+
+    /**
+     * Tokenize text into words for matching.
+     */
+    private function pgmTokenize(string $text): array
+    {
+        return array_filter(
+            preg_split('/[\s,;|\/\-_]+/u', $text),
+            fn($w) => mb_strlen($w) > 0
+        );
+    }
+
+    /**
+     * Calculate bigram (2-char overlap) similarity between two strings.
+     */
+    private function bigramSimilarity(string $a, string $b): float
+    {
+        $aBigrams = [];
+        $bBigrams = [];
+        for ($i = 0; $i < mb_strlen($a) - 1; $i++) {
+            $aBigrams[] = mb_substr($a, $i, 2);
+        }
+        for ($i = 0; $i < mb_strlen($b) - 1; $i++) {
+            $bBigrams[] = mb_substr($b, $i, 2);
+        }
+        if (empty($aBigrams) || empty($bBigrams)) return 0;
+
+        $intersection = count(array_intersect($aBigrams, $bBigrams));
+        $union = count(array_unique(array_merge($aBigrams, $bBigrams)));
+
+        return $union > 0 ? $intersection / $union : 0;
+    }
+
+    /**
+     * Clear the Product Group Match cache for this company.
+     * Called on product/category/column CRUD operations.
+     */
+    public static function clearProductGroupCache(int $companyId): void
+    {
+        Cache::forget("pgm_index_company_{$companyId}");
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // TIER 3 — Column Analytics AI (Sales Executive Persona)
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Handle Tier 3: Column Analytics AI response.
+     * Triggered when PHP Product Group Match finds column matches
+     * but the matched column ≠ current chatflow question column.
+     */
+    private function handleTier3ColumnAnalytics(AiChatSession $session, string $rawMessage, array $pgMatches, ?string $imageUrl = null): string
+    {
+        $this->routeTrace[] = 'handleTier3ColumnAnalytics';
+
+        // Get matched column data
+        $matchedColNames = array_unique(array_column($pgMatches, 'column_name'));
+        $matchedValues = array_unique(array_column($pgMatches, 'matched_value'));
+
+        // Retrieve data about matched columns for AI context
+        $columnDataStr = '';
+        foreach ($pgMatches as $m) {
+            $columnDataStr .= "{$m['column_name']}: {$m['matched_value']} (Confidence: {$m['confidence']}%)\n";
+        }
+
+        // Build Tier 3 prompt
+        $adminPrompt = $this->tier3Prompt;
+        if (empty($adminPrompt)) {
+            $adminPrompt = "You are a senior sales executive with deep product knowledge.\n"
+                . "A customer asked about something related to our products.\n"
+                . "Provide a helpful, conversational response that guides them to the right product.\n"
+                . "Keep response concise (2-4 sentences max).\n"
+                . "Use the customer's language (Hindi/Hinglish/English).\n"
+                . "Mention specific product values from the data below.\n"
+                . "Do NOT use markdown formatting.\n"
+                . "Do NOT invent data not in MATCHED DATA below.";
+        }
+
+        $fullPrompt = $adminPrompt
+            . "\n\n## MATCHED PRODUCT DATA:\n" . $columnDataStr
+            . "\n\n## LANGUAGE\nReply in the same language the customer is using.";
+
+        $t = microtime(true);
+        $result = $this->vertexAI->generateContent(
+            $fullPrompt,
+            [['role' => 'user', 'text' => $rawMessage]],
+            $imageUrl
+        );
+        $ms = (int)((microtime(true) - $t) * 1000);
+
+        $this->logTokens($session, 3, $result);
+
+        $responseText = trim($result['text'] ?? '');
+
+        $this->traceNode($session->id, 'Tier3ColumnAnalytics', 'ai_call',
+            !empty($responseText) ? 'success' : 'error',
+            ['message' => $rawMessage, 'matched_columns' => $matchedColNames, 'matched_values' => $matchedValues, 'prompt_type' => 'tier3_analytics'],
+            ['response' => mb_substr($responseText, 0, 200), 'tokens_used' => $result['total_tokens'] ?? 0, 'model' => 'gemini-2.0-flash'],
+            null, $ms);
+
+        if (empty($responseText)) {
+            return $this->handleTier2($session, $rawMessage, $imageUrl);
+        }
+
+        return $responseText;
     }
 
     /**

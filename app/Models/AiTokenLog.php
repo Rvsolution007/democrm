@@ -37,4 +37,26 @@ class AiTokenLog extends Model
     {
         return $this->belongsTo(AiChatSession::class, 'session_id');
     }
+
+    /**
+     * Get human-readable tier label.
+     */
+    public static function tierLabel(int $tier): string
+    {
+        return match ($tier) {
+            0 => 'Tier 0 (Greeting)',
+            1 => 'Tier 1 (Product Match)',
+            2 => 'Tier 2 (Conversational)',
+            3 => 'Tier 3 (Column Analytics)',
+            default => "Tier {$tier}",
+        };
+    }
+
+    /**
+     * Accessor for tier_label attribute.
+     */
+    public function getTierLabelAttribute(): string
+    {
+        return self::tierLabel($this->tier ?? 2);
+    }
 }

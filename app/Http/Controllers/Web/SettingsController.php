@@ -52,6 +52,9 @@ class SettingsController extends Controller
         $aiArchitectureRules = Setting::getValue('ai_bot', 'architecture_rules', '');
         $aiSessionValidDays = Setting::getValue('ai_bot', 'session_valid_days', 10);
         $aiSpellPrompt = Setting::getValue('ai_bot', 'spell_correction_prompt', '');
+        $aiTier3Prompt = Setting::getValue('ai_bot', 'tier3_prompt', '');
+        $aiGreetingWords = Setting::getValue('ai_bot', 'greeting_words', '');
+        $aiMatchConfidence = Setting::getValue('ai_bot', 'match_min_confidence', 60);
         $aiFollowupStopStage = Setting::getValue('ai_bot', 'followup_stop_stage', '');
         $aiTargetStage = Setting::getValue('ai_bot', 'target_stage', '');
 
@@ -88,7 +91,7 @@ class SettingsController extends Controller
         return view('admin.settings.index', compact(
             'company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources',
             'taskStatuses', 'paymentTypes', 'whatsappApiConfig', 'backupFiles',
-            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiGreetingPrompt', 'aiBusinessPrompt', 'aiReplyLanguage', 'aiArchitectureRules', 'aiSessionValidDays', 'aiSpellPrompt', 'aiFollowupStopStage', 'aiTargetStage', 'followupSchedules'
+            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiGreetingPrompt', 'aiBusinessPrompt', 'aiReplyLanguage', 'aiArchitectureRules', 'aiSessionValidDays', 'aiSpellPrompt', 'aiTier3Prompt', 'aiGreetingWords', 'aiMatchConfidence', 'aiFollowupStopStage', 'aiTargetStage', 'followupSchedules'
         ));
     }
 
@@ -574,5 +577,107 @@ class SettingsController extends Controller
         }
 
         return response()->json(['success' => true, 'message' => 'Follow-up settings saved']);
+    }
+
+    /**
+     * Save Tier 3 Column Analytics prompt
+     */
+    public function saveAiTier3Prompt(Request $request)
+    {
+        $request->validate([
+            'tier3_prompt' => 'nullable|string',
+        ]);
+
+        Setting::setValue('ai_bot', 'tier3_prompt', $request->tier3_prompt ?? '');
+
+        return response()->json(['success' => true, 'message' => 'Tier 3 prompt saved']);
+    }
+
+    /**
+     * Save custom greeting words
+     */
+    public function saveAiGreetingWords(Request $request)
+    {
+        $request->validate([
+            'greeting_words' => 'nullable|string',
+        ]);
+
+        Setting::setValue('ai_bot', 'greeting_words', $request->greeting_words ?? '');
+
+        return response()->json(['success' => true, 'message' => 'Greeting words saved']);
+    }
+
+    /**
+     * Save match confidence threshold
+     */
+    public function saveAiMatchConfidence(Request $request)
+    {
+        $request->validate([
+            'match_min_confidence' => 'required|integer|min:0|max:100',
+        ]);
+
+        Setting::setValue('ai_bot', 'match_min_confidence', (int) $request->match_min_confidence);
+
+        return response()->json(['success' => true, 'message' => 'Match confidence threshold saved']);
+    }
+
+    /**
+     * Clear Product Group Match cache
+     */
+    public function clearPgmCache()
+    {
+        $companyId = auth()->user()->company_id;
+        \App\Services\AIChatbotService::clearProductGroupCache($companyId);
+
+        return response()->json(['success' => true, 'message' => 'Product match cache cleared']);
+    }
+
+    /**
+     * Match Playground — Test PHP Product Group Match
+     */
+    public function testProductGroupMatch(Request $request)
+    {
+        $request->validate([
+            'message' => 'required|string|max:500',
+        ]);
+
+        $companyId = auth()->user()->company_id;
+        $userId = auth()->id();
+
+        $service = new \App\Services\AIChatbotService($companyId, $userId);
+        $matches = $service->phpProductGroupMatch($request->message);
+
+        // Also return the current product group index for display
+        $indexMethod = new \ReflectionMethod($service, 'buildProductGroupIndex');
+        $indexMethod->setAccessible(true);
+        $index = $indexMethod->invoke($service);
+
+        // Format index for display
+        $indexDisplay = [];
+        $totalWords = 0;
+        foreach ($index as $colId => $colData) {
+            $indexDisplay[] = [
+                'column_name' => $colData['column_name'],
+                'values' => $colData['unique_values'],
+                'count' => count($colData['unique_values']),
+            ];
+            $totalWords += count($colData['unique_values']);
+        }
+
+        // Count total products
+        $totalProducts = \App\Models\Product::where('company_id', $companyId)
+            ->where('status', 'active')->count();
+
+        return response()->json([
+            'success' => true,
+            'message' => $request->message,
+            'matches' => $matches,
+            'match_count' => count($matches),
+            'index' => $indexDisplay,
+            'total_products' => $totalProducts,
+            'total_columns' => count($index),
+            'total_words' => $totalWords,
+            'min_confidence' => (int) \App\Models\Setting::getValue('ai_bot', 'match_min_confidence', 60, $companyId),
+        ]);
     }
 }

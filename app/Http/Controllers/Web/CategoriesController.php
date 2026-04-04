@@ -116,6 +116,9 @@ class CategoriesController extends Controller
 
         $category = Category::create($validated);
 
+        // Clear Product Group Match cache
+        \App\Services\AIChatbotService::clearProductGroupCache(auth()->user()->company_id);
+
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
@@ -170,6 +173,9 @@ class CategoriesController extends Controller
 
         $category->update($validated);
 
+        // Clear Product Group Match cache
+        \App\Services\AIChatbotService::clearProductGroupCache(auth()->user()->company_id);
+
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
@@ -196,6 +202,9 @@ class CategoriesController extends Controller
         }
 
         $category->delete();
+
+        // Clear Product Group Match cache
+        \App\Services\AIChatbotService::clearProductGroupCache(auth()->user()->company_id);
 
         if (request()->wantsJson() || request()->ajax()) {
             return response()->json([
