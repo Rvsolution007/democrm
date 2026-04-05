@@ -32,24 +32,48 @@ class Product extends Model
         }
 
         $titleCol = self::$titleColumnCache[$this->company_id];
+        $baseName = null;
         if ($titleCol) {
             $val = $this->getColumnValue($titleCol);
-            if ($val) return $val;
+            if ($val) $baseName = $val;
         }
 
         // Fallback to is_unique column
-        if (!array_key_exists($this->company_id, self::$uniqueColumnCache)) {
-            self::$uniqueColumnCache[$this->company_id] = \App\Models\CatalogueCustomColumn::where('company_id', $this->company_id)
-                ->where('is_unique', true)->first();
+        if (!$baseName) {
+            if (!array_key_exists($this->company_id, self::$uniqueColumnCache)) {
+                self::$uniqueColumnCache[$this->company_id] = \App\Models\CatalogueCustomColumn::where('company_id', $this->company_id)
+                    ->where('is_unique', true)->first();
+            }
+
+            $uc = self::$uniqueColumnCache[$this->company_id];
+            if ($uc) {
+                $val = $this->getColumnValue($uc);
+                if ($val) $baseName = $val;
+            }
         }
 
-        $uc = self::$uniqueColumnCache[$this->company_id];
-        if ($uc) {
-            $val = $this->getColumnValue($uc);
-            if ($val) return $val;
+        // Final fallback to product name
+        if (!$baseName) {
+            $baseName = $this->name;
         }
-        
-        return $this->name;
+
+        // ── Prefix with category name if available ──
+        // e.g., "201" → "Door Handle (201)" — matches Quote display format
+        $categoryName = null;
+        if ($this->category_id) {
+            if ($this->relationLoaded('category') && $this->category) {
+                $categoryName = $this->category->name;
+            } else {
+                $cat = \App\Models\Category::find($this->category_id);
+                $categoryName = $cat ? $cat->name : null;
+            }
+        }
+
+        if ($categoryName && $categoryName !== $baseName) {
+            return "{$categoryName} ({$baseName})";
+        }
+
+        return $baseName;
     }
 
     /**
