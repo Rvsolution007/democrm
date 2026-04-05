@@ -562,13 +562,23 @@
 
     async function sendOneMessage(msg) {
         showTyping(true);
-        let res = await fetch("{{ route('admin.ai-analytics.test-step.send') }}", {
-            method:'POST', headers: HEADERS,
-            body: JSON.stringify({message: msg})
-        });
-        showTyping(false);
-        let data = await res.json();
-        return data;
+        try {
+            let res = await fetch("{{ route('admin.ai-analytics.test-step.send') }}", {
+                method:'POST', headers: HEADERS,
+                body: JSON.stringify({message: msg})
+            });
+            showTyping(false);
+            if (!res.ok) {
+                let errText = '';
+                try { let errData = await res.json(); errText = errData.bot_message || errData.message || res.statusText; } catch(e) { errText = res.statusText; }
+                return {status:'error', bot_message:'Server error: '+errText, list_items:[], route:null, session_state:null, pending_queue:0};
+            }
+            let data = await res.json();
+            return data;
+        } catch(e) {
+            showTyping(false);
+            return {status:'error', bot_message:'Network error: '+e.message, list_items:[], route:null, session_state:null, pending_queue:0};
+        }
     }
 
     async function runTest(){
@@ -613,11 +623,19 @@
             addUser(resolved);
             if (initQs[i] !== resolved) addSys('🔄 ' + initQs[i] + ' → ' + resolved);
 
-            let data = await sendOneMessage(resolved);
-            addBot(data.bot_message);
-            if (data.list_items && data.list_items.length) lastListItems = data.list_items;
-            if (data.route) addSys('🛤️ ' + data.route);
-            if (data.session_state) addSys('📊 State: ' + data.session_state + (data.lead_id ? ' | Lead: #'+data.lead_id : '') + (data.quote_id ? ' | Quote: #'+data.quote_id : ''));
+            try {
+                let data = await sendOneMessage(resolved);
+                if (data.status === 'error') {
+                    addSys('❌ ' + data.bot_message);
+                } else {
+                    addBot(data.bot_message);
+                    if (data.list_items && data.list_items.length) lastListItems = data.list_items;
+                    if (data.route) addSys('🛤️ ' + data.route);
+                    if (data.session_state) addSys('📊 State: ' + data.session_state + (data.lead_id ? ' | Lead: #'+data.lead_id : '') + (data.quote_id ? ' | Quote: #'+data.quote_id : ''));
+                }
+            } catch(e) {
+                addSys('❌ Error: ' + e.message);
+            }
 
             await new Promise(r => setTimeout(r, 800));
         }
@@ -625,39 +643,54 @@
         // ═══ PHASE 2: Run repeat questions for each queue item ═══
         if (repeatQs.length > 0) {
             let queueRound = 1;
-            let keepGoing = true;
 
-            while (keepGoing && isRunning) {
-                let currentRepeatQs = [...repeatQs];
+            while (isRunning) {
+                try {
+                    let currentRepeatQs = [...repeatQs];
 
-                // After round 1, always ask user what to do
-                if (queueRound > 1) {
-                    let editChoice = await showQueuePrompt(queueRound, currentRepeatQs);
-                    if (editChoice === 'stop') { addSys('⏹️ Stopped by user'); break; }
-                    if (editChoice !== null) currentRepeatQs = editChoice;
+                    // After round 1, always ask user what to do
+                    if (queueRound > 1) {
+                        addSys('🔁 Queue Round ' + (queueRound) + ' ready. Waiting for your choice...');
+                        let editChoice = await showQueuePrompt(queueRound, currentRepeatQs);
+                        if (editChoice === 'stop') { addSys('⏹️ Stopped by user'); break; }
+                        if (editChoice !== null) currentRepeatQs = editChoice;
+                    }
+
+                    addSys('🔄 Queue Round ' + queueRound + ' — ' + currentRepeatQs.length + ' questions');
+
+                    for (let i = 0; i < currentRepeatQs.length; i++) {
+                        if (!isRunning) break;
+                        let resolved = resolvePlaceholder(currentRepeatQs[i], lastListItems);
+                        totalSent++;
+                        document.getElementById('wa-status').textContent = `Queue ${queueRound} — ${i+1}/${currentRepeatQs.length}`;
+                        addUser(resolved);
+                        if (currentRepeatQs[i] !== resolved) addSys('🔄 ' + currentRepeatQs[i] + ' → ' + resolved);
+
+                        try {
+                            let data = await sendOneMessage(resolved);
+                            if (data.status === 'error') {
+                                addSys('❌ Error: ' + (data.bot_message || 'Unknown error'));
+                            } else {
+                                addBot(data.bot_message);
+                                if (data.list_items && data.list_items.length) lastListItems = data.list_items;
+                                if (data.route) addSys('🛤️ ' + data.route);
+                                if (data.session_state) addSys('📊 State: ' + data.session_state + (data.pending_queue ? ' | Queue: '+data.pending_queue+' pending' : ''));
+                            }
+                        } catch(msgErr) {
+                            addSys('❌ Message error: ' + msgErr.message);
+                        }
+
+                        await new Promise(r => setTimeout(r, 800));
+                    }
+
+                    // Always continue — user decides in the next prompt
+                    queueRound++;
+
+                } catch(loopErr) {
+                    addSys('❌ Loop error: ' + loopErr.message);
+                    console.error('Queue loop error:', loopErr);
+                    break;
                 }
-
-                addSys('🔄 Queue Round ' + queueRound + ' — ' + currentRepeatQs.length + ' questions');
-
-                for (let i = 0; i < currentRepeatQs.length; i++) {
-                    if (!isRunning) break;
-                    let resolved = resolvePlaceholder(currentRepeatQs[i], lastListItems);
-                    totalSent++;
-                    document.getElementById('wa-status').textContent = `Queue ${queueRound} — ${i+1}/${currentRepeatQs.length}`;
-                    addUser(resolved);
-                    if (currentRepeatQs[i] !== resolved) addSys('🔄 ' + currentRepeatQs[i] + ' → ' + resolved);
-
-                    let data = await sendOneMessage(resolved);
-                    addBot(data.bot_message);
-                    if (data.list_items && data.list_items.length) lastListItems = data.list_items;
-                    if (data.route) addSys('🛤️ ' + data.route);
-                    if (data.session_state) addSys('📊 State: ' + data.session_state + (data.pending_queue ? ' | Queue: '+data.pending_queue+' pending' : ''));
-
-                    await new Promise(r => setTimeout(r, 800));
-                }
-
-                // Always ask — user decides whether to continue
-                queueRound++;
             }
         }
 
