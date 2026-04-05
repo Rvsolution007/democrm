@@ -651,7 +651,8 @@ class AIChatbotService
         }
 
         // ══ BUSINESS QUERY INTERCEPT ══
-        if ($this->isBusinessQuery($rawMessage)) {
+        // Same guard: don't intercept when user is in active chatflow
+        if (!$isInActiveChatflow && $this->isBusinessQuery($rawMessage)) {
             $this->routeTrace[] = 'business_query_intercept';
             $this->traceNode($session->id, 'BusinessQueryDetector', 'routing', 'success',
                 ['message' => $rawMessage, 'detection_method' => 'PHP'],
