@@ -903,20 +903,98 @@ class AIChatbotService
             ->orderBy('name')
             ->get();
 
-        // Resolve PGM matched values → actual Category models
+        // ── SMART RESOLVE: Split user message by separators and match each part individually ──
+        // This prevents "Door Handle and Wardrobe Handle" from matching "Cabinet Handle"
+        // just because the word "handle" appears in the message.
+        $separators = '/\s+(?:and|aur|or|&)\s+|,\s*/iu';
+        $parts = preg_split($separators, trim($rawMessage));
+        $parts = array_filter(array_map('trim', $parts));
+
+        // If no separators found, treat whole message as one part
+        if (empty($parts)) {
+            $parts = [trim($rawMessage)];
+        }
+
         $resolved = [];
-        foreach ($catPGM as $pm) {
-            $val = mb_strtolower(trim($pm['matched_value']));
+        foreach ($parts as $part) {
+            $partLower = mb_strtolower(trim($part));
+            if (mb_strlen($partLower) < 2) continue;
+
+            $bestCat = null;
+            $bestScore = 0;
+
             foreach ($categories as $cat) {
                 if (isset($resolved[$cat->id])) continue;
                 $catLow = mb_strtolower($cat->name);
-                if ($catLow === $val || str_contains($catLow, $val) || str_contains($val, $catLow)) {
-                    $resolved[$cat->id] = [
-                        'category' => $cat,
-                        'pgm_value' => $pm['matched_value'],
-                        'confidence' => $pm['confidence'],
-                        'match_type' => $pm['match_type'],
-                    ];
+
+                // Exact match
+                if ($catLow === $partLower) {
+                    $bestCat = $cat; $bestScore = 100; break;
+                }
+
+                // Part contains full category name (e.g., part="door handle" contains "door handle")
+                if (str_contains($partLower, $catLow) && mb_strlen($catLow) >= 3) {
+                    $score = 95;
+                    if ($score > $bestScore) { $bestCat = $cat; $bestScore = $score; }
+                }
+
+                // Category name contains part (e.g., cat="door handle" contains part "door")
+                if (str_contains($catLow, $partLower) && mb_strlen($partLower) >= 3) {
+                    $score = 90;
+                    if ($score > $bestScore) { $bestCat = $cat; $bestScore = $score; }
+                }
+
+                // Fuzzy match on the individual part (not the whole message)
+                $partWords = array_filter(explode(' ', $partLower), fn($w) => mb_strlen($w) >= 3);
+                $catWords = array_filter(explode(' ', $catLow), fn($w) => mb_strlen($w) >= 3);
+
+                // All part words must exist in category name (strict word match)
+                if (!empty($partWords) && !empty($catWords)) {
+                    $matchedWords = 0;
+                    foreach ($partWords as $pw) {
+                        foreach ($catWords as $cw) {
+                            if ($pw === $cw || levenshtein($pw, $cw) <= 1) {
+                                $matchedWords++;
+                                break;
+                            }
+                        }
+                    }
+                    // Require ALL part words to match (not just one common word like "handle")
+                    if ($matchedWords === count($partWords)) {
+                        $score = 80 + (int)(10 * $matchedWords / max(count($catWords), 1));
+                        if ($score > $bestScore) { $bestCat = $cat; $bestScore = $score; }
+                    }
+                }
+            }
+
+            if ($bestCat && $bestScore >= 75) {
+                $resolved[$bestCat->id] = [
+                    'category' => $bestCat,
+                    'pgm_value' => $part,
+                    'confidence' => $bestScore,
+                    'match_type' => $bestScore >= 95 ? 'exact_segment' : ($bestScore >= 85 ? 'contains_segment' : 'fuzzy_segment'),
+                ];
+            }
+        }
+
+        // If segment matching didn't work, fallback to PGM matches but with STRICT resolution
+        // Only match if PGM matched_value exactly equals or closely matches a category name
+        if (empty($resolved)) {
+            foreach ($catPGM as $pm) {
+                // Only accept high-confidence matches (>= 90%) as fallback
+                if ($pm['confidence'] < 90) continue;
+                $val = mb_strtolower(trim($pm['matched_value']));
+                foreach ($categories as $cat) {
+                    if (isset($resolved[$cat->id])) continue;
+                    $catLow = mb_strtolower($cat->name);
+                    if ($catLow === $val || str_contains($catLow, $val) || str_contains($val, $catLow)) {
+                        $resolved[$cat->id] = [
+                            'category' => $cat,
+                            'pgm_value' => $pm['matched_value'],
+                            'confidence' => $pm['confidence'],
+                            'match_type' => $pm['match_type'],
+                        ];
+                    }
                 }
             }
         }
