@@ -1045,6 +1045,12 @@ class AIChatbotService
         $first = $resolvedArr[0]['category'];
         $queuedNames = [];
 
+        // ── IMPORTANT: Clear ANY old pending/active queue entries for this session ──
+        // This prevents stale queue entries from previous selections causing loops
+        AiProductSession::where('chat_session_id', $session->id)
+            ->whereIn('status', ['pending', 'active'])
+            ->delete();
+
         for ($i = 1; $i < count($resolvedArr); $i++) {
             $qCat = $resolvedArr[$i]['category'];
             AiProductSession::create([
@@ -2752,7 +2758,7 @@ class AIChatbotService
                             ->exists() : false;
 
                         if ($nextHasProducts) {
-                            $nextAfter->update(['status' => 'active']);
+                            $nextAfter->update(['status' => 'completed']);
                             $queuedCatId = $nextCatId;
                             $queuedCatName = $nextCatName;
                             $hasProducts = true;
@@ -2763,10 +2769,8 @@ class AIChatbotService
                 }
 
                 if ($queuedCatId && $hasProducts) {
-                    // Mark this queue entry as active
-                    if ($nextQueued->status === 'pending') {
-                        $nextQueued->update(['status' => 'active']);
-                    }
+                    // Mark this queue entry as completed (done processing)
+                    $nextQueued->update(['status' => 'completed']);
 
                     // Count remaining after this one
                     $remainingCount = AiProductSession::where('chat_session_id', $session->id)
