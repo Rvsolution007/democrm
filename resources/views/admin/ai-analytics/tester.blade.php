@@ -55,8 +55,12 @@
         background: #f8fafc;
         border: 1px solid transparent;
         transition: all .12s;
+        cursor: grab;
     }
+    .q-item:active { cursor: grabbing; }
     .q-item:hover { border-color: #f97316; background: #fff7ed; }
+    .q-item.drag-over { border-color: #f97316; border-style: dashed; background: #fff7ed; }
+    .q-item.dragging { opacity: .4; }
     .q-num {
         width: 24px; height: 24px;
         border-radius: 50%;
@@ -67,13 +71,16 @@
     }
     .q-text { flex: 1; font-size: 13px; color: #1e293b; word-break: break-word; }
     .q-text .dyn-tag { background: #dbeafe; color: #1d4ed8; font-size: 11px; padding: 1px 5px; border-radius: 4px; font-weight: 600; font-family: monospace; }
-    .q-del {
+    .q-btn {
         width: 22px; height: 22px; border-radius: 5px; border: none;
-        background: transparent; color: #a0aec0; cursor: pointer;
+        background: transparent; cursor: pointer;
         display: flex; align-items: center; justify-content: center;
         flex-shrink: 0; transition: all .12s;
     }
-    .q-del:hover { background: #fee2e2; color: #ef4444; }
+    .q-btn.q-edit { color: #94a3b8; }
+    .q-btn.q-edit:hover { background: #dbeafe; color: #3b82f6; }
+    .q-btn.q-del { color: #a0aec0; }
+    .q-btn.q-del:hover { background: #fee2e2; color: #ef4444; }
 
     .q-empty { text-align: center; padding: 50px 16px; color: #a0aec0; font-size: 13px; }
 
@@ -315,16 +322,17 @@
                 @else
                     @foreach($questions as $i => $q)
                         @if(trim($q->question) === '🔄')
-                            <div class="q-item q-repeat-marker">
+                            <div class="q-item q-repeat-marker" draggable="true" ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="drop(event)" ondragend="dragEnd(event)">
                                 <span style="font-size:16px">🔄</span>
                                 <span class="q-text" style="color:#ea580c">── REPEAT BELOW PER QUEUE ──</span>
-                                <button class="q-del" onclick="delQ(this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                                <button class="q-btn q-del" onclick="delQ(this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                             </div>
                         @else
-                            <div class="q-item">
+                            <div class="q-item" draggable="true" ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="drop(event)" ondragend="dragEnd(event)">
                                 <span class="q-num">{{ $i + 1 }}</span>
                                 <span class="q-text">{{ $q->question }}</span>
-                                <button class="q-del" onclick="delQ(this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                                <button class="q-btn q-edit" onclick="editQ(this)" title="Edit"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                                <button class="q-btn q-del" onclick="delQ(this)" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                             </div>
                         @endif
                     @endforeach
@@ -385,29 +393,71 @@
     }
 
     // ═══ Questions ═══
+    const DRAG_ATTRS = 'draggable="true" ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="drop(event)" ondragend="dragEnd(event)"';
+
     function addQ(){
         let inp=document.getElementById('q-input'), t=inp.value.trim();
         if(!t)return;
         let e=document.getElementById('q-empty'); if(e)e.remove();
         let l=document.getElementById('q-list'), n=l.querySelectorAll('.q-item:not(.q-repeat-marker)').length+1;
-        let d=document.createElement('div'); d.className='q-item';
-        d.innerHTML=`<span class="q-num">${n}</span><span class="q-text">${esc(t)}</span><button class="q-del" onclick="delQ(this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
+        let d=document.createElement('div'); d.className='q-item'; d.draggable=true;
+        d.ondragstart=dragStart; d.ondragover=dragOver; d.ondrop=drop; d.ondragend=dragEnd;
+        d.innerHTML=`<span class="q-num">${n}</span><span class="q-text">${esc(t)}</span><button class="q-btn q-edit" onclick="editQ(this)" title="Edit"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button class="q-btn q-del" onclick="delQ(this)" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
         l.appendChild(d); inp.value=''; inp.focus(); renum(); saveQ();
     }
     function addRepeatMarker(){
-        // Only allow one repeat marker
         if(document.querySelector('.q-repeat-marker')) { alert('Only one 🔄 Repeat marker allowed!'); return; }
         let e=document.getElementById('q-empty'); if(e)e.remove();
         let l=document.getElementById('q-list');
-        let d=document.createElement('div'); d.className='q-item q-repeat-marker';
-        d.innerHTML=`<span style="font-size:16px">🔄</span><span class="q-text" style="color:#ea580c">── REPEAT BELOW PER QUEUE ──</span><button class="q-del" onclick="delQ(this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
+        let d=document.createElement('div'); d.className='q-item q-repeat-marker'; d.draggable=true;
+        d.ondragstart=dragStart; d.ondragover=dragOver; d.ondrop=drop; d.ondragend=dragEnd;
+        d.innerHTML=`<span style="font-size:16px">🔄</span><span class="q-text" style="color:#ea580c">── REPEAT BELOW PER QUEUE ──</span><button class="q-btn q-del" onclick="delQ(this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
         l.appendChild(d); renum(); saveQ();
+    }
+    function editQ(btn){
+        let item = btn.closest('.q-item');
+        let textEl = item.querySelector('.q-text');
+        let oldText = textEl.textContent.trim();
+        let input = document.createElement('input');
+        input.type='text'; input.value=oldText;
+        input.style.cssText='flex:1;padding:4px 8px;border:1px solid #f97316;border-radius:6px;font-size:13px;outline:none';
+        input.onkeydown = function(e) {
+            if(e.key==='Enter') { textEl.textContent=this.value.trim()||oldText; this.replaceWith(textEl); saveQ(); }
+            if(e.key==='Escape') { this.replaceWith(textEl); }
+        };
+        input.onblur = function() { textEl.textContent=this.value.trim()||oldText; this.replaceWith(textEl); saveQ(); };
+        textEl.replaceWith(input);
+        input.focus(); input.select();
     }
     function delQ(b){
         b.closest('.q-item').remove(); renum();
         let l=document.getElementById('q-list');
         if(!l.querySelectorAll('.q-item').length) l.innerHTML='<div class="q-empty" id="q-empty">No questions yet.<br>Type below to add.</div>';
         saveQ();
+    }
+
+    // ═══ Drag & Drop ═══
+    let dragEl = null;
+    function dragStart(e) { dragEl = e.target.closest('.q-item'); dragEl.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; }
+    function dragEnd(e) { dragEl.classList.remove('dragging'); document.querySelectorAll('.q-item').forEach(x=>x.classList.remove('drag-over')); dragEl=null; }
+    function dragOver(e) {
+        e.preventDefault(); e.dataTransfer.dropEffect='move';
+        let target = e.target.closest('.q-item');
+        if(!target || target===dragEl) return;
+        document.querySelectorAll('.q-item').forEach(x=>x.classList.remove('drag-over'));
+        target.classList.add('drag-over');
+    }
+    function drop(e) {
+        e.preventDefault();
+        let target = e.target.closest('.q-item');
+        if(!target || target===dragEl || !dragEl) return;
+        let list = document.getElementById('q-list');
+        let items = [...list.querySelectorAll('.q-item')];
+        let fromIdx = items.indexOf(dragEl);
+        let toIdx = items.indexOf(target);
+        if(fromIdx < toIdx) { target.after(dragEl); }
+        else { target.before(dragEl); }
+        renum(); saveQ();
     }
     function renum(){
         let items=document.querySelectorAll('#q-list .q-item');
@@ -578,18 +628,17 @@
             let keepGoing = true;
 
             while (keepGoing && isRunning) {
-                addSys('🔄 Queue Round ' + queueRound + ' — ' + repeatQs.length + ' questions');
+                let currentRepeatQs = [...repeatQs];
 
-                let currentRepeatQs = [...repeatQs]; // copy so user can edit
-
-                // Ask user if they want to edit for this round (except round 1)
+                // After round 1, always ask user what to do
                 if (queueRound > 1) {
                     let editChoice = await showQueuePrompt(queueRound, currentRepeatQs);
                     if (editChoice === 'stop') { addSys('⏹️ Stopped by user'); break; }
-                    if (editChoice !== null) currentRepeatQs = editChoice; // edited questions
+                    if (editChoice !== null) currentRepeatQs = editChoice;
                 }
 
-                let lastPendingQueue = 0;
+                addSys('🔄 Queue Round ' + queueRound + ' — ' + currentRepeatQs.length + ' questions');
+
                 for (let i = 0; i < currentRepeatQs.length; i++) {
                     if (!isRunning) break;
                     let resolved = resolvePlaceholder(currentRepeatQs[i], lastListItems);
@@ -603,17 +652,12 @@
                     if (data.list_items && data.list_items.length) lastListItems = data.list_items;
                     if (data.route) addSys('🛤️ ' + data.route);
                     if (data.session_state) addSys('📊 State: ' + data.session_state + (data.pending_queue ? ' | Queue: '+data.pending_queue+' pending' : ''));
-                    lastPendingQueue = data.pending_queue || 0;
 
                     await new Promise(r => setTimeout(r, 800));
                 }
 
-                // Check if more queue items remain based on last response
-                if (lastPendingQueue <= 0) {
-                    keepGoing = false;
-                } else {
-                    queueRound++;
-                }
+                // Always ask — user decides whether to continue
+                queueRound++;
             }
         }
 
