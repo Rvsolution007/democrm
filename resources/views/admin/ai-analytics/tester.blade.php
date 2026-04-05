@@ -489,6 +489,7 @@
     }
 
     // Resolve placeholders client-side (backup for display, server also resolves)
+    @verbatim
     function resolvePlaceholder(q, items) {
         let lower = q.trim().toLowerCase();
         if (lower === '{{yes}}') return 'yes';
@@ -507,6 +508,7 @@
         if (lower.includes('{{all}}')) return items.length ? items.join(' and ') : '1';
         return q;
     }
+    @endverbatim
 
     async function sendOneMessage(msg) {
         showTyping(true);
