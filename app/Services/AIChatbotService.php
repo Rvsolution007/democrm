@@ -608,7 +608,17 @@ class AIChatbotService
         $answers = $session->collected_answers ?? [];
 
         // ══ GREETING INTERCEPT ══
-        if ($this->isGreeting($rawMessage)) {
+        // IMPORTANT: Only intercept greetings when user is NOT in an active chatflow step
+        // "ji", "ha", "yes" can be both greetings AND chatflow responses (confirmations, affirmatives)
+        // If user is in a chatflow step or awaiting confirmation, let the chatflow handle it first.
+        $isInActiveChatflow = $currentStep || 
+            $session->conversation_state === 'awaiting_confirmation' ||
+            $session->conversation_state === 'awaiting_product' ||
+            $session->conversation_state === 'awaiting_category' ||
+            $session->conversation_state === 'product_selected' ||
+            $session->conversation_state === 'in_chatflow';
+
+        if (!$isInActiveChatflow && $this->isGreeting($rawMessage)) {
             $this->routeTrace[] = 'greeting_intercept';
             $this->traceNode($session->id, 'GreetingDetector', 'routing', 'success',
                 ['message' => $rawMessage, 'detection_method' => 'PHP'],
@@ -2695,20 +2705,66 @@ class AIChatbotService
                 $queuedCatId = $queuedData['category_id'] ?? null;
                 $queuedCatName = $queuedData['category_name'] ?? $nextQueued->product_name;
 
-                // Mark this queue entry as active
-                $nextQueued->update(['status' => 'active']);
-
-                // Count remaining after this one
-                $remainingCount = AiProductSession::where('chat_session_id', $session->id)
-                    ->where('status', 'pending')
-                    ->count();
-
-                $this->traceNode($session->id, 'QueueNextCategory', 'routing', 'success',
-                    ['trigger' => 'order_confirmed', 'previous_product' => $productName],
-                    ['next_category' => $queuedCatName, 'category_id' => $queuedCatId,
-                     'remaining_in_queue' => $remainingCount, 'action' => 'auto_process_next']);
-
+                // ── Check if this category has active products BEFORE proceeding ──
+                $hasProducts = false;
                 if ($queuedCatId) {
+                    $hasProducts = Product::where('company_id', $this->companyId)
+                        ->where('status', 'active')
+                        ->where('category_id', $queuedCatId)
+                        ->exists();
+                }
+
+                // If no products in this category, skip it and try next queue items
+                if ($queuedCatId && !$hasProducts) {
+                    $nextQueued->update(['status' => 'skipped']);
+                    $this->traceNode($session->id, 'QueueSkipEmpty', 'routing', 'warning',
+                        ['category' => $queuedCatName, 'category_id' => $queuedCatId],
+                        ['reason' => 'No active products in category', 'action' => 'skipped']);
+
+                    // Try next queue item recursively
+                    $nextAfter = AiProductSession::where('chat_session_id', $session->id)
+                        ->where('status', 'pending')
+                        ->orderBy('sort_order')
+                        ->first();
+
+                    if ($nextAfter) {
+                        $nextData = $nextAfter->collected_answers ?? [];
+                        $nextCatId = $nextData['category_id'] ?? null;
+                        $nextCatName = $nextData['category_name'] ?? $nextAfter->product_name;
+
+                        // Check this one too
+                        $nextHasProducts = $nextCatId ? Product::where('company_id', $this->companyId)
+                            ->where('status', 'active')
+                            ->where('category_id', $nextCatId)
+                            ->exists() : false;
+
+                        if ($nextHasProducts) {
+                            $nextAfter->update(['status' => 'active']);
+                            $queuedCatId = $nextCatId;
+                            $queuedCatName = $nextCatName;
+                            $hasProducts = true;
+                        } else {
+                            $nextAfter->update(['status' => 'skipped']);
+                        }
+                    }
+                }
+
+                if ($queuedCatId && $hasProducts) {
+                    // Mark this queue entry as active
+                    if ($nextQueued->status === 'pending') {
+                        $nextQueued->update(['status' => 'active']);
+                    }
+
+                    // Count remaining after this one
+                    $remainingCount = AiProductSession::where('chat_session_id', $session->id)
+                        ->where('status', 'pending')
+                        ->count();
+
+                    $this->traceNode($session->id, 'QueueNextCategory', 'routing', 'success',
+                        ['trigger' => 'order_confirmed', 'previous_product' => $productName],
+                        ['next_category' => $queuedCatName, 'category_id' => $queuedCatId,
+                         'remaining_in_queue' => $remainingCount, 'action' => 'auto_process_next']);
+
                     // Auto-select the queued category
                     $session->setAnswer('category_id', $queuedCatId);
                     $session->setAnswer('category_name', $queuedCatName);
