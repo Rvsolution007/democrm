@@ -4,327 +4,410 @@
 @section('breadcrumb', 'AI Bot Tester')
 
 @push('styles')
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-    .terminal-container {
-        background-color: #0f172a;
-        border-radius: 8px;
-        border: 1px solid #1e293b;
-        color: #cbd5e1;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        font-size: 13px;
-        line-height: 1.6;
-        height: 500px;
-        overflow-y: auto;
-        padding: 16px;
+    /* ═══ LAYOUT ═══ */
+    .tester-grid {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 0;
+        height: calc(100vh - 140px);
+        min-height: 600px;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+        border: 1px solid #e2e8f0;
     }
-    .terminal-log { margin-bottom: 8px; }
-    .terminal-info { color: #38bdf8; }
-    .terminal-success { color: #34d399; }
-    .terminal-error { color: #f87171; }
-    .terminal-user { color: #c084fc; font-weight: bold; }
-    .terminal-bot { color: #fcd34d; }
 
-    /* Question List */
-    .question-list {
+    /* ═══ LEFT PANEL: Question List ═══ */
+    .questions-panel {
+        background: #fff;
+        border-right: 1px solid #e2e8f0;
         display: flex;
         flex-direction: column;
+    }
+    .questions-header {
+        padding: 16px 18px;
+        background: linear-gradient(135deg, #f97316, #ea580c);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .questions-header h3 {
+        font-size: 15px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
         gap: 8px;
-        max-height: 420px;
+        margin: 0;
+        color: white;
+    }
+    .questions-header .count-badge {
+        background: rgba(255,255,255,0.25);
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+    .questions-body {
+        flex: 1;
         overflow-y: auto;
-        padding-right: 4px;
+        padding: 12px;
     }
     .question-item {
         display: flex;
         align-items: center;
         gap: 10px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 8px;
         padding: 10px 12px;
+        border-radius: 10px;
+        margin-bottom: 6px;
+        cursor: default;
         transition: all 0.15s;
+        border: 1px solid transparent;
+        background: #f8fafc;
     }
     .question-item:hover {
-        border-color: var(--primary);
-        background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+        border-color: #f97316;
+        background: #fff7ed;
     }
     .question-number {
-        width: 28px;
-        height: 28px;
+        width: 26px; height: 26px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        background: linear-gradient(135deg, #f97316, #ea580c);
         color: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        font-weight: 700;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 11px; font-weight: 800;
         flex-shrink: 0;
     }
     .question-text {
         flex: 1;
-        font-size: 14px;
-        color: var(--text);
+        font-size: 13px;
+        color: #1e293b;
         word-break: break-word;
+        font-family: 'Inter', sans-serif;
     }
     .question-delete {
-        width: 28px;
-        height: 28px;
+        width: 26px; height: 26px;
         border-radius: 6px;
         border: none;
         background: transparent;
-        color: var(--text-muted);
+        color: #94a3b8;
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        transition: all 0.15s;
+        flex-shrink: 0;
+    }
+    .question-delete:hover { background: #fee2e2; color: #ef4444; }
+
+    .questions-footer {
+        padding: 12px;
+        border-top: 1px solid #e2e8f0;
+        background: #f8fafc;
+    }
+    .add-row {
+        display: flex;
+        gap: 6px;
+    }
+    .add-row input {
+        flex: 1;
+        padding: 9px 14px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 13px;
+        background: #fff;
+        color: #1e293b;
+        outline: none;
+        transition: border-color 0.15s;
+        font-family: 'Inter', sans-serif;
+    }
+    .add-row input:focus { border-color: #f97316; }
+    .add-row input::placeholder { color: #94a3b8; }
+    .btn-add {
+        width: 38px; height: 38px;
+        border-radius: 8px;
+        border: none;
+        background: linear-gradient(135deg, #f97316, #ea580c);
+        color: white;
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+        transition: transform 0.1s;
+    }
+    .btn-add:hover { transform: scale(1.05); }
+    .btn-add:active { transform: scale(0.95); }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #94a3b8;
+    }
+    .empty-state p:first-child { font-size: 14px; font-weight: 600; }
+    .empty-state p:last-child { font-size: 12px; margin-top: 4px; }
+
+    /* Run Test Button */
+    .btn-run-test {
+        width: 100%;
+        padding: 10px;
+        border: none;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: white;
+        font-weight: 700;
+        font-size: 13px;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
+        gap: 8px;
+        margin-top: 8px;
         transition: all 0.15s;
+        font-family: 'Inter', sans-serif;
+    }
+    .btn-run-test:hover { filter: brightness(1.05); transform: translateY(-1px); }
+    .btn-run-test:active { transform: translateY(0); }
+    .btn-run-test:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    /* ═══ RIGHT PANEL: WhatsApp Chat ═══ */
+    .whatsapp-panel {
+        display: flex;
+        flex-direction: column;
+        background: #efeae2;
+    }
+    /* WhatsApp Header */
+    .wa-header {
+        background: linear-gradient(135deg, #075e54, #128c7e);
+        padding: 12px 18px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: white;
         flex-shrink: 0;
     }
-    .question-delete:hover {
-        background: #fee2e2;
-        color: #ef4444;
+    .wa-avatar {
+        width: 42px; height: 42px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #25d366, #128c7e);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 20px;
+        flex-shrink: 0;
     }
-
-    /* Add Question Input */
-    .add-question-row {
+    .wa-info h4 {
+        font-size: 15px; font-weight: 700; color: white; margin: 0;
+    }
+    .wa-info p {
+        font-size: 11px; color: rgba(255,255,255,0.8); margin: 2px 0 0 0;
+    }
+    .wa-header-actions {
+        margin-left: auto;
         display: flex;
         gap: 8px;
-        margin-top: 12px;
     }
-    .add-question-row input {
-        flex: 1;
-        padding: 10px 14px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        font-size: 14px;
-        background: var(--surface);
-        color: var(--text);
-        outline: none;
-        transition: border-color 0.15s;
-    }
-    .add-question-row input:focus {
-        border-color: var(--primary);
-    }
-    .add-question-row input::placeholder {
-        color: var(--text-muted);
-    }
-
-    /* Section Separator */
-    .section-separator {
+    .wa-header-btn {
+        width: 34px; height: 34px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.15);
         border: none;
-        border-top: 2px dashed var(--border);
-        margin: 32px 0;
+        color: white;
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        transition: background 0.15s;
     }
+    .wa-header-btn:hover { background: rgba(255,255,255,0.25); }
 
-    /* Section Header */
-    .section-header {
+    /* Chat Area */
+    .wa-chat {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px 60px;
+        background: url("data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='p' patternUnits='userSpaceOnUse' width='40' height='40'%3E%3Cpath d='M0 20h40M20 0v40' stroke='%23d5cec5' stroke-width='0.3' fill='none'/%3E%3C/pattern%3E%3C/defs%3E%3Crect fill='%23efeae2' width='200' height='200'/%3E%3Crect fill='url(%23p)' width='200' height='200'/%3E%3C/svg%3E");
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
+        flex-direction: column;
     }
-    .section-header h2 {
-        font-size: 20px;
-        font-weight: 800;
+    .wa-chat::-webkit-scrollbar { width: 6px; }
+    .wa-chat::-webkit-scrollbar-track { background: transparent; }
+    .wa-chat::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }
+
+    /* Chat Bubbles */
+    .wa-msg {
+        max-width: 65%;
+        padding: 8px 12px;
+        border-radius: 8px;
+        margin-bottom: 4px;
+        position: relative;
+        font-size: 13.5px;
+        line-height: 1.45;
+        font-family: 'Inter', sans-serif;
+        word-wrap: break-word;
+        animation: msgIn 0.2s ease-out;
+        box-shadow: 0 1px 1px rgba(0,0,0,0.08);
+    }
+    @keyframes msgIn {
+        from { opacity: 0; transform: translateY(8px) scale(0.97); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .wa-msg-user {
+        background: #dcf8c6;
+        align-self: flex-end;
+        border-top-right-radius: 0;
+    }
+    .wa-msg-bot {
+        background: #ffffff;
+        align-self: flex-start;
+        border-top-left-radius: 0;
+    }
+    .wa-msg-time {
+        font-size: 10px;
+        color: #667781;
+        text-align: right;
+        margin-top: 3px;
         display: flex;
         align-items: center;
-        gap: 10px;
+        justify-content: flex-end;
+        gap: 4px;
     }
-    .section-badge {
+    .wa-msg-user .wa-msg-time { color: #4a7c59; }
+    .wa-msg .wa-ticks {
+        color: #53bdeb;
+        font-size: 13px;
+    }
+    .wa-msg-content { white-space: pre-wrap; }
+    .wa-msg-content b, .wa-msg-content strong { font-weight: 700; }
+
+    /* System message */
+    .wa-system-msg {
+        align-self: center;
+        background: #e2dacd;
+        color: #54656f;
+        padding: 5px 14px;
+        border-radius: 6px;
         font-size: 11px;
         font-weight: 600;
-        padding: 3px 10px;
-        border-radius: 20px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    .badge-blue {
-        background: #dbeafe;
-        color: #2563eb;
-    }
-    .badge-orange {
-        background: #ffedd5;
-        color: #ea580c;
-    }
-
-    /* Empty state */
-    .empty-questions {
+        margin: 12px 0;
+        box-shadow: none;
         text-align: center;
-        padding: 40px 20px;
-        color: var(--text-muted);
-    }
-    .empty-questions i {
-        width: 48px;
-        height: 48px;
-        margin-bottom: 12px;
-        opacity: 0.3;
+        max-width: 80%;
     }
 
-    /* Progress indicator */
-    .running-indicator {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 14px;
-        border-radius: 20px;
-        background: #1e293b;
-        color: #34d399;
-        font-size: 12px;
-        font-weight: 600;
+    /* Typing indicator */
+    .wa-typing {
+        background: #ffffff;
+        align-self: flex-start;
+        border-top-left-radius: 0;
+        padding: 12px 18px;
+        display: none;
     }
-    .running-indicator .dot {
-        width: 8px;
-        height: 8px;
+    .wa-typing-dots {
+        display: flex; gap: 4px;
+    }
+    .wa-typing-dots span {
+        width: 7px; height: 7px;
         border-radius: 50%;
-        background: #34d399;
-        animation: pulse 1.5s infinite;
+        background: #92a0a8;
+        animation: typingBounce 1.4s infinite;
     }
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.3; }
+    .wa-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .wa-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typingBounce {
+        0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+        30% { transform: translateY(-5px); opacity: 1; }
     }
+
+    /* Welcome */
+    .wa-welcome {
+        align-self: center;
+        text-align: center;
+        padding: 40px;
+        color: #8696a0;
+    }
+    .wa-welcome-icon {
+        width: 80px; height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #25d366, #128c7e);
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 16px;
+        font-size: 36px;
+    }
+    .wa-welcome h5 { font-size: 16px; font-weight: 700; color: #41525d; margin: 0 0 6px; }
+    .wa-welcome p { font-size: 13px; margin: 0; }
 </style>
 @endpush
 
 @section('content')
-    {{-- ═══════════════════════════════════════════════════════
-         SECTION 1: AI Bot Conversation Test
-         ═══════════════════════════════════════════════════════ --}}
-    <div class="section-header">
-        <div>
-            <h2>
-                <i data-lucide="message-circle" style="width:24px;height:24px;color:#6366f1;"></i>
-                AI Bot Conversation Test
-                <span class="section-badge badge-blue">Section 1</span>
-            </h2>
-            <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
-                Add your test questions below. The bot will answer them exactly like on WhatsApp.
-            </p>
-        </div>
-        <div style="display: flex; gap: 10px; align-items: center;">
-            <span id="save-indicator" style="display:none; font-size: 13px; color: #10b981; font-weight: 600;"></span>
-            <button type="button" onclick="runConversationTest()" id="btn-conv-test" class="btn btn-primary" style="display:flex;align-items:center;gap:6px">
-                <i data-lucide="play" style="width:16px;height:16px;"></i> Run Test
-            </button>
-        </div>
-    </div>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-        {{-- Left Column: Questions --}}
-        <div class="card">
-            <div class="card-content">
-                <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 4px; display:flex; align-items:center; gap:8px;">
-                    <i data-lucide="list-ordered" style="width:16px;height:16px;color:#6366f1;"></i>
+    <div class="tester-grid">
+        {{-- ═══ LEFT: Questions Panel ═══ --}}
+        <div class="questions-panel">
+            <div class="questions-header">
+                <h3>
+                    <i data-lucide="list-ordered" style="width:18px;height:18px"></i>
                     Test Questions
-                    <span id="question-count" style="font-size: 12px; color: var(--text-muted); font-weight: 400;">
-                        ({{ count($questions) }} questions)
-                    </span>
                 </h3>
-                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
-                    Add questions the bot will be asked in order. Saved to database — runs every time.
-                </p>
+                <span class="count-badge" id="question-count">{{ count($questions) }}</span>
+            </div>
 
-                <div id="question-list" class="question-list">
-                    @if($questions->isEmpty())
-                        <div class="empty-questions" id="empty-state">
-                            <i data-lucide="message-square-plus"></i>
-                            <p style="font-size: 14px; font-weight: 600;">No questions yet</p>
-                            <p style="font-size: 12px;">Type a question below and press Enter or click +</p>
+            <div class="questions-body" id="question-list">
+                @if($questions->isEmpty())
+                    <div class="empty-state" id="empty-state">
+                        <p>No questions yet</p>
+                        <p>Type below and press Enter</p>
+                    </div>
+                @else
+                    @foreach($questions as $i => $q)
+                        <div class="question-item" data-index="{{ $i }}">
+                            <span class="question-number">{{ $i + 1 }}</span>
+                            <span class="question-text">{{ $q->question }}</span>
+                            <button class="question-delete" onclick="removeQuestion(this)" title="Remove">
+                                <i data-lucide="x" style="width:14px;height:14px;"></i>
+                            </button>
                         </div>
-                    @else
-                        @foreach($questions as $i => $q)
-                            <div class="question-item" data-index="{{ $i }}">
-                                <span class="question-number">{{ $i + 1 }}</span>
-                                <span class="question-text">{{ $q->question }}</span>
-                                <button class="question-delete" onclick="removeQuestion(this)" title="Remove">
-                                    <i data-lucide="x" style="width:14px;height:14px;"></i>
-                                </button>
-                            </div>
-                        @endforeach
-                    @endif
-                </div>
+                    @endforeach
+                @endif
+            </div>
 
-                <div class="add-question-row">
-                    <input type="text" id="new-question-input" placeholder="Type a question (e.g., Hi, products dikhao, 1...)" 
+            <div class="questions-footer">
+                <div class="add-row">
+                    <input type="text" id="new-question-input"
+                           placeholder="Type a question..."
                            onkeydown="if(event.key==='Enter'){addQuestion();}">
-                    <button type="button" onclick="addQuestion()" class="btn btn-primary" style="padding: 10px 16px;">
-                        <i data-lucide="plus" style="width:16px;height:16px;"></i>
+                    <button class="btn-add" onclick="addQuestion()" title="Add Question">
+                        <i data-lucide="plus" style="width:18px;height:18px;"></i>
+                    </button>
+                </div>
+                <button type="button" class="btn-run-test" id="btn-run" onclick="runTest()">
+                    <i data-lucide="play" style="width:16px;height:16px;"></i>
+                    Run Test
+                </button>
+                <span id="save-indicator" style="display:none; font-size: 11px; color: #10b981; font-weight: 600; text-align:center; display:block; margin-top:6px;"></span>
+            </div>
+        </div>
+
+        {{-- ═══ RIGHT: WhatsApp Chat ═══ --}}
+        <div class="whatsapp-panel">
+            <div class="wa-header">
+                <div class="wa-avatar">🤖</div>
+                <div class="wa-info">
+                    <h4>AI Bot Tester</h4>
+                    <p id="wa-status">Click "Run Test" to start</p>
+                </div>
+                <div class="wa-header-actions">
+                    <button class="wa-header-btn" onclick="clearChat()" title="Clear Chat">
+                        <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
                     </button>
                 </div>
             </div>
-        </div>
 
-        {{-- Right Column: Conversation Output --}}
-        <div class="card">
-            <div class="card-content">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                    <h3 style="font-size: 15px; font-weight: 700; display:flex; align-items:center; gap:8px;">
-                        <i data-lucide="terminal" style="width:16px;height:16px;color:#10b981;"></i>
-                        Conversation Output
-                    </h3>
-                    <div style="display: flex; gap: 6px;">
-                        <span style="width:10px;height:10px;border-radius:50%;background:#ef4444;"></span>
-                        <span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;"></span>
-                        <span style="width:10px;height:10px;border-radius:50%;background:#10b981;"></span>
+            <div class="wa-chat" id="wa-chat">
+                <div class="wa-welcome" id="wa-welcome">
+                    <div class="wa-welcome-icon">💬</div>
+                    <h5>AI Bot Conversation Tester</h5>
+                    <p>Add questions on the left, click "Run Test".<br>Bot will answer each one — same as real WhatsApp.</p>
+                </div>
+
+                {{-- Typing indicator --}}
+                <div class="wa-msg wa-typing" id="wa-typing">
+                    <div class="wa-typing-dots">
+                        <span></span><span></span><span></span>
                     </div>
-                </div>
-                <div id="conv-terminal" class="terminal-container">
-                    <div style="color: #64748b; font-size: 12px;">
-                        # Add questions and click "Run Test" to start...<br>
-                        # Bot will answer each question sequentially — same as WhatsApp.
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <hr class="section-separator">
-
-    {{-- ═══════════════════════════════════════════════════════
-         SECTION 2: AI Bot Diagnostic Tester
-         ═══════════════════════════════════════════════════════ --}}
-    <div class="section-header">
-        <div>
-            <h2>
-                <i data-lucide="stethoscope" style="width:24px;height:24px;color:#ea580c;"></i>
-                AI Bot Diagnostic Tester
-                <span class="section-badge badge-orange">Section 2</span>
-            </h2>
-            <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
-                Technically tests every step of the bot flow — greeting, product inquiry, confirmation, chatflow progress, language, etc.
-            </p>
-        </div>
-        <div>
-            <button type="button" onclick="runDiagnosticTest()" id="btn-diag-test" class="btn btn-primary" style="display:flex;align-items:center;gap:6px;background:linear-gradient(135deg,#ea580c,#f97316);">
-                <i data-lucide="play" style="width:16px;height:16px;"></i> Run Diagnostic
-            </button>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-content">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <h3 style="font-size: 15px; font-weight: 700; display:flex; align-items:center; gap:8px;">
-                    <i data-lucide="activity" style="width:16px;height:16px;color:#ea580c;"></i>
-                    Diagnostic Output
-                    <span id="diag-status" style="display:none;" class="running-indicator">
-                        <span class="dot"></span> Running...
-                    </span>
-                </h3>
-                <div style="display: flex; gap: 6px;">
-                    <span style="width:10px;height:10px;border-radius:50%;background:#ef4444;"></span>
-                    <span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;"></span>
-                    <span style="width:10px;height:10px;border-radius:50%;background:#10b981;"></span>
-                </div>
-            </div>
-            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px; padding: 10px 14px; background: color-mix(in srgb, var(--primary) 5%, var(--surface)); border-radius: 8px; border: 1px solid var(--border);">
-                <strong>What this tests:</strong> Config checks → Module health → Greeting detection → Business queries → Product inquiry vs confirmation → Spell correction → Lead/Quote creation → Chatflow progress → Language matching → Optional question handling → Product add/edit/delete → AI Summary Report
-            </div>
-            <div id="diag-terminal" class="terminal-container" style="height: 600px;">
-                <div style="color: #64748b; font-size: 12px;">
-                    # Uses questions from Section 1 above.<br>
-                    # Click "Run Diagnostic" to start full process flow test...<br>
-                    # Each question is classified, sent to bot, then every response is validated.
                 </div>
             </div>
         </div>
@@ -333,16 +416,12 @@
 
 @push('scripts')
 <script>
-    // ═══════════════════════════════════════════════════════
-    // QUESTION MANAGEMENT
-    // ═══════════════════════════════════════════════════════
-
+    // ═══ QUESTION MANAGEMENT ═══
     function addQuestion() {
         const input = document.getElementById('new-question-input');
         const text = input.value.trim();
         if (!text) return;
 
-        // Remove empty state if exists
         const emptyState = document.getElementById('empty-state');
         if (emptyState) emptyState.remove();
 
@@ -361,29 +440,17 @@
         list.appendChild(item);
         input.value = '';
         input.focus();
-
         updateQuestionNumbers();
-        lucide.createIcons();
-
-        // Auto-save to DB immediately
         autoSaveQuestions();
     }
 
     function removeQuestion(btn) {
         btn.closest('.question-item').remove();
         updateQuestionNumbers();
-
         const list = document.getElementById('question-list');
         if (list.querySelectorAll('.question-item').length === 0) {
-            list.innerHTML = `
-                <div class="empty-questions" id="empty-state">
-                    <p style="font-size: 14px; font-weight: 600;">No questions yet</p>
-                    <p style="font-size: 12px;">Type a question below and press Enter or click +</p>
-                </div>
-            `;
+            list.innerHTML = `<div class="empty-state" id="empty-state"><p>No questions yet</p><p>Type below and press Enter</p></div>`;
         }
-
-        // Auto-save to DB immediately
         autoSaveQuestions();
     }
 
@@ -392,7 +459,7 @@
         items.forEach((item, i) => {
             item.querySelector('.question-number').textContent = i + 1;
         });
-        document.getElementById('question-count').textContent = `(${items.length} questions)`;
+        document.getElementById('question-count').textContent = items.length;
     }
 
     function getQuestions() {
@@ -406,134 +473,153 @@
         return div.innerHTML;
     }
 
-    // ═══════════════════════════════════════════════════════
-    // AUTO-SAVE QUESTIONS (called on every add/remove)
-    // ═══════════════════════════════════════════════════════
-
+    // ═══ AUTO-SAVE ═══
     let saveTimeout = null;
     function autoSaveQuestions() {
-        // Debounce — wait 300ms in case user is rapid-adding
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
             const questions = getQuestions();
-            const saveIndicator = document.getElementById('save-indicator');
-            
+            const indicator = document.getElementById('save-indicator');
+
             if (questions.length === 0) {
-                // Delete all from DB
                 fetch("{{ route('admin.ai-analytics.test-questions.save') }}", {
                     method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({ questions: ['placeholder'] }) // Will be overwritten
+                    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ questions: ['placeholder'] })
                 }).catch(() => {});
                 return;
             }
 
-            if (saveIndicator) {
-                saveIndicator.style.display = 'inline';
-                saveIndicator.textContent = '💾 Saving...';
-            }
+            if (indicator) { indicator.style.display = 'block'; indicator.textContent = '💾 Saving...'; }
 
             fetch("{{ route('admin.ai-analytics.test-questions.save') }}", {
                 method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ questions: questions })
-            }).then(res => res.json())
-              .then(data => {
-                  if (saveIndicator) {
-                      saveIndicator.textContent = '✅ Saved!';
-                      setTimeout(() => { saveIndicator.style.display = 'none'; }, 1500);
-                  }
-              }).catch(err => {
-                  console.error('Auto-save failed:', err);
-                  if (saveIndicator) {
-                      saveIndicator.textContent = '❌ Save failed';
-                      setTimeout(() => { saveIndicator.style.display = 'none'; }, 2000);
-                  }
-              });
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ questions })
+            }).then(res => res.json()).then(() => {
+                if (indicator) { indicator.textContent = '✅ Saved!'; setTimeout(() => { indicator.style.display = 'none'; }, 1200); }
+            }).catch(() => {
+                if (indicator) { indicator.textContent = '❌ Save failed'; setTimeout(() => { indicator.style.display = 'none'; }, 2000); }
+            });
         }, 300);
     }
 
-    // Manual save button (kept as backup)
-    function saveQuestions() {
-        autoSaveQuestions();
+    // ═══ WHATSAPP CHAT HELPERS ═══
+    function getTimeStr() {
+        return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
     }
 
-    // ═══════════════════════════════════════════════════════
-    // TERMINAL HELPER
-    // ═══════════════════════════════════════════════════════
-
-    function writeToTerminal(terminalId, text, type = 'info') {
-        const terminal = document.getElementById(terminalId);
-        const div = document.createElement('div');
-        div.className = `terminal-log terminal-${type}`;
-
-        let safeHTML = escapeHtml(text).replace(/\n/g, '<br>');
-        const time = new Date().toLocaleTimeString([], {hour12: false});
-        div.innerHTML = `<span style="color:#64748b;margin-right:8px;">[${time}]</span> ${safeHTML}`;
-
-        terminal.appendChild(div);
-        terminal.scrollTop = terminal.scrollHeight;
+    function addUserMessage(text) {
+        const chat = document.getElementById('wa-chat');
+        const typing = document.getElementById('wa-typing');
+        const msg = document.createElement('div');
+        msg.className = 'wa-msg wa-msg-user';
+        msg.innerHTML = `
+            <div class="wa-msg-content">${escapeHtml(text)}</div>
+            <div class="wa-msg-time">${getTimeStr()} <span class="wa-ticks">✓✓</span></div>
+        `;
+        chat.insertBefore(msg, typing);
+        chat.scrollTop = chat.scrollHeight;
     }
 
-    function streamResponse(url, terminalId, btnId, statusId) {
-        const terminal = document.getElementById(terminalId);
-        const btn = document.getElementById(btnId);
-        const status = statusId ? document.getElementById(statusId) : null;
+    function addBotMessage(text) {
+        const chat = document.getElementById('wa-chat');
+        const typing = document.getElementById('wa-typing');
 
-        // Clear terminal
-        terminal.innerHTML = '<div style="color: #64748b; font-size: 12px; margin-bottom: 16px;"># Started...</div>';
-        btn.disabled = true;
-        btn.style.opacity = '0.6';
-        if (status) status.style.display = 'inline-flex';
+        // Format WhatsApp style: *bold* → <b>bold</b>
+        let formatted = escapeHtml(text)
+            .replace(/\*([^*]+)\*/g, '<b>$1</b>')
+            .replace(/_([^_]+)_/g, '<i>$1</i>');
 
-        // Auto-save questions before running
+        const msg = document.createElement('div');
+        msg.className = 'wa-msg wa-msg-bot';
+        msg.innerHTML = `
+            <div class="wa-msg-content">${formatted}</div>
+            <div class="wa-msg-time">${getTimeStr()}</div>
+        `;
+        chat.insertBefore(msg, typing);
+        chat.scrollTop = chat.scrollHeight;
+    }
+
+    function addSystemMessage(text) {
+        const chat = document.getElementById('wa-chat');
+        const typing = document.getElementById('wa-typing');
+        const msg = document.createElement('div');
+        msg.className = 'wa-msg wa-system-msg';
+        msg.textContent = text;
+        chat.insertBefore(msg, typing);
+        chat.scrollTop = chat.scrollHeight;
+    }
+
+    function showTyping(show) {
+        const typing = document.getElementById('wa-typing');
+        typing.style.display = show ? 'block' : 'none';
+        if (show) {
+            const chat = document.getElementById('wa-chat');
+            chat.scrollTop = chat.scrollHeight;
+        }
+    }
+
+    function clearChat() {
+        const chat = document.getElementById('wa-chat');
+        const typing = document.getElementById('wa-typing');
+        chat.innerHTML = '';
+        chat.appendChild(typing);
+
+        const welcome = document.createElement('div');
+        welcome.className = 'wa-welcome';
+        welcome.id = 'wa-welcome';
+        welcome.innerHTML = `<div class="wa-welcome-icon">💬</div><h5>AI Bot Conversation Tester</h5><p>Add questions on the left, click "Run Test".<br>Bot will answer each one — same as real WhatsApp.</p>`;
+        chat.insertBefore(welcome, typing);
+
+        document.getElementById('wa-status').textContent = 'Click "Run Test" to start';
+    }
+
+    // ═══ RUN TEST ═══
+    function runTest() {
         const questions = getQuestions();
         if (questions.length === 0) {
-            writeToTerminal(terminalId, '❌ No test questions! Add questions first.', 'error');
-            btn.disabled = false;
-            btn.style.opacity = '1';
-            if (status) status.style.display = 'none';
+            alert('Add at least one question first!');
             return;
         }
 
-        // Save questions first, then run
+        const btn = document.getElementById('btn-run');
+        btn.disabled = true;
+        btn.innerHTML = '<span style="display:inline-flex;gap:4px;align-items:center"><span class="wa-typing-dots"><span></span><span></span><span></span></span> Testing...</span>';
+
+        // Clear chat
+        const chat = document.getElementById('wa-chat');
+        const typing = document.getElementById('wa-typing');
+        chat.innerHTML = '';
+        chat.appendChild(typing);
+
+        document.getElementById('wa-status').textContent = 'Testing...';
+        addSystemMessage(`🧪 Test started — ${questions.length} questions`);
+
+        // Save questions first
         fetch("{{ route('admin.ai-analytics.test-questions.save') }}", {
             method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({ questions: questions })
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ questions })
         }).then(() => {
-            writeToTerminal(terminalId, 'Questions saved. Starting...', 'info');
-
-            fetch(url, {
+            // Stream test results
+            fetch("{{ route('admin.ai-analytics.conversation-test.run') }}", {
                 method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Accept': 'application/json'
-                }
+                headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }
             }).then(response => {
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder("utf-8");
+                let questionIndex = 0;
 
                 function readChunk() {
                     reader.read().then(({ done, value }) => {
                         if (done) {
-                            writeToTerminal(terminalId, '────────────────────────────────', 'info');
-                            writeToTerminal(terminalId, 'Finished.', 'info');
+                            showTyping(false);
+                            addSystemMessage('✅ Test complete!');
+                            document.getElementById('wa-status').textContent = 'Test complete';
                             btn.disabled = false;
-                            btn.style.opacity = '1';
-                            if (status) status.style.display = 'none';
+                            btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Test';
+                            lucide.createIcons();
                             return;
                         }
 
@@ -544,55 +630,45 @@
                             if (!line.trim()) return;
                             try {
                                 const data = JSON.parse(line);
-                                if (data.type === 'error') writeToTerminal(terminalId, '❌ ' + data.message, 'error');
-                                else if (data.type === 'success') writeToTerminal(terminalId, '✅ ' + data.message, 'success');
-                                else if (data.type === 'user') writeToTerminal(terminalId, '🧔 User: ' + data.message, 'user');
-                                else if (data.type === 'bot') writeToTerminal(terminalId, '🤖 Bot: ' + data.message, 'bot');
-                                else writeToTerminal(terminalId, 'ℹ️ ' + data.message, 'info');
+                                if (data.type === 'user') {
+                                    showTyping(false);
+                                    questionIndex++;
+                                    document.getElementById('wa-status').textContent = `Processing ${questionIndex}/${questions.length}...`;
+                                    addUserMessage(data.message);
+                                    // Show typing after user message
+                                    setTimeout(() => showTyping(true), 200);
+                                } else if (data.type === 'bot') {
+                                    showTyping(false);
+                                    addBotMessage(data.message);
+                                } else if (data.type === 'error') {
+                                    showTyping(false);
+                                    addSystemMessage('❌ ' + data.message);
+                                } else if (data.type === 'info') {
+                                    addSystemMessage('ℹ️ ' + data.message);
+                                } else if (data.type === 'success') {
+                                    addSystemMessage('✅ ' + data.message);
+                                }
                             } catch (e) {
-                                writeToTerminal(terminalId, line, 'info');
+                                // Non-JSON lines
                             }
                         });
                         readChunk();
                     });
                 }
                 readChunk();
-
-            }).catch(error => {
-                writeToTerminal(terminalId, 'Connection error.', 'error');
-                console.error(error);
+            }).catch(err => {
+                showTyping(false);
+                addSystemMessage('❌ Connection error: ' + err.message);
                 btn.disabled = false;
-                btn.style.opacity = '1';
-                if (status) status.style.display = 'none';
+                btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Test';
+                lucide.createIcons();
             });
         }).catch(err => {
-            writeToTerminal(terminalId, 'Failed to save questions: ' + err.message, 'error');
+            addSystemMessage('❌ Failed to save questions');
             btn.disabled = false;
-            btn.style.opacity = '1';
-            if (status) status.style.display = 'none';
+            btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run Test';
+            lucide.createIcons();
         });
-    }
-
-    // ═══════════════════════════════════════════════════════
-    // RUN TESTS
-    // ═══════════════════════════════════════════════════════
-
-    function runConversationTest() {
-        streamResponse(
-            "{{ route('admin.ai-analytics.conversation-test.run') }}",
-            'conv-terminal',
-            'btn-conv-test',
-            null
-        );
-    }
-
-    function runDiagnosticTest() {
-        streamResponse(
-            "{{ route('admin.ai-analytics.diagnostic-test.run') }}",
-            'diag-terminal',
-            'btn-diag-test',
-            'diag-status'
-        );
     }
 </script>
 @endpush
