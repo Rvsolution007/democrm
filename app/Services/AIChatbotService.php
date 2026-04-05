@@ -1556,10 +1556,52 @@ class AIChatbotService
             return "Sorry, no products available right now.";
         }
 
+        // ── REPLY CONTEXT: If user replied to a product list, use reply text for matching ──
+        $replyMatchedProduct = null;
+        if (preg_match('/\[Replying to: "(.+?)"\]/s', $fullMessage, $replyMatch)) {
+            $replyText = $replyMatch[1];
+            $userNum = trim($rawMessage);
+
+            // If user sent a number and the reply contains product list with that number
+            if (preg_match('/^\d+$/', $userNum)) {
+                // Look for the number in reply text as product model/code
+                // e.g., reply has "1️⃣ Door Handle (101)" and user sent "101"
+                foreach ($products as $product) {
+                    $displayName = $this->getProductDisplayName($product);
+                    // Check if both the product name and user's number appear in the reply
+                    if (str_contains($replyText, $displayName) ||
+                        str_contains($replyText, "($userNum)") ||
+                        str_contains($replyText, $userNum)) {
+                        // Verify the number actually relates to this product
+                        $pName = strtolower($displayName);
+                        $pNative = strtolower($product->name);
+                        if (str_contains($pName, $userNum) || str_contains($pNative, $userNum)) {
+                            $replyMatchedProduct = $product;
+                            $this->traceNode($session->id, 'ReplyContextProductMatch', 'routing', 'success',
+                                ['message' => $rawMessage, 'reply_text_preview' => mb_substr($replyText, 0, 150), 'method' => 'reply_context'],
+                                ['product_id' => $product->id, 'product_name' => $displayName, 'matched_number' => $userNum]);
+                            break;
+                        }
+                        // Also check custom values
+                        foreach ($product->customValues as $cv) {
+                            $val = is_string($cv->value) ? strtolower($cv->value) : '';
+                            if ($val === strtolower($userNum)) {
+                                $replyMatchedProduct = $product;
+                                $this->traceNode($session->id, 'ReplyContextProductMatch', 'routing', 'success',
+                                    ['message' => $rawMessage, 'reply_text_preview' => mb_substr($replyText, 0, 150), 'method' => 'reply_custom_value'],
+                                    ['product_id' => $product->id, 'product_name' => $displayName, 'matched_column' => $cv->column->name ?? 'unknown']);
+                                break 2;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // ── PHP PRE-CHECK: Direct number extraction ──
         // Handles: "1", "product 1", "#1", "product 1 me btao", "pehla product", etc.
         $msg = strtolower(trim($rawMessage));
-        $selectedProduct = null;
+        $selectedProduct = $replyMatchedProduct; // Use reply match if found
 
         // Try extracting a list number from the message
         $listNumber = null;
@@ -1588,9 +1630,46 @@ class AIChatbotService
             }
         }
 
-        // If we got a list number, try to match it
+        // If we got a list number, try to match it as list index
         if ($listNumber && $listNumber >= 1 && $listNumber <= $products->count()) {
             $selectedProduct = $products->values()[$listNumber - 1] ?? null;
+        }
+
+        // ── Number too large for list index → try as MODEL NUMBER / product code ──
+        // e.g., user sends "101" but only 2 products exist → "101" is a model code, not list #3
+        if (!$selectedProduct && $listNumber && $listNumber > $products->count()) {
+            $numStr = (string)$listNumber;
+            foreach ($products as $product) {
+                $displayName = strtolower($this->getProductDisplayName($product));
+                $productName = strtolower($product->name);
+
+                // Check if number appears in product display name (e.g., "Door Handle (101)")
+                if (str_contains($displayName, $numStr) || str_contains($productName, $numStr)) {
+                    $selectedProduct = $product;
+                    $this->traceNode($session->id, 'ProductModelNumberMatch', 'routing', 'success',
+                        ['message' => $rawMessage, 'number' => $numStr, 'method' => 'display_name'],
+                        ['product_id' => $product->id, 'product_name' => $displayName]);
+                    break;
+                }
+
+                // Check custom values (model, code, SKU, etc.)
+                foreach ($product->customValues as $cv) {
+                    $val = is_string($cv->value) ? strtolower($cv->value) : '';
+                    if ($val === $numStr || str_contains($val, $numStr)) {
+                        $selectedProduct = $product;
+                        $this->traceNode($session->id, 'ProductModelNumberMatch', 'routing', 'success',
+                            ['message' => $rawMessage, 'number' => $numStr, 'method' => 'custom_value'],
+                            ['product_id' => $product->id, 'product_name' => $this->getProductDisplayName($product),
+                             'matched_column' => $cv->column->name ?? 'unknown', 'matched_value' => $cv->value]);
+                        break 2;
+                    }
+                }
+            }
+
+            // If still no match, reset listNumber so name matching can try
+            if (!$selectedProduct) {
+                $listNumber = null;
+            }
         }
 
         // ── Also try direct name matching (PHP level) ──
