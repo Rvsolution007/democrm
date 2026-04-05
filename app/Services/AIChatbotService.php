@@ -1428,6 +1428,14 @@ class AIChatbotService
         if (isset($answers['category_id'])) {
             $query->where('category_id', $answers['category_id']);
         }
+
+        // ── CRITICAL: Filter by selected product_id if product is already chosen ──
+        // Without this, column values from ALL products in the category show up
+        // e.g., Door Handle (101) has "10 Peace" and Door Handle (201) has "5 Peace"
+        // User selected 201, so only "5 Peace" should show
+        if (isset($answers['product_id'])) {
+            $query->where('id', $answers['product_id']);
+        }
         
         // Apply existing filters before this one
         foreach ($answers as $key => $val) {
