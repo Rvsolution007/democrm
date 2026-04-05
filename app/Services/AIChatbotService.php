@@ -2674,12 +2674,15 @@ class AIChatbotService
                 }
             }
             
-            // Clear product-specific answers
+            // Clear product-specific answers (including column filters from previous product)
             $newAnswers = [];
             foreach ($answers as $key => $val) {
-                if (!in_array($key, $keysToRemove)) {
-                    $newAnswers[$key] = $val;
-                }
+                // Remove explicitly listed keys
+                if (in_array($key, $keysToRemove)) continue;
+                // Remove ALL column filter keys (e.g., column_filter_5, column_filter_12)
+                // These are product-specific filters that must not carry over to next queue item
+                if (str_starts_with($key, 'column_filter_')) continue;
+                $newAnswers[$key] = $val;
             }
             $session->collected_answers = $newAnswers;
             
@@ -2689,6 +2692,7 @@ class AIChatbotService
             $session->conversation_state = 'new';
             $session->catalogue_sent = false;
             $session->status = 'active';
+            $session->optional_asked = []; // Clear so next product's optional steps run fresh
             $session->media_sent_keys = []; // Allow fresh media for next product
             $session->save();
 
