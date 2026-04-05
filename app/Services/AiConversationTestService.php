@@ -248,6 +248,14 @@ class AiConversationTestService
     }
 
     /**
+     * Public cleanup for external callers (step-by-step mode)
+     */
+    public function cleanupPublic(): void
+    {
+        $this->cleanup();
+    }
+
+    /**
      * Cleanup simulation data
      */
     private function cleanup(): void

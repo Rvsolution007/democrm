@@ -1067,6 +1067,9 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::get('/ai-analytics/test-questions', [AiAnalyticsController::class, 'getTestQuestions'])->name('ai-analytics.test-questions.get');
     Route::post('/ai-analytics/conversation-test-run', [AiAnalyticsController::class, 'runConversationTest'])->name('ai-analytics.conversation-test.run');
     Route::post('/ai-analytics/diagnostic-test-run', [AiAnalyticsController::class, 'runDiagnosticTest'])->name('ai-analytics.diagnostic-test.run');
+    Route::post('/ai-analytics/test-step-init', [AiAnalyticsController::class, 'testStepInit'])->name('ai-analytics.test-step.init');
+    Route::post('/ai-analytics/test-step-send', [AiAnalyticsController::class, 'testStepSend'])->name('ai-analytics.test-step.send');
+    Route::post('/ai-analytics/test-step-cleanup', [AiAnalyticsController::class, 'testStepCleanup'])->name('ai-analytics.test-step.cleanup');
 
     // AI Node Traces
     Route::get('/ai-analytics/traces', [\App\Http\Controllers\Web\AiTraceController::class, 'index'])->name('ai-analytics.traces.index');

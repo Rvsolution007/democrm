@@ -103,6 +103,17 @@
         padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700;
         background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; cursor: help;
     }
+    /* Repeat Marker */
+    .q-repeat-marker {
+        display: flex; align-items: center; gap: 8px;
+        padding: 6px 12px; margin-bottom: 4px;
+        border: 2px dashed #f97316; border-radius: 8px;
+        background: #fff7ed; color: #ea580c;
+        font-size: 11px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: .5px;
+    }
+    .q-repeat-marker .q-del { color: #ea580c; }
+    .q-repeat-marker .q-del:hover { background: #fee2e2; color: #ef4444; }
     .q-add-btn {
         width: 36px; height: 36px; border-radius: 8px; border: none;
         background: #f97316; color: #fff; cursor: pointer;
@@ -303,11 +314,19 @@
                     <div class="q-empty" id="q-empty">No questions yet.<br>Type below to add.</div>
                 @else
                     @foreach($questions as $i => $q)
-                        <div class="q-item">
-                            <span class="q-num">{{ $i + 1 }}</span>
-                            <span class="q-text">{{ $q->question }}</span>
-                            <button class="q-del" onclick="delQ(this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-                        </div>
+                        @if(trim($q->question) === '🔄')
+                            <div class="q-item q-repeat-marker">
+                                <span style="font-size:16px">🔄</span>
+                                <span class="q-text" style="color:#ea580c">── REPEAT BELOW PER QUEUE ──</span>
+                                <button class="q-del" onclick="delQ(this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                            </div>
+                        @else
+                            <div class="q-item">
+                                <span class="q-num">{{ $i + 1 }}</span>
+                                <span class="q-text">{{ $q->question }}</span>
+                                <button class="q-del" onclick="delQ(this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                            </div>
+                        @endif
                     @endforeach
                 @endif
             </div>
@@ -324,6 +343,7 @@
                     <span class="q-chip" onclick="insertPlaceholder('@{{yes}}')" title="Confirm">@{{yes}}</span>
                     <span class="q-chip" onclick="insertPlaceholder('@{{no}}')" title="Cancel">@{{no}}</span>
                     <span class="q-chip" onclick="insertPlaceholder('@{{all}}')" title="All items combined">@{{all}}</span>
+                    <span class="q-chip" onclick="addRepeatMarker()" title="Everything below this repeats per queue item" style="background:#fff7ed;color:#ea580c;border-color:#fdba74">🔄 Repeat</span>
                     <span class="q-chip-help" title="Dynamic: resolves from bot's last list at runtime">?</span>
                 </div>
                 <button class="q-run" id="q-run" onclick="runTest()">
@@ -369,10 +389,19 @@
         let inp=document.getElementById('q-input'), t=inp.value.trim();
         if(!t)return;
         let e=document.getElementById('q-empty'); if(e)e.remove();
-        let l=document.getElementById('q-list'), n=l.querySelectorAll('.q-item').length+1;
+        let l=document.getElementById('q-list'), n=l.querySelectorAll('.q-item:not(.q-repeat-marker)').length+1;
         let d=document.createElement('div'); d.className='q-item';
         d.innerHTML=`<span class="q-num">${n}</span><span class="q-text">${esc(t)}</span><button class="q-del" onclick="delQ(this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
         l.appendChild(d); inp.value=''; inp.focus(); renum(); saveQ();
+    }
+    function addRepeatMarker(){
+        // Only allow one repeat marker
+        if(document.querySelector('.q-repeat-marker')) { alert('Only one 🔄 Repeat marker allowed!'); return; }
+        let e=document.getElementById('q-empty'); if(e)e.remove();
+        let l=document.getElementById('q-list');
+        let d=document.createElement('div'); d.className='q-item q-repeat-marker';
+        d.innerHTML=`<span style="font-size:16px">🔄</span><span class="q-text" style="color:#ea580c">── REPEAT BELOW PER QUEUE ──</span><button class="q-del" onclick="delQ(this)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
+        l.appendChild(d); renum(); saveQ();
     }
     function delQ(b){
         b.closest('.q-item').remove(); renum();
@@ -382,11 +411,19 @@
     }
     function renum(){
         let items=document.querySelectorAll('#q-list .q-item');
-        items.forEach((x,i)=>x.querySelector('.q-num').textContent=i+1);
-        document.getElementById('q-count').textContent=items.length;
+        let num=1;
+        items.forEach(x => {
+            if(x.classList.contains('q-repeat-marker')) return;
+            let qn = x.querySelector('.q-num');
+            if(qn) qn.textContent = num++;
+        });
+        document.getElementById('q-count').textContent=document.querySelectorAll('#q-list .q-item:not(.q-repeat-marker)').length;
     }
     function getQs(){
-        return Array.from(document.querySelectorAll('#q-list .q-item')).map(x=>x.querySelector('.q-text').textContent.trim());
+        return Array.from(document.querySelectorAll('#q-list .q-item')).map(x => {
+            if(x.classList.contains('q-repeat-marker')) return '🔄';
+            return x.querySelector('.q-text').textContent.trim();
+        });
     }
     function esc(t){ let d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
 
@@ -438,49 +475,180 @@
         document.getElementById('wa-status').textContent='Click "Run Test" to start';
     }
 
-    // ═══ Run Test ═══
-    function runTest(){
-        let qs=getQs();
-        if(!qs.length){ alert('Add questions first!'); return; }
+    // ═══ Run Test (Step-by-Step AJAX with Queue Repeat) ═══
+    const HEADERS = {'X-CSRF-TOKEN':'{{ csrf_token() }}','Content-Type':'application/json','Accept':'application/json'};
+    let lastListItems = [];
+    let lastBotResponse = '';
+    let isRunning = false;
+
+    function resetBtn(){
         let btn=document.getElementById('q-run');
-        btn.disabled=true; btn.innerHTML='<span class="dots" style="display:inline-flex"><span></span><span></span><span></span></span> Testing...';
-
-        let c=document.getElementById('wa-body'), t=document.getElementById('wa-typing');
-        // Clear but keep typing
-        c.innerHTML=''; c.appendChild(document.createElement('div')).className='wa-spacer'; c.appendChild(t);
-        document.getElementById('wa-status').textContent='Testing...';
-        addSys('🧪 Test started — '+qs.length+' questions');
-
-        fetch("{{ route('admin.ai-analytics.test-questions.save') }}",{method:'POST',headers:{'X-CSRF-TOKEN':'{{ csrf_token() }}','Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({questions:qs})})
-        .then(()=>{
-            fetch("{{ route('admin.ai-analytics.conversation-test.run') }}",{method:'POST',headers:{'X-CSRF-TOKEN':'{{ csrf_token() }}','Accept':'application/json'}})
-            .then(res=>{
-                let reader=res.body.getReader(), dec=new TextDecoder('utf-8'), qi=0;
-                function read(){
-                    reader.read().then(({done,value})=>{
-                        if(done){
-                            showTyping(false); addSys('✅ Test complete!');
-                            document.getElementById('wa-status').textContent='Test complete';
-                            btn.disabled=false; btn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Test';
-                            return;
-                        }
-                        dec.decode(value,{stream:true}).split('\n').forEach(ln=>{
-                            if(!ln.trim())return;
-                            try{
-                                let d=JSON.parse(ln);
-                                if(d.type==='user'){ showTyping(false); qi++; document.getElementById('wa-status').textContent=`Question ${qi}/${qs.length}`; addUser(d.message); setTimeout(()=>showTyping(true),150); }
-                                else if(d.type==='bot'){ showTyping(false); addBot(d.message); }
-                                else if(d.type==='error'){ showTyping(false); addSys('❌ '+d.message); }
-                                else if(d.type==='success'){ addSys('✅ '+d.message); }
-                                else if(d.type==='info'){ addSys(d.message); }
-                            }catch(e){}
-                        });
-                        read();
-                    });
-                }
-                read();
-            }).catch(e=>{ showTyping(false); addSys('❌ Error: '+e.message); btn.disabled=false; btn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Test'; });
-        }).catch(()=>{ addSys('❌ Save failed'); btn.disabled=false; btn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Test'; });
+        btn.disabled=false;
+        btn.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Test';
+        isRunning=false;
     }
+
+    // Resolve placeholders client-side (backup for display, server also resolves)
+    function resolvePlaceholder(q, items) {
+        let lower = q.trim().toLowerCase();
+        if (lower === '{{yes}}') return 'yes';
+        if (lower === '{{no}}') return 'no';
+        let m;
+        if ((m = lower.match(/\{\{number:(\d+)\}\}/))) return m[1];
+        if (lower.includes('{{first}}')) return items[0] || '1';
+        if (lower.includes('{{last}}')) return items[items.length-1] || '1';
+        if (lower.includes('{{random}}')) return items.length ? items[Math.floor(Math.random()*items.length)] : '1';
+        if ((m = lower.match(/\{\{pick:(\d+)\}\}/))) {
+            let n = parseInt(m[1]);
+            let shuffled = [...items].sort(() => Math.random()-0.5);
+            let picked = shuffled.slice(0, Math.min(n, shuffled.length));
+            return picked.length ? picked.join(' and ') : '1';
+        }
+        if (lower.includes('{{all}}')) return items.length ? items.join(' and ') : '1';
+        return q;
+    }
+
+    async function sendOneMessage(msg) {
+        showTyping(true);
+        let res = await fetch("{{ route('admin.ai-analytics.test-step.send') }}", {
+            method:'POST', headers: HEADERS,
+            body: JSON.stringify({message: msg})
+        });
+        showTyping(false);
+        let data = await res.json();
+        return data;
+    }
+
+    async function runTest(){
+        let allQs = getQs();
+        if(!allQs.length){ alert('Add questions first!'); return; }
+
+        let btn=document.getElementById('q-run');
+        btn.disabled=true;
+        btn.innerHTML='<span class="dots" style="display:inline-flex"><span></span><span></span><span></span></span> Testing...';
+        isRunning=true;
+
+        // Clear chat
+        let c=document.getElementById('wa-body'), t=document.getElementById('wa-typing');
+        c.innerHTML=''; c.appendChild(document.createElement('div')).className='wa-spacer'; c.appendChild(t);
+
+        // Split questions at 🔄 marker
+        let repeatIdx = allQs.findIndex(q => q.trim() === '🔄');
+        let initQs, repeatQs;
+        if (repeatIdx >= 0) {
+            initQs = allQs.slice(0, repeatIdx);
+            repeatQs = allQs.slice(repeatIdx + 1);
+        } else {
+            initQs = allQs;
+            repeatQs = [];
+        }
+
+        // Init session
+        document.getElementById('wa-status').textContent='Initializing...';
+        await fetch("{{ route('admin.ai-analytics.test-step.init') }}", {method:'POST', headers: HEADERS, body:'{}'});
+
+        addSys('🧪 Test started — ' + allQs.length + ' questions' + (repeatQs.length ? ` (${repeatQs.length} repeat per queue)` : ''));
+
+        lastListItems = [];
+
+        // ═══ PHASE 1: Run init questions ═══
+        let totalSent = 0;
+        for (let i = 0; i < initQs.length; i++) {
+            if (!isRunning) break;
+            let resolved = resolvePlaceholder(initQs[i], lastListItems);
+            totalSent++;
+            document.getElementById('wa-status').textContent = `Init ${totalSent}/${initQs.length}`;
+            addUser(resolved);
+            if (initQs[i] !== resolved) addSys('🔄 ' + initQs[i] + ' → ' + resolved);
+
+            let data = await sendOneMessage(resolved);
+            addBot(data.bot_message);
+            if (data.list_items && data.list_items.length) lastListItems = data.list_items;
+            if (data.route) addSys('🛤️ ' + data.route);
+            if (data.session_state) addSys('📊 State: ' + data.session_state + (data.lead_id ? ' | Lead: #'+data.lead_id : '') + (data.quote_id ? ' | Quote: #'+data.quote_id : ''));
+
+            await new Promise(r => setTimeout(r, 800));
+        }
+
+        // ═══ PHASE 2: Run repeat questions for each queue item ═══
+        if (repeatQs.length > 0) {
+            let queueRound = 1;
+            let keepGoing = true;
+
+            while (keepGoing && isRunning) {
+                addSys('🔄 Queue Round ' + queueRound + ' — ' + repeatQs.length + ' questions');
+
+                let currentRepeatQs = [...repeatQs]; // copy so user can edit
+
+                // Ask user if they want to edit for this round (except round 1)
+                if (queueRound > 1) {
+                    let editChoice = await showQueuePrompt(queueRound, currentRepeatQs);
+                    if (editChoice === 'stop') { addSys('⏹️ Stopped by user'); break; }
+                    if (editChoice !== null) currentRepeatQs = editChoice; // edited questions
+                }
+
+                let lastPendingQueue = 0;
+                for (let i = 0; i < currentRepeatQs.length; i++) {
+                    if (!isRunning) break;
+                    let resolved = resolvePlaceholder(currentRepeatQs[i], lastListItems);
+                    totalSent++;
+                    document.getElementById('wa-status').textContent = `Queue ${queueRound} — ${i+1}/${currentRepeatQs.length}`;
+                    addUser(resolved);
+                    if (currentRepeatQs[i] !== resolved) addSys('🔄 ' + currentRepeatQs[i] + ' → ' + resolved);
+
+                    let data = await sendOneMessage(resolved);
+                    addBot(data.bot_message);
+                    if (data.list_items && data.list_items.length) lastListItems = data.list_items;
+                    if (data.route) addSys('🛤️ ' + data.route);
+                    if (data.session_state) addSys('📊 State: ' + data.session_state + (data.pending_queue ? ' | Queue: '+data.pending_queue+' pending' : ''));
+                    lastPendingQueue = data.pending_queue || 0;
+
+                    await new Promise(r => setTimeout(r, 800));
+                }
+
+                // Check if more queue items remain based on last response
+                if (lastPendingQueue <= 0) {
+                    keepGoing = false;
+                } else {
+                    queueRound++;
+                }
+            }
+        }
+
+        addSys('✅ Test complete! (' + totalSent + ' messages sent)');
+        document.getElementById('wa-status').textContent = 'Test complete';
+
+        // Cleanup
+        await fetch("{{ route('admin.ai-analytics.test-step.cleanup') }}", {method:'POST', headers:HEADERS, body:'{}'});
+        resetBtn();
+    }
+
+    // ═══ Queue Edit Prompt ═══
+    function showQueuePrompt(round, questions) {
+        return new Promise(resolve => {
+            let overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+
+            let modal = document.createElement('div');
+            modal.style.cssText = 'background:#fff;border-radius:12px;padding:24px;width:420px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)';
+            modal.innerHTML = `
+                <h3 style="margin:0 0 4px;font-size:16px;font-weight:700">🔄 Queue Round ${round}</h3>
+                <p style="margin:0 0 16px;font-size:13px;color:#667">Same questions for next product? Edit if needed:</p>
+                <div id="qp-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">
+                    ${questions.map((q,i) => `<input type="text" value="${esc(q)}" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box" />`).join('')}
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end">
+                    <button onclick="this.closest('div[style*=fixed]')._resolve('stop')" style="padding:8px 16px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:600">⏹ Stop</button>
+                    <button onclick="this.closest('div[style*=fixed]')._resolve(null)" style="padding:8px 16px;border:none;border-radius:8px;background:#22c55e;color:#fff;cursor:pointer;font-size:13px;font-weight:700">▶ Run As-Is</button>
+                    <button onclick="let inputs=this.closest('div[style*=fixed]').querySelectorAll('#qp-list input');let qs=Array.from(inputs).map(i=>i.value.trim()).filter(x=>x);this.closest('div[style*=fixed]')._resolve(qs)" style="padding:8px 16px;border:none;border-radius:8px;background:#f97316;color:#fff;cursor:pointer;font-size:13px;font-weight:700">✏ Run Edited</button>
+                </div>
+            `;
+            overlay.appendChild(modal);
+            overlay._resolve = (val) => { overlay.remove(); resolve(val); };
+            document.body.appendChild(overlay);
+        });
+    }
+
+
 </script>
 @endpush
