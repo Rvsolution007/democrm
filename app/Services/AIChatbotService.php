@@ -2526,8 +2526,62 @@ class AIChatbotService
 
             $reply = "✅ *{$productName} Confirmed!*\n\n";
             $reply .= "Thank you! 🙏\n\n";
-            $reply .= "Would you like to add another product? Just tell me what you're looking for!\n\n";
-            $reply .= "Or if you're done, our team will reach out to you for delivery & payment details. 😊";
+
+            // ═══ CHECK FOR QUEUED CATEGORIES (from multi-PGM match) ═══
+            $nextQueued = AiProductSession::where('chat_session_id', $session->id)
+                ->where('status', 'pending')
+                ->orderBy('sort_order')
+                ->first();
+
+            if ($nextQueued) {
+                $queuedData = $nextQueued->collected_answers ?? [];
+                $queuedCatId = $queuedData['category_id'] ?? null;
+                $queuedCatName = $queuedData['category_name'] ?? $nextQueued->product_name;
+
+                // Mark this queue entry as active
+                $nextQueued->update(['status' => 'active']);
+
+                // Count remaining after this one
+                $remainingCount = AiProductSession::where('chat_session_id', $session->id)
+                    ->where('status', 'pending')
+                    ->count();
+
+                $this->traceNode($session->id, 'QueueNextCategory', 'routing', 'success',
+                    ['trigger' => 'order_confirmed', 'previous_product' => $productName],
+                    ['next_category' => $queuedCatName, 'category_id' => $queuedCatId,
+                     'remaining_in_queue' => $remainingCount, 'action' => 'auto_process_next']);
+
+                if ($queuedCatId) {
+                    // Auto-select the queued category
+                    $session->setAnswer('category_id', $queuedCatId);
+                    $session->setAnswer('category_name', $queuedCatName);
+                    $session->conversation_state = 'awaiting_product';
+                    $session->catalogue_sent = true;
+                    $steps = ChatflowStep::with('linkedColumn')->where('company_id', $this->companyId)->orderBy('sort_order')->get();
+                    $this->advanceChatflow($session, $steps);
+                    $session->save();
+
+                    $reply .= "📋 Ab *{$queuedCatName}* ke products dekhte hain:";
+                    if ($remainingCount > 0) {
+                        $remainingNames = AiProductSession::where('chat_session_id', $session->id)
+                            ->where('status', 'pending')
+                            ->orderBy('sort_order')
+                            ->pluck('product_name')
+                            ->toArray();
+                        $reply .= "\n⏳ _Queue: " . implode(', ', $remainingNames) . "_";
+                    }
+                    $reply .= "\n\n";
+                    $reply .= $this->sendCatalogue($session);
+                } else {
+                    // No category_id → generic next
+                    $reply .= "Would you like to add another product? Just tell me what you're looking for!\n\n";
+                    $reply .= "Or if you're done, our team will reach out to you for delivery & payment details. 😊";
+                }
+            } else {
+                // No queue → generic message
+                $reply .= "Would you like to add another product? Just tell me what you're looking for!\n\n";
+                $reply .= "Or if you're done, our team will reach out to you for delivery & payment details. 😊";
+            }
 
         } elseif (in_array($msg, ['no', 'n', 'nahi', 'cancel'])) {
             // Check if this is cancelling the LAST product or the entire order
