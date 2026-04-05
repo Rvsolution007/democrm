@@ -374,7 +374,78 @@
         $dbTraces = $traces->where('node_group', 'database');
         $groupedSalesTraces = $salesTraces->groupBy('message_id')->reverse();
         $groupedDbTraces = $dbTraces->groupBy('message_id')->reverse();
+
+        // Load product sessions for queue display
+        $productSessions = \App\Models\AiProductSession::where('chat_session_id', $session->id)
+            ->orderBy('sort_order')
+            ->get();
     @endphp
+
+    {{-- ═══ MULTI-PRODUCT QUEUE TIMELINE ═══ --}}
+    @if($productSessions->isNotEmpty())
+    <div class="card" style="margin-bottom:32px; border-radius:12px; box-shadow:0 4px 6px -1px rgb(0 0 0/0.05); border:1px solid #c084fc; overflow:hidden">
+        <div style="background:linear-gradient(135deg,#faf5ff,#f3e8ff); padding:16px 20px; display:flex; align-items:center; gap:12px; border-bottom:1px solid #e9d5ff">
+            <i data-lucide="layers" style="width:22px;height:22px;color:#7e22ce"></i>
+            <span style="font-weight:700;font-size:16px;color:#7e22ce">Multi-Product Queue</span>
+            <span style="background:#e9d5ff;color:#7e22ce;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;margin-left:auto">
+                {{ $productSessions->count() }} items
+            </span>
+        </div>
+        <div style="padding:20px; display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start">
+            @foreach($productSessions as $psIndex => $ps)
+                @php
+                    $psData = $ps->collected_answers ?? [];
+                    $psStatus = $ps->status;
+                    $statusColors = [
+                        'active' => ['bg' => '#dcfce7', 'text' => '#166534', 'border' => '#22c55e', 'icon' => '▶️'],
+                        'pending' => ['bg' => '#fef3c7', 'text' => '#92400e', 'border' => '#f59e0b', 'icon' => '⏳'],
+                        'completed' => ['bg' => '#dbeafe', 'text' => '#1e40af', 'border' => '#3b82f6', 'icon' => '✅'],
+                        'cancelled' => ['bg' => '#fee2e2', 'text' => '#991b1b', 'border' => '#ef4444', 'icon' => '❌'],
+                    ];
+                    $sc = $statusColors[$psStatus] ?? $statusColors['pending'];
+                @endphp
+                <div style="flex:1; min-width:200px; max-width:300px; border:2px solid {{ $sc['border'] }}; border-radius:12px; overflow:hidden; position:relative">
+                    {{-- Status bar --}}
+                    <div style="background:{{ $sc['bg'] }}; padding:10px 14px; display:flex; align-items:center; gap:8px">
+                        <span style="font-size:16px">{{ $sc['icon'] }}</span>
+                        <span style="font-weight:700; font-size:14px; color:{{ $sc['text'] }}">
+                            {{ $psData['category_name'] ?? $ps->product_name ?? 'Queue #'.($psIndex+1) }}
+                        </span>
+                    </div>
+                    {{-- Details --}}
+                    <div style="padding:10px 14px; font-size:12px; color:#475569">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px">
+                            <span style="font-weight:600">Status:</span>
+                            <span style="background:{{ $sc['bg'] }}; color:{{ $sc['text'] }}; padding:1px 8px; border-radius:10px; font-weight:700; text-transform:uppercase; font-size:10px">
+                                {{ $psStatus }}
+                            </span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px">
+                            <span style="font-weight:600">Order:</span>
+                            <span>#{{ $ps->sort_order + 1 }}</span>
+                        </div>
+                        @if($psData['category_id'] ?? null)
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px">
+                            <span style="font-weight:600">Cat ID:</span>
+                            <span>{{ $psData['category_id'] }}</span>
+                        </div>
+                        @endif
+                        <div style="display:flex; justify-content:space-between">
+                            <span style="font-weight:600">Created:</span>
+                            <span>{{ $ps->created_at->format('h:i A') }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Arrow between cards --}}
+                @if(!$loop->last)
+                <div style="display:flex; align-items:center; color:#c084fc; font-size:24px; font-weight:700; align-self:center">→</div>
+                @endif
+            @endforeach
+        </div>
+    </div>
+    @endif
+
 
     <!-- ═══ SECTION 1: Sales Trace ═══ -->
     <div class="message-accordion" style="margin-bottom: 30px; border-radius: 12px; overflow: hidden; border: 1px solid #bfdbfe;">
