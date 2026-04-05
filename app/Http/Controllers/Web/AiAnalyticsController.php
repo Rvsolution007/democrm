@@ -302,22 +302,41 @@ class AiAnalyticsController extends Controller
     {
         $items = [];
 
-        // Emoji numbered: 1️⃣ Cabinet Handle (1 products)
-        if (preg_match_all('/\d+️⃣\s*\*?([^*(]+?)\*?\s*\(?\d*\s*products?\)?/iu', $response, $m)) {
+        // Pattern 1: Emoji numbered with "(N products)" → Category list
+        // e.g., 1️⃣ Cabinet Handle (1 products)
+        if (preg_match_all('/\d+️⃣\s*\*?([^*(]+?)\*?\s*\(\d+\s*products?\)/iu', $response, $m)) {
             foreach ($m[1] as $v) { $c = trim($v, " *\t\n\r"); if ($c) $items[] = $c; }
         }
 
-        // Standard numbered: 1. Item or 1) Item
-        if (empty($items) && preg_match_all('/^\s*\d+[\.\)]\s*\*?(.+?)\*?\s*$/mu', $response, $m)) {
+        // Pattern 2: Emoji numbered with "(ModelNumber)" → Product list
+        // e.g., 1️⃣ Door Handle (101)  or  1️⃣ *Door Handle (201)*
+        if (empty($items) && preg_match_all('/\d+️⃣\s*\*?([^*\n]+?)\s*\(([^)]+)\)\*?\s*$/mu', $response, $m)) {
+            foreach ($m[1] as $i => $v) {
+                $name = trim($v, " *\t\n\r");
+                $model = trim($m[2][$i]);
+                // Skip if already captured as category format
+                if (stripos($model, 'product') !== false) continue;
+                if ($name) $items[] = $name . ' (' . $model . ')';
+            }
+        }
+
+        // Pattern 3: Emoji numbered without parentheses → Simple items
+        // e.g., 1️⃣ 15 Peace  or  1️⃣ Black
+        if (empty($items) && preg_match_all('/\d+️⃣\s*\*?([^\n*]+?)\*?\s*$/mu', $response, $m)) {
+            foreach ($m[1] as $v) { $c = trim($v, " *\t\n\r"); if ($c) $items[] = $c; }
+        }
+
+        // Pattern 4: Standard numbered: 1. Item or 1) Item
+        if (empty($items) && preg_match_all('/^\s*\d+[\.)\]]\s*\*?(.+?)\*?\s*$/mu', $response, $m)) {
             foreach ($m[1] as $v) { $c = trim(preg_replace('/\(.*\)/', '', $v)); $c = trim($c, " *\t\n\r"); if ($c) $items[] = $c; }
         }
 
-        // Pipe separated: Black | Grey
+        // Pattern 5: Pipe separated: Black | Grey
         if (empty($items) && preg_match('/([A-Za-z0-9]+(?:\s*\|\s*[A-Za-z0-9]+)+)/', $response, $m)) {
             $items = array_map('trim', explode('|', $m[1]));
         }
 
-        // Units: 96mm | 128mm
+        // Pattern 6: Units: 96mm | 128mm | 15 Peace
         if (empty($items) && preg_match_all('/(\d+\s*(?:mm|cm|kg|gm|ml|ltr|pcs?|pieces?|peace))/iu', $response, $m)) {
             $items = array_values(array_unique($m[1]));
         }
