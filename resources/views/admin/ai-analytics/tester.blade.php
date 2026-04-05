@@ -66,6 +66,7 @@
         font-size: 11px; font-weight: 800; flex-shrink: 0;
     }
     .q-text { flex: 1; font-size: 13px; color: #1e293b; word-break: break-word; }
+    .q-text .dyn-tag { background: #dbeafe; color: #1d4ed8; font-size: 11px; padding: 1px 5px; border-radius: 4px; font-weight: 600; font-family: monospace; }
     .q-del {
         width: 22px; height: 22px; border-radius: 5px; border: none;
         background: transparent; color: #a0aec0; cursor: pointer;
@@ -89,6 +90,19 @@
     }
     .q-add input:focus { border-color: #f97316; }
     .q-add input::placeholder { color: #a0aec0; }
+
+    /* Dynamic placeholder chips */
+    .q-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+    .q-chip {
+        padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700;
+        border: 1px solid #e2e8f0; background: #f8fafc; color: #475569;
+        cursor: pointer; transition: all .12s; font-family: monospace;
+    }
+    .q-chip:hover { background: #dbeafe; color: #1d4ed8; border-color: #93c5fd; }
+    .q-chip-help {
+        padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 700;
+        background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; cursor: help;
+    }
     .q-add-btn {
         width: 36px; height: 36px; border-radius: 8px; border: none;
         background: #f97316; color: #fff; cursor: pointer;
@@ -299,8 +313,18 @@
             </div>
             <div class="q-footer">
                 <div class="q-add">
-                    <input type="text" id="q-input" placeholder="Type a question..." onkeydown="if(event.key==='Enter')addQ()">
+                    <input type="text" id="q-input" placeholder="Type a question or use @{{pick:2}}..." onkeydown="if(event.key==='Enter')addQ()">
                     <button class="q-add-btn" onclick="addQ()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+                </div>
+                <div class="q-chips">
+                    <span class="q-chip" onclick="insertPlaceholder('@{{pick:1}}')" title="Pick 1 random from bot's list">@{{pick:1}}</span>
+                    <span class="q-chip" onclick="insertPlaceholder('@{{pick:2}}')" title="Pick 2 random from bot's list">@{{pick:2}}</span>
+                    <span class="q-chip" onclick="insertPlaceholder('@{{first}}')" title="First item from bot's list">@{{first}}</span>
+                    <span class="q-chip" onclick="insertPlaceholder('@{{last}}')" title="Last item from bot's list">@{{last}}</span>
+                    <span class="q-chip" onclick="insertPlaceholder('@{{yes}}')" title="Confirm">@{{yes}}</span>
+                    <span class="q-chip" onclick="insertPlaceholder('@{{no}}')" title="Cancel">@{{no}}</span>
+                    <span class="q-chip" onclick="insertPlaceholder('@{{all}}')" title="All items combined">@{{all}}</span>
+                    <span class="q-chip-help" title="Dynamic: resolves from bot's last list at runtime">?</span>
                 </div>
                 <button class="q-run" id="q-run" onclick="runTest()">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -333,6 +357,13 @@
 
 @push('scripts')
 <script>
+    // ═══ Placeholder Insert ═══
+    function insertPlaceholder(text) {
+        let inp = document.getElementById('q-input');
+        inp.value = text;
+        inp.focus();
+    }
+
     // ═══ Questions ═══
     function addQ(){
         let inp=document.getElementById('q-input'), t=inp.value.trim();
