@@ -455,7 +455,7 @@
                                 $aiTier = 'Tier 1 AI';
                             } elseif (in_array($trace->node_name, ['GreetingAIResponse'])) {
                                 $aiTier = 'Tier 0 AI';
-                            } elseif (in_array($trace->node_name, ['CategoryPHPMultiMatch', 'ProductPHPMultiMatch', 'ProductMatchPHP', 'ColumnFilterSelected', 'CategorySelected', 'ProductSelected', 'PHPProductGroupMatch'])) {
+                            } elseif (in_array($trace->node_name, ['CategoryPHPMultiMatch', 'ProductPHPMultiMatch', 'ProductMatchPHP', 'ColumnFilterSelected', 'CategorySelected', 'ProductSelected', 'PHPProductGroupMatch', 'PGMCategoryAutoSelect', 'PGMCategoryMultiMatch', 'PGMCategoryResolve'])) {
                                 $aiTier = 'Tier 0 Logic';
                             }
                         @endphp

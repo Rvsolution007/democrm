@@ -761,6 +761,50 @@ class AIChatbotService
         // ══ Check if ask_category step exists and category not yet selected ══
         $hasCategoryStep = $steps->contains('step_type', 'ask_category');
 
+        // ═══ STAGE 2: PHP PRODUCT GROUP MATCH — Runs BEFORE any AI/intent checks ═══
+        $isPureNumber = preg_match('/^\d+$/', trim($rawMessage));
+        if (!$isPureNumber && mb_strlen(trim($rawMessage)) >= 2) {
+            $pgmStart = microtime(true);
+            $pgmMatches = $this->phpProductGroupMatch($rawMessage);
+            $pgmMs = (int)((microtime(true) - $pgmStart) * 1000);
+
+            if (!empty($pgmMatches)) {
+                $this->traceNode($session->id, 'PHPProductGroupMatch', 'routing', 'success',
+                    ['message' => $rawMessage, 'min_confidence' => $this->matchMinConfidence, 'engine' => '5-Layer (Exact/Contains/Word/Fuzzy/Phonetic)'],
+                    ['match_count' => count($pgmMatches), 'time_ms' => $pgmMs,
+                     'top_matches' => array_map(fn($m) => [
+                         'col' => $m['column_name'], 'val' => $m['matched_value'],
+                         'type' => $m['match_type'], 'conf' => $m['confidence'] . '%',
+                         'is_cat' => $m['is_category'], 'is_uniq' => $m['is_unique'],
+                     ], array_slice($pgmMatches, 0, 8))], null, $pgmMs);
+
+                // Classify matches
+                $catPGM = array_values(array_filter($pgmMatches, fn($m) => $m['is_category']));
+                $uniPGM = array_values(array_filter($pgmMatches, fn($m) => $m['is_unique']));
+
+                // SCENARIO 1a: Category matches + category step pending
+                if (!empty($catPGM) && $hasCategoryStep && !isset($answers['category_id'])) {
+                    $this->routeTrace[] = 'PGM→CategoryMatch';
+                    return $this->handlePGMCategoryMatch($session, $rawMessage, $catPGM, $steps);
+                }
+
+                // SCENARIO 1b: Unique column matches + past category step
+                if (!empty($uniPGM) && (!$hasCategoryStep || isset($answers['category_id']))) {
+                    $this->routeTrace[] = 'PGM→ProductMatch';
+                    return $this->matchProductFromMessage($session, $fullMessage, $rawMessage, $imageUrl, $steps);
+                }
+
+                // SCENARIO 2: Other column matches → Tier 3
+                $this->routeTrace[] = 'PGM→Tier3';
+                return $this->handleTier3ColumnAnalytics($session, $rawMessage, $pgmMatches, $imageUrl);
+            } else {
+                $this->traceNode($session->id, 'PHPProductGroupMatch', 'routing', 'success',
+                    ['message' => $rawMessage, 'min_confidence' => $this->matchMinConfidence],
+                    ['match_count' => 0, 'time_ms' => $pgmMs, 'fallback' => 'legacy_intent_flow'], null, $pgmMs);
+            }
+        }
+
+        // ═══ EXISTING FLOW (PGM found no matches or skipped) ═══
         if ($hasCategoryStep && !isset($answers['category_id'])) {
             // Category flow active — check if categories already sent
             if ($session->conversation_state === 'awaiting_category') {
@@ -845,6 +889,110 @@ class AIChatbotService
         // Not product-related — use Tier 2 for general conversation
         $this->routeTrace[] = 'handleTier2';
         return $this->handleTier2($session, $fullMessage, $imageUrl);
+    }
+
+    /**
+     * Handle PGM-resolved category matches.
+     * Single match → auto-select. Multiple → queue with AiProductSession.
+     */
+    private function handlePGMCategoryMatch(AiChatSession $session, string $rawMessage, array $catPGM, $steps): string
+    {
+        $categories = \App\Models\Category::where('company_id', $this->companyId)
+            ->where('status', 'active')
+            ->whereHas('products', fn($q) => $q->where('status', 'active'))
+            ->orderBy('name')
+            ->get();
+
+        // Resolve PGM matched values → actual Category models
+        $resolved = [];
+        foreach ($catPGM as $pm) {
+            $val = mb_strtolower(trim($pm['matched_value']));
+            foreach ($categories as $cat) {
+                if (isset($resolved[$cat->id])) continue;
+                $catLow = mb_strtolower($cat->name);
+                if ($catLow === $val || str_contains($catLow, $val) || str_contains($val, $catLow)) {
+                    $resolved[$cat->id] = [
+                        'category' => $cat,
+                        'pgm_value' => $pm['matched_value'],
+                        'confidence' => $pm['confidence'],
+                        'match_type' => $pm['match_type'],
+                    ];
+                }
+            }
+        }
+
+        if (empty($resolved)) {
+            $this->traceNode($session->id, 'PGMCategoryResolve', 'routing', 'warning',
+                ['pgm_values' => array_column($catPGM, 'matched_value')],
+                ['resolved_count' => 0, 'fallback' => 'sendCategoryList']);
+            return $this->sendCategoryList($session);
+        }
+
+        $resolvedArr = array_values($resolved);
+
+        if (count($resolvedArr) === 1) {
+            // ── SINGLE CATEGORY → Auto-select ──
+            $cat = $resolvedArr[0]['category'];
+            $this->traceNode($session->id, 'PGMCategoryAutoSelect', 'routing', 'success',
+                ['pgm_input' => $rawMessage, 'pgm_value' => $resolvedArr[0]['pgm_value'],
+                 'confidence' => $resolvedArr[0]['confidence'] . '%', 'match_type' => $resolvedArr[0]['match_type']],
+                ['category_id' => $cat->id, 'category_name' => $cat->name, 'action' => 'auto_select']);
+
+            $session->setAnswer('category_id', $cat->id);
+            $session->setAnswer('category_name', $cat->name);
+            $session->conversation_state = 'awaiting_product';
+            $session->catalogue_sent = true;
+            $this->advanceChatflow($session, $steps);
+            $session->save();
+
+            Log::info("AIChatbot: PGM category auto-select", ['session' => $session->id, 'category' => $cat->name]);
+
+            $msg = "✅ *{$cat->name}* selected!\n\n";
+            $msg .= $this->sendCatalogue($session);
+            return $msg;
+        }
+
+        // ── MULTIPLE CATEGORIES → Process first, queue rest ──
+        $first = $resolvedArr[0]['category'];
+        $queuedNames = [];
+
+        for ($i = 1; $i < count($resolvedArr); $i++) {
+            $qCat = $resolvedArr[$i]['category'];
+            AiProductSession::create([
+                'session_id' => $session->id,
+                'product_ids' => [],
+                'status' => 'queued',
+                'metadata' => [
+                    'type' => 'category_queue',
+                    'category_id' => $qCat->id,
+                    'category_name' => $qCat->name,
+                ],
+            ]);
+            $queuedNames[] = $qCat->name;
+        }
+
+        $this->traceNode($session->id, 'PGMCategoryMultiMatch', 'routing', 'success',
+            ['pgm_input' => $rawMessage, 'total_matched' => count($resolvedArr),
+             'all_categories' => array_map(fn($r) => $r['category']->name, $resolvedArr)],
+            ['processing_first' => $first->name, 'queued' => $queuedNames,
+             'sessions_created' => count($queuedNames), 'action' => 'multi_queue']);
+
+        $session->setAnswer('category_id', $first->id);
+        $session->setAnswer('category_name', $first->name);
+        $session->conversation_state = 'awaiting_product';
+        $session->catalogue_sent = true;
+        $this->advanceChatflow($session, $steps);
+        $session->save();
+
+        Log::info("AIChatbot: PGM multi-category", ['session' => $session->id, 'first' => $first->name, 'queued' => $queuedNames]);
+
+        $msg = "✅ *{$first->name}* selected!";
+        if (!empty($queuedNames)) {
+            $msg .= "\n📋 _" . implode(', ', $queuedNames) . " ke liye baad me puchenge._";
+        }
+        $msg .= "\n\n";
+        $msg .= $this->sendCatalogue($session);
+        return $msg;
     }
 
     /**
