@@ -959,10 +959,12 @@ class AIChatbotService
         for ($i = 1; $i < count($resolvedArr); $i++) {
             $qCat = $resolvedArr[$i]['category'];
             AiProductSession::create([
-                'session_id' => $session->id,
-                'product_ids' => [],
-                'status' => 'queued',
-                'metadata' => [
+                'chat_session_id' => $session->id,
+                'company_id' => $this->companyId,
+                'product_name' => $qCat->name,
+                'status' => 'pending',
+                'sort_order' => $i,
+                'collected_answers' => [
                     'type' => 'category_queue',
                     'category_id' => $qCat->id,
                     'category_name' => $qCat->name,
