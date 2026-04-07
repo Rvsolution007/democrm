@@ -5,19 +5,32 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 
 class AuthController extends Controller
 {
+    // ─── Admin / Staff Login ────────────────────────────────────────────
+
     public function showLogin()
     {
         if (Auth::check()) {
-            return redirect()->route('admin.dashboard');
+            return $this->redirectByUserType(Auth::user());
         }
         return view('admin.auth.login');
     }
 
     public function login(Request $request)
     {
+        // Rate limiting: 5 attempts per 15 minutes
+        $throttleKey = 'login:' . $request->ip();
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $minutes = ceil($seconds / 60);
+            return back()->withErrors([
+                'email' => "Too many login attempts. Please try again in {$minutes} minute(s).",
+            ])->onlyInput('email');
+        }
+
         $credentials = $request->validate([
             'email' => 'required|email',
             'password' => 'required|string',
@@ -27,8 +40,11 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials, $remember)) {
             $request->session()->regenerate();
+            RateLimiter::clear($throttleKey);
 
             $user = Auth::user();
+
+            // Check if user account is active
             if ($user->status !== 'active') {
                 Auth::logout();
                 return back()->withErrors([
@@ -36,20 +52,138 @@ class AuthController extends Controller
                 ])->onlyInput('email');
             }
 
-            return redirect()->route('admin.dashboard');
+            // Block super_admin from using regular login
+            if ($user->user_type === 'super_admin') {
+                Auth::logout();
+                return back()->withErrors([
+                    'email' => 'Invalid email or password.',
+                ])->onlyInput('email');
+            }
+
+            // Update last login
+            $user->update(['last_login_at' => now()]);
+
+            // Check subscription for admin/staff
+            $company = $user->company;
+            if ($company) {
+                $subscription = $company->activeSubscription();
+                if (!$subscription) {
+                    $latest = $company->latestSubscription();
+                    if (!$latest || !$latest->isInGracePeriod()) {
+                        // Subscription fully expired — let them login but redirect to expired page
+                        return redirect()->route('subscription.expired');
+                    }
+                }
+            }
+
+            return $this->redirectByUserType($user);
         }
+
+        RateLimiter::hit($throttleKey, 900); // 15 minutes = 900 seconds
 
         return back()->withErrors([
             'email' => 'Invalid email or password.',
         ])->onlyInput('email');
     }
 
+    // ─── Super Admin Login (Hidden URL) ─────────────────────────────────
+
+    public function showSaLogin()
+    {
+        if (Auth::check() && Auth::user()->user_type === 'super_admin') {
+            return redirect()->route('superadmin.dashboard');
+        }
+        return view('superadmin.auth.login');
+    }
+
+    public function saLogin(Request $request)
+    {
+        // Rate limiting: 3 attempts per 30 minutes (stricter for SA)
+        $throttleKey = 'sa-login:' . $request->ip();
+        if (RateLimiter::tooManyAttempts($throttleKey, 3)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $minutes = ceil($seconds / 60);
+            return back()->withErrors([
+                'email' => "Account locked. Try again in {$minutes} minute(s).",
+            ])->onlyInput('email');
+        }
+
+        $credentials = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string',
+        ]);
+
+        if (Auth::attempt($credentials)) {
+            $user = Auth::user();
+
+            // ONLY super_admin can login from SA portal
+            if ($user->user_type !== 'super_admin') {
+                Auth::logout();
+                RateLimiter::hit($throttleKey, 1800);
+                return back()->withErrors([
+                    'email' => 'Invalid credentials.',
+                ])->onlyInput('email');
+            }
+
+            if ($user->status !== 'active') {
+                Auth::logout();
+                return back()->withErrors([
+                    'email' => 'Account deactivated.',
+                ])->onlyInput('email');
+            }
+
+            $request->session()->regenerate();
+            RateLimiter::clear($throttleKey);
+            $user->update(['last_login_at' => now()]);
+
+            return redirect()->route('superadmin.dashboard');
+        }
+
+        RateLimiter::hit($throttleKey, 1800); // 30 minutes
+
+        return back()->withErrors([
+            'email' => 'Invalid credentials.',
+        ])->onlyInput('email');
+    }
+
+    // ─── Logout ─────────────────────────────────────────────────────────
+
     public function logout(Request $request)
     {
+        $userType = Auth::user()?->user_type;
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
+        // SA logout → SA login URL, Admin/Staff → regular login
+        if ($userType === 'super_admin') {
+            $slug = config('app.sa_login_slug', env('SA_LOGIN_SLUG', 'sa-portal'));
+            return redirect("/{$slug}/login");
+        }
+
         return redirect()->route('login');
     }
+
+    // ─── Subscription Expired Page ──────────────────────────────────────
+
+    public function subscriptionExpired()
+    {
+        $user = Auth::user();
+        $company = $user?->company;
+        $subscription = $company?->latestSubscription();
+
+        return view('admin.subscription.expired', compact('user', 'company', 'subscription'));
+    }
+
+    // ─── Helpers ────────────────────────────────────────────────────────
+
+    private function redirectByUserType($user)
+    {
+        return match ($user->user_type) {
+            'super_admin' => redirect()->route('superadmin.dashboard'),
+            default => redirect()->route('admin.dashboard'),
+        };
+    }
 }
+

@@ -358,6 +358,27 @@ class AIChatbotService
     ): array {
         $this->pendingTraces = [];
 
+        // ─── Credit Balance Pre-Check ──────────────────────────────────
+        try {
+            $wallet = \App\Models\AiCreditWallet::where('company_id', $this->companyId)->first();
+            if ($wallet && !$wallet->canOperate()) {
+                Log::warning('AIChatbot: Insufficient credits', [
+                    'company_id' => $this->companyId,
+                    'balance' => $wallet->balance,
+                ]);
+                return [
+                    'status' => 'insufficient_credits',
+                    'response' => 'Our AI assistant is currently unavailable. Please try again later.',
+                    'session_id' => null,
+                    'lead_id' => null,
+                    'quote_id' => null,
+                ];
+            }
+        } catch (\Exception $e) {
+            // Don't block if wallet check fails — continue processing
+            Log::warning('AIChatbot: Wallet check failed - ' . $e->getMessage());
+        }
+
         try {
             $result = DB::transaction(function () use ($instanceName, $phone, $messageText, $replyContext, $imageUrl) {
 
@@ -4398,10 +4419,12 @@ PROMPT;
     }
 
     /**
-     * Log token consumption
+     * Log token consumption + deduct AI credits from company wallet.
      */
     private function logTokens(AiChatSession $session, int $tier, array $result): void
     {
+        $totalTokens = $result['total_tokens'] ?? 0;
+
         try {
             AiTokenLog::create([
                 'company_id' => $this->companyId,
@@ -4410,11 +4433,32 @@ PROMPT;
                 'tier' => $tier,
                 'prompt_tokens' => $result['prompt_tokens'] ?? 0,
                 'completion_tokens' => $result['completion_tokens'] ?? 0,
-                'total_tokens' => $result['total_tokens'] ?? 0,
+                'total_tokens' => $totalTokens,
                 'model_used' => 'gemini-2.0-flash',
             ]);
         } catch (\Exception $e) {
             Log::warning('AIChatbot: Failed to log tokens - ' . $e->getMessage());
+        }
+
+        // ─── AI Credit Wallet Deduction ──────────────────────────────
+        if ($totalTokens > 0) {
+            try {
+                $wallet = \App\Models\AiCreditWallet::where('company_id', $this->companyId)->first();
+                if ($wallet) {
+                    $creditsToDeduct = \App\Models\AiCreditWallet::calculateCredits($totalTokens);
+                    if ($creditsToDeduct > 0 && $wallet->balance >= $creditsToDeduct) {
+                        $wallet->deductCredits(
+                            $creditsToDeduct,
+                            'chat_message',
+                            $session->id,
+                            $totalTokens,
+                            "Tier {$tier} AI call: {$totalTokens} tokens"
+                        );
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('AIChatbot: Failed to deduct credits - ' . $e->getMessage());
+            }
         }
     }
 

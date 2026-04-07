@@ -14,6 +14,7 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     protected $fillable = [
+        'user_type',
         'company_id',
         'role_id',
         'name',
@@ -22,7 +23,9 @@ class User extends Authenticatable
         'password',
         'avatar',
         'status',
+        'max_sessions',
         'last_login_at',
+        'password_changed_at',
     ];
 
     protected $hidden = [
@@ -35,6 +38,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'password_changed_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
@@ -66,10 +70,51 @@ class User extends Authenticatable
         return $this->status === 'active';
     }
 
+    // ─── User Type Helpers ───────────────────────────────────────────
+
+    /**
+     * Check if user is the platform Super Admin.
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->user_type === 'super_admin';
+    }
+
+    /**
+     * Check if user is a Business Admin (company owner).
+     */
+    public function isBusinessAdmin(): bool
+    {
+        return $this->user_type === 'admin';
+    }
+
+    /**
+     * Check if user is a Staff member under an Admin.
+     */
+    public function isStaff(): bool
+    {
+        return $this->user_type === 'staff';
+    }
+
+    /**
+     * Legacy isAdmin() — returns true for super_admin and admin types,
+     * and also for roles with 'all' permission (backward compat).
+     */
     public function isAdmin(): bool
     {
+        if (in_array($this->user_type, ['super_admin', 'admin'])) {
+            return true;
+        }
         $permissions = $this->role?->permissions ?? [];
         return in_array('all', $permissions) || ($this->role?->is_system ?? false);
+    }
+
+    /**
+     * Get the admin user who owns this staff user's company.
+     */
+    public function getCompanyOwner(): ?User
+    {
+        return $this->company?->owner;
     }
 
     /**

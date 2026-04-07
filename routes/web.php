@@ -26,10 +26,65 @@ use App\Http\Controllers\Web\AiAnalyticsController;
 |--------------------------------------------------------------------------
 */
 
-// Auth Routes
+// Auth Routes (Admin / Staff)
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+// Super Admin Login (Hidden URL from .env SA_LOGIN_SLUG)
+Route::prefix(env('SA_LOGIN_SLUG', 'sa-portal'))->group(function () {
+    Route::get('/login', [AuthController::class, 'showSaLogin'])->name('sa.login');
+    Route::post('/login', [AuthController::class, 'saLogin'])->name('sa.login.post');
+});
+
+// Subscription Expired Page (accessible when logged in but expired)
+Route::get('/subscription/expired', [AuthController::class, 'subscriptionExpired'])
+    ->name('subscription.expired')
+    ->middleware('auth');
+
+// Super Admin Panel Routes (protected by auth + superadmin middleware)
+Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmin'])->group(function () {
+    // Dashboard
+    Route::get('/dashboard', [App\Http\Controllers\SuperAdmin\DashboardController::class, 'index'])->name('dashboard');
+
+    // Businesses
+    Route::get('/businesses', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'index'])->name('businesses.index');
+    Route::get('/businesses/create', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'create'])->name('businesses.create');
+    Route::post('/businesses', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'store'])->name('businesses.store');
+    Route::get('/businesses/{company}', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'show'])->name('businesses.show');
+    Route::post('/businesses/{company}/toggle-status', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'toggleStatus'])->name('businesses.toggle-status');
+    Route::post('/businesses/{company}/assign-subscription', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'assignSubscription'])->name('businesses.assign-subscription');
+    Route::post('/businesses/{company}/add-credits', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'addCredits'])->name('businesses.add-credits');
+    Route::post('/businesses/{company}/update-users', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'updateMaxUsers'])->name('businesses.update-users');
+    Route::post('/businesses/{company}/reset-credentials', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'resetAdminCredentials'])->name('businesses.reset-credentials');
+
+    // Packages
+    Route::get('/packages', [App\Http\Controllers\SuperAdmin\PackageController::class, 'index'])->name('packages.index');
+    Route::get('/packages/create', [App\Http\Controllers\SuperAdmin\PackageController::class, 'create'])->name('packages.create');
+    Route::post('/packages', [App\Http\Controllers\SuperAdmin\PackageController::class, 'store'])->name('packages.store');
+    Route::get('/packages/{package}/edit', [App\Http\Controllers\SuperAdmin\PackageController::class, 'edit'])->name('packages.edit');
+    Route::put('/packages/{package}', [App\Http\Controllers\SuperAdmin\PackageController::class, 'update'])->name('packages.update');
+    Route::post('/packages/{package}/toggle', [App\Http\Controllers\SuperAdmin\PackageController::class, 'toggleActive'])->name('packages.toggle-active');
+
+    // Subscriptions
+    Route::get('/subscriptions', [App\Http\Controllers\SuperAdmin\SubscriptionController::class, 'index'])->name('subscriptions.index');
+
+    // Credit Packs
+    Route::get('/credit-packs', [App\Http\Controllers\SuperAdmin\CreditPackController::class, 'index'])->name('credit-packs.index');
+    Route::post('/credit-packs', [App\Http\Controllers\SuperAdmin\CreditPackController::class, 'store'])->name('credit-packs.store');
+    Route::put('/credit-packs/{pack}', [App\Http\Controllers\SuperAdmin\CreditPackController::class, 'update'])->name('credit-packs.update');
+    Route::post('/credit-packs/{pack}/toggle', [App\Http\Controllers\SuperAdmin\CreditPackController::class, 'toggle'])->name('credit-packs.toggle');
+
+    // Wallets
+    Route::get('/wallets', [App\Http\Controllers\SuperAdmin\WalletController::class, 'index'])->name('wallets.index');
+    Route::post('/wallets/{wallet}/add-credits', [App\Http\Controllers\SuperAdmin\WalletController::class, 'addCredits'])->name('wallets.add-credits');
+
+    // Global Settings
+    Route::get('/settings', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'index'])->name('settings');
+    Route::post('/settings/credits', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'saveCredits'])->name('settings.save-credits');
+    Route::post('/settings/platform', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'savePlatform'])->name('settings.save-platform');
+    Route::post('/settings/payment', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'savePayment'])->name('settings.save-payment');
+});
 
 // Temporary Route to seed users — inline logic, no class dependency
 Route::get('/seed-users', function () {
@@ -154,8 +209,8 @@ Route::get('/', function () {
 Route::post('/webhook/whatsapp/incoming/{instanceName}', [App\Http\Controllers\Web\WhatsappWebhookController::class, 'handleIncoming']);
 Route::get('/webhook/whatsapp/incoming/{instanceName}', [App\Http\Controllers\Web\WhatsappWebhookController::class, 'testWebhook']);
 
-// Admin Panel Routes (protected by auth)
-Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
+// Admin Panel Routes (protected by auth + subscription check)
+Route::prefix('admin')->name('admin.')->middleware(['auth', 'subscription'])->group(function () {
 
     // Dashboard
     Route::get('/', function () {
@@ -284,34 +339,37 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::post('/notifications/{id}/read', [App\Http\Controllers\Web\NotificationController::class, 'markRead'])->name('notifications.read');
     Route::post('/notifications/mark-all-read', [App\Http\Controllers\Web\NotificationController::class, 'markAllRead'])->name('notifications.mark-all-read');
 
-    // WhatsApp Templates
-    Route::resource('whatsapp-templates', App\Http\Controllers\Web\WhatsappTemplateController::class)->except(['create', 'show', 'edit']);
+    // ═══ WhatsApp Features — Package 2+ (feature gated) ═══
+    Route::middleware(['feature:whatsapp_connect'])->group(function () {
+        // WhatsApp Templates
+        Route::resource('whatsapp-templates', App\Http\Controllers\Web\WhatsappTemplateController::class)->except(['create', 'show', 'edit']);
 
-    // WhatsApp Extension
-    Route::get('/whatsapp-extension', [App\Http\Controllers\Web\WhatsappConnectController::class, 'extension'])->name('whatsapp.extension');
+        // WhatsApp Extension
+        Route::get('/whatsapp-extension', [App\Http\Controllers\Web\WhatsappConnectController::class, 'extension'])->name('whatsapp.extension');
 
-    // WhatsApp Campaigns
-    Route::get('whatsapp-campaigns', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'index'])->name('whatsapp-campaigns.index');
-    Route::get('whatsapp-campaigns/create', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'create'])->name('whatsapp-campaigns.create');
-    Route::post('whatsapp-campaigns', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'store'])->name('whatsapp-campaigns.store');
-    Route::post('whatsapp-campaigns/preview', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'preview'])->name('whatsapp-campaigns.preview');
-    Route::get('whatsapp-campaigns/{campaign}', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'show'])->name('whatsapp-campaigns.show');
-    Route::delete('whatsapp-campaigns/{campaign}', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'destroy'])->name('whatsapp-campaigns.destroy');
+        // WhatsApp Campaigns
+        Route::get('whatsapp-campaigns', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'index'])->name('whatsapp-campaigns.index');
+        Route::get('whatsapp-campaigns/create', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'create'])->name('whatsapp-campaigns.create');
+        Route::post('whatsapp-campaigns', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'store'])->name('whatsapp-campaigns.store');
+        Route::post('whatsapp-campaigns/preview', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'preview'])->name('whatsapp-campaigns.preview');
+        Route::get('whatsapp-campaigns/{campaign}', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'show'])->name('whatsapp-campaigns.show');
+        Route::delete('whatsapp-campaigns/{campaign}', [App\Http\Controllers\Web\WhatsappCampaignController::class, 'destroy'])->name('whatsapp-campaigns.destroy');
 
-    // WhatsApp Auto-Reply
-    Route::get('whatsapp-auto-reply', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'index'])->name('whatsapp-auto-reply.index');
-    Route::get('whatsapp-auto-reply/create', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'create'])->name('whatsapp-auto-reply.create');
-    Route::post('whatsapp-auto-reply', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'store'])->name('whatsapp-auto-reply.store');
-    Route::get('whatsapp-auto-reply/{id}/edit', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'edit'])->name('whatsapp-auto-reply.edit');
-    Route::put('whatsapp-auto-reply/{id}', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'update'])->name('whatsapp-auto-reply.update');
-    Route::delete('whatsapp-auto-reply/{id}', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'destroy'])->name('whatsapp-auto-reply.destroy');
-    Route::post('whatsapp-auto-reply/{id}/toggle', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'toggle'])->name('whatsapp-auto-reply.toggle');
-    Route::post('whatsapp-auto-reply/{id}/duplicate', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'duplicate'])->name('whatsapp-auto-reply.duplicate');
-    Route::post('whatsapp-auto-reply/pause-all', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'pauseAll'])->name('whatsapp-auto-reply.pause-all');
-    Route::get('whatsapp-auto-reply-analytics', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'analytics'])->name('whatsapp-auto-reply.analytics');
-    Route::get('whatsapp-auto-reply-blacklist', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'blacklist'])->name('whatsapp-auto-reply.blacklist');
-    Route::post('whatsapp-auto-reply-blacklist', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'addToBlacklist'])->name('whatsapp-auto-reply.blacklist.store');
-    Route::delete('whatsapp-auto-reply-blacklist/{id}', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'removeFromBlacklist'])->name('whatsapp-auto-reply.blacklist.destroy');
+        // WhatsApp Auto-Reply
+        Route::get('whatsapp-auto-reply', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'index'])->name('whatsapp-auto-reply.index');
+        Route::get('whatsapp-auto-reply/create', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'create'])->name('whatsapp-auto-reply.create');
+        Route::post('whatsapp-auto-reply', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'store'])->name('whatsapp-auto-reply.store');
+        Route::get('whatsapp-auto-reply/{id}/edit', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'edit'])->name('whatsapp-auto-reply.edit');
+        Route::put('whatsapp-auto-reply/{id}', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'update'])->name('whatsapp-auto-reply.update');
+        Route::delete('whatsapp-auto-reply/{id}', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'destroy'])->name('whatsapp-auto-reply.destroy');
+        Route::post('whatsapp-auto-reply/{id}/toggle', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'toggle'])->name('whatsapp-auto-reply.toggle');
+        Route::post('whatsapp-auto-reply/{id}/duplicate', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'duplicate'])->name('whatsapp-auto-reply.duplicate');
+        Route::post('whatsapp-auto-reply/pause-all', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'pauseAll'])->name('whatsapp-auto-reply.pause-all');
+        Route::get('whatsapp-auto-reply-analytics', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'analytics'])->name('whatsapp-auto-reply.analytics');
+        Route::get('whatsapp-auto-reply-blacklist', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'blacklist'])->name('whatsapp-auto-reply.blacklist');
+        Route::post('whatsapp-auto-reply-blacklist', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'addToBlacklist'])->name('whatsapp-auto-reply.blacklist.store');
+        Route::delete('whatsapp-auto-reply-blacklist/{id}', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'removeFromBlacklist'])->name('whatsapp-auto-reply.blacklist.destroy');
+    }); // end WhatsApp feature gate
 
     // Leads
     Route::get('/leads/whatsapp-lookup', [LeadsController::class, 'whatsappLookup'])->name('leads.whatsapp-lookup');
@@ -1058,47 +1116,60 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::post('/settings/ai-clear-pgm-cache', [SettingsController::class, 'clearPgmCache'])->name('settings.ai-clear-pgm-cache');
     Route::post('/settings/ai-test-pgm', [SettingsController::class, 'testProductGroupMatch'])->name('settings.ai-test-pgm');
 
-    // AI Token Analytics
-    Route::get('/ai-analytics', [AiAnalyticsController::class, 'index'])->name('ai-analytics.index');
-    Route::get('/ai-analytics/chats', [AiAnalyticsController::class, 'chats'])->name('ai-analytics.chats');
-    Route::get('/ai-analytics/chats/{id}', [AiAnalyticsController::class, 'chatDetail'])->name('ai-analytics.chat-detail');
-    Route::get('/ai-analytics/tester', [AiAnalyticsController::class, 'tester'])->name('ai-analytics.tester');
-    Route::post('/ai-analytics/test-questions', [AiAnalyticsController::class, 'saveTestQuestions'])->name('ai-analytics.test-questions.save');
-    Route::get('/ai-analytics/test-questions', [AiAnalyticsController::class, 'getTestQuestions'])->name('ai-analytics.test-questions.get');
-    Route::post('/ai-analytics/conversation-test-run', [AiAnalyticsController::class, 'runConversationTest'])->name('ai-analytics.conversation-test.run');
-    Route::post('/ai-analytics/diagnostic-test-run', [AiAnalyticsController::class, 'runDiagnosticTest'])->name('ai-analytics.diagnostic-test.run');
-    Route::post('/ai-analytics/test-step-init', [AiAnalyticsController::class, 'testStepInit'])->name('ai-analytics.test-step.init');
-    Route::post('/ai-analytics/test-step-send', [AiAnalyticsController::class, 'testStepSend'])->name('ai-analytics.test-step.send');
-    Route::post('/ai-analytics/test-step-cleanup', [AiAnalyticsController::class, 'testStepCleanup'])->name('ai-analytics.test-step.cleanup');
+    // Billing & Subscription (Admin self-service)
+    Route::get('/billing', [\App\Http\Controllers\Web\BillingController::class, 'index'])->name('billing.index');
+    Route::post('/billing/request-upgrade', [\App\Http\Controllers\Web\BillingController::class, 'requestUpgrade'])->name('billing.request-upgrade');
+    Route::post('/billing/request-credits', [\App\Http\Controllers\Web\BillingController::class, 'requestCredits'])->name('billing.request-credits');
 
-    // AI Node Traces
-    Route::get('/ai-analytics/traces', [\App\Http\Controllers\Web\AiTraceController::class, 'index'])->name('ai-analytics.traces.index');
-    Route::get('/ai-analytics/traces/{sessionId}', [\App\Http\Controllers\Web\AiTraceController::class, 'show'])->name('ai-analytics.traces.show');
+    // ═══ AI Token Analytics — Enterprise only (feature gated) ═══
+    Route::middleware(['feature:token_analytics'])->group(function () {
+        Route::get('/ai-analytics', [AiAnalyticsController::class, 'index'])->name('ai-analytics.index');
+        Route::get('/ai-analytics/chats', [AiAnalyticsController::class, 'chats'])->name('ai-analytics.chats');
+        Route::get('/ai-analytics/chats/{id}', [AiAnalyticsController::class, 'chatDetail'])->name('ai-analytics.chat-detail');
+        Route::get('/ai-analytics/tester', [AiAnalyticsController::class, 'tester'])->name('ai-analytics.tester');
+        Route::post('/ai-analytics/test-questions', [AiAnalyticsController::class, 'saveTestQuestions'])->name('ai-analytics.test-questions.save');
+        Route::get('/ai-analytics/test-questions', [AiAnalyticsController::class, 'getTestQuestions'])->name('ai-analytics.test-questions.get');
+        Route::post('/ai-analytics/conversation-test-run', [AiAnalyticsController::class, 'runConversationTest'])->name('ai-analytics.conversation-test.run');
+        Route::post('/ai-analytics/diagnostic-test-run', [AiAnalyticsController::class, 'runDiagnosticTest'])->name('ai-analytics.diagnostic-test.run');
+        Route::post('/ai-analytics/test-step-init', [AiAnalyticsController::class, 'testStepInit'])->name('ai-analytics.test-step.init');
+        Route::post('/ai-analytics/test-step-send', [AiAnalyticsController::class, 'testStepSend'])->name('ai-analytics.test-step.send');
+        Route::post('/ai-analytics/test-step-cleanup', [AiAnalyticsController::class, 'testStepCleanup'])->name('ai-analytics.test-step.cleanup');
+
+        // AI Node Traces
+        Route::get('/ai-analytics/traces', [\App\Http\Controllers\Web\AiTraceController::class, 'index'])->name('ai-analytics.traces.index');
+        Route::get('/ai-analytics/traces/{sessionId}', [\App\Http\Controllers\Web\AiTraceController::class, 'show'])->name('ai-analytics.traces.show');
+    }); // end AI analytics feature gate
 
     // System Logs
     Route::get('/settings/system-logs', [SettingsController::class, 'systemLogsIndex'])->name('system-logs.index');
     Route::delete('/settings/system-logs/clear', [SettingsController::class, 'systemLogsClear'])->name('system-logs.clear');
 
-    // Catalogue Custom Columns
-    Route::get('/catalogue-columns', [App\Http\Controllers\Web\CatalogueColumnController::class, 'index'])->name('catalogue-columns.index');
-    Route::post('/catalogue-columns', [App\Http\Controllers\Web\CatalogueColumnController::class, 'store'])->name('catalogue-columns.store');
-    Route::put('/catalogue-columns/{id}', [App\Http\Controllers\Web\CatalogueColumnController::class, 'update'])->name('catalogue-columns.update');
-    Route::delete('/catalogue-columns/{id}', [App\Http\Controllers\Web\CatalogueColumnController::class, 'destroy'])->name('catalogue-columns.destroy');
-    Route::post('/catalogue-columns/reorder', [App\Http\Controllers\Web\CatalogueColumnController::class, 'reorder'])->name('catalogue-columns.reorder');
-    Route::post('/catalogue-columns/{id}/toggle-active', [App\Http\Controllers\Web\CatalogueColumnController::class, 'toggleActive'])->name('catalogue-columns.toggle-active');
+    // ═══ Catalogue Custom Columns — All packages ═══
+    Route::middleware(['feature:catalogue_columns'])->group(function () {
+        Route::get('/catalogue-columns', [App\Http\Controllers\Web\CatalogueColumnController::class, 'index'])->name('catalogue-columns.index');
+        Route::post('/catalogue-columns', [App\Http\Controllers\Web\CatalogueColumnController::class, 'store'])->name('catalogue-columns.store');
+        Route::put('/catalogue-columns/{id}', [App\Http\Controllers\Web\CatalogueColumnController::class, 'update'])->name('catalogue-columns.update');
+        Route::delete('/catalogue-columns/{id}', [App\Http\Controllers\Web\CatalogueColumnController::class, 'destroy'])->name('catalogue-columns.destroy');
+        Route::post('/catalogue-columns/reorder', [App\Http\Controllers\Web\CatalogueColumnController::class, 'reorder'])->name('catalogue-columns.reorder');
+        Route::post('/catalogue-columns/{id}/toggle-active', [App\Http\Controllers\Web\CatalogueColumnController::class, 'toggleActive'])->name('catalogue-columns.toggle-active');
+    }); // end catalogue feature gate
 
-    // Chatflow Builder
-    Route::get('/chatflow', [App\Http\Controllers\Web\ChatflowController::class, 'index'])->name('chatflow.index');
-    Route::post('/chatflow', [App\Http\Controllers\Web\ChatflowController::class, 'store'])->name('chatflow.store');
-    Route::put('/chatflow/{id}', [App\Http\Controllers\Web\ChatflowController::class, 'update'])->name('chatflow.update');
-    Route::delete('/chatflow/{id}', [App\Http\Controllers\Web\ChatflowController::class, 'destroy'])->name('chatflow.destroy');
-    Route::post('/chatflow/reorder', [App\Http\Controllers\Web\ChatflowController::class, 'reorder'])->name('chatflow.reorder');
+    // ═══ Chatflow Builder — Enterprise only (feature gated) ═══
+    Route::middleware(['feature:chatflow'])->group(function () {
+        Route::get('/chatflow', [App\Http\Controllers\Web\ChatflowController::class, 'index'])->name('chatflow.index');
+        Route::post('/chatflow', [App\Http\Controllers\Web\ChatflowController::class, 'store'])->name('chatflow.store');
+        Route::put('/chatflow/{id}', [App\Http\Controllers\Web\ChatflowController::class, 'update'])->name('chatflow.update');
+        Route::delete('/chatflow/{id}', [App\Http\Controllers\Web\ChatflowController::class, 'destroy'])->name('chatflow.destroy');
+        Route::post('/chatflow/reorder', [App\Http\Controllers\Web\ChatflowController::class, 'reorder'])->name('chatflow.reorder');
+    }); // end chatflow feature gate
 
-    // WhatsApp Connect
-    Route::get('/whatsapp-connect', [App\Http\Controllers\Web\WhatsappConnectController::class, 'index'])->name('whatsapp-connect.index');
-    Route::get('/whatsapp-connect/qr', [App\Http\Controllers\Web\WhatsappConnectController::class, 'getQrCode'])->name('whatsapp-connect.qr');
-    Route::get('/whatsapp-connect/status', [App\Http\Controllers\Web\WhatsappConnectController::class, 'getStatus'])->name('whatsapp-connect.status');
-    Route::post('/whatsapp-connect/disconnect', [App\Http\Controllers\Web\WhatsappConnectController::class, 'disconnect'])->name('whatsapp-connect.disconnect');
+    // WhatsApp Connect — Package 2+ (feature gated)
+    Route::middleware(['feature:whatsapp_connect'])->group(function () {
+        Route::get('/whatsapp-connect', [App\Http\Controllers\Web\WhatsappConnectController::class, 'index'])->name('whatsapp-connect.index');
+        Route::get('/whatsapp-connect/qr', [App\Http\Controllers\Web\WhatsappConnectController::class, 'getQrCode'])->name('whatsapp-connect.qr');
+        Route::get('/whatsapp-connect/status', [App\Http\Controllers\Web\WhatsappConnectController::class, 'getStatus'])->name('whatsapp-connect.status');
+        Route::post('/whatsapp-connect/disconnect', [App\Http\Controllers\Web\WhatsappConnectController::class, 'disconnect'])->name('whatsapp-connect.disconnect');
+    }); // end WhatsApp connect feature gate
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile.index');

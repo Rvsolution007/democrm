@@ -3,9 +3,9 @@
 if (!function_exists('can')) {
     /**
      * Check if the current user has the given permission.
-     * Admin users (ID=1 or role name contains 'admin' or role has 'all' permission) always return true.
+     * Hierarchy: super_admin > admin (package scoped) > staff (role + package scoped)
      *
-     * @param string $permission
+     * @param string $permission  e.g., 'leads.read', 'whatsapp-connect.write'
      * @return bool
      */
     function can(string $permission): bool
@@ -16,12 +16,26 @@ if (!function_exists('can')) {
             return false;
         }
 
-        // Admin bypass — using loose == so "1" == 1 works
-        if ($user->id == 1) {
+        // Super Admin bypasses everything
+        if ($user->user_type === 'super_admin') {
             return true;
         }
 
-        // Try to load role if not loaded
+        // Extract module from permission: "leads.read" → "leads"
+        $module = explode('.', $permission)[0];
+
+        // Check if the module is in the company's subscription package
+        $company = $user->company;
+        if ($company && !$company->hasModuleAccess($module)) {
+            return false; // Feature not in package — deny regardless of role
+        }
+
+        // Admin (Business Owner) — has all permissions within their package
+        if ($user->user_type === 'admin') {
+            return true;
+        }
+
+        // Staff — check role-based permissions
         $role = $user->role;
         if (!$role) {
             // Fallback: try loading role directly from DB
@@ -36,7 +50,7 @@ if (!function_exists('can')) {
             return false;
         }
 
-        // Admin role name bypass
+        // Admin role name bypass (backward compat for roles named "admin")
         if (stripos($role->name ?? '', 'admin') !== false) {
             return true;
         }
@@ -56,7 +70,7 @@ if (!function_exists('can')) {
 
 if (!function_exists('isAdmin')) {
     /**
-     * Check if the current user is an admin
+     * Check if the current user is an admin (super_admin or admin type)
      *
      * @return bool
      */
@@ -68,11 +82,12 @@ if (!function_exists('isAdmin')) {
             return false;
         }
 
-        // Loose comparison for ID
-        if ($user->id == 1) {
+        // Check user_type first
+        if (in_array($user->user_type, ['super_admin', 'admin'])) {
             return true;
         }
 
+        // Backward compat — check role name
         $role = $user->role;
         if (!$role) {
             try {
@@ -89,3 +104,37 @@ if (!function_exists('isAdmin')) {
         return stripos($role->name ?? '', 'admin') !== false;
     }
 }
+
+if (!function_exists('isSuperAdmin')) {
+    /**
+     * Check if the current user is a Super Admin.
+     *
+     * @return bool
+     */
+    function isSuperAdmin(): bool
+    {
+        return auth()->check() && auth()->user()->user_type === 'super_admin';
+    }
+}
+
+if (!function_exists('hasFeature')) {
+    /**
+     * Check if the current user's company has a specific feature in their package.
+     * Super Admin always returns true.
+     *
+     * @param string $feature  e.g., 'whatsapp_connect', 'chatflow', 'ai_bot'
+     * @return bool
+     */
+    function hasFeature(string $feature): bool
+    {
+        $user = auth()->user();
+        if (!$user) return false;
+        if ($user->user_type === 'super_admin') return true;
+
+        $company = $user->company;
+        if (!$company) return false;
+
+        return $company->hasFeature($feature);
+    }
+}
+

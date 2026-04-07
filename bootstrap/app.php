@@ -21,11 +21,16 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
+            'permission' => \App\Http\Middleware\CheckPermission::class,
+            'superadmin' => \App\Http\Middleware\SuperAdminOnly::class,
+            'subscription' => \App\Http\Middleware\CheckSubscription::class,
+            'feature' => \App\Http\Middleware\CheckPackageFeature::class,
         ]);
 
-        // Exclude webhook from CSRF verification
+        // Exclude webhooks from CSRF verification
         $middleware->validateCsrfTokens(except: [
             'webhook/*',
+            'razorpay/*',
         ]);
 
         // CORS for frontend
