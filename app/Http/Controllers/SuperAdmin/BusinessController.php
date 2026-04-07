@@ -212,6 +212,10 @@ class BusinessController extends Controller
     public function show(Company $company)
     {
         $company->load(['owner', 'users.role', 'wallet']);
+        
+        // Filter out super_admin from business user list (SA is platform-level, not business-level)
+        $businessUsers = $company->users->where('user_type', '!=', 'super_admin');
+        
         $subscription = $company->activeSubscription();
         $latestSubscription = $company->latestSubscription();
         $allSubscriptions = $company->subscriptions()->with('package')->latest()->get();
@@ -225,7 +229,7 @@ class BusinessController extends Controller
         $packages = SubscriptionPackage::active()->ordered()->get();
 
         return view('superadmin.businesses.show', compact(
-            'company', 'subscription', 'latestSubscription', 'allSubscriptions',
+            'company', 'businessUsers', 'subscription', 'latestSubscription', 'allSubscriptions',
             'payments', 'wallet', 'recentTransactions', 'packages'
         ));
     }
@@ -367,6 +371,11 @@ class BusinessController extends Controller
         $user = User::where('id', $request->user_id)
             ->where('company_id', $company->id)
             ->firstOrFail();
+
+        // Block resetting super_admin credentials from business panel
+        if ($user->user_type === 'super_admin') {
+            return back()->with('error', 'Cannot reset Super Admin credentials from here.');
+        }
 
         $changes = [];
 

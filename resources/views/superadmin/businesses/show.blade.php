@@ -169,7 +169,7 @@
         {{-- Users --}}
         <div class="card" style="margin-bottom:20px;">
             <div class="card-header" style="flex-direction:row;align-items:center;justify-content:space-between;">
-                <h3 class="card-title" style="font-size:16px;"><i data-lucide="users" style="width:16px;height:16px;margin-right:6px;color:hsl(var(--info));vertical-align:text-bottom;"></i>Users ({{ $company->users->count() }})</h3>
+                <h3 class="card-title" style="font-size:16px;"><i data-lucide="users" style="width:16px;height:16px;margin-right:6px;color:hsl(var(--info));vertical-align:text-bottom;"></i>Users ({{ $businessUsers->count() }})</h3>
                 {{-- Update Max Users --}}
                 <form method="POST" action="{{ route('superadmin.businesses.update-users', $company->id) }}" style="display:flex;gap:8px;align-items:center;">
                     @csrf
@@ -184,7 +184,7 @@
                     <table>
                         <thead><tr><th>Name</th><th>Role</th><th>Type</th><th>Status</th></tr></thead>
                         <tbody>
-                            @foreach($company->users as $usr)
+                            @foreach($businessUsers as $usr)
                             <tr>
                                 <td>
                                     <div style="font-weight:500;">{{ $usr->name }}</div>
@@ -214,7 +214,7 @@
                             <label class="form-label" style="font-size:12px;">Select User</label>
                             <select name="user_id" class="form-select" required id="resetUserSelect" onchange="fillCurrentEmail(this)">
                                 <option value="">— Choose a user —</option>
-                                @foreach($company->users as $usr)
+                                @foreach($businessUsers as $usr)
                                     <option value="{{ $usr->id }}" data-email="{{ $usr->email }}">{{ $usr->name }} ({{ $usr->user_type }}) — {{ $usr->email }}</option>
                                 @endforeach
                             </select>
