@@ -202,36 +202,34 @@
             </div>
         </div>
 
-        {{-- Reset Admin Credentials --}}
+        {{-- Admin Login Credentials --}}
+        @php
+            $adminUser = $businessUsers->where('user_type', 'admin')->first();
+        @endphp
         <div class="card">
             <div class="card-header" style="flex-direction:row;align-items:center;justify-content:space-between;">
-                <h3 class="card-title" style="font-size:16px;"><i data-lucide="key-round" style="width:16px;height:16px;margin-right:6px;color:hsl(var(--warning));vertical-align:text-bottom;"></i>Admin Credentials</h3>
+                <h3 class="card-title" style="font-size:16px;"><i data-lucide="key-round" style="width:16px;height:16px;margin-right:6px;color:hsl(var(--warning));vertical-align:text-bottom;"></i>Admin Login Credentials</h3>
             </div>
             <div class="card-content">
-                @if($businessUsers->count() > 0)
-                {{-- Reset existing user credentials --}}
+                @if($adminUser)
+                {{-- Show admin details & reset form --}}
+                <div style="background:hsl(var(--secondary));border-radius:8px;padding:16px;margin-bottom:16px;display:flex;align-items:center;gap:16px;">
+                    <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,hsl(var(--primary)),hsl(var(--accent)));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;flex-shrink:0;">
+                        {{ strtoupper(substr($adminUser->name, 0, 2)) }}
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-weight:600;font-size:15px;">{{ $adminUser->name }}</div>
+                        <div style="font-size:13px;color:hsl(var(--muted-foreground));">{{ $adminUser->email }}</div>
+                    </div>
+                    <span class="badge badge-success" style="font-size:11px;">{{ ucfirst($adminUser->status) }}</span>
+                </div>
                 <form method="POST" action="{{ route('superadmin.businesses.reset-credentials', $company->id) }}">
                     @csrf
-                    <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:12px;">
-                        <div>
-                            <label class="form-label" style="font-size:12px;">Select User</label>
-                            <select name="user_id" class="form-select" required id="resetUserSelect" onchange="fillCurrentEmail(this)">
-                                @if($businessUsers->count() === 1)
-                                    @php $singleUser = $businessUsers->first(); @endphp
-                                    <option value="{{ $singleUser->id }}" data-email="{{ $singleUser->email }}" selected>{{ $singleUser->name }} ({{ $singleUser->role?->name ?? $singleUser->user_type }}) — {{ $singleUser->email }}</option>
-                                @else
-                                    <option value="">— Choose a user —</option>
-                                    @foreach($businessUsers as $usr)
-                                        <option value="{{ $usr->id }}" data-email="{{ $usr->email }}">{{ $usr->name }} ({{ $usr->role?->name ?? $usr->user_type }}) — {{ $usr->email }}</option>
-                                    @endforeach
-                                @endif
-                            </select>
-                        </div>
-                    </div>
+                    <input type="hidden" name="user_id" value="{{ $adminUser->id }}">
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
                         <div>
                             <label class="form-label" style="font-size:12px;">New Email <span style="color:hsl(var(--muted-foreground));font-size:11px;">(leave blank to keep current)</span></label>
-                            <input type="email" name="new_email" class="form-control" id="resetEmailInput" placeholder="{{ $businessUsers->count() === 1 ? $businessUsers->first()->email : 'new-email@example.com' }}">
+                            <input type="email" name="new_email" class="form-control" id="resetEmailInput" placeholder="{{ $adminUser->email }}">
                         </div>
                         <div>
                             <label class="form-label" style="font-size:12px;">New Password <span style="color:hsl(var(--muted-foreground));font-size:11px;">(leave blank to keep current)</span></label>
@@ -241,7 +239,7 @@
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:12px;">
-                        <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('Are you sure you want to reset credentials for this user?')">
+                        <button type="submit" class="btn btn-primary btn-sm" onclick="return confirm('Are you sure you want to reset admin credentials?')">
                             <i data-lucide="shield-check" style="width:14px;height:14px;"></i> Reset Credentials
                         </button>
                         <button type="button" class="btn btn-ghost btn-sm" onclick="generatePassword()" title="Generate a random secure password">
@@ -250,12 +248,12 @@
                     </div>
                 </form>
                 @else
-                {{-- No users — Create Admin form --}}
+                {{-- No admin user — Create Admin form --}}
                 <div style="border:1px dashed hsl(var(--border));border-radius:8px;padding:20px;margin-bottom:12px;text-align:center;">
                     <i data-lucide="user-plus" style="width:24px;height:24px;margin-bottom:8px;color:hsl(var(--primary));opacity:0.7;"></i>
-                    <p style="color:hsl(var(--muted-foreground));font-size:13px;margin-bottom:16px;">No users found for this business. Create an admin user to enable login.</p>
+                    <p style="color:hsl(var(--muted-foreground));font-size:13px;margin-bottom:0;">No admin user found for this business. Create one to enable login.</p>
                 </div>
-                <form method="POST" action="{{ route('superadmin.businesses.create-admin', $company->id) }}">
+                <form method="POST" action="{{ route('superadmin.businesses.create-admin', $company->id) }}" style="margin-top:16px;">
                     @csrf
                     <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:12px;">
                         <div>
