@@ -234,10 +234,22 @@ Route::get('/seed-demo', function () {
     }
 });
 
-// Redirect root to admin
-Route::get('/', function () {
-    return redirect()->route('admin.dashboard');
-});
+// ─── Landing Website ────────────────────────────────────────────────
+Route::get('/', [App\Http\Controllers\Web\LandingController::class, 'index'])->name('landing');
+
+// Registration (choose package → register → enter admin)
+Route::get('/register/{package}', [App\Http\Controllers\Web\LandingController::class, 'showRegister'])->name('register');
+Route::post('/register', [App\Http\Controllers\Web\LandingController::class, 'register'])->name('register.store');
+Route::post('/register/check-email', [App\Http\Controllers\Web\LandingController::class, 'checkEmail'])->name('register.check-email');
+
+// Password Reset (email-based 6-digit code)
+Route::get('/forgot-password', [App\Http\Controllers\Web\LandingController::class, 'showForgotPassword'])->name('password.forgot');
+Route::post('/forgot-password', [App\Http\Controllers\Web\LandingController::class, 'sendResetCode'])->name('password.send-code');
+Route::get('/reset-password', [App\Http\Controllers\Web\LandingController::class, 'showResetPassword'])->name('password.reset');
+Route::post('/reset-password', [App\Http\Controllers\Web\LandingController::class, 'resetPassword'])->name('password.reset.store');
+
+// Contact Form
+Route::post('/contact', [App\Http\Controllers\Web\LandingController::class, 'submitContact'])->name('contact.submit');
 
 // WhatsApp Webhook (public — no auth, Evolution API calls this)
 Route::post('/webhook/whatsapp/incoming/{instanceName}', [App\Http\Controllers\Web\WhatsappWebhookController::class, 'handleIncoming']);

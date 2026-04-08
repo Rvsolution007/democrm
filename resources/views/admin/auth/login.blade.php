@@ -486,7 +486,7 @@
                 </div>
 
                 <div class="form-extras">
-                    <a href="#" class="forgot-password">Forgot Password?</a>
+                    <a href="{{ route('password.forgot') }}" class="forgot-password">Forgot Password?</a>
                 </div>
 
                 <button type="submit" class="btn-login">
@@ -499,7 +499,8 @@
                 </button>
             </form>
         </div>
-        <p class="footer-text">&copy; {{ date('Y') }} RV CRM. All rights reserved.</p>
+        <p class="footer-text">Don't have an account? <a href="{{ route('landing') }}#pricing" style="color:#2db5ea;font-weight:600;">Register Free</a></p>
+        <p class="footer-text" style="margin-top:8px;">&copy; {{ date('Y') }} RV CRM. All rights reserved.</p>
     </div>
 
     <script>
