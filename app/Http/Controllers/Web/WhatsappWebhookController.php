@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessAutoReplyJob;
 use App\Jobs\ProcessAIChatJob;
+use App\Jobs\ProcessListBotJob;
+use App\Models\Company;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -58,9 +60,13 @@ class WhatsappWebhookController extends Controller
         // Extract message text BEFORE dispatching (we need the full message object)
         $messageText = $this->extractMessageText($messageContent);
 
+        // Extract Interactive List rowId if this is a list response
+        $listRowId = $messageContent['listResponseMessage']['singleSelectReply']['selectedRowId'] ?? null;
+
         Log::info("Webhook: Extracted message text from {$senderPhone}", [
             'extracted_text' => $messageText,
             'message_keys' => array_keys($messageContent),
+            'list_row_id' => $listRowId,
         ]);
 
         if (empty($messageText)) {
@@ -74,9 +80,9 @@ class WhatsappWebhookController extends Controller
         $imageUrl = $this->extractImageUrl($data, $instanceName);
 
         // ═══════════════════════════════════════════════════════════
-        // ROUTING: AI Bot or Auto-Reply?
-        // If AI Bot is enabled → ProcessAIChatJob (with full context)
-        // If AI Bot is disabled → ProcessAutoReplyJob (existing behavior)
+        // ROUTING: 3-Way Bot Mode (AI Bot / List Bot / Auto-Reply)
+        // Only ONE mode is active at a time per company.
+        // Package enforcement: if mode isn't available, fallback.
         // ═══════════════════════════════════════════════════════════
         $userId = $this->getUserIdFromInstance($instanceName);
         $companyId = 1;
@@ -85,14 +91,39 @@ class WhatsappWebhookController extends Controller
             $companyId = $user->company_id ?? 1;
         }
 
-        $aiBotEnabled = Setting::getValue('ai_bot', 'enabled', false, $companyId);
+        // Get bot mode (new 3-way setting)
+        $botMode = Setting::getValue('whatsapp', 'bot_mode', null, $companyId);
 
-        if ($aiBotEnabled) {
-            ProcessAIChatJob::dispatch($instanceName, $senderPhone, $messageText, $replyContext, $imageUrl)->onConnection('sync');
-            Log::info("Webhook: Dispatched AI Chat Job for {$senderPhone}");
-        } else {
-            ProcessAutoReplyJob::dispatch($instanceName, $senderPhone, $messageText)->onConnection('sync');
-            Log::info("Webhook: Dispatched Auto-Reply Job for {$senderPhone}");
+        // Backward compatibility: old ai_bot.enabled → new bot_mode
+        if ($botMode === null) {
+            $oldAiBot = Setting::getValue('ai_bot', 'enabled', false, $companyId);
+            $botMode = $oldAiBot ? 'ai_bot' : 'auto_reply';
+        }
+
+        // Package enforcement — fallback if company doesn't have the feature
+        $company = Company::find($companyId);
+        if ($botMode === 'ai_bot' && $company && !$company->hasFeature('ai_bot')) {
+            $botMode = $company->hasFeature('list_bot') ? 'list_bot' : 'auto_reply';
+        }
+        if ($botMode === 'list_bot' && $company && !$company->hasFeature('list_bot')) {
+            $botMode = 'auto_reply';
+        }
+
+        switch ($botMode) {
+            case 'ai_bot':
+                ProcessAIChatJob::dispatch($instanceName, $senderPhone, $messageText, $replyContext, $imageUrl, $listRowId)->onConnection('sync');
+                Log::info("Webhook: Dispatched AI Chat Job for {$senderPhone}", ['mode' => 'ai_bot', 'rowId' => $listRowId]);
+                break;
+
+            case 'list_bot':
+                ProcessListBotJob::dispatch($instanceName, $senderPhone, $messageText, $listRowId)->onConnection('sync');
+                Log::info("Webhook: Dispatched List Bot Job for {$senderPhone}", ['mode' => 'list_bot', 'rowId' => $listRowId]);
+                break;
+
+            default: // 'auto_reply'
+                ProcessAutoReplyJob::dispatch($instanceName, $senderPhone, $messageText)->onConnection('sync');
+                Log::info("Webhook: Dispatched Auto-Reply Job for {$senderPhone}", ['mode' => 'auto_reply']);
+                break;
         }
 
         // Return 200 OK immediately — Evolution API is happy, no timeout

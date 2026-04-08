@@ -2,29 +2,27 @@
 
 namespace App\Jobs;
 
-use App\Services\AIChatbotService;
+use App\Services\ListBotService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
-class ProcessAIChatJob implements ShouldQueue
+class ProcessListBotJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $tries = 2;
     public $backoff = [10, 30];
-    public $timeout = 120;
+    public $timeout = 60; // Shorter than AI Bot — no AI calls
 
     public function __construct(
         private string $instanceName,
         private string $senderPhone,
         private string $messageText,
-        private ?array $replyContext = null,
-        private ?string $imageUrl = null,
         private ?string $listRowId = null
     ) {
     }
@@ -32,61 +30,55 @@ class ProcessAIChatJob implements ShouldQueue
     public function handle(): void
     {
         try {
-            // Get user_id and company_id from instance name
             $userId = $this->getUserIdFromInstance($this->instanceName);
             if (!$userId) {
-                Log::warning("AIChatJob: No user found for instance {$this->instanceName}");
+                Log::warning("ListBotJob: No user found for instance {$this->instanceName}");
                 return;
             }
 
             $user = \App\Models\User::find($userId);
             if (!$user) {
-                Log::warning("AIChatJob: User {$userId} not found");
+                Log::warning("ListBotJob: User {$userId} not found");
                 return;
             }
 
             $companyId = $user->company_id ?? 1;
 
-            // Use advisory lock to prevent race conditions for same phone number
-            // block() waits up to 30s for the lock — ensures ALL messages get processed
-            // even when multiple arrive simultaneously (sync connection can't use release())
-            $lockKey = "ai_chat_lock_{$companyId}_{$this->senderPhone}";
-            $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 60); // 60 second max hold
+            // Advisory lock — same pattern as AI Bot to prevent race conditions
+            $lockKey = "list_bot_lock_{$companyId}_{$this->senderPhone}";
+            $lock = Cache::lock($lockKey, 30); // 30 second max hold (shorter — no AI delays)
 
             try {
-                $lock->block(30); // Wait up to 30 seconds to acquire lock
+                $lock->block(15); // Wait up to 15 seconds
 
                 try {
-                    $service = new AIChatbotService($companyId, $userId);
-                    $result = $service->processMessage(
+                    $service = new ListBotService($companyId, $userId);
+                    $service->processMessage(
                         $this->instanceName,
                         $this->senderPhone,
                         $this->messageText,
-                        $this->replyContext,
-                        $this->imageUrl,
                         $this->listRowId
                     );
-                    Log::info("AIChatJob: Processed message from {$this->senderPhone}", $result);
+                    Log::info("ListBotJob: Processed message from {$this->senderPhone}", [
+                        'rowId' => $this->listRowId,
+                        'text' => mb_substr($this->messageText, 0, 50),
+                    ]);
                 } finally {
                     $lock->release();
                 }
             } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
-                // Lock couldn't be acquired in 30 seconds — process anyway to avoid message loss
-                Log::warning("AIChatJob: Lock timeout for {$this->senderPhone}, processing without lock");
-                $service = new AIChatbotService($companyId, $userId);
-                $result = $service->processMessage(
+                Log::warning("ListBotJob: Lock timeout for {$this->senderPhone}, processing without lock");
+                $service = new ListBotService($companyId, $userId);
+                $service->processMessage(
                     $this->instanceName,
                     $this->senderPhone,
                     $this->messageText,
-                    $this->replyContext,
-                    $this->imageUrl,
                     $this->listRowId
                 );
-                Log::info("AIChatJob: Processed (after lock timeout) from {$this->senderPhone}", $result);
             }
 
         } catch (\Exception $e) {
-            Log::error("AIChatJob: Failed for {$this->senderPhone}: " . $e->getMessage());
+            Log::error("ListBotJob: Failed for {$this->senderPhone}: " . $e->getMessage());
             throw $e;
         }
     }

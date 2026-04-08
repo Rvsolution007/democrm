@@ -236,6 +236,12 @@ Route::get('/seed-demo', function () {
 
 // ─── Landing Website ────────────────────────────────────────────────
 Route::get('/', [App\Http\Controllers\Web\LandingController::class, 'index'])->name('landing');
+Route::get('/features', [App\Http\Controllers\Web\LandingController::class, 'features'])->name('landing.features');
+Route::get('/about', [App\Http\Controllers\Web\LandingController::class, 'about'])->name('landing.about');
+Route::get('/packages', [App\Http\Controllers\Web\LandingController::class, 'packages'])->name('landing.packages');
+Route::get('/faq', [App\Http\Controllers\Web\LandingController::class, 'faq'])->name('landing.faq');
+Route::get('/reviews', [App\Http\Controllers\Web\LandingController::class, 'reviews'])->name('landing.reviews');
+Route::get('/contact', [App\Http\Controllers\Web\LandingController::class, 'contact'])->name('landing.contact');
 
 // Registration (choose package → register → enter admin)
 Route::get('/register/{package}', [App\Http\Controllers\Web\LandingController::class, 'showRegister'])->name('register');
@@ -1161,6 +1167,11 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'subscription'])->gr
     Route::post('/settings/ai-match-confidence', [SettingsController::class, 'saveAiMatchConfidence'])->name('settings.ai-match-confidence.save');
     Route::post('/settings/ai-clear-pgm-cache', [SettingsController::class, 'clearPgmCache'])->name('settings.ai-clear-pgm-cache');
     Route::post('/settings/ai-test-pgm', [SettingsController::class, 'testProductGroupMatch'])->name('settings.ai-test-pgm');
+
+    // Bot Mode & List Bot Settings
+    Route::post('/settings/bot-mode', [SettingsController::class, 'saveBotMode'])->name('settings.bot-mode.save');
+    Route::post('/settings/list-bot', [SettingsController::class, 'saveListBotSettings'])->name('settings.list-bot.save');
+    Route::post('/settings/interactive-list-mode', [SettingsController::class, 'saveInteractiveListMode'])->name('settings.interactive-list-mode.save');
 
     // Billing & Subscription (Admin self-service)
     Route::get('/billing', [\App\Http\Controllers\Web\BillingController::class, 'index'])->name('billing.index');

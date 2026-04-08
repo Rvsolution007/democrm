@@ -354,7 +354,8 @@ class AIChatbotService
         string $phone,
         string $messageText,
         ?array $replyContext = null,
-        ?string $imageUrl = null
+        ?string $imageUrl = null,
+        ?string $listRowId = null
     ): array {
         $this->pendingTraces = [];
 
@@ -380,7 +381,7 @@ class AIChatbotService
         }
 
         try {
-            $result = DB::transaction(function () use ($instanceName, $phone, $messageText, $replyContext, $imageUrl) {
+            $result = DB::transaction(function () use ($instanceName, $phone, $messageText, $replyContext, $imageUrl, $listRowId) {
 
                 $session = AiChatSession::findOrCreateForPhone($this->companyId, $phone, $instanceName);
                 
@@ -571,6 +572,43 @@ class AIChatbotService
                     }
                     $contextParts[] = "User: {$messageText}";
                     $contextMessage = implode("\n", $contextParts);
+                }
+
+                // ═══ INTERACTIVE LIST RESPONSE HANDLER (Skip AI) ═══
+                // When interactive_list_mode is ON and user tapped a list menu, 
+                // handle via PHP direct save — no AI call needed
+                $interactiveMode = (bool) Setting::getValue('ai_bot', 'interactive_list_mode', false, $this->companyId);
+                if ($listRowId && $interactiveMode) {
+                    $parsed = WhatsAppService::parseRowId($listRowId);
+                    if ($parsed) {
+                        $this->traceNode($session->id, 'InteractiveListMatch', 'routing', 'success',
+                            ['rowId' => $listRowId, 'parsed_type' => $parsed['type'], 'parsed_id' => $parsed['id']],
+                            ['mode' => 'interactive_list', 'skip_ai' => true]
+                        );
+
+                        $steps = ChatflowStep::where('company_id', $this->companyId)->orderBy('sort_order')->get();
+                        $responseText = $this->handleInteractiveListSelection($session, $instanceName, $parsed, $steps);
+
+                        if ($responseText !== null) {
+                            // Response was already sent via sendList/sendText inside the handler
+                            AiChatMessage::create([
+                                'session_id' => $session->id,
+                                'role' => 'bot',
+                                'message' => $responseText ?: '[Interactive list sent]',
+                                'message_type' => 'text',
+                            ]);
+                            $session->update(['last_bot_message_at' => now()]);
+
+                            return [
+                                'status' => 'sent',
+                                'response' => $responseText ?: '[Interactive list sent]',
+                                'session_id' => $session->id,
+                                'lead_id' => $session->lead_id,
+                                'quote_id' => $session->quote_id,
+                            ];
+                        }
+                        // If null returned, fall through to normal AI routing
+                    }
                 }
 
                 // ═══ SMART ROUTER — decide Tier 1, Tier 2, or PHP Direct ═══
@@ -4898,4 +4936,270 @@ PROMPT;
     }
 
 
+    // ═══════════════════════════════════════════════════════
+    // INTERACTIVE LIST HANDLER (AI Bot + Interactive Mode)
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Handle an Interactive List selection in AI Bot mode.
+     * Performs PHP direct save (same as ListBotService) — zero AI cost.
+     *
+     * @return string|null Response text if handled, null to fall through to normal AI routing
+     */
+    private function handleInteractiveListSelection(AiChatSession $session, string $instanceName, array $parsed, $steps): ?string
+    {
+        $whatsApp = new WhatsAppService($this->companyId);
+        if (!$whatsApp->isConfigured()) return null;
+
+        switch ($parsed['type']) {
+            case 'category':
+                $category = \App\Models\Category::find($parsed['id']);
+                if (!$category || $category->company_id !== $this->companyId) return null;
+
+                $session->setAnswer('category_id', $parsed['id']);
+                $session->setAnswer('category_name', $category->name);
+                $session->conversation_state = 'awaiting_product';
+                $session->catalogue_sent = true;
+                $this->advanceChatflow($session, $steps);
+                $session->save();
+
+                // Send product list as Interactive List
+                $this->sendProductListAsInteractive($session, $instanceName, $whatsApp, $parsed['id']);
+                return "📂 Category: *{$category->name}*\n[Product list sent]";
+
+            case 'product':
+                $product = Product::with(['combos.column', 'activeVariations', 'customValues', 'category'])->find($parsed['id']);
+                if (!$product || $product->company_id !== $this->companyId) return null;
+
+                $displayName = $this->getProductDisplayName($product);
+                $session->setAnswer('product_id', $parsed['id']);
+                $session->setAnswer('product_name', $displayName);
+                $session->conversation_state = 'product_selected';
+
+                // Attach product to lead
+                if ($session->lead_id) {
+                    $lead = Lead::find($session->lead_id);
+                    if ($lead && !$lead->products()->where('product_id', $parsed['id'])->exists()) {
+                        $lead->products()->attach($parsed['id'], ['quantity' => 1, 'price' => $product->sale_price]);
+                        $lead->update(['product_name' => $displayName]);
+                    }
+                }
+
+                // Create Quote
+                if (!$session->quote_id) {
+                    $company = \App\Models\Company::find($this->companyId);
+                    $quote = Quote::create([
+                        'company_id' => $this->companyId,
+                        'lead_id' => $session->lead_id,
+                        'created_by_user_id' => $this->userId,
+                        'quote_no' => Quote::generateQuoteNumber($company),
+                        'date' => now(),
+                        'valid_till' => now()->addDays(30),
+                        'subtotal' => $product->sale_price,
+                        'discount' => 0,
+                        'gst_total' => 0,
+                        'grand_total' => $product->sale_price,
+                        'status' => 'draft',
+                    ]);
+                    QuoteItem::create([
+                        'quote_id' => $quote->id,
+                        'product_id' => $parsed['id'],
+                        'product_name' => $displayName,
+                        'description' => $product->getDynamicDescription($session->collected_answers ?? [], true),
+                        'hsn_code' => $product->hsn_code,
+                        'qty' => 1,
+                        'rate' => $product->sale_price,
+                        'unit' => $product->unit,
+                        'unit_price' => $product->sale_price,
+                        'gst_percent' => $product->gst_percent,
+                        'sort_order' => 1,
+                    ]);
+                    $session->quote_id = $quote->id;
+                }
+
+                $this->advanceChatflow($session, $steps);
+                $session->save();
+
+                $confirmMsg = "✅ *{$displayName}* selected! 🛍️";
+                $whatsApp->sendText($instanceName, $session->phone_number, $confirmMsg);
+
+                // Send next step as Interactive List (if applicable)
+                return $this->sendNextStepAsInteractive($session, $instanceName, $whatsApp, $steps);
+
+            case 'column':
+                $session->setAnswer("column_filter_{$parsed['id']}", $parsed['value']);
+                $session->current_step_retries = 0;
+
+                $productId = $session->getAnswer('product_id');
+                if ($productId) {
+                    $product = Product::with(['combos.column', 'customValues'])->find($productId);
+                    if ($product) $this->updateQuoteItemDescription($session, $product);
+                }
+
+                $this->advanceChatflow($session, $steps);
+                $session->save();
+
+                $whatsApp->sendText($instanceName, $session->phone_number, "✅ *{$parsed['value']}* selected!");
+                return $this->sendNextStepAsInteractive($session, $instanceName, $whatsApp, $steps);
+
+            case 'combo':
+                $session->setAnswer($parsed['id'], $parsed['value']); // $parsed['id'] = slug for combo
+                $session->current_step_retries = 0;
+
+                $productId = $session->getAnswer('product_id');
+                if ($productId) {
+                    $product = Product::with(['combos.column', 'activeVariations', 'customValues'])->find($productId);
+                    if ($product) {
+                        $this->updateQuoteItemDescription($session, $product);
+                        $this->updateQuoteVariation($session, $product);
+                    }
+                }
+
+                $this->advanceChatflow($session, $steps);
+                $session->save();
+
+                $whatsApp->sendText($instanceName, $session->phone_number, "✅ *{$parsed['value']}* selected!");
+                return $this->sendNextStepAsInteractive($session, $instanceName, $whatsApp, $steps);
+
+            default:
+                return null; // Unknown type — fall through to AI
+        }
+    }
+
+    /**
+     * Send the next chatflow step as an Interactive List (if applicable).
+     * Falls back to normal text prompt for free-text steps.
+     */
+    private function sendNextStepAsInteractive(AiChatSession $session, string $instanceName, WhatsAppService $whatsApp, $steps): ?string
+    {
+        $nextStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
+
+        if (!$nextStep) {
+            // Chatflow complete — use normal AI summary flow
+            return $this->buildNextStepPrompt($session, $steps);
+        }
+
+        $buttonText = mb_substr(Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu', $this->companyId), 0, 20);
+
+        switch ($nextStep->step_type) {
+            case 'ask_combo':
+                $column = $nextStep->linkedColumn;
+                if (!$column) break;
+
+                $productId = $session->getAnswer('product_id');
+                $product = Product::with('combos.column')->find($productId);
+                $comboValues = $product ? $this->getComboValuesForProduct($product, $column) : [];
+
+                if (empty($comboValues)) break; // auto-advance handled by buildNextStepPrompt
+                if (count($comboValues) === 1) {
+                    // Auto-select single option
+                    $session->setAnswer($column->slug, $comboValues[0]);
+                    $this->advanceChatflow($session, $steps);
+                    $session->save();
+                    return $this->sendNextStepAsInteractive($session, $instanceName, $whatsApp, $steps);
+                }
+
+                $sections = WhatsAppService::buildOptionSections($comboValues, $column->name, "combo_{$column->slug}_");
+                $question = $nextStep->question_text ?: "Select {$column->name}:";
+
+                $whatsApp->sendList($instanceName, $session->phone_number, mb_substr($question, 0, 60), $question, $buttonText, $sections, 'Tap to select');
+                return "[Interactive list: {$column->name}]";
+
+            case 'ask_column':
+                $column = $nextStep->linkedColumn;
+                $colId = $nextStep->linked_column_id;
+                if (!$column || !$colId) break;
+
+                $answers = $session->collected_answers ?? [];
+                $query = Product::where('company_id', $this->companyId)->where('status', 'active');
+                if (isset($answers['product_id'])) {
+                    $query->where('id', $answers['product_id']);
+                } elseif (isset($answers['category_id'])) {
+                    $query->where('category_id', $answers['category_id']);
+                }
+                foreach ($answers as $key => $val) {
+                    if (str_starts_with($key, 'column_filter_') && $key !== "column_filter_{$colId}") {
+                        $extColId = str_replace('column_filter_', '', $key);
+                        $query->whereHas('customValues', function ($q) use ($extColId, $val) {
+                            $q->where('column_id', $extColId)->where('value', $val);
+                        });
+                    }
+                }
+
+                $productSet = $query->with('customValues')->get();
+                $availableValues = [];
+                foreach ($productSet as $p) {
+                    $val = $p->customValues->firstWhere('column_id', $colId)?->value;
+                    if (!empty($val)) $availableValues[$val] = true;
+                }
+                $valuesList = array_keys($availableValues);
+                sort($valuesList);
+
+                if (empty($valuesList)) break;
+                if (count($valuesList) === 1) {
+                    $session->setAnswer("column_filter_{$colId}", $valuesList[0]);
+                    $this->advanceChatflow($session, $steps);
+                    $session->save();
+                    return $this->sendNextStepAsInteractive($session, $instanceName, $whatsApp, $steps);
+                }
+
+                $sections = WhatsAppService::buildOptionSections($valuesList, $column->name, "col_{$colId}_");
+                $question = $nextStep->question_text ?: "Select {$column->name}:";
+
+                $whatsApp->sendList($instanceName, $session->phone_number, mb_substr($question, 0, 60), $question, $buttonText, $sections, 'Tap to select');
+                return "[Interactive list: {$column->name}]";
+
+            case 'ask_custom':
+            case 'ask_optional':
+                // Free-text steps → fall through to normal text prompt
+                break;
+
+            case 'send_summary':
+                // Fall through to normal summary
+                break;
+        }
+
+        // Fall back to normal text prompt for non-list steps
+        return $this->buildNextStepPrompt($session, $steps);
+    }
+
+    /**
+     * Send product list as Interactive List for AI Bot mode
+     */
+    private function sendProductListAsInteractive(AiChatSession $session, string $instanceName, WhatsAppService $whatsApp, ?int $categoryId = null): void
+    {
+        $query = Product::where('company_id', $this->companyId)->where('status', 'active');
+        if ($categoryId) {
+            $query->where('category_id', $categoryId);
+        }
+
+        $products = $query->with(['customValues', 'category'])->orderBy('name')->get();
+        if ($products->isEmpty()) return;
+
+        $sections = WhatsAppService::buildProductSections($products, fn($p) => $this->getProductDisplayName($p));
+        $buttonText = mb_substr(Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu', $this->companyId), 0, 20);
+
+        $whatsApp->sendList(
+            $instanceName,
+            $session->phone_number,
+            'Select Product',
+            'Choose a product from our catalogue',
+            $buttonText,
+            $sections,
+            'Tap to select'
+        );
+
+        // Update session
+        $session->conversation_state = 'awaiting_product';
+        $productStep = ChatflowStep::where('company_id', $this->companyId)
+            ->whereIn('step_type', ['ask_product', 'ask_unique_column'])
+            ->orderBy('sort_order')
+            ->first();
+        if ($productStep) {
+            $session->current_step_id = $productStep->id;
+        }
+        $session->save();
+    }
+
 }
+

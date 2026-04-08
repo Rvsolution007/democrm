@@ -711,24 +711,113 @@
 
             <!-- AI Bot Configuration Tab -->
             <div class="settings-tab" id="tab-ai-bot" style="display:none">
-                <!-- AI Bot Toggle -->
+
+                <!-- ═══ Bot Mode Selector (3-Card) ═══ -->
                 <div class="card" style="margin-bottom:24px">
+                    <div class="card-header">
+                        <h3 class="card-title" style="display:flex;align-items:center;gap:8px">
+                            <i data-lucide="radio" style="width:20px;height:20px;color:#8b5cf6"></i>
+                            WhatsApp Bot Mode
+                        </h3>
+                        <p class="text-sm text-muted" style="margin-top:4px">Select which bot mode to use. Only ONE mode can be active at a time.</p>
+                    </div>
+                    <div class="card-content">
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px" id="bot-mode-cards">
+                            <!-- Auto Reply Card -->
+                            <div class="bot-mode-card {{ $botMode === 'auto_reply' ? 'active' : '' }}"
+                                 data-mode="auto_reply" onclick="selectBotMode('auto_reply')"
+                                 style="border:2px solid {{ $botMode === 'auto_reply' ? '#22c55e' : '#e2e8f0' }};border-radius:12px;padding:20px;cursor:pointer;transition:all 0.3s;background:{{ $botMode === 'auto_reply' ? 'linear-gradient(135deg,#f0fdf4,#dcfce7)' : '#fafafa' }};position:relative;text-align:center">
+                                <div style="position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;border:2px solid {{ $botMode === 'auto_reply' ? '#22c55e' : '#d1d5db' }};background:{{ $botMode === 'auto_reply' ? '#22c55e' : 'transparent' }};display:flex;align-items:center;justify-content:center;transition:all 0.3s" id="radio-auto_reply">
+                                    @if($botMode === 'auto_reply')<i data-lucide="check" style="width:14px;height:14px;color:white"></i>@endif
+                                </div>
+                                <div style="font-size:32px;margin-bottom:8px">📨</div>
+                                <h4 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#334155">Auto Reply</h4>
+                                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Keyword → Template reply<br>Basic auto-response rules</p>
+                                <div style="margin-top:10px;font-size:11px;color:#94a3b8;background:#f1f5f9;padding:4px 8px;border-radius:6px">All packages</div>
+                            </div>
+
+                            <!-- List Bot Card -->
+                            <div class="bot-mode-card {{ $botMode === 'list_bot' ? 'active' : '' }}"
+                                 data-mode="list_bot" onclick="selectBotMode('list_bot')"
+                                 style="border:2px solid {{ $botMode === 'list_bot' ? '#3b82f6' : '#e2e8f0' }};border-radius:12px;padding:20px;cursor:pointer;transition:all 0.3s;background:{{ $botMode === 'list_bot' ? 'linear-gradient(135deg,#eff6ff,#dbeafe)' : '#fafafa' }};position:relative;text-align:center">
+                                <div style="position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;border:2px solid {{ $botMode === 'list_bot' ? '#3b82f6' : '#d1d5db' }};background:{{ $botMode === 'list_bot' ? '#3b82f6' : 'transparent' }};display:flex;align-items:center;justify-content:center;transition:all 0.3s" id="radio-list_bot">
+                                    @if($botMode === 'list_bot')<i data-lucide="check" style="width:14px;height:14px;color:white"></i>@endif
+                                </div>
+                                <div style="font-size:32px;margin-bottom:8px">📋</div>
+                                <h4 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#334155">List Bot</h4>
+                                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Menu-driven chatbot<br>Zero AI cost — all PHP</p>
+                                <div style="margin-top:10px;font-size:11px;color:#94a3b8;background:#f1f5f9;padding:4px 8px;border-radius:6px">List Bot package+</div>
+                            </div>
+
+                            <!-- AI Bot Card -->
+                            <div class="bot-mode-card {{ $botMode === 'ai_bot' ? 'active' : '' }}"
+                                 data-mode="ai_bot" onclick="selectBotMode('ai_bot')"
+                                 style="border:2px solid {{ $botMode === 'ai_bot' ? '#8b5cf6' : '#e2e8f0' }};border-radius:12px;padding:20px;cursor:pointer;transition:all 0.3s;background:{{ $botMode === 'ai_bot' ? 'linear-gradient(135deg,#f5f3ff,#ede9fe)' : '#fafafa' }};position:relative;text-align:center">
+                                <div style="position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;border:2px solid {{ $botMode === 'ai_bot' ? '#8b5cf6' : '#d1d5db' }};background:{{ $botMode === 'ai_bot' ? '#8b5cf6' : 'transparent' }};display:flex;align-items:center;justify-content:center;transition:all 0.3s" id="radio-ai_bot">
+                                    @if($botMode === 'ai_bot')<i data-lucide="check" style="width:14px;height:14px;color:white"></i>@endif
+                                </div>
+                                <div style="font-size:32px;margin-bottom:8px">🤖</div>
+                                <h4 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#334155">AI Bot</h4>
+                                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Smart AI + Interactive Lists<br>Gemini-powered chatbot</p>
+                                <div style="margin-top:10px;font-size:11px;color:#94a3b8;background:#f1f5f9;padding:4px 8px;border-radius:6px">AI Bot package</div>
+                            </div>
+                        </div>
+                        <p class="text-sm text-muted" style="margin-top:12px;text-align:center" id="bot-mode-info">
+                            @if($botMode === 'auto_reply') 📨 Auto Reply active — keyword-based template responses
+                            @elseif($botMode === 'list_bot') 📋 List Bot active — menu-driven, zero AI. Uses your Chatflow Steps.
+                            @else 🤖 AI Bot active — smart AI chatbot with Gemini
+                            @endif
+                        </p>
+                    </div>
+                </div>
+
+                <!-- ═══ List Bot Settings (shown only when list_bot mode) ═══ -->
+                <div class="card" style="margin-bottom:24px;{{ $botMode !== 'list_bot' ? 'display:none' : '' }}" id="list-bot-settings-card">
+                    <div class="card-header">
+                        <h3 class="card-title" style="display:flex;align-items:center;gap:8px">
+                            <i data-lucide="message-square-text" style="width:20px;height:20px;color:#3b82f6"></i>
+                            List Bot Settings
+                        </h3>
+                        <p class="text-sm text-muted" style="margin-top:4px">Configure welcome message and menu button. List Bot uses your Chatflow Steps — no AI credits required!</p>
+                    </div>
+                    <div class="card-content">
+                        <div style="margin-bottom:16px">
+                            <label style="display:block;margin-bottom:6px;font-weight:500">Welcome Message</label>
+                            <textarea class="form-textarea" id="list-bot-welcome" rows="4" placeholder="Welcome! 👋&#10;Please select a category from the menu below." style="font-size:14px">{{ $listBotWelcome }}</textarea>
+                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">First message users see when they text. Empty = default message.</small>
+                        </div>
+                        <div style="margin-bottom:16px">
+                            <label style="display:block;margin-bottom:6px;font-weight:500">Menu Button Text</label>
+                            <input type="text" class="form-input" id="list-bot-button-text" value="{{ $listBotButtonText }}" placeholder="🛍 Menu" maxlength="20" style="max-width:300px">
+                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Max 20 characters. Shown on the WhatsApp list button.</small>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveListBotSettings()">
+                            <i data-lucide="save" style="width:16px;height:16px"></i> Save List Bot Settings
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ═══ Interactive List Mode Toggle (shown only when ai_bot mode) ═══ -->
+                <div class="card" style="margin-bottom:24px;{{ $botMode !== 'ai_bot' ? 'display:none' : '' }}" id="interactive-list-card">
                     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <div>
                             <h3 class="card-title" style="display:flex;align-items:center;gap:8px">
-                                <i data-lucide="brain" style="width:20px;height:20px;color:#8b5cf6"></i>
-                                AI Bot Status
+                                <i data-lucide="list-checks" style="width:20px;height:20px;color:#8b5cf6"></i>
+                                Interactive List Mode
                             </h3>
-                            <p class="text-sm text-muted" style="margin-top:4px">AI Bot ON hone pe Auto-Reply rules auto disable ho jayenge</p>
+                            <p class="text-sm text-muted" style="margin-top:4px">
+                                ON = native WhatsApp menu buttons (saves ~91% AI tokens on selections!)<br>
+                                OFF = plain text lists (1. 2. 3.) with AI matching
+                            </p>
                         </div>
                         <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                            <span id="ai-bot-label" style="font-weight:600;font-size:14px;color:{{ $aiBotEnabled ? '#16a34a' : '#dc2626' }}">{{ $aiBotEnabled ? 'ON' : 'OFF' }}</span>
+                            <span id="interactive-list-label" style="font-weight:600;font-size:14px;color:{{ $interactiveListMode ? '#16a34a' : '#dc2626' }}">{{ $interactiveListMode ? 'ON' : 'OFF' }}</span>
                             <div style="position:relative;width:50px;height:28px">
-                                <input type="checkbox" id="ai-bot-toggle" {{ $aiBotEnabled ? 'checked' : '' }}
-                                    onchange="toggleAiBot(this.checked)"
+                                <input type="checkbox" id="interactive-list-toggle" {{ $interactiveListMode ? 'checked' : '' }}
+                                    onchange="toggleInteractiveListMode(this.checked)"
                                     style="opacity:0;width:0;height:0;position:absolute">
-                                <div id="ai-bot-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $aiBotEnabled ? '#22c55e' : '#ccc' }};border-radius:28px;transition:0.3s" onclick="document.getElementById('ai-bot-toggle').click()">
-                                    <div style="position:absolute;content:'';height:22px;width:22px;left:{{ $aiBotEnabled ? '25px' : '3px' }};bottom:3px;background:white;border-radius:50%;transition:0.3s" id="ai-bot-knob"></div>
+                                <div id="interactive-list-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $interactiveListMode ? '#22c55e' : '#ccc' }};border-radius:28px;transition:0.3s" onclick="document.getElementById('interactive-list-toggle').click()">
+                                    <div style="position:absolute;content:'';height:22px;width:22px;left:{{ $interactiveListMode ? '25px' : '3px' }};bottom:3px;background:white;border-radius:50%;transition:0.3s" id="interactive-list-knob"></div>
                                 </div>
                             </div>
                         </label>
@@ -2067,24 +2156,83 @@ RULE 4 — NO MATCH → NONE</textarea>
         })();
 
         // ═══════════════════════════════════════
-        // AI Bot Settings Functions
+        // Bot Mode & List Bot Settings Functions
         // ═══════════════════════════════════════
+
+        function selectBotMode(mode) {
+            var colors = { auto_reply: '#22c55e', list_bot: '#3b82f6', ai_bot: '#8b5cf6' };
+            var gradients = { auto_reply: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', list_bot: 'linear-gradient(135deg,#eff6ff,#dbeafe)', ai_bot: 'linear-gradient(135deg,#f5f3ff,#ede9fe)' };
+            var infos = { auto_reply: '📨 Auto Reply active — keyword-based template responses', list_bot: '📋 List Bot active — menu-driven, zero AI. Uses your Chatflow Steps.', ai_bot: '🤖 AI Bot active — smart AI chatbot with Gemini' };
+
+            // Update card visuals
+            document.querySelectorAll('.bot-mode-card').forEach(function(card) {
+                var m = card.dataset.mode;
+                var isActive = m === mode;
+                card.style.borderColor = isActive ? colors[m] : '#e2e8f0';
+                card.style.background = isActive ? gradients[m] : '#fafafa';
+                var radio = document.getElementById('radio-' + m);
+                radio.style.borderColor = isActive ? colors[m] : '#d1d5db';
+                radio.style.background = isActive ? colors[m] : 'transparent';
+                radio.innerHTML = isActive ? '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>' : '';
+            });
+
+            // Update info text
+            document.getElementById('bot-mode-info').textContent = infos[mode] || '';
+
+            // Show/hide mode-specific cards
+            document.getElementById('list-bot-settings-card').style.display = mode === 'list_bot' ? '' : 'none';
+            document.getElementById('interactive-list-card').style.display = mode === 'ai_bot' ? '' : 'none';
+
+            // Save to server
+            fetch('{{ route("admin.settings.bot-mode.save") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({ bot_mode: mode })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    showToast(data.message || 'Bot mode saved', 'success');
+                } else {
+                    alert(data.message || 'Failed to save bot mode');
+                    location.reload();
+                }
+            }).catch(() => alert('Request failed'));
+        }
+
+        // Legacy compat — old toggle calls this
         function toggleAiBot(enabled) {
-            var label = document.getElementById('ai-bot-label');
-            var slider = document.getElementById('ai-bot-slider');
-            var knob = document.getElementById('ai-bot-knob');
+            selectBotMode(enabled ? 'ai_bot' : 'auto_reply');
+        }
+
+        function saveListBotSettings() {
+            fetch('{{ route("admin.settings.list-bot.save") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({
+                    welcome_message: document.getElementById('list-bot-welcome').value,
+                    menu_button_text: document.getElementById('list-bot-button-text').value,
+                })
+            }).then(r => r.json()).then(data => {
+                if (data.success) showToast(data.message || 'Saved', 'success');
+                else alert('Error saving List Bot settings');
+            }).catch(() => alert('Request failed'));
+        }
+
+        function toggleInteractiveListMode(enabled) {
+            var label = document.getElementById('interactive-list-label');
+            var slider = document.getElementById('interactive-list-slider');
+            var knob = document.getElementById('interactive-list-knob');
             label.textContent = enabled ? 'ON' : 'OFF';
             label.style.color = enabled ? '#16a34a' : '#dc2626';
             slider.style.background = enabled ? '#22c55e' : '#ccc';
             knob.style.left = enabled ? '25px' : '3px';
 
-            fetch('{{ route("admin.settings.ai-toggle") }}', {
+            fetch('{{ route("admin.settings.interactive-list-mode.save") }}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
                 body: JSON.stringify({ enabled: enabled })
             }).then(r => r.json()).then(data => {
-                if (data.success) alert(data.message);
-                else alert('Error toggling AI bot');
+                if (data.success) showToast(data.message || 'Saved', 'success');
+                else alert('Error toggling interactive list mode');
             }).catch(() => alert('Request failed'));
         }
 

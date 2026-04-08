@@ -58,6 +58,16 @@ class SettingsController extends Controller
         $aiFollowupStopStage = Setting::getValue('ai_bot', 'followup_stop_stage', '');
         $aiTargetStage = Setting::getValue('ai_bot', 'target_stage', '');
 
+        // Bot Mode Configuration (3-way: ai_bot / list_bot / auto_reply)
+        $botMode = Setting::getValue('whatsapp', 'bot_mode', null);
+        if ($botMode === null) {
+            // Backward compat: derive from old setting
+            $botMode = $aiBotEnabled ? 'ai_bot' : 'auto_reply';
+        }
+        $interactiveListMode = Setting::getValue('ai_bot', 'interactive_list_mode', false);
+        $listBotWelcome = Setting::getValue('list_bot', 'welcome_message', '');
+        $listBotButtonText = Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu');
+
         $followupSchedules = \App\Models\ChatFollowupSchedule::where('company_id', auth()->user()->company_id)
             ->orderBy('delay_minutes')
             ->get();
@@ -91,7 +101,8 @@ class SettingsController extends Controller
         return view('admin.settings.index', compact(
             'company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources',
             'taskStatuses', 'paymentTypes', 'whatsappApiConfig', 'backupFiles',
-            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiGreetingPrompt', 'aiBusinessPrompt', 'aiReplyLanguage', 'aiArchitectureRules', 'aiSessionValidDays', 'aiSpellPrompt', 'aiTier3Prompt', 'aiGreetingWords', 'aiMatchConfidence', 'aiFollowupStopStage', 'aiTargetStage', 'followupSchedules'
+            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiGreetingPrompt', 'aiBusinessPrompt', 'aiReplyLanguage', 'aiArchitectureRules', 'aiSessionValidDays', 'aiSpellPrompt', 'aiTier3Prompt', 'aiGreetingWords', 'aiMatchConfidence', 'aiFollowupStopStage', 'aiTargetStage', 'followupSchedules',
+            'botMode', 'interactiveListMode', 'listBotWelcome', 'listBotButtonText'
         ));
     }
 
@@ -678,6 +689,88 @@ class SettingsController extends Controller
             'total_columns' => count($index),
             'total_words' => $totalWords,
             'min_confidence' => (int) \App\Models\Setting::getValue('ai_bot', 'match_min_confidence', 60, $companyId),
+        ]);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // BOT MODE & LIST BOT SETTINGS
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Save WhatsApp Bot Mode (ai_bot / list_bot / auto_reply)
+     */
+    public function saveBotMode(Request $request)
+    {
+        $request->validate([
+            'bot_mode' => 'required|in:auto_reply,list_bot,ai_bot',
+        ]);
+
+        $mode = $request->bot_mode;
+        $companyId = auth()->user()->company_id;
+        $company = Company::find($companyId);
+
+        // Package enforcement
+        if ($mode === 'ai_bot' && $company && !$company->hasFeature('ai_bot')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'AI Bot requires Enterprise package. Please upgrade your plan.',
+            ], 403);
+        }
+        if ($mode === 'list_bot' && $company && !$company->hasFeature('list_bot')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'List Bot requires Professional package. Please upgrade your plan.',
+            ], 403);
+        }
+
+        Setting::setValue('whatsapp', 'bot_mode', $mode);
+
+        // Also update legacy setting for backward compat
+        Setting::setValue('ai_bot', 'enabled', $mode === 'ai_bot');
+
+        // If mode is not auto_reply, disable auto-reply rules
+        if ($mode !== 'auto_reply') {
+            \App\Models\WhatsappAutoReplyRule::where('company_id', $companyId)
+                ->update(['is_active' => false]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'mode' => $mode,
+            'message' => 'Bot mode updated to ' . str_replace('_', ' ', ucfirst($mode)),
+        ]);
+    }
+
+    /**
+     * Save List Bot settings (welcome message, button text)
+     */
+    public function saveListBotSettings(Request $request)
+    {
+        $request->validate([
+            'welcome_message' => 'nullable|string|max:1024',
+            'menu_button_text' => 'nullable|string|max:20',
+        ]);
+
+        Setting::setValue('list_bot', 'welcome_message', $request->welcome_message ?? '');
+        Setting::setValue('list_bot', 'menu_button_text', $request->menu_button_text ?? '🛍 Menu');
+
+        return response()->json(['success' => true, 'message' => 'List Bot settings saved']);
+    }
+
+    /**
+     * Save AI Bot Interactive List Mode toggle
+     */
+    public function saveInteractiveListMode(Request $request)
+    {
+        $enabled = $request->boolean('enabled');
+        Setting::setValue('ai_bot', 'interactive_list_mode', $enabled);
+
+        return response()->json([
+            'success' => true,
+            'enabled' => $enabled,
+            'message' => $enabled
+                ? 'Interactive List Mode enabled. Menus will be sent as native WhatsApp lists.'
+                : 'Interactive List Mode disabled. Text-based lists will be used.',
         ]);
     }
 }
