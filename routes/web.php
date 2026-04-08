@@ -181,7 +181,7 @@ Route::get('/seed-users', function () {
     }
 });
 
-// Temporary Route to safely reset the admin password without truncating tables
+// Temporary Route to safely reset/create the super admin
 Route::get('/reset-admin', function () {
     $user = \Illuminate\Support\Facades\DB::table('users')->where('email', 'rvsolution696@gmail.com')->first();
     if ($user) {
@@ -191,9 +191,37 @@ Route::get('/reset-admin', function () {
                 'password' => \Illuminate\Support\Facades\Hash::make('Rvsolution@1415'),
                 'user_type' => 'super_admin',
             ]);
-        return 'Super Admin password reset to Rvsolution@1415 and user_type set to super_admin. Go to /sa-portal/login';
+        return 'Super Admin password reset and user_type set to super_admin. Go to /sa-portal/login';
     }
-    return 'Admin user not found!';
+
+    // User doesn't exist — create it
+    // First ensure company exists
+    $company = \Illuminate\Support\Facades\DB::table('companies')->first();
+    $companyId = $company ? $company->id : null;
+    if (!$companyId) {
+        \Illuminate\Support\Facades\DB::table('companies')->insert([
+            'id' => 1,
+            'name' => 'Platform Admin',
+            'email' => 'admin@platform.com',
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $companyId = 1;
+    }
+
+    \Illuminate\Support\Facades\DB::table('users')->insert([
+        'name' => 'Admin User',
+        'email' => 'rvsolution696@gmail.com',
+        'password' => \Illuminate\Support\Facades\Hash::make('Rvsolution@1415'),
+        'user_type' => 'super_admin',
+        'company_id' => $companyId,
+        'status' => 'active',
+        'email_verified_at' => now(),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    return 'Super Admin user CREATED with email rvsolution696@gmail.com. Go to /sa-portal/login';
 });
 
 // Temporary Route to seed ALL demo data (leads, clients, quotes, etc.)
