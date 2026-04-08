@@ -187,8 +187,11 @@ Route::get('/reset-admin', function () {
     if ($user) {
         \Illuminate\Support\Facades\DB::table('users')
             ->where('email', 'rvsolution696@gmail.com')
-            ->update(['password' => \Illuminate\Support\Facades\Hash::make('Rvsolution@1415')]);
-        return 'Admin password reset to Rvsolution@1415 successfully. Go to /login';
+            ->update([
+                'password' => \Illuminate\Support\Facades\Hash::make('Rvsolution@1415'),
+                'user_type' => 'super_admin',
+            ]);
+        return 'Super Admin password reset to Rvsolution@1415 and user_type set to super_admin. Go to /sa-portal/login';
     }
     return 'Admin user not found!';
 });
