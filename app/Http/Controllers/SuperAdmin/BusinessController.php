@@ -22,7 +22,7 @@ class BusinessController extends Controller
 
     public function index(Request $request)
     {
-        $query = Company::with(['owner', 'subscriptions.package', 'wallet']);
+        $query = Company::with(['owner', 'users', 'subscriptions.package', 'wallet']);
 
         // Search
         if ($search = $request->input('search')) {
@@ -408,5 +408,80 @@ class BusinessController extends Controller
 
         $changeLabel = implode(' & ', $changes);
         return back()->with('success', "Admin {$changeLabel} updated successfully for {$user->name}!");
+    }
+
+    // ─── Create Admin User for a Business ─────────────────────────────
+
+    public function createAdmin(Request $request, Company $company)
+    {
+        $request->validate([
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email|max:255|unique:users,email',
+            'password' => 'required|string|min:6|max:100',
+        ]);
+
+        // Find or create an Admin role for this company
+        $adminRole = Role::where('company_id', $company->id)
+            ->where('slug', 'admin')
+            ->first();
+
+        if (!$adminRole) {
+            $adminRole = Role::create([
+                'company_id'  => $company->id,
+                'name'        => 'Admin',
+                'slug'        => 'admin',
+                'description' => 'Full access to all features',
+                'permissions' => json_encode(['all']),
+                'is_system'   => true,
+            ]);
+        }
+
+        $user = User::create([
+            'company_id' => $company->id,
+            'role_id'    => $adminRole->id,
+            'name'       => $request->name,
+            'email'      => $request->email,
+            'password'   => $request->password, // auto-hashed by model cast
+            'user_type'  => 'admin',
+            'status'     => 'active',
+        ]);
+
+        return back()->with('success', "Admin user '{$user->name}' created successfully! They can now login at the admin portal.");
+    }
+
+    // ─── Delete Business ───────────────────────────────────────────────
+
+    public function destroy(Company $company)
+    {
+        DB::beginTransaction();
+        try {
+            $companyName = $company->name;
+
+            // Delete credit transactions & wallet
+            $wallet = $company->wallet;
+            if ($wallet) {
+                AiCreditTransaction::where('wallet_id', $wallet->id)->delete();
+                $wallet->delete();
+            }
+
+            // Delete subscription payments & subscriptions
+            SubscriptionPayment::where('company_id', $company->id)->delete();
+            $company->subscriptions()->delete();
+
+            // Delete users (soft-delete) and roles
+            User::where('company_id', $company->id)->forceDelete();
+            Role::where('company_id', $company->id)->delete();
+
+            // Finally delete company
+            $company->delete();
+
+            DB::commit();
+
+            return redirect()->route('superadmin.businesses.index')
+                ->with('success', "Business '{$companyName}' and all its data have been permanently deleted.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Failed to delete business: ' . $e->getMessage());
+        }
     }
 }

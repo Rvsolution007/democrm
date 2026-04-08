@@ -117,8 +117,15 @@
                             <div style="font-size:12px;color:hsl(var(--muted-foreground));">{{ $biz->email }}</div>
                         </td>
                         <td>
-                            <div>{{ $biz->owner->name ?? '—' }}</div>
-                            <div style="font-size:12px;color:hsl(var(--muted-foreground));">{{ $biz->owner->email ?? '' }}</div>
+                            @php
+                                $adminUser = $biz->users->where('user_type', '!=', 'super_admin')->first();
+                            @endphp
+                            @if($adminUser)
+                                <div>{{ $adminUser->name }}</div>
+                                <div style="font-size:12px;color:hsl(var(--muted-foreground));">{{ $adminUser->email }}</div>
+                            @else
+                                <div>—</div>
+                            @endif
                         </td>
                         <td>
                             @if($sub && $sub->package)
@@ -157,9 +164,21 @@
                             @endif
                         </td>
                         <td>
-                            <a href="{{ route('superadmin.businesses.show', $biz->id) }}" class="btn btn-ghost btn-xs" title="View Details">
-                                <i data-lucide="eye" style="width:14px;height:14px;"></i>
-                            </a>
+                            <div style="display:flex;gap:4px;">
+                                <a href="{{ route('superadmin.businesses.show', $biz->id) }}" class="btn btn-ghost btn-xs" title="View Details">
+                                    <i data-lucide="eye" style="width:14px;height:14px;"></i>
+                                </a>
+                                <a href="{{ route('superadmin.businesses.show', $biz->id) }}" class="btn btn-ghost btn-xs" title="Edit Business" style="color:var(--info);">
+                                    <i data-lucide="pencil" style="width:14px;height:14px;"></i>
+                                </a>
+                                <form method="POST" action="{{ route('superadmin.businesses.destroy', $biz->id) }}" style="margin:0;" onsubmit="return confirm('Are you sure you want to permanently delete this business and all its data? This action cannot be undone!');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-ghost btn-xs" title="Delete Business" style="color:var(--destructive);">
+                                        <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     @empty

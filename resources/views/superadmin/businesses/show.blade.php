@@ -182,16 +182,17 @@
             <div class="card-content" style="padding:0;">
                 <div class="table-container" style="border:none;">
                     <table>
-                        <thead><tr><th>Name</th><th>Role</th><th>Type</th><th>Status</th></tr></thead>
+                        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr></thead>
                         <tbody>
                             @foreach($businessUsers as $usr)
                             <tr>
                                 <td>
                                     <div style="font-weight:500;">{{ $usr->name }}</div>
-                                    <div style="font-size:11px;color:hsl(var(--muted-foreground));">{{ $usr->email }}</div>
                                 </td>
-                                <td><span class="badge badge-secondary" style="font-size:11px;">{{ $usr->role?->name ?? '—' }}</span></td>
-                                <td><span class="badge {{ $usr->user_type === 'admin' ? 'badge-primary' : 'badge-muted' }}" style="font-size:10px;">{{ $usr->user_type }}</span></td>
+                                <td>
+                                    <div style="font-size:12px;color:hsl(var(--muted-foreground));">{{ $usr->email }}</div>
+                                </td>
+                                <td><span class="badge {{ $usr->role && str_contains(strtolower($usr->role->name), 'admin') ? 'badge-primary' : 'badge-secondary' }}" style="font-size:11px;">{{ $usr->role?->name ?? '—' }}</span></td>
                                 <td><span class="badge {{ $usr->status === 'active' ? 'badge-success' : 'badge-muted' }}" style="font-size:11px;">{{ ucfirst($usr->status) }}</span></td>
                             </tr>
                             @endforeach
@@ -204,26 +205,33 @@
         {{-- Reset Admin Credentials --}}
         <div class="card">
             <div class="card-header" style="flex-direction:row;align-items:center;justify-content:space-between;">
-                <h3 class="card-title" style="font-size:16px;"><i data-lucide="key-round" style="width:16px;height:16px;margin-right:6px;color:hsl(var(--warning));vertical-align:text-bottom;"></i>Reset Login Credentials</h3>
+                <h3 class="card-title" style="font-size:16px;"><i data-lucide="key-round" style="width:16px;height:16px;margin-right:6px;color:hsl(var(--warning));vertical-align:text-bottom;"></i>Admin Credentials</h3>
             </div>
             <div class="card-content">
+                @if($businessUsers->count() > 0)
+                {{-- Reset existing user credentials --}}
                 <form method="POST" action="{{ route('superadmin.businesses.reset-credentials', $company->id) }}">
                     @csrf
                     <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:12px;">
                         <div>
                             <label class="form-label" style="font-size:12px;">Select User</label>
                             <select name="user_id" class="form-select" required id="resetUserSelect" onchange="fillCurrentEmail(this)">
-                                <option value="">— Choose a user —</option>
-                                @foreach($businessUsers as $usr)
-                                    <option value="{{ $usr->id }}" data-email="{{ $usr->email }}">{{ $usr->name }} ({{ $usr->user_type }}) — {{ $usr->email }}</option>
-                                @endforeach
+                                @if($businessUsers->count() === 1)
+                                    @php $singleUser = $businessUsers->first(); @endphp
+                                    <option value="{{ $singleUser->id }}" data-email="{{ $singleUser->email }}" selected>{{ $singleUser->name }} ({{ $singleUser->role?->name ?? $singleUser->user_type }}) — {{ $singleUser->email }}</option>
+                                @else
+                                    <option value="">— Choose a user —</option>
+                                    @foreach($businessUsers as $usr)
+                                        <option value="{{ $usr->id }}" data-email="{{ $usr->email }}">{{ $usr->name }} ({{ $usr->role?->name ?? $usr->user_type }}) — {{ $usr->email }}</option>
+                                    @endforeach
+                                @endif
                             </select>
                         </div>
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
                         <div>
                             <label class="form-label" style="font-size:12px;">New Email <span style="color:hsl(var(--muted-foreground));font-size:11px;">(leave blank to keep current)</span></label>
-                            <input type="email" name="new_email" class="form-control" id="resetEmailInput" placeholder="new-email@example.com">
+                            <input type="email" name="new_email" class="form-control" id="resetEmailInput" placeholder="{{ $businessUsers->count() === 1 ? $businessUsers->first()->email : 'new-email@example.com' }}">
                         </div>
                         <div>
                             <label class="form-label" style="font-size:12px;">New Password <span style="color:hsl(var(--muted-foreground));font-size:11px;">(leave blank to keep current)</span></label>
@@ -241,6 +249,42 @@
                         </button>
                     </div>
                 </form>
+                @else
+                {{-- No users — Create Admin form --}}
+                <div style="border:1px dashed hsl(var(--border));border-radius:8px;padding:20px;margin-bottom:12px;text-align:center;">
+                    <i data-lucide="user-plus" style="width:24px;height:24px;margin-bottom:8px;color:hsl(var(--primary));opacity:0.7;"></i>
+                    <p style="color:hsl(var(--muted-foreground));font-size:13px;margin-bottom:16px;">No users found for this business. Create an admin user to enable login.</p>
+                </div>
+                <form method="POST" action="{{ route('superadmin.businesses.create-admin', $company->id) }}">
+                    @csrf
+                    <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:12px;">
+                        <div>
+                            <label class="form-label" style="font-size:12px;">Admin Name</label>
+                            <input type="text" name="name" class="form-control" required placeholder="e.g. Admin User">
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                        <div>
+                            <label class="form-label" style="font-size:12px;">Email</label>
+                            <input type="email" name="email" class="form-control" required placeholder="admin@company.com">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size:12px;">Password</label>
+                            <div style="position:relative;">
+                                <input type="text" name="password" class="form-control" id="resetPasswordInput" required placeholder="Min 6 characters">
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i data-lucide="user-plus" style="width:14px;height:14px;"></i> Create Admin User
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="generatePassword()" title="Generate a random secure password">
+                            <i data-lucide="sparkles" style="width:14px;height:14px;"></i> Generate Password
+                        </button>
+                    </div>
+                </form>
+                @endif
             </div>
         </div>
         <script>

@@ -21,9 +21,9 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        // Rate limiting: 5 attempts per 15 minutes
+        // Rate limiting: 15 attempts per 5 minutes
         $throttleKey = 'login:' . $request->ip();
-        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+        if (RateLimiter::tooManyAttempts($throttleKey, 15)) {
             $seconds = RateLimiter::availableIn($throttleKey);
             $minutes = ceil($seconds / 60);
             return back()->withErrors([
@@ -79,7 +79,7 @@ class AuthController extends Controller
             return $this->redirectByUserType($user);
         }
 
-        RateLimiter::hit($throttleKey, 900); // 15 minutes = 900 seconds
+        RateLimiter::hit($throttleKey, 300); // 5 minutes = 300 seconds
 
         return back()->withErrors([
             'email' => 'Invalid email or password.',
@@ -98,9 +98,9 @@ class AuthController extends Controller
 
     public function saLogin(Request $request)
     {
-        // Rate limiting: 3 attempts per 30 minutes (stricter for SA)
+        // Rate limiting: 10 attempts per 10 minutes (stricter for SA)
         $throttleKey = 'sa-login:' . $request->ip();
-        if (RateLimiter::tooManyAttempts($throttleKey, 3)) {
+        if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
             $seconds = RateLimiter::availableIn($throttleKey);
             $minutes = ceil($seconds / 60);
             return back()->withErrors([
@@ -119,7 +119,7 @@ class AuthController extends Controller
             // ONLY super_admin can login from SA portal
             if ($user->user_type !== 'super_admin') {
                 Auth::logout();
-                RateLimiter::hit($throttleKey, 1800);
+                RateLimiter::hit($throttleKey, 600);
                 return back()->withErrors([
                     'email' => 'Invalid credentials.',
                 ])->onlyInput('email');
@@ -139,7 +139,7 @@ class AuthController extends Controller
             return redirect()->route('superadmin.dashboard');
         }
 
-        RateLimiter::hit($throttleKey, 1800); // 30 minutes
+        RateLimiter::hit($throttleKey, 600); // 10 minutes
 
         return back()->withErrors([
             'email' => 'Invalid credentials.',
