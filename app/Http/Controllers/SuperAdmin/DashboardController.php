@@ -77,6 +77,14 @@ class DashboardController extends Controller
         $recentSubscriptions = Subscription::with(['company', 'package'])
             ->latest()->take(5)->get();
 
+        // ─── Pending Upgrade Requests ───────────────────────────────
+        $upgradeRequests = Subscription::with(['company', 'package'])
+            ->where('notes', 'like', '%UPGRADE REQUEST:%')
+            ->whereIn('status', ['active', 'trial'])
+            ->where('expires_at', '>=', now()->toDateString())
+            ->latest('updated_at')
+            ->get();
+
         // ─── User Stats ─────────────────────────────────────────────
         $totalAdmins = User::where('user_type', 'admin')->count();
         $totalStaff = User::where('user_type', 'staff')->count();
@@ -88,7 +96,7 @@ class DashboardController extends Controller
             'expiredSubscriptions', 'expiringSoon', 'newBusinessesThisMonth',
             'packageStats',
             'totalCreditsInSystem', 'totalCreditsConsumed', 'lowBalanceWallets',
-            'recentPayments', 'recentSubscriptions',
+            'recentPayments', 'recentSubscriptions', 'upgradeRequests',
             'totalAdmins', 'totalStaff'
         ));
     }

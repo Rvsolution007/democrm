@@ -311,6 +311,25 @@ class BusinessController extends Controller
         return back()->with('success', "Subscription updated to {$package->name} ({$request->billing_cycle}) for {$days} days!");
     }
 
+    // ─── Dismiss Upgrade Request ────────────────────────────────────────
+
+    public function dismissUpgrade(Company $company)
+    {
+        // Clear upgrade request notes from active subscriptions
+        $subscriptions = $company->subscriptions()
+            ->whereIn('status', ['active', 'trial'])
+            ->where('notes', 'like', '%UPGRADE REQUEST:%')
+            ->get();
+
+        foreach ($subscriptions as $sub) {
+            $lines = explode("\n", $sub->notes ?? '');
+            $cleaned = array_filter($lines, fn($line) => !str_contains($line, 'UPGRADE REQUEST:'));
+            $sub->update(['notes' => trim(implode("\n", $cleaned)) ?: null]);
+        }
+
+        return back()->with('success', "Upgrade request for '{$company->name}' dismissed.");
+    }
+
     // ─── Add AI Credits ─────────────────────────────────────────────────
 
     public function addCredits(Request $request, Company $company)

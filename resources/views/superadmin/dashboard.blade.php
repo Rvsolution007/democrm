@@ -21,6 +21,68 @@
 </div>
 @endif
 
+{{-- Pending Upgrade Requests --}}
+@if($upgradeRequests->count() > 0)
+<div style="margin-bottom:20px;">
+    <div style="padding:14px 18px;background:hsl(var(--primary)/0.06);border:1px solid hsl(var(--primary)/0.15);border-radius:10px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <i data-lucide="arrow-up-circle" style="width:18px;height:18px;color:hsl(var(--primary));"></i>
+            <span style="font-weight:700;font-size:14px;color:hsl(var(--primary));">{{ $upgradeRequests->count() }} Pending Upgrade Request(s)</span>
+        </div>
+        @foreach($upgradeRequests as $req)
+        @php
+            // Parse the latest upgrade request from notes
+            $lines = array_filter(explode("\n", $req->notes ?? ''));
+            $latestRequest = '';
+            $requestedPlan = '';
+            $requestDate = '';
+            foreach (array_reverse($lines) as $line) {
+                if (str_contains($line, 'UPGRADE REQUEST:')) {
+                    $latestRequest = trim($line);
+                    // Extract plan name: "... requested upgrade to PlanName (cycle) on date"
+                    if (preg_match('/upgrade to (.+?) \(/', $line, $m)) {
+                        $requestedPlan = $m[1];
+                    }
+                    if (preg_match('/on (\d{2} \w{3} \d{4})/', $line, $m)) {
+                        $requestDate = $m[1];
+                    }
+                    break;
+                }
+            }
+        @endphp
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:hsl(var(--background));border-radius:8px;margin-bottom:6px;border:1px solid hsl(var(--border));">
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,hsl(var(--primary)),hsl(var(--accent)));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;flex-shrink:0;">
+                    {{ strtoupper(substr($req->company->name ?? 'X', 0, 2)) }}
+                </div>
+                <div>
+                    <div style="font-weight:600;font-size:14px;">{{ $req->company->name ?? '—' }}</div>
+                    <div style="font-size:12px;color:hsl(var(--muted-foreground));">
+                        Current: <span class="badge badge-secondary" style="font-size:10px;">{{ $req->package->name ?? '—' }}</span>
+                        → Requested: <span class="badge badge-primary" style="font-size:10px;">{{ $requestedPlan ?: 'Unknown' }}</span>
+                        @if($requestDate)
+                            <span style="margin-left:6px;opacity:0.6;">{{ $requestDate }}</span>
+                        @endif
+                    </div>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                <a href="{{ route('superadmin.businesses.show', $req->company_id) }}" class="btn btn-primary btn-sm" style="font-size:12px;white-space:nowrap;">
+                    <i data-lucide="settings" style="width:14px;height:14px;"></i> Process
+                </a>
+                <form method="POST" action="{{ route('superadmin.businesses.dismiss-upgrade', $req->company_id) }}" style="margin:0;">
+                    @csrf
+                    <button type="submit" class="btn btn-ghost btn-sm" style="font-size:12px;white-space:nowrap;color:hsl(var(--muted-foreground));" onclick="return confirm('Dismiss this upgrade request?')">
+                        ✕ Dismiss
+                    </button>
+                </form>
+            </div>
+        </div>
+        @endforeach
+    </div>
+</div>
+@endif
+
 {{-- Revenue KPIs --}}
 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
     {{-- MRR --}}

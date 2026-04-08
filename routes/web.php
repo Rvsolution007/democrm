@@ -58,6 +58,7 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmi
     Route::post('/businesses/{company}/update-users', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'updateMaxUsers'])->name('businesses.update-users');
     Route::post('/businesses/{company}/reset-credentials', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'resetAdminCredentials'])->name('businesses.reset-credentials');
     Route::post('/businesses/{company}/create-admin', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'createAdmin'])->name('businesses.create-admin');
+    Route::post('/businesses/{company}/dismiss-upgrade', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'dismissUpgrade'])->name('businesses.dismiss-upgrade');
     Route::delete('/businesses/{company}', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'destroy'])->name('businesses.destroy');
 
     // Packages
