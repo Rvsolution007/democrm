@@ -353,7 +353,8 @@
         </div>
     </div>
 
-    {{-- ═══ Credit Packs + Activity ═══ --}}
+    {{-- ═══ Credit Packs + Activity (only if AI Bot is in package) ═══ --}}
+    @if($company->hasFeature('ai_bot'))
     <div class="credits-layout">
         {{-- Credit Packs --}}
         <div class="section-card">
@@ -424,6 +425,7 @@
             @endif
         </div>
     </div>
+    @endif
 
     {{-- ═══ Subscription History ═══ --}}
     <div class="section-card">

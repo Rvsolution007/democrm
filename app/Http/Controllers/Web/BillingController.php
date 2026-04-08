@@ -91,7 +91,7 @@ class BillingController extends Controller
     }
 
     /**
-     * Request credit pack purchase — records interest for SA to process
+     * Buy credit pack — adds credits to wallet immediately
      */
     public function requestCredits(Request $request)
     {
@@ -103,21 +103,35 @@ class BillingController extends Controller
         $user = auth()->user();
         $wallet = AiCreditWallet::where('company_id', $user->company_id)->first();
 
-        if ($wallet) {
-            // Log the purchase request as an adjustment with 0 credits
-            $wallet->transactions()->create([
+        if (!$wallet) {
+            // Create wallet if it doesn't exist
+            $wallet = AiCreditWallet::create([
                 'company_id' => $user->company_id,
-                'type' => 'adjustment',
-                'credits' => 0,
-                'balance_after' => $wallet->balance,
-                'amount_paid' => $pack->price,
-                'description' => "⏳ PURCHASE REQUEST: {$pack->name} ({$pack->getCreditsFormatted()} credits @ {$pack->getPriceFormatted()}) by {$user->name}",
-                'reference_type' => 'credit_pack_request',
-                'reference_id' => $pack->id,
-                'payment_method' => 'pending',
+                'balance' => 0,
+                'total_purchased' => 0,
+                'total_consumed' => 0,
+                'low_balance_threshold' => 50,
             ]);
         }
 
-        return back()->with('success', "Credit pack request for {$pack->name} ({$pack->getCreditsFormatted()} credits) submitted! Contact support for payment details.");
+        // Add credits to wallet
+        $wallet->balance += $pack->credits;
+        $wallet->total_purchased += $pack->credits;
+        $wallet->save();
+
+        // Log the transaction
+        $wallet->transactions()->create([
+            'company_id' => $user->company_id,
+            'type' => 'recharge',
+            'credits' => $pack->credits,
+            'balance_after' => $wallet->balance,
+            'amount_paid' => $pack->price,
+            'description' => "Purchased {$pack->name} ({$pack->getCreditsFormatted()} credits @ {$pack->getPriceFormatted()}) by {$user->name}",
+            'reference_type' => 'credit_pack',
+            'reference_id' => $pack->id,
+            'payment_method' => 'direct',
+        ]);
+
+        return back()->with('success', "✅ {$pack->getCreditsFormatted()} credits added to your wallet from {$pack->name}!");
     }
 }
