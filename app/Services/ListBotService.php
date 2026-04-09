@@ -493,9 +493,22 @@ class ListBotService
         $products = $query->with(['customValues', 'category'])->orderBy('name')->get();
 
         if ($products->isEmpty()) {
-            $msg = "Sorry, no products available in this category.";
-            $this->whatsApp->sendText($instanceName, $session->phone_number, $msg);
-            return $this->sendWelcomeWithCategories($session, $instanceName);
+            if ($categoryId) {
+                $msg = "Sorry, no products available in this category.";
+                $this->whatsApp->sendText($instanceName, $session->phone_number, $msg);
+                
+                // Remove the category_id from answers so it can restart
+                $answers = $session->collected_answers ?? [];
+                unset($answers['category_id']);
+                $session->collected_answers = $answers;
+                $session->save();
+                
+                return $this->sendWelcomeWithCategories($session, $instanceName);
+            } else {
+                $msg = "Sorry, no products are currently available. Please check back later! 🙏";
+                $this->whatsApp->sendText($instanceName, $session->phone_number, $msg);
+                return $msg;
+            }
         }
 
         // Auto-select if only 1 product
