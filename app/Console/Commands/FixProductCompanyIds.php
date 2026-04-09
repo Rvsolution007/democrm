@@ -83,34 +83,56 @@ class FixProductCompanyIds extends Command
             }
 
             // Also move related settings (catalogue columns, chatflow steps)
-            DB::table('catalogue_custom_columns')->where('company_id', $fromCompany)
-                ->update(['company_id' => $targetCompany]);
-            $this->info("  MOVED Catalogue columns -> Company #{$targetCompany}");
+            // Handle duplicates: delete source records that already exist in target
+            $sourceColumns = DB::table('catalogue_custom_columns')->where('company_id', $fromCompany)->get();
+            foreach ($sourceColumns as $col) {
+                $exists = DB::table('catalogue_custom_columns')
+                    ->where('company_id', $targetCompany)
+                    ->where('slug', $col->slug)
+                    ->exists();
 
-            DB::table('chatflow_steps')->where('company_id', $fromCompany)
-                ->update(['company_id' => $targetCompany]);
-            $this->info("  MOVED Chatflow steps -> Company #{$targetCompany}");
+                if ($exists) {
+                    // Target already has this column — delete the source duplicate
+                    DB::table('catalogue_custom_columns')->where('id', $col->id)->delete();
+                    $this->warn("  SKIPPED Column #{$col->id} ({$col->slug}) — already exists in target");
+                } else {
+                    DB::table('catalogue_custom_columns')->where('id', $col->id)
+                        ->update(['company_id' => $targetCompany]);
+                    $this->info("  MOVED Column #{$col->id} ({$col->slug}) -> Company #{$targetCompany}");
+                }
+            }
 
-            // Move WhatsApp settings
-            DB::table('settings')
-                ->where('company_id', $fromCompany)
-                ->where('group', 'whatsapp')
-                ->update(['company_id' => $targetCompany]);
-            $this->info("  MOVED WhatsApp settings -> Company #{$targetCompany}");
+            try {
+                DB::table('chatflow_steps')->where('company_id', $fromCompany)
+                    ->update(['company_id' => $targetCompany]);
+                $this->info("  MOVED Chatflow steps -> Company #{$targetCompany}");
+            } catch (\Exception $e) {
+                $this->warn("  SKIPPED Chatflow steps (duplicates exist)");
+            }
 
-            // Move list_bot settings
-            DB::table('settings')
-                ->where('company_id', $fromCompany)
-                ->where('group', 'list_bot')
-                ->update(['company_id' => $targetCompany]);
-            $this->info("  MOVED List Bot settings -> Company #{$targetCompany}");
+            // Move settings — handle each individually to avoid duplicates
+            foreach (['whatsapp', 'list_bot', 'ai_bot'] as $group) {
+                $sourceSettings = DB::table('settings')
+                    ->where('company_id', $fromCompany)
+                    ->where('group', $group)
+                    ->get();
 
-            // Move ai_bot settings
-            DB::table('settings')
-                ->where('company_id', $fromCompany)
-                ->where('group', 'ai_bot')
-                ->update(['company_id' => $targetCompany]);
-            $this->info("  MOVED AI Bot settings -> Company #{$targetCompany}");
+                foreach ($sourceSettings as $setting) {
+                    $exists = DB::table('settings')
+                        ->where('company_id', $targetCompany)
+                        ->where('group', $group)
+                        ->where('key', $setting->key)
+                        ->exists();
+
+                    if ($exists) {
+                        $this->warn("  SKIPPED Setting {$group}.{$setting->key} — already in target");
+                    } else {
+                        DB::table('settings')->where('id', $setting->id)
+                            ->update(['company_id' => $targetCompany]);
+                        $this->info("  MOVED Setting {$group}.{$setting->key} -> Company #{$targetCompany}");
+                    }
+                }
+            }
 
             $this->info('');
             $this->info('=== After Fix ===');
