@@ -53,7 +53,16 @@
                             <div class="wa-spinner"
                                 style="width:48px;height:48px;border:4px solid #e5e7eb;border-top-color:#25D366;border-radius:50%;animation:wa-spin 1s linear infinite;margin:0 auto 16px">
                             </div>
-                            <p style="color:#888;font-size:14px">Loading QR code...</p>
+                            <p style="color:#888;font-size:14px;margin-bottom:20px">Loading QR code...</p>
+                            
+                            {{-- Force reconnect if stuck --}}
+                            <div style="margin-top:20px;">
+                                <p style="font-size:12px;color:#999;margin-bottom:8px">Is it stuck loading?</p>
+                                <button class="btn btn-sm" onclick="disconnectWhatsapp()" 
+                                    style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-weight:600;padding:6px 12px;font-size:13px;border-radius:6px">
+                                    <i data-lucide="refresh-cw" style="width:14px;height:14px;margin-right:4px"></i> Force Reconnect
+                                </button>
+                            </div>
                         </div>
 
                         {{-- QR Code Display --}}
@@ -98,9 +107,16 @@
                             </div>
                             <h3 style="font-size:18px;font-weight:700;color:#dc2626;margin-bottom:4px">Connection Error</h3>
                             <p id="qr-error-msg" style="color:#666;font-size:14px;margin-bottom:20px"></p>
-                            <button class="btn btn-primary" onclick="initConnection()">
-                                <i data-lucide="refresh-cw" style="width:16px;height:16px"></i> Retry
-                            </button>
+                            
+                            <div style="display:flex;gap:10px;justify-content:center">
+                                <button class="btn btn-primary" onclick="initConnection()">
+                                    <i data-lucide="refresh-ccw" style="width:16px;height:16px"></i> Retry
+                                </button>
+                                <button class="btn" onclick="disconnectWhatsapp()" 
+                                    style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-weight:600">
+                                    <i data-lucide="unplug" style="width:16px;height:16px"></i> Force Disconnect
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
