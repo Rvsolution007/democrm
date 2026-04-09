@@ -73,7 +73,7 @@
             </div>
             <h1 class="l-hero-title">
                 Grow Your Business<br>
-                <span class="l-gradient-text">Smarter & Faster</span>
+                <span style="background:linear-gradient(135deg,#2563eb,#0ea5e9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Smarter & Faster</span>
             </h1>
             <p class="l-hero-desc">
                 All-in-one CRM platform to manage leads, automate WhatsApp, generate invoices, track projects, and close deals — powered with AI intelligence.
@@ -301,7 +301,7 @@
                     @endif
                 </ul>
 
-                <a href="{{ route('register', $pkg->slug) }}" class="l-btn {{ $index === 1 ? 'l-btn-primary' : 'l-btn-accent' }} l-pricing-btn">
+                <a href="{{ route('register', $pkg->slug) }}" class="l-btn {{ $index === 1 ? 'l-btn-primary' : 'l-btn-blue' }} l-pricing-btn">
                     {{ $pkg->trial_days > 0 ? 'Start Free Trial' : 'Get Started' }}
                 </a>
             </div>

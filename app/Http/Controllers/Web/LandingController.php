@@ -18,11 +18,41 @@ use Illuminate\Support\Str;
 
 class LandingController extends Controller
 {
-    // ─── Landing Page ──────────────────────────────────────────────────
+    // ─── Landing Pages ─────────────────────────────────────────────────
     public function index()
     {
+        return view('landing.home');
+    }
+
+    public function features()
+    {
+        return view('landing.features');
+    }
+
+    public function about()
+    {
+        return view('landing.about');
+    }
+
+    public function packages()
+    {
         $packages = SubscriptionPackage::active()->ordered()->get();
-        return view('landing', compact('packages'));
+        return view('landing.packages', compact('packages'));
+    }
+
+    public function faq()
+    {
+        return view('landing.faq');
+    }
+
+    public function reviews()
+    {
+        return view('landing.reviews');
+    }
+
+    public function contact()
+    {
+        return view('landing.contact');
     }
 
     // ─── Registration ──────────────────────────────────────────────────
