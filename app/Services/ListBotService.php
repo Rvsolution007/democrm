@@ -105,6 +105,23 @@ class ListBotService
                     Log::info('ListBot: Lead created', ['session' => $session->id, 'lead_id' => $lead->id]);
                 }
 
+                // Reset session if user types "hi", "hello", or "menu" to start over
+                if (in_array(trim(strtolower($messageText)), ['hi', 'hello', 'menu'])) {
+                    // Mark old session expired and create a new one
+                    $session->update(['status' => 'expired', 'is_completed' => true]);
+                    
+                    $session = AiChatSession::create([
+                        'company_id' => $this->companyId,
+                        'phone_number' => $phone,
+                        'instance_name' => $instanceName,
+                        'status' => 'active',
+                        'conversation_state' => 'started',
+                        'last_message_at' => now(),
+                    ]);
+                    
+                    Log::info('ListBot: Session reset by user', ['session' => $session->id]);
+                }
+
                 // Route the message
                 $response = $this->routeMessage($session, $instanceName, $messageText, $listRowId);
 
