@@ -42,7 +42,7 @@ class ProcessListBotJob implements ShouldQueue
                 return;
             }
 
-            $companyId = $user->company_id ?? 1;
+            $companyId = $this->resolveCompanyId($user);
 
             // Advisory lock — same pattern as AI Bot to prevent race conditions
             $lockKey = "list_bot_lock_{$companyId}_{$this->senderPhone}";
@@ -94,5 +94,61 @@ class ProcessListBotJob implements ShouldQueue
             if ($id > 0) return $id;
         }
         return null;
+    }
+
+    /**
+     * Resolve the correct company_id for this instance.
+     * 
+     * Primary: user->company_id
+     * Fallback: Search whatsapp api_config settings for the instance name
+     *           to find which company actually owns this WhatsApp instance.
+     * 
+     * This handles cases where the user's company_id doesn't match the
+     * company that has the WhatsApp config and products (e.g., after
+     * company reassignment or multi-tenant setups).
+     */
+    private function resolveCompanyId(\App\Models\User $user): int
+    {
+        $primaryCompanyId = $user->company_id ?? 1;
+
+        // Quick check: does this company have active products?
+        $hasProducts = \App\Models\Product::where('company_id', $primaryCompanyId)
+            ->where('status', 'active')
+            ->exists();
+
+        if ($hasProducts) {
+            Log::info("ListBotJob: Company resolved from user", [
+                'user_id' => $user->id,
+                'company_id' => $primaryCompanyId,
+            ]);
+            return $primaryCompanyId;
+        }
+
+        // Fallback: find the company that owns this WhatsApp instance
+        Log::warning("ListBotJob: No active products in company {$primaryCompanyId}, searching by instance name", [
+            'instance' => $this->instanceName,
+        ]);
+
+        $apiConfigs = \App\Models\Setting::where('group', 'whatsapp')
+            ->where('key', 'api_config')
+            ->get();
+
+        foreach ($apiConfigs as $setting) {
+            $config = is_array($setting->value) ? $setting->value : json_decode($setting->value, true);
+            $instanceName = $config['instance_name'] ?? '';
+
+            if (!empty($instanceName) && $instanceName === $this->instanceName) {
+                $fallbackCompanyId = $setting->company_id;
+                Log::info("ListBotJob: Company resolved from WhatsApp api_config", [
+                    'company_id' => $fallbackCompanyId,
+                    'instance' => $this->instanceName,
+                ]);
+                return $fallbackCompanyId;
+            }
+        }
+
+        // Last resort: try to find any company with active products that the user might belong to
+        Log::warning("ListBotJob: Could not resolve company from instance, using user company_id={$primaryCompanyId}");
+        return $primaryCompanyId;
     }
 }

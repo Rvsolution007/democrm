@@ -98,12 +98,7 @@ class WhatsappWebhookController extends Controller
         // Only ONE mode is active at a time per company.
         // Package enforcement: if mode isn't available, fallback.
         // ═══════════════════════════════════════════════════════════
-        $userId = $this->getUserIdFromInstance($instanceName);
-        $companyId = 1;
-        if ($userId) {
-            $user = \App\Models\User::find($userId);
-            $companyId = $user->company_id ?? 1;
-        }
+        $companyId = $this->resolveCompanyFromInstance($instanceName);
 
         // Get bot mode (new 3-way setting)
         $botMode = Setting::getValue('whatsapp', 'bot_mode', null, $companyId);
@@ -437,6 +432,60 @@ class WhatsappWebhookController extends Controller
             if ($id > 0) return $id;
         }
         return null;
+    }
+
+    /**
+     * Resolve company_id from WhatsApp instance name.
+     * 
+     * Strategy:
+     * 1. Extract user_id from instance name → user->company_id
+     * 2. Fallback: Search whatsapp api_config settings for matching instance name
+     * 3. Last resort: default to company_id = 1
+     */
+    private function resolveCompanyFromInstance(string $instanceName): int
+    {
+        // Primary: resolve from user
+        $userId = $this->getUserIdFromInstance($instanceName);
+        if ($userId) {
+            $user = \App\Models\User::find($userId);
+            if ($user && $user->company_id) {
+                // Verify this company has WhatsApp config or products
+                $hasConfig = Setting::where('company_id', $user->company_id)
+                    ->where('group', 'whatsapp')
+                    ->where('key', 'api_config')
+                    ->exists();
+
+                if ($hasConfig) {
+                    return $user->company_id;
+                }
+            }
+        }
+
+        // Fallback: search api_config settings for matching instance name
+        $apiConfigs = Setting::where('group', 'whatsapp')
+            ->where('key', 'api_config')
+            ->get();
+
+        foreach ($apiConfigs as $setting) {
+            $config = is_array($setting->value) ? $setting->value : json_decode($setting->value, true);
+            $configInstance = $config['instance_name'] ?? '';
+
+            if (!empty($configInstance) && $configInstance === $instanceName) {
+                Log::info("Webhook: Company resolved from api_config", [
+                    'company_id' => $setting->company_id,
+                    'instance' => $instanceName,
+                ]);
+                return $setting->company_id;
+            }
+        }
+
+        // Last resort: user's company or default
+        if ($userId) {
+            $user = \App\Models\User::find($userId);
+            if ($user) return $user->company_id ?? 1;
+        }
+
+        return 1;
     }
 
     /**

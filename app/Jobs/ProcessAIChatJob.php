@@ -45,7 +45,7 @@ class ProcessAIChatJob implements ShouldQueue
                 return;
             }
 
-            $companyId = $user->company_id ?? 1;
+            $companyId = $this->resolveCompanyId($user);
 
             // Use advisory lock to prevent race conditions for same phone number
             // block() waits up to 30s for the lock — ensures ALL messages get processed
@@ -103,4 +103,45 @@ class ProcessAIChatJob implements ShouldQueue
         }
         return null;
     }
+
+    /**
+     * Resolve the correct company_id for this instance.
+     * Primary: user->company_id (if that company has WhatsApp config)
+     * Fallback: Search whatsapp api_config settings for matching instance name
+     */
+    private function resolveCompanyId(\App\Models\User $user): int
+    {
+        $primaryCompanyId = $user->company_id ?? 1;
+
+        // Quick check: does this company have WhatsApp config?
+        $hasConfig = \App\Models\Setting::where('company_id', $primaryCompanyId)
+            ->where('group', 'whatsapp')
+            ->where('key', 'api_config')
+            ->exists();
+
+        if ($hasConfig) {
+            return $primaryCompanyId;
+        }
+
+        // Fallback: find the company that owns this WhatsApp instance
+        $apiConfigs = \App\Models\Setting::where('group', 'whatsapp')
+            ->where('key', 'api_config')
+            ->get();
+
+        foreach ($apiConfigs as $setting) {
+            $config = is_array($setting->value) ? $setting->value : json_decode($setting->value, true);
+            $instanceName = $config['instance_name'] ?? '';
+
+            if (!empty($instanceName) && $instanceName === $this->instanceName) {
+                Log::info("AIChatJob: Company resolved from WhatsApp api_config", [
+                    'company_id' => $setting->company_id,
+                    'instance' => $this->instanceName,
+                ]);
+                return $setting->company_id;
+            }
+        }
+
+        return $primaryCompanyId;
+    }
 }
+
