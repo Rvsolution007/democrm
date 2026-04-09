@@ -69,59 +69,140 @@ class WhatsappConnectController extends Controller
         $config = $this->getServerConfig();
 
         if (!$this->isConfigured($config)) {
-            return response()->json(['error' => 'WhatsApp API not configured. Ask admin to configure in Settings → WhatsApp API.'], 400);
+            return response()->json(['error' => 'WhatsApp API not configured.'], 400);
         }
 
         $instanceName = $this->getInstanceName();
+        $apiUrl = rtrim($config['api_url'], '/');
 
         try {
-            // First try to connect (get QR)
+            // Step 1: Try to get QR from connect endpoint
             $response = Http::withHeaders([
                 'apikey' => $config['api_key'],
                 'Content-Type' => 'application/json',
-            ])->get("{$config['api_url']}/instance/connect/{$instanceName}");
+            ])->timeout(15)->get("{$apiUrl}/instance/connect/{$instanceName}");
+
+            Log::info('WhatsApp QR: connect response', [
+                'instance' => $instanceName,
+                'status' => $response->status(),
+                'body_preview' => mb_substr($response->body(), 0, 500),
+            ]);
 
             if ($response->successful()) {
                 $data = $response->json();
+                $qrcode = $this->extractQrCode($data);
+
+                if ($qrcode) {
+                    return response()->json([
+                        'success' => true,
+                        'qrcode' => $qrcode,
+                        'instance' => $instanceName,
+                    ]);
+                }
+
+                // API returned 200 but no QR — instance might be already connected or connecting
+                Log::info('WhatsApp QR: 200 but no QR found in response', [
+                    'keys' => is_array($data) ? array_keys($data) : 'not_array',
+                ]);
+
                 return response()->json([
-                    'success' => true,
-                    'qrcode' => $data['base64'] ?? $data['qrcode']['base64'] ?? null,
-                    'pairingCode' => $data['pairingCode'] ?? null,
-                    'code' => $data['code'] ?? null,
-                    'instance' => $instanceName,
+                    'success' => false,
+                    'error' => 'QR not available yet. Instance may be connecting.',
+                    'state' => $data['state'] ?? $data['instance']['state'] ?? 'unknown',
                 ]);
             }
 
-            // If instance doesn't exist (404), create it first
+            // Step 2: If 404, create instance and retry
             if ($response->status() === 404) {
+                Log::info('WhatsApp QR: Instance not found, creating...', ['instance' => $instanceName]);
+
                 $created = $this->createInstance($config, $instanceName);
+
                 if ($created) {
-                    // Retry getting QR after creation
+                    // Wait a moment for instance to initialize
+                    sleep(2);
+
                     $retryResponse = Http::withHeaders([
                         'apikey' => $config['api_key'],
                         'Content-Type' => 'application/json',
-                    ])->get("{$config['api_url']}/instance/connect/{$instanceName}");
+                    ])->timeout(15)->get("{$apiUrl}/instance/connect/{$instanceName}");
+
+                    Log::info('WhatsApp QR: retry response after create', [
+                        'status' => $retryResponse->status(),
+                        'body_preview' => mb_substr($retryResponse->body(), 0, 500),
+                    ]);
 
                     if ($retryResponse->successful()) {
                         $data = $retryResponse->json();
-                        return response()->json([
-                            'success' => true,
-                            'qrcode' => $data['base64'] ?? $data['qrcode']['base64'] ?? null,
-                            'pairingCode' => $data['pairingCode'] ?? null,
-                            'instance' => $instanceName,
-                        ]);
+                        $qrcode = $this->extractQrCode($data);
+
+                        if ($qrcode) {
+                            return response()->json([
+                                'success' => true,
+                                'qrcode' => $qrcode,
+                                'instance' => $instanceName,
+                            ]);
+                        }
                     }
                 }
+
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Instance created. QR will be available shortly.',
+                ]);
             }
 
+            // Step 3: Other error
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to get QR code: ' . $response->body(),
-            ], $response->status());
+                'error' => 'API returned status ' . $response->status(),
+            ]);
+
         } catch (\Exception $e) {
             Log::error('WhatsApp QR Error: ' . $e->getMessage());
             return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Extract QR code base64 from various Evolution API response formats.
+     * Different versions store QR in different locations.
+     */
+    private function extractQrCode($data): ?string
+    {
+        if (!is_array($data)) return null;
+
+        // Format 1: { "base64": "data:image/png;base64,..." }
+        if (!empty($data['base64'])) return $data['base64'];
+
+        // Format 2: { "qrcode": { "base64": "..." } }
+        if (!empty($data['qrcode']['base64'])) return $data['qrcode']['base64'];
+
+        // Format 3: { "qrcode": "data:image/..." } (string directly)
+        if (!empty($data['qrcode']) && is_string($data['qrcode'])) return $data['qrcode'];
+
+        // Format 4: { "code": "raw-qr-text" } — need to generate image
+        // Skip this, we need base64 image
+
+        // Format 5: Nested in instance object
+        if (!empty($data['instance']['qrcode'])) {
+            $qr = $data['instance']['qrcode'];
+            return is_array($qr) ? ($qr['base64'] ?? null) : $qr;
+        }
+
+        // Format 6: { "data": { "qrcode": "..." } }
+        if (!empty($data['data']['qrcode'])) {
+            $qr = $data['data']['qrcode'];
+            return is_array($qr) ? ($qr['base64'] ?? null) : $qr;
+        }
+
+        // Deep search: look for any key containing 'base64' with image data
+        $flat = json_encode($data);
+        if (preg_match('/"base64"\s*:\s*"(data:image[^"]+)"/', $flat, $m)) {
+            return $m[1];
+        }
+
+        return null;
     }
 
     /**
@@ -292,5 +373,57 @@ class WhatsappConnectController extends Controller
             Log::error('WhatsApp Disconnect Error: ' . $e->getMessage());
             return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Debug endpoint — shows raw Evolution API responses for troubleshooting
+     */
+    public function debugApi()
+    {
+        $config = $this->getServerConfig();
+
+        if (!$this->isConfigured($config)) {
+            return response()->json(['error' => 'API not configured']);
+        }
+
+        $instanceName = $this->getInstanceName();
+        $apiUrl = rtrim($config['api_url'], '/');
+        $results = [];
+
+        // 1. Check all instances
+        try {
+            $r = Http::withHeaders(['apikey' => $config['api_key']])->timeout(10)->get("{$apiUrl}/instance/fetchInstances");
+            $results['fetchInstances'] = ['status' => $r->status(), 'data' => $r->json()];
+        } catch (\Exception $e) {
+            $results['fetchInstances'] = ['error' => $e->getMessage()];
+        }
+
+        // 2. Connection state
+        try {
+            $r = Http::withHeaders(['apikey' => $config['api_key']])->timeout(10)->get("{$apiUrl}/instance/connectionState/{$instanceName}");
+            $results['connectionState'] = ['status' => $r->status(), 'data' => $r->json()];
+        } catch (\Exception $e) {
+            $results['connectionState'] = ['error' => $e->getMessage()];
+        }
+
+        // 3. Connect (get QR)
+        try {
+            $r = Http::withHeaders(['apikey' => $config['api_key']])->timeout(15)->get("{$apiUrl}/instance/connect/{$instanceName}");
+            $body = $r->body();
+            $isJson = str_starts_with(trim($body), '{') || str_starts_with(trim($body), '[');
+            $results['connect'] = [
+                'status' => $r->status(),
+                'is_json' => $isJson,
+                'data' => $isJson ? $r->json() : mb_substr($body, 0, 300),
+                'qr_extracted' => $isJson ? ($this->extractQrCode($r->json()) ? 'YES' : 'NO') : 'N/A',
+            ];
+        } catch (\Exception $e) {
+            $results['connect'] = ['error' => $e->getMessage()];
+        }
+
+        $results['instance_name'] = $instanceName;
+        $results['api_url'] = $apiUrl;
+
+        return response()->json($results, 200, [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     }
 }
