@@ -158,7 +158,7 @@ class WhatsAppService
             ];
 
             if (!empty($footer)) {
-                $payload['footer'] = mb_substr($footer, 0, 60);
+                $payload['footerText'] = mb_substr($footer, 0, 60);
             }
 
             Log::info('WhatsAppService: Sending interactive list', [
