@@ -409,7 +409,7 @@
             showSection('qr-loading');
             updateStatus('reconnecting', 'Force Reconnecting...', 'Deleting old instance and creating fresh one (10-15 sec)...', '#3b82f6');
 
-            fetch('{{ route("admin.whatsapp-connect.force-reconnect") }}', {
+            fetch('{{ url("admin/whatsapp-connect/force-reconnect") }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
