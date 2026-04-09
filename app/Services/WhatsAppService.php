@@ -138,12 +138,46 @@ class WhatsAppService
         }
         unset($section);
 
-        // Use text-based menu directly (Evolution API v2.3.7 sendList is broken)
-        Log::info('WhatsAppService: Using text-based menu (sendList API bypass)', [
-            'phone' => $phone,
-            'title' => $title,
-        ]);
+        // Try native Interactive List API first
+        try {
+            $payload = [
+                'number' => self::formatPhone($phone),
+                'title' => mb_substr($title, 0, 60),
+                'description' => $description,
+                'buttonText' => mb_substr($buttonText, 0, 20),
+                'footerText' => $footer ?: '',
+                'sections' => $sections,
+            ];
 
+            Log::info('WhatsAppService: Sending native Interactive List', [
+                'phone' => $phone,
+                'title' => $title,
+                'sections' => count($sections),
+                'total_rows' => collect($sections)->sum(fn($s) => count($s['rows'] ?? [])),
+            ]);
+
+            $response = Http::withHeaders([
+                'apikey' => $this->apiKey,
+                'Content-Type' => 'application/json',
+            ])->timeout(15)->post("{$this->apiUrl}/message/sendList/{$instanceName}", $payload);
+
+            if ($response->successful()) {
+                Log::info('WhatsAppService: Native list sent successfully', ['phone' => $phone]);
+                return true; // Native list — no rowMap needed
+            }
+
+            // API returned error — log and fall through to text fallback
+            Log::warning('WhatsAppService: sendList API failed, falling back to text menu', [
+                'status' => $response->status(),
+                'body' => mb_substr($response->body(), 0, 300),
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('WhatsAppService: sendList exception, falling back to text menu', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Fallback: send as text-based numbered menu
         return $this->sendListAsText($instanceName, $phone, $title, $description, $sections, $footer);
     }
 
