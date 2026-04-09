@@ -98,7 +98,18 @@ class WhatsappWebhookController extends Controller
         // Only ONE mode is active at a time per company.
         // Package enforcement: if mode isn't available, fallback.
         // ═══════════════════════════════════════════════════════════
-        $companyId = $this->resolveCompanyFromInstance($instanceName);
+        $userId = $this->getUserIdFromInstance($instanceName);
+        $companyId = 1;
+        if ($userId) {
+            $user = \App\Models\User::find($userId);
+            $companyId = $user->company_id ?? 1;
+        }
+
+        Log::info("Webhook: Resolved company", [
+            'instance' => $instanceName,
+            'user_id' => $userId,
+            'company_id' => $companyId,
+        ]);
 
         // Get bot mode (new 3-way setting)
         $botMode = Setting::getValue('whatsapp', 'bot_mode', null, $companyId);

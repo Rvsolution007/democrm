@@ -42,7 +42,13 @@ class ProcessListBotJob implements ShouldQueue
                 return;
             }
 
-            $companyId = $this->resolveCompanyId($user);
+            $companyId = $user->company_id ?? 1;
+
+            Log::info("ListBotJob: Resolved company", [
+                'user_id' => $userId,
+                'company_id' => $companyId,
+                'instance' => $this->instanceName,
+            ]);
 
             // Advisory lock — same pattern as AI Bot to prevent race conditions
             $lockKey = "list_bot_lock_{$companyId}_{$this->senderPhone}";

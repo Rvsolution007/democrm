@@ -45,7 +45,13 @@ class ProcessAIChatJob implements ShouldQueue
                 return;
             }
 
-            $companyId = $this->resolveCompanyId($user);
+            $companyId = $user->company_id ?? 1;
+
+            Log::info("AIChatJob: Resolved company", [
+                'user_id' => $userId,
+                'company_id' => $companyId,
+                'instance' => $this->instanceName,
+            ]);
 
             // Use advisory lock to prevent race conditions for same phone number
             // block() waits up to 30s for the lock — ensures ALL messages get processed
