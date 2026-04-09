@@ -198,6 +198,8 @@
         let statusPollTimer = null;
         let qrPollTimer = null;
         let currentState = '';
+        let qrRetryCount = 0;
+        const QR_MAX_RETRIES = 8;
 
         function showSection(id) {
             ['qr-loading', 'qr-display', 'qr-connected', 'qr-error'].forEach(function (s) {
@@ -269,10 +271,19 @@
         }
 
         function fetchQrCode() {
-            fetch('{{ route("admin.whatsapp-connect.qr") }}')
-                .then(function (r) { return r.json(); })
+            fetch('{{ route("admin.whatsapp-connect.qr") }}', {
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF }
+            })
+                .then(function (r) {
+                    var ct = r.headers.get('content-type') || '';
+                    if (!ct.includes('application/json')) {
+                        throw new Error('Server returned non-JSON response');
+                    }
+                    return r.json();
+                })
                 .then(function (data) {
                     if (data.success && data.qrcode) {
+                        qrRetryCount = 0; // Reset on success
                         var img = document.getElementById('qr-image');
                         if (data.qrcode.startsWith('data:')) {
                             img.src = data.qrcode;
@@ -281,26 +292,43 @@
                         }
                         showSection('qr-display');
                         updateStatus('scanning', 'Waiting for Scan', 'Scan the QR code with your phone', '#3b82f6');
-                    } else if (data.error) {
-                        checkStatus();
+                    } else {
+                        // QR not ready yet — retry with delay
+                        qrRetryCount++;
+                        console.log('QR not ready, retry ' + qrRetryCount + '/' + QR_MAX_RETRIES);
+                        updateStatus('connecting', 'Preparing...', 'Generating QR code (attempt ' + qrRetryCount + ')...', '#3b82f6');
+                        
+                        if (qrRetryCount < QR_MAX_RETRIES) {
+                            setTimeout(function () { fetchQrCode(); }, 3000);
+                        } else {
+                            showSection('qr-error');
+                            document.getElementById('qr-error-msg').textContent = 'QR code took too long. Click Retry.';
+                            updateStatus('error', 'QR Failed', 'Click Retry to try again', '#ef4444');
+                        }
                     }
                 })
                 .catch(function (err) {
                     console.error('QR fetch error:', err);
-                    showSection('qr-error');
-                    document.getElementById('qr-error-msg').textContent = 'Failed to load QR code.';
-                    updateStatus('error', 'Error', 'Could not load QR code', '#ef4444');
+                    qrRetryCount++;
+                    if (qrRetryCount < QR_MAX_RETRIES) {
+                        updateStatus('connecting', 'Retrying...', 'Connection attempt ' + qrRetryCount + '...', '#f59e0b');
+                        setTimeout(function () { fetchQrCode(); }, 3000);
+                    } else {
+                        showSection('qr-error');
+                        document.getElementById('qr-error-msg').textContent = 'Failed to load QR code. Click Retry.';
+                        updateStatus('error', 'Error', 'Could not load QR code', '#ef4444');
+                    }
                 });
         }
 
         function startQrPolling() {
             stopQrPolling();
-            statusPollTimer = setInterval(function () { checkStatus(); }, 10000);
+            statusPollTimer = setInterval(function () { checkStatus(); }, 5000);
             qrPollTimer = setInterval(function () {
                 if (currentState !== 'open' && currentState !== 'connected') {
                     fetchQrCode();
                 }
-            }, 30000);
+            }, 20000);
         }
 
         function stopQrPolling() {
@@ -364,6 +392,7 @@
         }
 
         function initConnection() {
+            qrRetryCount = 0;
             showSection('qr-loading');
             updateStatus('checking', 'Checking...', 'Connecting to server', '#888');
             checkStatus();
