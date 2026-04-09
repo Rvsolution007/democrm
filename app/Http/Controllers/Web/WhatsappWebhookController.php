@@ -59,6 +59,20 @@ class WhatsappWebhookController extends Controller
 
         // Extract message text BEFORE dispatching (we need the full message object)
         $messageText = $this->extractMessageText($messageContent);
+        
+        // ── Webhook Deduplication ──
+        // Evolution API retries Webhooks aggressively if our server doesn't respond instantly.
+        // Since we dispatch jobs synchronously (onConnection sync), we must block duplicate IDs.
+        $messageId = $key['id'] ?? null;
+        if ($messageId) {
+            $cacheKey = "webhook_processed_{$messageId}";
+            if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
+                Log::info("Webhook: Ignored duplicate message (Evolution API retry)", ['messageId' => $messageId]);
+                return response()->json(['status' => 'ignored', 'reason' => 'duplicate']);
+            }
+            // Mark as processed for the next 15 minutes
+            \Illuminate\Support\Facades\Cache::put($cacheKey, true, now()->addMinutes(15));
+        }
 
         // Extract Interactive List rowId if this is a list response
         $listRowId = $messageContent['listResponseMessage']['singleSelectReply']['selectedRowId'] ?? null;
