@@ -58,7 +58,7 @@
                             {{-- Force reconnect if stuck --}}
                             <div style="margin-top:20px;">
                                 <p style="font-size:12px;color:#999;margin-bottom:8px">Is it stuck loading?</p>
-                                <button class="btn btn-sm" onclick="disconnectWhatsapp()" 
+                                <button id="force-reconnect-btn" class="btn btn-sm" onclick="forceReconnectWhatsapp()" 
                                     style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;font-weight:600;padding:6px 12px;font-size:13px;border-radius:6px">
                                     <i data-lucide="refresh-cw" style="width:14px;height:14px;margin-right:4px"></i> Force Reconnect
                                 </button>
@@ -385,6 +385,79 @@
                 .finally(function () {
                     if (btn) {
                         btn.innerHTML = '<i data-lucide="unplug" style="width:16px;height:16px"></i> Disconnect';
+                        btn.disabled = false;
+                        lucide.createIcons();
+                    }
+                });
+        }
+
+        /**
+         * Force Reconnect — calls dedicated server endpoint that does everything:
+         * logout → delete → create → get QR in one shot.
+         * Takes ~10-15 seconds, shows progress.
+         */
+        function forceReconnectWhatsapp() {
+            if (!confirm('Force Reconnect will disconnect and create a fresh connection. Continue?')) return;
+
+            var btn = document.getElementById('force-reconnect-btn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Reconnecting...'; }
+
+            // Stop all polling during force reconnect
+            stopQrPolling();
+
+            // Show progress
+            showSection('qr-loading');
+            updateStatus('reconnecting', 'Force Reconnecting...', 'Deleting old instance and creating fresh one (10-15 sec)...', '#3b82f6');
+
+            fetch('{{ route("admin.whatsapp-connect.force-reconnect") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': CSRF,
+                    'Accept': 'application/json'
+                }
+            })
+                .then(function (r) {
+                    var ct = r.headers.get('content-type') || '';
+                    if (!ct.includes('application/json')) {
+                        throw new Error('Server returned non-JSON response');
+                    }
+                    return r.json();
+                })
+                .then(function (data) {
+                    console.log('Force Reconnect result:', data);
+
+                    if (data.success && data.qrcode) {
+                        // QR received! Show it immediately
+                        var img = document.getElementById('qr-image');
+                        if (data.qrcode.startsWith('data:')) {
+                            img.src = data.qrcode;
+                        } else {
+                            img.src = 'data:image/png;base64,' + data.qrcode;
+                        }
+                        showSection('qr-display');
+                        updateStatus('scanning', 'Waiting for Scan', 'Scan the QR code with your phone', '#3b82f6');
+                        startQrPolling(); // Resume polling to detect when scan completes
+                    } else {
+                        // No QR — show error with steps for debugging
+                        showSection('qr-error');
+                        var errorMsg = data.error || 'Could not generate QR code.';
+                        if (data.steps) {
+                            errorMsg += ' [Steps: ' + data.steps.join(' → ') + ']';
+                        }
+                        document.getElementById('qr-error-msg').textContent = errorMsg;
+                        updateStatus('error', 'QR Failed', 'Click Retry or Force Reconnect again', '#ef4444');
+                    }
+                })
+                .catch(function (err) {
+                    console.error('Force Reconnect error:', err);
+                    showSection('qr-error');
+                    document.getElementById('qr-error-msg').textContent = 'Force Reconnect failed: ' + err.message;
+                    updateStatus('error', 'Error', err.message, '#ef4444');
+                })
+                .finally(function () {
+                    if (btn) {
+                        btn.innerHTML = '<i data-lucide="refresh-cw" style="width:14px;height:14px;margin-right:4px"></i> Force Reconnect';
                         btn.disabled = false;
                         lucide.createIcons();
                     }

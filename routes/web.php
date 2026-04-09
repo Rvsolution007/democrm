@@ -1226,6 +1226,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'subscription'])->gr
         Route::get('/whatsapp-connect/qr', [App\Http\Controllers\Web\WhatsappConnectController::class, 'getQrCode'])->name('whatsapp-connect.qr');
         Route::get('/whatsapp-connect/status', [App\Http\Controllers\Web\WhatsappConnectController::class, 'getStatus'])->name('whatsapp-connect.status');
         Route::post('/whatsapp-connect/disconnect', [App\Http\Controllers\Web\WhatsappConnectController::class, 'disconnect'])->name('whatsapp-connect.disconnect');
+        Route::post('/whatsapp-connect/force-reconnect', [App\Http\Controllers\Web\WhatsappConnectController::class, 'forceReconnect'])->name('whatsapp-connect.force-reconnect');
         Route::get('/whatsapp-connect/debug', [App\Http\Controllers\Web\WhatsappConnectController::class, 'debugApi'])->name('whatsapp-connect.debug');
     }); // end WhatsApp connect feature gate
 
