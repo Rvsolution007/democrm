@@ -149,8 +149,7 @@ class WhatsAppService
             }
             unset($section);
 
-            $payload = [
-                'number' => self::formatPhone($phone),
+            $listMessage = [
                 'title' => mb_substr($title, 0, 60),
                 'description' => $description,
                 'buttonText' => mb_substr($buttonText, 0, 20),
@@ -158,8 +157,13 @@ class WhatsAppService
             ];
 
             if (!empty($footer)) {
-                $payload['footerText'] = mb_substr($footer, 0, 60);
+                $listMessage['footerText'] = mb_substr($footer, 0, 60);
             }
+
+            $payload = [
+                'number' => self::formatPhone($phone),
+                'listMessage' => $listMessage,
+            ];
 
             Log::info('WhatsAppService: Sending interactive list', [
                 'instance' => $instanceName,
