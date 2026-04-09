@@ -43,6 +43,13 @@ class ListBotService
         $this->companyId = $companyId;
         $this->userId = $userId;
         $this->whatsApp = new WhatsAppService($companyId);
+
+        Log::info('ListBot: Initialized', [
+            'company_id' => $companyId,
+            'user_id' => $userId,
+            'active_products' => Product::where('company_id', $companyId)->where('status', 'active')->count(),
+            'total_products' => Product::where('company_id', $companyId)->count(),
+        ]);
     }
 
     // ═══════════════════════════════════════════════════════

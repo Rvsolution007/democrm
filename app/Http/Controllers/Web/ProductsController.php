@@ -17,7 +17,8 @@ class ProductsController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $query = Product::with(['category', 'customValues', 'variations']);
+        $query = Product::with(['category', 'customValues', 'variations'])
+            ->where('company_id', auth()->user()->company_id);
 
         // Global permission filter
         if (!can('products.global')) {
@@ -25,7 +26,7 @@ class ProductsController extends Controller
         }
 
         $products = $query->latest()->paginate(20);
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::where('company_id', auth()->user()->company_id)->orderBy('name')->get();
         
         $customColumns = \App\Models\CatalogueCustomColumn::where('company_id', auth()->user()->company_id)
             ->where('is_active', true)
