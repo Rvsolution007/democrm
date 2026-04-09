@@ -309,11 +309,17 @@
         }
 
         function disconnectWhatsapp() {
-            if (!confirm('Are you sure you want to disconnect WhatsApp?')) return;
+            if (!confirm('Are you sure you want to disconnect WhatsApp? You will need to scan QR code again.')) return;
 
             var btn = document.getElementById('disconnect-btn');
-            btn.textContent = 'Disconnecting...';
-            btn.disabled = true;
+            if (btn) {
+                btn.textContent = 'Disconnecting...';
+                btn.disabled = true;
+            }
+
+            // Show loading immediately
+            showSection('qr-loading');
+            updateStatus('disconnecting', 'Disconnecting...', 'Logging out from WhatsApp', '#f59e0b');
 
             fetch('{{ route("admin.whatsapp-connect.disconnect") }}', {
                 method: 'POST',
@@ -323,21 +329,37 @@
                     'Accept': 'application/json'
                 }
             })
-                .then(function (r) { return r.json(); })
+                .then(function (r) {
+                    // Check if response is JSON
+                    var contentType = r.headers.get('content-type') || '';
+                    if (!contentType.includes('application/json')) {
+                        throw new Error('Server returned an unexpected response. Please try again.');
+                    }
+                    return r.json();
+                })
                 .then(function (data) {
                     if (data.success) {
-                        showSection('qr-loading');
                         updateStatus('close', 'Disconnected', 'Scan QR code to reconnect', '#f59e0b');
                         setTimeout(function () { initConnection(); }, 2000);
                     } else {
-                        alert('Failed to disconnect: ' + (data.error || 'Unknown error'));
+                        showSection('qr-error');
+                        document.getElementById('qr-error-msg').textContent = data.error || 'Failed to disconnect';
+                        updateStatus('error', 'Error', data.error || 'Disconnect failed', '#ef4444');
                     }
                 })
-                .catch(function (err) { alert('Error: ' + err.message); })
+                .catch(function (err) {
+                    console.error('Disconnect error:', err);
+                    // Even if API call fails, show loading state so user can try fresh QR
+                    showSection('qr-loading');
+                    updateStatus('close', 'Disconnected', 'Attempting fresh connection...', '#f59e0b');
+                    setTimeout(function () { initConnection(); }, 2000);
+                })
                 .finally(function () {
-                    btn.innerHTML = '<i data-lucide="unplug" style="width:16px;height:16px"></i> Disconnect';
-                    btn.disabled = false;
-                    lucide.createIcons();
+                    if (btn) {
+                        btn.innerHTML = '<i data-lucide="unplug" style="width:16px;height:16px"></i> Disconnect';
+                        btn.disabled = false;
+                        lucide.createIcons();
+                    }
                 });
         }
 
