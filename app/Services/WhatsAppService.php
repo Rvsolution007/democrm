@@ -123,88 +123,28 @@ class WhatsAppService
             return false;
         }
 
-        try {
-            // Enforce WhatsApp limits
-            $sections = array_slice($sections, 0, 10); // Max 10 sections
-            $totalRows = 0;
-
-            foreach ($sections as &$section) {
-                // Truncate section title to 24 chars
-                $section['title'] = mb_substr($section['title'] ?? '', 0, 24);
-
-                // Enforce row limits
-                $section['rows'] = array_slice($section['rows'] ?? [], 0, 10); // Max 10 per section
-
-                foreach ($section['rows'] as &$row) {
-                    // Truncate row fields to WhatsApp limits
-                    $row['title'] = mb_substr($row['title'] ?? '', 0, 24);
-                    if (isset($row['description'])) {
-                        $row['description'] = mb_substr($row['description'], 0, 72);
-                    }
-                    $totalRows++;
+        // Enforce WhatsApp limits on sections/rows before sending
+        $sections = array_slice($sections, 0, 10);
+        foreach ($sections as &$section) {
+            $section['title'] = mb_substr($section['title'] ?? '', 0, 24);
+            $section['rows'] = array_slice($section['rows'] ?? [], 0, 10);
+            foreach ($section['rows'] as &$row) {
+                $row['title'] = mb_substr($row['title'] ?? '', 0, 24);
+                if (isset($row['description'])) {
+                    $row['description'] = mb_substr($row['description'], 0, 72);
                 }
-                unset($row);
-
-                // If we've hit 100 total rows, stop
-                if ($totalRows >= 100) break;
             }
-            unset($section);
-
-            $listMessage = [
-                'title' => mb_substr($title, 0, 60),
-                'description' => $description,
-                'buttonText' => mb_substr($buttonText, 0, 20),
-                'sections' => $sections,
-            ];
-
-            if (!empty($footer)) {
-                $listMessage['footerText'] = mb_substr($footer, 0, 60);
-            }
-
-            $payload = [
-                'number' => self::formatPhone($phone),
-                'listMessage' => $listMessage,
-            ];
-
-            Log::info('WhatsAppService: Sending interactive list', [
-                'instance' => $instanceName,
-                'phone' => $phone,
-                'sections_count' => count($sections),
-                'total_rows' => $totalRows,
-            ]);
-
-            $response = Http::withHeaders([
-                'apikey' => $this->apiKey,
-                'Content-Type' => 'application/json',
-            ])->post("{$this->apiUrl}/message/sendList/{$instanceName}", $payload);
-
-            if ($response->successful()) {
-                Log::info('WhatsAppService: Interactive list sent successfully', [
-                    'phone' => $phone,
-                    'title' => $title,
-                ]);
-                return true;
-            }
-
-            // API failed — use text-based menu fallback
-            Log::warning('WhatsAppService: sendList API failed, using text fallback', [
-                'status' => $response->status(),
-                'body' => mb_substr($response->body(), 0, 200),
-            ]);
-
-            return $this->sendListAsText($instanceName, $phone, $title, $description, $sections, $footer);
-
-        } catch (\Exception $e) {
-            Log::error('WhatsAppService: sendList exception - ' . $e->getMessage());
-
-            // Fallback to text on any exception too
-            try {
-                return $this->sendListAsText($instanceName, $phone, $title, $description, $sections, $footer);
-            } catch (\Exception $e2) {
-                Log::error('WhatsAppService: text fallback also failed - ' . $e2->getMessage());
-                return false;
-            }
+            unset($row);
         }
+        unset($section);
+
+        // Use text-based menu directly (Evolution API v2.3.7 sendList is broken)
+        Log::info('WhatsAppService: Using text-based menu (sendList API bypass)', [
+            'phone' => $phone,
+            'title' => $title,
+        ]);
+
+        return $this->sendListAsText($instanceName, $phone, $title, $description, $sections, $footer);
     }
 
     /**
