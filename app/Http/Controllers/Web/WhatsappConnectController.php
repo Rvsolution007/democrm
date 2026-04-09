@@ -483,8 +483,7 @@ class WhatsappConnectController extends Controller
 
     /**
      * Force Reconnect — one-shot endpoint that guarantees QR code delivery.
-     * Deletes old instance → Creates fresh → Returns QR.
-     * Called by the Force Reconnect button on the frontend.
+     * Deletes old instance → Creates fresh → Resets state → Gets QR.
      */
     public function forceReconnect()
     {
@@ -497,7 +496,7 @@ class WhatsappConnectController extends Controller
         $instanceName = $this->getInstanceName();
         $apiUrl = rtrim($config['api_url'], '/');
         $headers = ['apikey' => $config['api_key'], 'Content-Type' => 'application/json'];
-        $steps = []; // Track what happened for debugging
+        $steps = [];
 
         try {
             // ─── Step 1: Force logout (ignore errors) ───
@@ -505,96 +504,131 @@ class WhatsappConnectController extends Controller
                 $r = Http::withHeaders($headers)->timeout(10)->delete("{$apiUrl}/instance/logout/{$instanceName}");
                 $steps[] = "logout: " . $r->status();
             } catch (\Exception $e) {
-                $steps[] = "logout: skip ({$e->getMessage()})";
+                $steps[] = "logout: skip";
             }
 
-            // ─── Step 2: Delete instance completely (ignore errors) ───
+            // ─── Step 2: Delete instance completely ───
             try {
                 $r = Http::withHeaders($headers)->timeout(10)->delete("{$apiUrl}/instance/delete/{$instanceName}");
                 $steps[] = "delete: " . $r->status();
             } catch (\Exception $e) {
-                $steps[] = "delete: skip ({$e->getMessage()})";
+                $steps[] = "delete: skip";
             }
 
-            // Wait for API to fully process the deletion
-            sleep(2);
+            // Wait for API to fully process
+            sleep(3);
 
             // ─── Step 3: Create FRESH instance with qrcode=true ───
-            $createResponse = Http::withHeaders($headers)->timeout(20)->post("{$apiUrl}/instance/create", [
+            $createResponse = Http::withHeaders($headers)->timeout(30)->post("{$apiUrl}/instance/create", [
                 'instanceName' => $instanceName,
                 'integration' => 'WHATSAPP-BAILEYS',
                 'qrcode' => true,
+                'token' => '',
             ]);
 
+            $createBody = $createResponse->body();
             $createData = $createResponse->json();
             $steps[] = "create: " . $createResponse->status();
 
-            Log::info('WhatsApp ForceReconnect: create response', [
+            Log::info('WhatsApp ForceReconnect: FULL create response', [
                 'status' => $createResponse->status(),
-                'body' => mb_substr($createResponse->body(), 0, 800),
+                'body' => $createBody,
             ]);
 
-            // Check if CREATE response already has QR
+            // Check if CREATE response has QR
             if ($createResponse->successful() && $createData) {
                 $qr = $this->extractQrCode($createData);
                 if ($qr) {
                     $this->registerWebhook($config, $instanceName);
-                    $steps[] = "qr_from: create_response";
-                    return response()->json([
-                        'success' => true,
-                        'qrcode' => $qr,
-                        'instance' => $instanceName,
-                        'steps' => $steps,
-                    ]);
+                    $steps[] = "qr_from: create";
+                    return response()->json(['success' => true, 'qrcode' => $qr, 'instance' => $instanceName, 'steps' => $steps]);
+                }
+                // Log what keys the create response has
+                $steps[] = "create_keys: " . implode(',', is_array($createData) ? array_keys($createData) : ['not_array']);
+                
+                // Check nested qrcode object
+                if (isset($createData['qrcode'])) {
+                    $steps[] = "create_qrcode_type: " . gettype($createData['qrcode']);
+                    if (is_array($createData['qrcode'])) {
+                        $steps[] = "create_qrcode_keys: " . implode(',', array_keys($createData['qrcode']));
+                    }
                 }
             }
 
-            // ─── Step 4: Create succeeded but no QR — try connect multiple times ───
-            for ($i = 1; $i <= 5; $i++) {
-                sleep(2);
+            // ─── Step 4: Instance created but in 'connecting' state ───
+            // Force logout to reset to 'close' state
+            sleep(2);
+            try {
+                $r = Http::withHeaders($headers)->timeout(10)->delete("{$apiUrl}/instance/logout/{$instanceName}");
+                $steps[] = "post_create_logout: " . $r->status();
+            } catch (\Exception $e) {
+                $steps[] = "post_create_logout: skip";
+            }
+            
+            sleep(2);
 
+            // ─── Step 5: Now connect — instance should be in 'close' state ───
+            for ($i = 1; $i <= 3; $i++) {
                 $connectResponse = Http::withHeaders($headers)->timeout(15)->get("{$apiUrl}/instance/connect/{$instanceName}");
+                $connectBody = $connectResponse->body();
                 $connectData = $connectResponse->json();
 
-                Log::info("WhatsApp ForceReconnect: connect attempt {$i}", [
+                Log::info("WhatsApp ForceReconnect: connect attempt {$i} after logout", [
                     'status' => $connectResponse->status(),
-                    'body' => mb_substr($connectResponse->body(), 0, 500),
+                    'body' => mb_substr($connectBody, 0, 1000),
                 ]);
 
-                $steps[] = "connect_attempt_{$i}: " . $connectResponse->status() . " → " . mb_substr(json_encode($connectData), 0, 100);
+                $steps[] = "connect_{$i}: " . $connectResponse->status() . " → " . mb_substr($connectBody, 0, 150);
 
                 if ($connectResponse->successful() && $connectData) {
                     $qr = $this->extractQrCode($connectData);
                     if ($qr) {
                         $this->registerWebhook($config, $instanceName);
-                        $steps[] = "qr_from: connect_attempt_{$i}";
-                        return response()->json([
-                            'success' => true,
-                            'qrcode' => $qr,
-                            'instance' => $instanceName,
-                            'steps' => $steps,
-                        ]);
+                        $steps[] = "qr_from: connect_{$i}";
+                        return response()->json(['success' => true, 'qrcode' => $qr, 'instance' => $instanceName, 'steps' => $steps]);
                     }
+                }
+
+                sleep(3);
+            }
+
+            // ─── Step 6: Try restart then connect ───
+            try {
+                $r = Http::withHeaders($headers)->timeout(10)->put("{$apiUrl}/instance/restart/{$instanceName}");
+                $steps[] = "restart: " . $r->status();
+            } catch (\Exception $e) {
+                $steps[] = "restart: skip";
+            }
+
+            sleep(3);
+
+            // Final connect attempt after restart
+            $connectResponse = Http::withHeaders($headers)->timeout(15)->get("{$apiUrl}/instance/connect/{$instanceName}");
+            $connectData = $connectResponse->json();
+            $steps[] = "final_connect: " . $connectResponse->status() . " → " . mb_substr($connectResponse->body(), 0, 150);
+
+            if ($connectResponse->successful() && $connectData) {
+                $qr = $this->extractQrCode($connectData);
+                if ($qr) {
+                    $this->registerWebhook($config, $instanceName);
+                    $steps[] = "qr_from: final_connect";
+                    return response()->json(['success' => true, 'qrcode' => $qr, 'instance' => $instanceName, 'steps' => $steps]);
                 }
             }
 
-            // ─── All attempts failed — return detailed error ───
-            $steps[] = "FAILED: no QR after 5 connect attempts";
-            Log::error('WhatsApp ForceReconnect: Could not get QR', ['steps' => $steps]);
+            // ─── FAILED ───
+            $steps[] = "FAILED";
+            Log::error('WhatsApp ForceReconnect: All attempts failed', ['steps' => $steps]);
 
             return response()->json([
                 'success' => false,
-                'error' => 'Could not generate QR code after multiple attempts. The Evolution API may need to be restarted from EasyPanel.',
+                'error' => 'Evolution API is not generating QR codes. Please restart the Evolution API service from EasyPanel and try again.',
                 'steps' => $steps,
             ]);
 
         } catch (\Exception $e) {
             Log::error('WhatsApp ForceReconnect error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage(),
-                'steps' => $steps,
-            ], 500);
+            return response()->json(['success' => false, 'error' => $e->getMessage(), 'steps' => $steps], 500);
         }
     }
 
