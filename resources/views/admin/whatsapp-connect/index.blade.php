@@ -437,16 +437,24 @@
                         }
                         showSection('qr-display');
                         updateStatus('scanning', 'Waiting for Scan', 'Scan the QR code with your phone', '#3b82f6');
-                        startQrPolling(); // Resume polling to detect when scan completes
+                        startQrPolling();
                     } else {
-                        // No QR — show error with steps for debugging
+                        // No QR — show error with fix instructions
                         showSection('qr-error');
-                        var errorMsg = data.error || 'Could not generate QR code.';
-                        if (data.steps) {
-                            errorMsg += ' [Steps: ' + data.steps.join(' → ') + ']';
+                        var errorEl = document.getElementById('qr-error-msg');
+                        var html = '<strong style="color:#dc2626">' + (data.error || 'Could not generate QR code.') + '</strong>';
+                        
+                        if (data.fix_instructions) {
+                            html += '<div style="text-align:left;margin-top:12px;padding:12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;font-size:13px">';
+                            html += '<strong style="color:#92400e">🔧 How to Fix:</strong><ol style="margin:8px 0 0;padding-left:20px;color:#78350f">';
+                            data.fix_instructions.forEach(function(step) {
+                                html += '<li style="margin:4px 0">' + step + '</li>';
+                            });
+                            html += '</ol></div>';
                         }
-                        document.getElementById('qr-error-msg').textContent = errorMsg;
-                        updateStatus('error', 'QR Failed', 'Click Retry or Force Reconnect again', '#ef4444');
+                        
+                        errorEl.innerHTML = html;
+                        updateStatus('error', 'Server Fix Required', 'Evolution API needs configuration update', '#ef4444');
                     }
                 })
                 .catch(function (err) {

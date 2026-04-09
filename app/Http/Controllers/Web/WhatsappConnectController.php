@@ -622,7 +622,16 @@ class WhatsappConnectController extends Controller
 
             return response()->json([
                 'success' => false,
-                'error' => 'Evolution API is not generating QR codes. Please restart the Evolution API service from EasyPanel and try again.',
+                'error' => 'Evolution API server cannot generate QR codes. This is a known issue with Evolution API v2.2.0 — the WhatsApp phone version is outdated.',
+                'fix_required' => true,
+                'fix_instructions' => [
+                    'Go to EasyPanel → ekantik-crm-evolution-api → Environment Variables',
+                    'Add: CONFIG_SESSION_PHONE_VERSION = 2.3000.1036982718',
+                    'Save and Redeploy the service',
+                    'Wait 30 seconds for the container to restart',
+                    'Come back here and click Force Reconnect',
+                    'OR: Better fix → Change Docker image from evoapicloud/evolution-api:v2.2.0 to evoapicloud/evolution-api:v2.1.1 and redeploy',
+                ],
                 'steps' => $steps,
             ]);
 
