@@ -100,6 +100,7 @@ class WhatsAppService
      *                              ]
      * @param string $footer        Footer text (optional, max 60 chars)
      * @return bool
+     * @return bool|array
      *
      * WhatsApp Limits:
      * - Max 10 sections
@@ -116,7 +117,7 @@ class WhatsAppService
         string $buttonText,
         array $sections,
         string $footer = ''
-    ): bool {
+    ): bool|array {
         if (!$this->configured) {
             Log::error('WhatsAppService: API not configured');
             return false;
@@ -177,25 +178,88 @@ class WhatsAppService
                 'Content-Type' => 'application/json',
             ])->post("{$this->apiUrl}/message/sendList/{$instanceName}", $payload);
 
-            if (!$response->successful()) {
-                Log::error('WhatsAppService: sendList failed', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                    'payload' => $payload,
+            if ($response->successful()) {
+                Log::info('WhatsAppService: Interactive list sent successfully', [
+                    'phone' => $phone,
+                    'title' => $title,
                 ]);
-                return false;
+                return true;
             }
 
-            Log::info('WhatsAppService: Interactive list sent successfully', [
-                'phone' => $phone,
-                'title' => $title,
+            // API failed — use text-based menu fallback
+            Log::warning('WhatsAppService: sendList API failed, using text fallback', [
+                'status' => $response->status(),
+                'body' => mb_substr($response->body(), 0, 200),
             ]);
 
-            return true;
+            return $this->sendListAsText($instanceName, $phone, $title, $description, $sections, $footer);
+
         } catch (\Exception $e) {
             Log::error('WhatsAppService: sendList exception - ' . $e->getMessage());
-            return false;
+
+            // Fallback to text on any exception too
+            try {
+                return $this->sendListAsText($instanceName, $phone, $title, $description, $sections, $footer);
+            } catch (\Exception $e2) {
+                Log::error('WhatsAppService: text fallback also failed - ' . $e2->getMessage());
+                return false;
+            }
         }
+    }
+
+    /**
+     * Send menu as formatted text message (fallback when interactive list API fails).
+     * Returns array with row mapping so the bot can parse numbered replies.
+     *
+     * @return array|false  Returns ['sent' => true, 'rowMap' => [...]] on success
+     */
+    public function sendListAsText(
+        string $instanceName,
+        string $phone,
+        string $title,
+        string $description,
+        array $sections,
+        string $footer = ''
+    ): array|false {
+        $text = "*{$title}*\n{$description}\n\n";
+        $rowMap = []; // number => rowId mapping
+        $num = 1;
+
+        foreach ($sections as $section) {
+            if (!empty($section['title']) && count($sections) > 1) {
+                $text .= "📂 *{$section['title']}*\n";
+            }
+
+            foreach ($section['rows'] ?? [] as $row) {
+                $text .= "*{$num}.* {$row['title']}";
+                if (!empty($row['description'])) {
+                    $text .= " — _{$row['description']}_";
+                }
+                $text .= "\n";
+
+                $rowMap[(string)$num] = $row['rowId'] ?? '';
+                $num++;
+            }
+            $text .= "\n";
+        }
+
+        $text .= "👆 _Reply with the number to select_";
+
+        if (!empty($footer)) {
+            $text .= "\n\n_{$footer}_";
+        }
+
+        $sent = $this->sendText($instanceName, $phone, $text);
+
+        if ($sent) {
+            Log::info('WhatsAppService: List sent as text fallback', [
+                'phone' => $phone,
+                'options' => count($rowMap),
+            ]);
+            return ['sent' => true, 'rowMap' => $rowMap];
+        }
+
+        return false;
     }
 
     /**

@@ -164,9 +164,31 @@ class ListBotService
         // Parse rowId if present
         $parsed = $listRowId ? WhatsAppService::parseRowId($listRowId) : null;
 
-        // ── CASE 0: User tapped a list selection (rowId present) ──
+        // ── CASE 0a: User tapped a list selection (rowId present) ──
         if ($parsed) {
             return $this->handleListSelection($session, $instanceName, $parsed, $steps);
+        }
+
+        // ── CASE 0b: Text fallback — user sent a number to select from menu ──
+        $trimmedText = trim($messageText);
+        if (ctype_digit($trimmedText) && isset($answers['_text_menu_rowMap'])) {
+            $rowMap = $answers['_text_menu_rowMap'];
+            if (isset($rowMap[$trimmedText])) {
+                $rowId = $rowMap[$trimmedText];
+                $parsed = WhatsAppService::parseRowId($rowId);
+                if ($parsed) {
+                    Log::info('ListBot: Number mapped to rowId', ['number' => $trimmedText, 'rowId' => $rowId]);
+                    // Clear the rowMap after use
+                    unset($answers['_text_menu_rowMap']);
+                    $session->collected_answers = $answers;
+                    $session->save();
+                    return $this->handleListSelection($session, $instanceName, $parsed, $steps);
+                }
+            } else {
+                // Invalid number — resend the menu
+                $this->whatsApp->sendText($instanceName, $session->phone_number, "❌ Invalid option. Please reply with a valid number from the menu.");
+                return null;
+            }
         }
 
         // ── CASE 1: No product selected yet → send welcome/categories ──
@@ -492,7 +514,13 @@ class ListBotService
             'Tap an item to select'
         );
 
-        Log::info('ListBot: Category menu sent result', ['success' => $sent]);
+        // Store rowMap if text fallback was used
+        if (is_array($sent) && !empty($sent['rowMap'])) {
+            Log::info('ListBot: Text fallback used for category menu, storing rowMap');
+            $session->setAnswer('_text_menu_rowMap', $sent['rowMap']);
+        }
+
+        Log::info('ListBot: Category menu sent result', ['success' => $sent !== false]);
 
         // Update session state
         $session->conversation_state = 'awaiting_category';
@@ -585,7 +613,13 @@ class ListBotService
             'Tap to select'
         );
 
-        Log::info('ListBot: Product list sent result', ['success' => $sent]);
+        // Store rowMap if text fallback was used
+        if (is_array($sent) && !empty($sent['rowMap'])) {
+            Log::info('ListBot: Text fallback used for product menu, storing rowMap');
+            $session->setAnswer('_text_menu_rowMap', $sent['rowMap']);
+        }
+
+        Log::info('ListBot: Product list sent result', ['success' => $sent !== false]);
 
         // Update session
         $session->conversation_state = 'awaiting_product';
@@ -691,7 +725,7 @@ class ListBotService
         $question = $step->question_text ?: "Select {$column->name}:";
         $buttonText = Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu', $this->companyId);
 
-        $this->whatsApp->sendList(
+        $sent = $this->whatsApp->sendList(
             $instanceName,
             $session->phone_number,
             mb_substr($question, 0, 60),
@@ -700,6 +734,10 @@ class ListBotService
             $sections,
             'Tap your choice'
         );
+
+        if (is_array($sent) && !empty($sent['rowMap'])) {
+            $session->setAnswer('_text_menu_rowMap', $sent['rowMap']);
+        }
 
         return null;
     }
@@ -765,7 +803,7 @@ class ListBotService
         $question = $step->question_text ?: "Select {$column->name}:";
         $buttonText = Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu', $this->companyId);
 
-        $this->whatsApp->sendList(
+        $sent = $this->whatsApp->sendList(
             $instanceName,
             $session->phone_number,
             mb_substr($question, 0, 60),
@@ -774,6 +812,10 @@ class ListBotService
             $sections,
             'Tap your choice'
         );
+
+        if (is_array($sent) && !empty($sent['rowMap'])) {
+            $session->setAnswer('_text_menu_rowMap', $sent['rowMap']);
+        }
 
         return null;
     }
