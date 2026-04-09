@@ -74,93 +74,185 @@ class WhatsappConnectController extends Controller
 
         $instanceName = $this->getInstanceName();
         $apiUrl = rtrim($config['api_url'], '/');
+        $headers = ['apikey' => $config['api_key'], 'Content-Type' => 'application/json'];
 
         try {
-            // Step 1: Try to get QR from connect endpoint
-            $response = Http::withHeaders([
-                'apikey' => $config['api_key'],
-                'Content-Type' => 'application/json',
-            ])->timeout(15)->get("{$apiUrl}/instance/connect/{$instanceName}");
+            // Step 1: Try connect endpoint to get QR
+            $response = Http::withHeaders($headers)->timeout(15)->get("{$apiUrl}/instance/connect/{$instanceName}");
 
             Log::info('WhatsApp QR: connect response', [
                 'instance' => $instanceName,
                 'status' => $response->status(),
-                'body_preview' => mb_substr($response->body(), 0, 500),
+                'body' => mb_substr($response->body(), 0, 500),
             ]);
 
+            // If 200 with QR, return it
             if ($response->successful()) {
                 $data = $response->json();
                 $qrcode = $this->extractQrCode($data);
 
                 if ($qrcode) {
-                    return response()->json([
-                        'success' => true,
-                        'qrcode' => $qrcode,
-                        'instance' => $instanceName,
-                    ]);
+                    return response()->json(['success' => true, 'qrcode' => $qrcode, 'instance' => $instanceName]);
                 }
 
-                // API returned 200 but no QR — instance might be already connected or connecting
-                Log::info('WhatsApp QR: 200 but no QR found in response', [
-                    'keys' => is_array($data) ? array_keys($data) : 'not_array',
+                // Got {"count":0} or similar — instance is STUCK in connecting state
+                // Fix: restart the instance, then retry
+                Log::warning('WhatsApp QR: Instance stuck (no QR in 200 response). Restarting...', [
+                    'response_data' => $data,
                 ]);
 
-                return response()->json([
-                    'success' => false,
-                    'error' => 'QR not available yet. Instance may be connecting.',
-                    'state' => $data['state'] ?? $data['instance']['state'] ?? 'unknown',
-                ]);
+                return $this->restartAndGetQr($config, $instanceName);
             }
 
-            // Step 2: If 404, create instance and retry
+            // Step 2: If 404, create instance
             if ($response->status() === 404) {
-                Log::info('WhatsApp QR: Instance not found, creating...', ['instance' => $instanceName]);
-
-                $created = $this->createInstance($config, $instanceName);
-
-                if ($created) {
-                    // Wait a moment for instance to initialize
-                    sleep(2);
-
-                    $retryResponse = Http::withHeaders([
-                        'apikey' => $config['api_key'],
-                        'Content-Type' => 'application/json',
-                    ])->timeout(15)->get("{$apiUrl}/instance/connect/{$instanceName}");
-
-                    Log::info('WhatsApp QR: retry response after create', [
-                        'status' => $retryResponse->status(),
-                        'body_preview' => mb_substr($retryResponse->body(), 0, 500),
-                    ]);
-
-                    if ($retryResponse->successful()) {
-                        $data = $retryResponse->json();
-                        $qrcode = $this->extractQrCode($data);
-
-                        if ($qrcode) {
-                            return response()->json([
-                                'success' => true,
-                                'qrcode' => $qrcode,
-                                'instance' => $instanceName,
-                            ]);
-                        }
-                    }
-                }
-
-                return response()->json([
-                    'success' => false,
-                    'error' => 'Instance created. QR will be available shortly.',
-                ]);
+                Log::info('WhatsApp QR: Instance not found, creating new...', ['instance' => $instanceName]);
+                return $this->createAndGetQr($config, $instanceName);
             }
 
-            // Step 3: Other error
-            return response()->json([
-                'success' => false,
-                'error' => 'API returned status ' . $response->status(),
-            ]);
+            // Step 3: Other errors — try restart anyway
+            Log::warning('WhatsApp QR: Unexpected status ' . $response->status() . ', attempting restart...');
+            return $this->restartAndGetQr($config, $instanceName);
 
         } catch (\Exception $e) {
             Log::error('WhatsApp QR Error: ' . $e->getMessage());
             return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Restart a stuck instance and get QR code
+     */
+    private function restartAndGetQr($config, $instanceName): \Illuminate\Http\JsonResponse
+    {
+        $apiUrl = rtrim($config['api_url'], '/');
+        $headers = ['apikey' => $config['api_key'], 'Content-Type' => 'application/json'];
+
+        try {
+            // Try logout first (clears the connecting state)
+            Http::withHeaders($headers)->timeout(10)->delete("{$apiUrl}/instance/logout/{$instanceName}");
+            Log::info('WhatsApp QR: Logged out instance', ['instance' => $instanceName]);
+            sleep(1);
+
+            // Now restart the instance
+            Http::withHeaders($headers)->timeout(10)->put("{$apiUrl}/instance/restart/{$instanceName}");
+            Log::info('WhatsApp QR: Restarted instance', ['instance' => $instanceName]);
+            sleep(2);
+
+            // Now try connect again — should give fresh QR
+            $response = Http::withHeaders($headers)->timeout(15)->get("{$apiUrl}/instance/connect/{$instanceName}");
+
+            Log::info('WhatsApp QR: connect after restart', [
+                'status' => $response->status(),
+                'body' => mb_substr($response->body(), 0, 500),
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $qrcode = $this->extractQrCode($data);
+                if ($qrcode) {
+                    return response()->json(['success' => true, 'qrcode' => $qrcode, 'instance' => $instanceName]);
+                }
+            }
+
+            // Still no QR — try delete and recreate as last resort
+            Log::warning('WhatsApp QR: Restart did not produce QR. Deleting and recreating...');
+            return $this->createAndGetQr($config, $instanceName);
+
+        } catch (\Exception $e) {
+            Log::error('WhatsApp QR restart failed: ' . $e->getMessage());
+            return response()->json(['success' => false, 'error' => 'Restart failed: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Delete existing instance, create fresh one, and get QR
+     */
+    private function createAndGetQr($config, $instanceName): \Illuminate\Http\JsonResponse
+    {
+        $apiUrl = rtrim($config['api_url'], '/');
+        $headers = ['apikey' => $config['api_key'], 'Content-Type' => 'application/json'];
+
+        try {
+            // Delete if exists (ignore errors)
+            Http::withHeaders($headers)->timeout(10)->delete("{$apiUrl}/instance/delete/{$instanceName}");
+            sleep(1);
+
+            // Create fresh instance with QR
+            $createResponse = Http::withHeaders($headers)->timeout(15)->post("{$apiUrl}/instance/create", [
+                'instanceName' => $instanceName,
+                'integration' => 'WHATSAPP-BAILEYS',
+                'qrcode' => true,
+            ]);
+
+            Log::info('WhatsApp QR: create response', [
+                'status' => $createResponse->status(),
+                'body' => mb_substr($createResponse->body(), 0, 500),
+            ]);
+
+            if ($createResponse->successful()) {
+                $data = $createResponse->json();
+                // The CREATE response itself often contains the QR code
+                $qrcode = $this->extractQrCode($data);
+                if ($qrcode) {
+                    // Register webhook
+                    $this->registerWebhook($config, $instanceName);
+                    return response()->json(['success' => true, 'qrcode' => $qrcode, 'instance' => $instanceName]);
+                }
+
+                // If create didn't return QR, try connect
+                sleep(2);
+                $connectResponse = Http::withHeaders($headers)->timeout(15)->get("{$apiUrl}/instance/connect/{$instanceName}");
+
+                Log::info('WhatsApp QR: connect after create', [
+                    'status' => $connectResponse->status(),
+                    'body' => mb_substr($connectResponse->body(), 0, 500),
+                ]);
+
+                if ($connectResponse->successful()) {
+                    $connectData = $connectResponse->json();
+                    $qrcode = $this->extractQrCode($connectData);
+                    if ($qrcode) {
+                        $this->registerWebhook($config, $instanceName);
+                        return response()->json(['success' => true, 'qrcode' => $qrcode, 'instance' => $instanceName]);
+                    }
+                }
+            }
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Could not generate QR code. Please try again in a few seconds.',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('WhatsApp QR create failed: ' . $e->getMessage());
+            return response()->json(['success' => false, 'error' => 'Create failed: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Register webhook after creating instance
+     */
+    private function registerWebhook($config, $instanceName)
+    {
+        $apiUrl = rtrim($config['api_url'], '/');
+        $headers = ['apikey' => $config['api_key'], 'Content-Type' => 'application/json'];
+
+        try {
+            $baseUrl = !empty($config['webhook_base_url']) ? $config['webhook_base_url'] : secure_url('');
+            $webhookUrl = rtrim($baseUrl, '/') . "/webhook/whatsapp/incoming/{$instanceName}";
+
+            Http::withHeaders($headers)->post("{$apiUrl}/webhook/set/{$instanceName}", [
+                'webhook' => [
+                    'enabled' => true,
+                    'url' => $webhookUrl,
+                    'webhookByEvents' => false,
+                    'events' => ['MESSAGES_UPSERT'],
+                ],
+            ]);
+            Log::info('WhatsApp: Webhook registered', ['url' => $webhookUrl]);
+        } catch (\Exception $e) {
+            Log::error("Failed to set webhook: " . $e->getMessage());
         }
     }
 
@@ -352,17 +444,31 @@ class WhatsappConnectController extends Controller
         }
 
         $instanceName = $this->getInstanceName();
+        $apiUrl = rtrim($config['api_url'], '/');
+        $headers = ['apikey' => $config['api_key'], 'Content-Type' => 'application/json'];
 
         try {
-            // First, try to remove the instance completely to ensure a fresh start next time
-            $response = Http::withHeaders([
-                'apikey' => $config['api_key'],
-                'Content-Type' => 'application/json',
-            ])->delete("{$config['api_url']}/instance/delete/{$instanceName}");
+            // Step 1: Logout first (cleanly closes WhatsApp session)
+            try {
+                Http::withHeaders($headers)->timeout(10)->delete("{$apiUrl}/instance/logout/{$instanceName}");
+                Log::info('WhatsApp Disconnect: Logged out', ['instance' => $instanceName]);
+            } catch (\Exception $e) {
+                Log::warning('WhatsApp Disconnect: Logout failed (continuing): ' . $e->getMessage());
+            }
 
-            // If it was successful OR it failed because it doesn't exist/isn't connected, consider it a success locally
+            sleep(1);
+
+            // Step 2: Delete instance completely
+            $response = Http::withHeaders($headers)->timeout(10)->delete("{$apiUrl}/instance/delete/{$instanceName}");
+
+            Log::info('WhatsApp Disconnect: Delete response', [
+                'instance' => $instanceName,
+                'status' => $response->status(),
+            ]);
+
+            // Success if deleted, or already gone
             if ($response->successful() || in_array($response->status(), [400, 404])) {
-                return response()->json(['success' => true, 'message' => 'WhatsApp disconnected and cleared successfully.']);
+                return response()->json(['success' => true, 'message' => 'WhatsApp disconnected successfully.']);
             }
 
             return response()->json([
