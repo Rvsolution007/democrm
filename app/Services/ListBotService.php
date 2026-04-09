@@ -458,7 +458,16 @@ class ListBotService
             ->orderBy('name')
             ->get();
 
+        Log::info('ListBot: sendWelcomeWithCategories', [
+            'company_id' => $this->companyId,
+            'categories_found' => $categories->count(),
+            'category_names' => $categories->pluck('name')->toArray(),
+            'total_active_products' => Product::where('company_id', $this->companyId)->where('status', 'active')->count(),
+            'total_categories' => \App\Models\Category::where('company_id', $this->companyId)->count(),
+        ]);
+
         if ($categories->isEmpty()) {
+            Log::info('ListBot: No categories with products, sending all products directly');
             // No categories → send product list directly
             return $this->sendAllProducts($session, $instanceName);
         }
@@ -468,7 +477,12 @@ class ListBotService
         $buttonText = Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu', $this->companyId);
         $menuButtonText = mb_substr($buttonText, 0, 20);
 
-        $this->whatsApp->sendList(
+        Log::info('ListBot: Sending category menu', [
+            'sections' => count($sections),
+            'buttonText' => $menuButtonText,
+        ]);
+
+        $sent = $this->whatsApp->sendList(
             $instanceName,
             $session->phone_number,
             'Select Category',
@@ -477,6 +491,8 @@ class ListBotService
             $sections,
             'Tap an item to select'
         );
+
+        Log::info('ListBot: Category menu sent result', ['success' => $sent]);
 
         // Update session state
         $session->conversation_state = 'awaiting_category';
@@ -516,7 +532,16 @@ class ListBotService
 
         $products = $query->with(['customValues', 'category'])->orderBy('name')->get();
 
+        Log::info('ListBot: sendProductList', [
+            'company_id' => $this->companyId,
+            'category_id' => $categoryId,
+            'products_found' => $products->count(),
+            'product_names' => $products->pluck('name')->toArray(),
+            'product_ids' => $products->pluck('id')->toArray(),
+        ]);
+
         if ($products->isEmpty()) {
+            Log::warning('ListBot: No products found!', ['company_id' => $this->companyId, 'category_id' => $categoryId]);
             if ($categoryId) {
                 $msg = "Sorry, no products available in this category.";
                 $this->whatsApp->sendText($instanceName, $session->phone_number, $msg);
@@ -537,6 +562,7 @@ class ListBotService
 
         // Auto-select if only 1 product
         if ($products->count() === 1) {
+            Log::info('ListBot: Auto-selecting single product', ['product_id' => $products->first()->id]);
             $steps = ChatflowStep::where('company_id', $this->companyId)->orderBy('sort_order')->get();
             return $this->handleProductSelection($session, $instanceName, $products->first()->id, $steps);
         }
@@ -544,7 +570,12 @@ class ListBotService
         $sections = WhatsAppService::buildProductSections($products, fn($p) => $this->getProductDisplayName($p));
         $buttonText = Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu', $this->companyId);
 
-        $this->whatsApp->sendList(
+        Log::info('ListBot: Sending product list', [
+            'sections' => count($sections),
+            'total_rows' => collect($sections)->sum(fn($s) => count($s['rows'] ?? [])),
+        ]);
+
+        $sent = $this->whatsApp->sendList(
             $instanceName,
             $session->phone_number,
             'Select Product',
@@ -553,6 +584,8 @@ class ListBotService
             $sections,
             'Tap to select'
         );
+
+        Log::info('ListBot: Product list sent result', ['success' => $sent]);
 
         // Update session
         $session->conversation_state = 'awaiting_product';
