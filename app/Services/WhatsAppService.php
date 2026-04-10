@@ -447,13 +447,16 @@ class WhatsAppService
                 }
                 $text .= "\n";
 
-                $rowMap[(string)$num] = $row['rowId'] ?? '';
+                $rowMap[(string)$num] = [
+                    'rowId' => $row['rowId'] ?? '',
+                    'title' => $row['title'] ?? '',
+                ];
                 $num++;
             }
             $text .= "\n";
         }
 
-        $text .= "👆 _Reply with the number to select_";
+        $text .= "👆 _Reply with the number or type the name to select_";
 
         if (!empty($footer)) {
             $text .= "\n\n_{$footer}_";

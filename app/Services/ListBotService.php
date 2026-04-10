@@ -169,26 +169,54 @@ class ListBotService
             return $this->handleListSelection($session, $instanceName, $parsed, $steps);
         }
 
-        // ── CASE 0b: Text fallback — user sent a number to select from menu ──
+        // ── CASE 0b: Text fallback — user sent a number or typed a name to select ──
         $trimmedText = trim($messageText);
-        if (ctype_digit($trimmedText) && isset($answers['_text_menu_rowMap'])) {
+        if (isset($answers['_text_menu_rowMap'])) {
             $rowMap = $answers['_text_menu_rowMap'];
-            if (isset($rowMap[$trimmedText])) {
-                $rowId = $rowMap[$trimmedText];
+
+            // --- 0b-i: Exact number match ---
+            if (ctype_digit($trimmedText) && isset($rowMap[$trimmedText])) {
+                $entry = $rowMap[$trimmedText];
+                $rowId = is_array($entry) ? ($entry['rowId'] ?? '') : $entry;
                 $parsed = WhatsAppService::parseRowId($rowId);
                 if ($parsed) {
                     Log::info('ListBot: Number mapped to rowId', ['number' => $trimmedText, 'rowId' => $rowId]);
-                    // Clear the rowMap after use
                     unset($answers['_text_menu_rowMap']);
                     $session->collected_answers = $answers;
                     $session->save();
                     return $this->handleListSelection($session, $instanceName, $parsed, $steps);
                 }
-            } else {
-                // Invalid number — resend the menu
-                $this->whatsApp->sendText($instanceName, $session->phone_number, "❌ Invalid option. Please reply with a valid number from the menu.");
-                return null;
             }
+
+            // --- 0b-ii: Fuzzy text matching on option titles ---
+            $fuzzyMatch = $this->fuzzyMatchFromRowMap($trimmedText, $rowMap);
+            if ($fuzzyMatch) {
+                $rowId = $fuzzyMatch['rowId'];
+                $parsed = WhatsAppService::parseRowId($rowId);
+                if ($parsed) {
+                    Log::info('ListBot: Fuzzy text matched', [
+                        'input' => $trimmedText,
+                        'matched' => $fuzzyMatch['title'],
+                        'score' => $fuzzyMatch['score'],
+                        'rowId' => $rowId,
+                    ]);
+                    unset($answers['_text_menu_rowMap']);
+                    $session->collected_answers = $answers;
+                    $session->save();
+                    
+                    // Confirm the match to user
+                    $this->whatsApp->sendText($instanceName, $session->phone_number, "✅ *{$fuzzyMatch['title']}* matched!");
+                    return $this->handleListSelection($session, $instanceName, $parsed, $steps);
+                }
+            }
+
+            // --- 0b-iii: Invalid input — resend with hint ---
+            if (ctype_digit($trimmedText)) {
+                $this->whatsApp->sendText($instanceName, $session->phone_number, "❌ Invalid option. Please reply with a valid number from the menu.");
+            } else {
+                $this->whatsApp->sendText($instanceName, $session->phone_number, "❌ Could not match \"{$trimmedText}\". Please reply with the *number* or type the *exact name*.");
+            }
+            return null;
         }
 
         // ── CASE 1: No product selected yet → send welcome/categories ──
@@ -216,6 +244,99 @@ class ListBotService
         // ── CASE 4: Completed or no active step → restart ──
         return $this->sendWelcomeWithCategories($session, $instanceName);
     }
+
+    /**
+     * Fuzzy match user text against rowMap option titles.
+     * Uses multiple strategies: exact match, substring, similar_text, levenshtein.
+     * Returns best match if score >= 60%, null otherwise.
+     */
+    private function fuzzyMatchFromRowMap(string $userInput, array $rowMap): ?array
+    {
+        $input = mb_strtolower(trim($userInput));
+        if (empty($input) || mb_strlen($input) < 2) {
+            return null;
+        }
+
+        $bestMatch = null;
+        $bestScore = 0;
+        $threshold = 60; // minimum % match
+
+        foreach ($rowMap as $num => $entry) {
+            // Support both old format (string) and new format (array with rowId+title)
+            if (is_array($entry)) {
+                $rowId = $entry['rowId'] ?? '';
+                $title = $entry['title'] ?? '';
+            } else {
+                $rowId = $entry;
+                $title = '';
+            }
+
+            if (empty($title)) continue;
+
+            $optionLower = mb_strtolower(trim($title));
+            $score = 0;
+
+            // Strategy 1: Exact match (100%)
+            if ($input === $optionLower) {
+                return ['rowId' => $rowId, 'title' => $title, 'score' => 100];
+            }
+
+            // Strategy 2: Input is substring of option or vice versa (85%)
+            if (str_contains($optionLower, $input) || str_contains($input, $optionLower)) {
+                $score = 85;
+            }
+
+            // Strategy 3: similar_text percentage
+            if ($score < $threshold) {
+                similar_text($input, $optionLower, $similarPercent);
+                $score = max($score, $similarPercent);
+            }
+
+            // Strategy 4: Levenshtein distance (for typos) — only for short strings
+            if ($score < $threshold && mb_strlen($input) <= 50 && mb_strlen($optionLower) <= 50) {
+                $distance = levenshtein($input, $optionLower);
+                $maxLen = max(mb_strlen($input), mb_strlen($optionLower));
+                if ($maxLen > 0) {
+                    $levenScore = (1 - ($distance / $maxLen)) * 100;
+                    $score = max($score, $levenScore);
+                }
+            }
+
+            // Strategy 5: Word-level matching (check if key words match)
+            if ($score < $threshold) {
+                $inputWords = preg_split('/[\s_\-]+/', $input);
+                $optionWords = preg_split('/[\s_\-]+/', $optionLower);
+                $matchedWords = 0;
+                foreach ($inputWords as $word) {
+                    if (mb_strlen($word) < 2) continue;
+                    foreach ($optionWords as $optWord) {
+                        if (str_contains($optWord, $word) || str_contains($word, $optWord)) {
+                            $matchedWords++;
+                            break;
+                        }
+                    }
+                }
+                if (count($inputWords) > 0) {
+                    $wordScore = ($matchedWords / count($inputWords)) * 90;
+                    $score = max($score, $wordScore);
+                }
+            }
+
+            if ($score > $bestScore && $score >= $threshold) {
+                $bestScore = $score;
+                $bestMatch = ['rowId' => $rowId, 'title' => $title, 'score' => round($score, 1)];
+            }
+        }
+
+        Log::info('ListBot: Fuzzy match result', [
+            'input' => $userInput,
+            'bestMatch' => $bestMatch ? $bestMatch['title'] : 'none',
+            'bestScore' => $bestScore,
+        ]);
+
+        return $bestMatch;
+    }
+
 
     // ═══════════════════════════════════════════════════════
     // INTERACTIVE LIST SELECTION HANDLER
