@@ -1172,6 +1172,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'subscription'])->gr
     Route::post('/settings/ai-prompt', [SettingsController::class, 'saveAiPrompt'])->name('settings.ai-prompt.save');
     Route::post('/settings/ai-architecture-rules', [SettingsController::class, 'saveAiArchitectureRules'])->name('settings.ai-architecture-rules.save');
     Route::post('/settings/ai-language', [SettingsController::class, 'saveAiLanguage'])->name('settings.ai-language.save');
+    Route::post('/settings/ai-business-prompt', [SettingsController::class, 'saveAiBusinessPrompt'])->name('settings.ai-business-prompt.save');
     Route::post('/settings/ai-toggle', [SettingsController::class, 'toggleAiBot'])->name('settings.ai-toggle');
     Route::post('/settings/followup', [SettingsController::class, 'saveFollowupSettings'])->name('settings.followup.save');
     Route::post('/settings/ai-tier3-prompt', [SettingsController::class, 'saveAiTier3Prompt'])->name('settings.ai-tier3-prompt.save');

@@ -448,6 +448,20 @@ class SettingsController extends Controller
     }
 
     /**
+     * Save AI Bot business query prompt (per-business)
+     */
+    public function saveAiBusinessPrompt(Request $request)
+    {
+        $request->validate([
+            'business_prompt' => 'nullable|string|max:5000',
+        ]);
+
+        Setting::setValue('ai_bot', 'business_prompt', $request->business_prompt ?? '');
+
+        return response()->json(['success' => true, 'message' => 'Business prompt saved']);
+    }
+
+    /**
      * Toggle AI Bot on/off
      * When ON: auto-reply rules are automatically disabled
      * When OFF: auto-reply rules are re-enabled

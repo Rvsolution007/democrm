@@ -50,7 +50,6 @@ class GlobalSettingsController extends Controller
         $aiPrompts = [
             'system_prompt' => Setting::getGlobalValue('ai_bot', 'system_prompt', ''),
             'greeting_prompt' => Setting::getGlobalValue('ai_bot', 'greeting_prompt', ''),
-            'business_prompt' => Setting::getGlobalValue('ai_bot', 'business_prompt', ''),
             'spell_prompt' => Setting::getGlobalValue('ai_bot', 'spell_correction_prompt', ''),
             'tier3_prompt' => Setting::getGlobalValue('ai_bot', 'tier3_prompt', ''),
         ];
@@ -149,14 +148,12 @@ class GlobalSettingsController extends Controller
         $request->validate([
             'system_prompt' => 'nullable|string',
             'greeting_prompt' => 'nullable|string',
-            'business_prompt' => 'nullable|string',
             'spell_prompt' => 'nullable|string',
             'tier3_prompt' => 'nullable|string',
         ]);
 
         Setting::setGlobalValue('ai_bot', 'system_prompt', $request->system_prompt ?? '');
         Setting::setGlobalValue('ai_bot', 'greeting_prompt', $request->greeting_prompt ?? '');
-        Setting::setGlobalValue('ai_bot', 'business_prompt', $request->business_prompt ?? '');
         Setting::setGlobalValue('ai_bot', 'spell_correction_prompt', $request->spell_prompt ?? '');
         Setting::setGlobalValue('ai_bot', 'tier3_prompt', $request->tier3_prompt ?? '');
 

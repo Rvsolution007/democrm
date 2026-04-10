@@ -421,11 +421,7 @@ RULE 4 — NO MATCH → NONE</textarea>
                     <div class="hint">Bot greet kaise kare jab user "Hi", "Hello", "Namaste" bole.</div>
                 </div>
 
-                <div class="form-row">
-                    <label class="field-label">Business Query Prompt (Optional)</label>
-                    <textarea name="business_prompt" class="form-control" rows="3" placeholder="User asked about office hours or location...">{{ $aiPrompts['business_prompt'] }}</textarea>
-                    <div class="hint">Business details like address, support number, hours.</div>
-                </div>
+                <!-- Business Query Prompt moved to per-business admin settings -->
 
                 <div class="form-row">
                     <label class="field-label">Spell Correction Prompt (Optional)</label>
