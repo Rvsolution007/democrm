@@ -16,7 +16,7 @@ class AutoReplyService
     /**
      * Process an incoming WhatsApp message and send auto-reply if rules match
      */
-    public function processIncomingMessage(string $instanceName, string $senderPhone, string $messageText): array
+    public function processIncomingMessage(string $instanceName, string $senderPhone, string $messageText, bool $skipAnyMessage = false): array
     {
         Log::info("AutoReply: Processing message from {$senderPhone} on instance {$instanceName}", [
             'message' => $messageText,
@@ -42,6 +42,10 @@ class AutoReplyService
         $rules = WhatsappAutoReplyRule::where('user_id', $userId)
             ->where('instance_name', $instanceName)
             ->where('is_active', true)
+            ->when($skipAnyMessage, function ($q) {
+                // In list_bot mode, skip 'any_message' rules — they intercept everything
+                $q->where('match_type', '!=', 'any_message');
+            })
             ->orderByDesc('priority')
             ->get();
 

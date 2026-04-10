@@ -261,6 +261,10 @@ Route::post('/contact', [App\Http\Controllers\Web\LandingController::class, 'sub
 Route::post('/webhook/whatsapp/incoming/{instanceName}', [App\Http\Controllers\Web\WhatsappWebhookController::class, 'handleIncoming']);
 Route::get('/webhook/whatsapp/incoming/{instanceName}', [App\Http\Controllers\Web\WhatsappWebhookController::class, 'testWebhook']);
 
+// Official WhatsApp Cloud API Webhook (public — Meta calls this)
+Route::post('/webhook/whatsapp-official', [App\Http\Controllers\Web\WhatsappWebhookController::class, 'handleOfficialWebhook']);
+Route::get('/webhook/whatsapp-official', [App\Http\Controllers\Web\WhatsappWebhookController::class, 'verifyOfficialWebhook']);
+
 // Admin Panel Routes (protected by auth + subscription check)
 Route::prefix('admin')->name('admin.')->middleware(['auth', 'subscription'])->group(function () {
 
@@ -1172,6 +1176,11 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'subscription'])->gr
     Route::post('/settings/bot-mode', [SettingsController::class, 'saveBotMode'])->name('settings.bot-mode.save');
     Route::post('/settings/list-bot', [SettingsController::class, 'saveListBotSettings'])->name('settings.list-bot.save');
     Route::post('/settings/interactive-list-mode', [SettingsController::class, 'saveInteractiveListMode'])->name('settings.interactive-list-mode.save');
+
+    // Dual WhatsApp API Configuration
+    Route::post('/settings/official-api-config', [SettingsController::class, 'saveOfficialApiConfig'])->name('settings.official-api.save');
+    Route::post('/settings/official-api-toggle', [SettingsController::class, 'toggleOfficialApi'])->name('settings.official-api.toggle');
+    Route::post('/settings/evolution-api-toggle', [SettingsController::class, 'toggleEvolutionApi'])->name('settings.evolution-api.toggle');
 
     // Billing & Subscription (Admin self-service)
     Route::get('/billing', [\App\Http\Controllers\Web\BillingController::class, 'index'])->name('billing.index');

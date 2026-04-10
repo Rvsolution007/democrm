@@ -7,17 +7,38 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Shared WhatsApp messaging service — used by AIChatbotService, ListBotService, and AutoReplyService.
- * Provides methods for sending text, media, and interactive list messages via the Evolution API.
+ * Shared WhatsApp messaging service — dual API support.
+ * 
+ * Supports TWO WhatsApp APIs simultaneously:
+ * 1. Evolution API (Baileys/QR) — for bulk sending, follow-ups, and fallback bot replies
+ * 2. Official WhatsApp Cloud API — for interactive lists, buttons, and premium bot replies
+ * 
+ * Routing Logic:
+ * - Bot replies: Official API if ON, else Evolution API
+ * - Bulk/Follow-up: Always Evolution API (free)
+ * - If only one API configured: uses that for everything
  */
 class WhatsAppService
 {
+    // Evolution API (Baileys)
     private string $apiUrl;
     private string $apiKey;
-    private bool $configured = false;
+    private bool $evolutionConfigured = false;
+    private bool $evolutionEnabled = false;
+
+    // Official WhatsApp Cloud API
+    private string $officialPhoneNumberId = '';
+    private string $officialAccessToken = '';
+    private bool $officialConfigured = false;
+    private bool $officialEnabled = false;
+
+    private int $companyId;
 
     public function __construct(int $companyId)
     {
+        $this->companyId = $companyId;
+
+        // Load Evolution API config
         $config = Setting::getValue('whatsapp', 'api_config', [
             'api_url' => '',
             'api_key' => '',
@@ -25,7 +46,24 @@ class WhatsAppService
 
         $this->apiUrl = rtrim($config['api_url'] ?? '', '/');
         $this->apiKey = $config['api_key'] ?? '';
-        $this->configured = !empty($this->apiUrl) && !empty($this->apiKey);
+        $this->evolutionConfigured = !empty($this->apiUrl) && !empty($this->apiKey);
+        $this->evolutionEnabled = (bool) Setting::getValue('whatsapp', 'evolution_api_enabled', true, $companyId);
+
+        // Load Official Cloud API config
+        $officialConfig = Setting::getValue('whatsapp', 'official_api_config', [
+            'phone_number_id' => '',
+            'access_token' => '',
+        ], $companyId);
+
+        $this->officialPhoneNumberId = $officialConfig['phone_number_id'] ?? '';
+        $this->officialAccessToken = $officialConfig['access_token'] ?? '';
+        $this->officialConfigured = !empty($this->officialPhoneNumberId) && !empty($this->officialAccessToken);
+        $this->officialEnabled = (bool) Setting::getValue('whatsapp', 'official_api_enabled', false, $companyId);
+
+        // Backward compat: if evolution_api_enabled setting doesn't exist, default ON if configured
+        if (!Setting::where('company_id', $companyId)->where('group', 'whatsapp')->where('key', 'evolution_api_enabled')->exists()) {
+            $this->evolutionEnabled = $this->evolutionConfigured;
+        }
     }
 
     /**
@@ -41,20 +79,59 @@ class WhatsAppService
     }
 
     /**
-     * Check if WhatsApp API is configured.
+     * Check if ANY WhatsApp API is configured.
      */
     public function isConfigured(): bool
     {
-        return $this->configured;
+        return ($this->evolutionConfigured && $this->evolutionEnabled) 
+            || ($this->officialConfigured && $this->officialEnabled);
     }
 
     /**
-     * Send a plain text message via Evolution API.
+     * Check if Official Cloud API is active.
+     */
+    public function isOfficialApiActive(): bool
+    {
+        return $this->officialConfigured && $this->officialEnabled;
+    }
+
+    /**
+     * Check if Evolution API is active.
+     */
+    public function isEvolutionApiActive(): bool
+    {
+        return $this->evolutionConfigured && $this->evolutionEnabled;
+    }
+
+    /**
+     * Send a plain text message — routes to best available API.
+     * For bot replies: Official API preferred (if ON), else Evolution API.
      */
     public function sendText(string $instanceName, string $phone, string $text): bool
     {
-        if (!$this->configured) {
-            Log::error('WhatsAppService: API not configured');
+        // Try Official API first (for bot interactions — free user-initiated)
+        if ($this->isOfficialApiActive()) {
+            $sent = $this->sendTextViaOfficialApi($phone, $text);
+            if ($sent) return true;
+            // Fall through to Evolution API
+        }
+
+        // Evolution API fallback
+        if ($this->isEvolutionApiActive()) {
+            return $this->sendTextViaEvolution($instanceName, $phone, $text);
+        }
+
+        Log::error('WhatsAppService: No API configured or enabled');
+        return false;
+    }
+
+    /**
+     * Send text specifically via Evolution API (used for bulk sender, follow-ups).
+     */
+    public function sendTextViaEvolution(string $instanceName, string $phone, string $text): bool
+    {
+        if (!$this->evolutionConfigured) {
+            Log::error('WhatsAppService: Evolution API not configured');
             return false;
         }
 
@@ -68,7 +145,7 @@ class WhatsAppService
             ]);
 
             if (!$response->successful()) {
-                Log::error('WhatsAppService: sendText failed', [
+                Log::error('WhatsAppService: Evolution sendText failed', [
                     'status' => $response->status(),
                     'body' => $response->body(),
                 ]);
@@ -77,37 +154,64 @@ class WhatsAppService
 
             return true;
         } catch (\Exception $e) {
-            Log::error('WhatsAppService: sendText exception - ' . $e->getMessage());
+            Log::error('WhatsAppService: Evolution sendText exception - ' . $e->getMessage());
             return false;
         }
     }
 
     /**
-     * Send an Interactive List Message via Evolution API.
+     * Send text via Official WhatsApp Cloud API.
+     */
+    public function sendTextViaOfficialApi(string $phone, string $text): bool
+    {
+        if (!$this->officialConfigured) {
+            return false;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->officialAccessToken,
+                'Content-Type' => 'application/json',
+            ])->post("https://graph.facebook.com/v21.0/{$this->officialPhoneNumberId}/messages", [
+                'messaging_product' => 'whatsapp',
+                'to' => self::formatPhone($phone),
+                'type' => 'text',
+                'text' => ['body' => $text],
+            ]);
+
+            if (!$response->successful()) {
+                Log::warning('WhatsAppService: Official API sendText failed', [
+                    'status' => $response->status(),
+                    'body' => mb_substr($response->body(), 0, 300),
+                ]);
+                return false;
+            }
+
+            Log::info('WhatsAppService: Sent text via Official API', ['phone' => $phone]);
+            return true;
+        } catch (\Exception $e) {
+            Log::warning('WhatsAppService: Official API exception - ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Send message specifically for bulk/follow-up — ALWAYS uses Evolution API (free).
+     */
+    public function sendForBulk(string $instanceName, string $phone, string $text): bool
+    {
+        return $this->sendTextViaEvolution($instanceName, $phone, $text);
+    }
+
+    /**
+     * Send an Interactive List Message — dual API routing.
+     * 
+     * Priority:
+     * 1. Official Cloud API → native interactive list (≡ Menu popup) ✅
+     * 2. Evolution API → native interactive list (Baileys, often blocked)
+     * 3. Text fallback → numbered text menu
      *
-     * @param string $instanceName  Evolution API instance name
-     * @param string $phone         Recipient phone number
-     * @param string $title         List title (max 60 chars) — shown at top
-     * @param string $description   Body text — shown below title
-     * @param string $buttonText    Button label (max 20 chars) — e.g., "☰ Menu"
-     * @param array  $sections      Array of sections, each with:
-     *                              [
-     *                                  'title' => 'Section Title',
-     *                                  'rows' => [
-     *                                      ['title' => 'Row 1', 'description' => 'Desc', 'rowId' => 'cat_5'],
-     *                                      ['title' => 'Row 2', 'description' => 'Desc', 'rowId' => 'prod_42'],
-     *                                  ]
-     *                              ]
-     * @param string $footer        Footer text (optional, max 60 chars)
-     * @return bool
-     * @return bool|array
-     *
-     * WhatsApp Limits:
-     * - Max 10 sections
-     * - Max 10 rows per section
-     * - Max 100 total rows
-     * - Title max 24 chars (row title)
-     * - Description max 72 chars (row description)
+     * @return bool|array  true = native list sent, array = text fallback with rowMap, false = failed
      */
     public function sendList(
         string $instanceName,
@@ -118,8 +222,8 @@ class WhatsAppService
         array $sections,
         string $footer = ''
     ): bool|array {
-        if (!$this->configured) {
-            Log::error('WhatsAppService: API not configured');
+        if (!$this->isConfigured()) {
+            Log::error('WhatsAppService: No API configured');
             return false;
         }
 
@@ -138,47 +242,129 @@ class WhatsAppService
         }
         unset($section);
 
-        // Try native Interactive List API first
+        // ── Priority 1: Official Cloud API — native interactive list ──
+        if ($this->isOfficialApiActive()) {
+            $sent = $this->sendListViaOfficialApi($phone, $title, $description, $buttonText, $sections, $footer);
+            if ($sent) {
+                Log::info('WhatsAppService: Sent native list via Official API', ['phone' => $phone]);
+                return true;
+            }
+        }
+
+        // ── Priority 2: Evolution API — try native list ──
+        if ($this->isEvolutionApiActive()) {
+            try {
+                $payload = [
+                    'number' => self::formatPhone($phone),
+                    'title' => mb_substr($title, 0, 60),
+                    'description' => $description,
+                    'buttonText' => mb_substr($buttonText, 0, 20),
+                    'footerText' => $footer ?: '',
+                    'sections' => $sections,
+                ];
+
+                $response = Http::withHeaders([
+                    'apikey' => $this->apiKey,
+                    'Content-Type' => 'application/json',
+                ])->timeout(15)->post("{$this->apiUrl}/message/sendList/{$instanceName}", $payload);
+
+                if ($response->successful()) {
+                    Log::info('WhatsAppService: Sent native list via Evolution API', ['phone' => $phone]);
+                    return true;
+                }
+
+                Log::warning('WhatsAppService: Evolution sendList failed, falling back to text', [
+                    'status' => $response->status(),
+                    'body' => mb_substr($response->body(), 0, 300),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('WhatsAppService: Evolution sendList exception', ['error' => $e->getMessage()]);
+            }
+        }
+
+        // ── Priority 3: Text-based menu fallback ──
+        return $this->sendListAsText($instanceName, $phone, $title, $description, $sections, $footer);
+    }
+
+    /**
+     * Send Interactive List via Official WhatsApp Cloud API.
+     * This creates the native "≡ Menu" popup with selectable items.
+     */
+    private function sendListViaOfficialApi(
+        string $phone,
+        string $title,
+        string $description,
+        string $buttonText,
+        array $sections,
+        string $footer = ''
+    ): bool {
+        if (!$this->officialConfigured) {
+            return false;
+        }
+
         try {
-            $payload = [
-                'number' => self::formatPhone($phone),
-                'title' => mb_substr($title, 0, 60),
-                'description' => $description,
-                'buttonText' => mb_substr($buttonText, 0, 20),
-                'footerText' => $footer ?: '',
-                'sections' => $sections,
-            ];
-
-            Log::info('WhatsAppService: Sending native Interactive List', [
-                'phone' => $phone,
-                'title' => $title,
-                'sections' => count($sections),
-                'total_rows' => collect($sections)->sum(fn($s) => count($s['rows'] ?? [])),
-            ]);
-
-            $response = Http::withHeaders([
-                'apikey' => $this->apiKey,
-                'Content-Type' => 'application/json',
-            ])->timeout(15)->post("{$this->apiUrl}/message/sendList/{$instanceName}", $payload);
-
-            if ($response->successful()) {
-                Log::info('WhatsAppService: Native list sent successfully', ['phone' => $phone]);
-                return true; // Native list — no rowMap needed
+            // Convert sections to Cloud API format
+            $cloudSections = [];
+            foreach ($sections as $section) {
+                $cloudRows = [];
+                foreach ($section['rows'] ?? [] as $row) {
+                    $cloudRow = [
+                        'id' => $row['rowId'] ?? uniqid(),
+                        'title' => mb_substr($row['title'] ?? '', 0, 24),
+                    ];
+                    if (!empty($row['description'])) {
+                        $cloudRow['description'] = mb_substr($row['description'], 0, 72);
+                    }
+                    $cloudRows[] = $cloudRow;
+                }
+                $cloudSections[] = [
+                    'title' => mb_substr($section['title'] ?? 'Options', 0, 24),
+                    'rows' => $cloudRows,
+                ];
             }
 
-            // API returned error — log and fall through to text fallback
-            Log::warning('WhatsAppService: sendList API failed, falling back to text menu', [
+            $interactive = [
+                'type' => 'list',
+                'body' => ['text' => $description],
+                'action' => [
+                    'button' => mb_substr($buttonText, 0, 20),
+                    'sections' => $cloudSections,
+                ],
+            ];
+
+            // Add header if title provided
+            if (!empty($title)) {
+                $interactive['header'] = ['type' => 'text', 'text' => mb_substr($title, 0, 60)];
+            }
+
+            // Add footer if provided
+            if (!empty($footer)) {
+                $interactive['footer'] = ['text' => mb_substr($footer, 0, 60)];
+            }
+
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->officialAccessToken,
+                'Content-Type' => 'application/json',
+            ])->post("https://graph.facebook.com/v21.0/{$this->officialPhoneNumberId}/messages", [
+                'messaging_product' => 'whatsapp',
+                'to' => self::formatPhone($phone),
+                'type' => 'interactive',
+                'interactive' => $interactive,
+            ]);
+
+            if ($response->successful()) {
+                return true;
+            }
+
+            Log::warning('WhatsAppService: Official API sendList failed', [
                 'status' => $response->status(),
                 'body' => mb_substr($response->body(), 0, 300),
             ]);
+            return false;
         } catch (\Exception $e) {
-            Log::warning('WhatsAppService: sendList exception, falling back to text menu', [
-                'error' => $e->getMessage(),
-            ]);
+            Log::warning('WhatsAppService: Official API sendList exception', ['error' => $e->getMessage()]);
+            return false;
         }
-
-        // Fallback: send as text-based numbered menu
-        return $this->sendListAsText($instanceName, $phone, $title, $description, $sections, $footer);
     }
 
     /**

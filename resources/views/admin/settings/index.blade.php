@@ -712,31 +712,18 @@
             <!-- AI Bot Configuration Tab -->
             <div class="settings-tab" id="tab-ai-bot" style="display:none">
 
-                <!-- ═══ Bot Mode Selector (3-Card) ═══ -->
+                <!-- ═══ Bot Mode Selector (2-Card) ═══ -->
                 <div class="card" style="margin-bottom:24px">
                     <div class="card-header">
                         <h3 class="card-title" style="display:flex;align-items:center;gap:8px">
                             <i data-lucide="radio" style="width:20px;height:20px;color:#8b5cf6"></i>
                             WhatsApp Bot Mode
                         </h3>
-                        <p class="text-sm text-muted" style="margin-top:4px">Select which bot mode to use. Only ONE mode can be active at a time.</p>
+                        <p class="text-sm text-muted" style="margin-top:4px">Select which bot mode to use. Auto-Reply rules are included in Bot List mode.</p>
                     </div>
                     <div class="card-content">
-                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px" id="bot-mode-cards">
-                            <!-- Auto Reply Card -->
-                            <div class="bot-mode-card {{ $botMode === 'auto_reply' ? 'active' : '' }}"
-                                 data-mode="auto_reply" onclick="selectBotMode('auto_reply')"
-                                 style="border:2px solid {{ $botMode === 'auto_reply' ? '#22c55e' : '#e2e8f0' }};border-radius:12px;padding:20px;cursor:pointer;transition:all 0.3s;background:{{ $botMode === 'auto_reply' ? 'linear-gradient(135deg,#f0fdf4,#dcfce7)' : '#fafafa' }};position:relative;text-align:center">
-                                <div style="position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;border:2px solid {{ $botMode === 'auto_reply' ? '#22c55e' : '#d1d5db' }};background:{{ $botMode === 'auto_reply' ? '#22c55e' : 'transparent' }};display:flex;align-items:center;justify-content:center;transition:all 0.3s" id="radio-auto_reply">
-                                    @if($botMode === 'auto_reply')<i data-lucide="check" style="width:14px;height:14px;color:white"></i>@endif
-                                </div>
-                                <div style="font-size:32px;margin-bottom:8px">📨</div>
-                                <h4 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#334155">Auto Reply</h4>
-                                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Keyword → Template reply<br>Basic auto-response rules</p>
-                                <div style="margin-top:10px;font-size:11px;color:#94a3b8;background:#f1f5f9;padding:4px 8px;border-radius:6px">All packages</div>
-                            </div>
-
-                            <!-- List Bot Card -->
+                        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px" id="bot-mode-cards">
+                            <!-- Bot List Card (includes Auto Reply) -->
                             <div class="bot-mode-card {{ $botMode === 'list_bot' ? 'active' : '' }}"
                                  data-mode="list_bot" onclick="selectBotMode('list_bot')"
                                  style="border:2px solid {{ $botMode === 'list_bot' ? '#3b82f6' : '#e2e8f0' }};border-radius:12px;padding:20px;cursor:pointer;transition:all 0.3s;background:{{ $botMode === 'list_bot' ? 'linear-gradient(135deg,#eff6ff,#dbeafe)' : '#fafafa' }};position:relative;text-align:center">
@@ -744,9 +731,9 @@
                                     @if($botMode === 'list_bot')<i data-lucide="check" style="width:14px;height:14px;color:white"></i>@endif
                                 </div>
                                 <div style="font-size:32px;margin-bottom:8px">📋</div>
-                                <h4 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#334155">List Bot</h4>
-                                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Menu-driven chatbot<br>Zero AI cost — all PHP</p>
-                                <div style="margin-top:10px;font-size:11px;color:#94a3b8;background:#f1f5f9;padding:4px 8px;border-radius:6px">List Bot package+</div>
+                                <h4 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#334155">Bot List</h4>
+                                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Menu-driven catalogue bot<br>+ Auto Reply rules included<br>Zero AI cost — all PHP</p>
+                                <div style="margin-top:10px;font-size:11px;color:#94a3b8;background:#f1f5f9;padding:4px 8px;border-radius:6px">All packages</div>
                             </div>
 
                             <!-- AI Bot Card -->
@@ -758,16 +745,127 @@
                                 </div>
                                 <div style="font-size:32px;margin-bottom:8px">🤖</div>
                                 <h4 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#334155">AI Bot</h4>
-                                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Smart AI + Interactive Lists<br>Gemini-powered chatbot</p>
+                                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Smart AI + Interactive Lists<br>Gemini-powered chatbot<br>AI credits required</p>
                                 <div style="margin-top:10px;font-size:11px;color:#94a3b8;background:#f1f5f9;padding:4px 8px;border-radius:6px">AI Bot package</div>
                             </div>
                         </div>
                         <p class="text-sm text-muted" style="margin-top:12px;text-align:center" id="bot-mode-info">
-                            @if($botMode === 'auto_reply') 📨 Auto Reply active — keyword-based template responses
-                            @elseif($botMode === 'list_bot') 📋 List Bot active — menu-driven, zero AI. Uses your Chatflow Steps.
+                            @if($botMode === 'list_bot') 📋 Bot List active — menu-driven bot + auto reply rules. Zero AI cost.
                             @else 🤖 AI Bot active — smart AI chatbot with Gemini
                             @endif
                         </p>
+                    </div>
+                </div>
+
+                <!-- ═══ Dual WhatsApp API Configuration ═══ -->
+                <div class="card" style="margin-bottom:24px">
+                    <div class="card-header">
+                        <h3 class="card-title" style="display:flex;align-items:center;gap:8px">
+                            <i data-lucide="smartphone" style="width:20px;height:20px;color:#25D366"></i>
+                            WhatsApp API Configuration
+                        </h3>
+                        <p class="text-sm text-muted" style="margin-top:4px">Configure one or both APIs. Official API enables native interactive lists (≡ Menu). Evolution API enables free bulk sending.</p>
+                    </div>
+                    <div class="card-content">
+                        <!-- Cost Indicator -->
+                        <div id="cost-indicator" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #bbf7d0;border-radius:10px;padding:14px 18px;margin-bottom:20px">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                                <i data-lucide="indian-rupee" style="width:16px;height:16px;color:#16a34a"></i>
+                                <span style="font-weight:700;color:#166534;font-size:14px">Estimated Monthly Cost</span>
+                            </div>
+                            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:13px">
+                                <div>
+                                    <span style="color:#166534;font-weight:600">Bot Replies</span><br>
+                                    <span style="color:#15803d" id="cost-bot">{{ $officialApiEnabled ? '₹0 (FREE via Cloud API)' : '₹0 (Evolution API)' }}</span>
+                                </div>
+                                <div>
+                                    <span style="color:#166534;font-weight:600">Bulk Sender</span><br>
+                                    <span style="color:#15803d" id="cost-bulk">{{ $evolutionApiEnabled ? '₹0 (FREE via QR)' : '~₹1/msg (Cloud API)' }}</span>
+                                </div>
+                                <div>
+                                    <span style="color:#166534;font-weight:600">Follow-ups</span><br>
+                                    <span style="color:#15803d" id="cost-followup">{{ $evolutionApiEnabled ? '₹0 (FREE via QR)' : '~₹0.12/msg (Cloud API)' }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+                            <!-- Official Cloud API Card -->
+                            <div style="border:2px solid {{ $officialApiEnabled ? '#22c55e' : '#e2e8f0' }};border-radius:12px;padding:18px;transition:all 0.3s" id="official-api-card">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+                                    <div>
+                                        <h4 style="margin:0 0 4px;font-weight:700;color:#334155;display:flex;align-items:center;gap:6px">
+                                            <span style="font-size:18px">☁️</span> Official Cloud API
+                                        </h4>
+                                        <p style="margin:0;font-size:12px;color:#64748b">Native ≡ Menu, Buttons, Templates</p>
+                                    </div>
+                                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                                        <span id="official-api-label" style="font-weight:600;font-size:13px;color:{{ $officialApiEnabled ? '#16a34a' : '#dc2626' }}">{{ $officialApiEnabled ? 'ON' : 'OFF' }}</span>
+                                        <div style="position:relative;width:44px;height:24px">
+                                            <input type="checkbox" id="official-api-toggle" {{ $officialApiEnabled ? 'checked' : '' }}
+                                                onchange="toggleOfficialApi(this.checked)"
+                                                style="opacity:0;width:0;height:0;position:absolute">
+                                            <div id="official-api-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $officialApiEnabled ? '#22c55e' : '#ccc' }};border-radius:24px;transition:0.3s" onclick="document.getElementById('official-api-toggle').click()">
+                                                <div style="position:absolute;height:18px;width:18px;left:{{ $officialApiEnabled ? '23px' : '3px' }};bottom:3px;background:white;border-radius:50%;transition:0.3s" id="official-api-knob"></div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div id="official-api-config-form" style="{{ $officialApiEnabled ? '' : 'opacity:0.5;pointer-events:none' }}">
+                                    <div style="margin-bottom:10px">
+                                        <label style="display:block;margin-bottom:4px;font-weight:500;font-size:13px">Phone Number ID *</label>
+                                        <input type="text" class="form-input" id="official-phone-number-id" value="{{ $officialApiConfig['phone_number_id'] ?? '' }}" placeholder="1234567890" style="font-size:13px">
+                                    </div>
+                                    <div style="margin-bottom:10px">
+                                        <label style="display:block;margin-bottom:4px;font-weight:500;font-size:13px">Access Token *</label>
+                                        <input type="password" class="form-input" id="official-access-token" value="{{ $officialApiConfig['access_token'] ?? '' }}" placeholder="EAAG..." style="font-size:13px">
+                                    </div>
+                                    <div style="margin-bottom:10px">
+                                        <label style="display:block;margin-bottom:4px;font-weight:500;font-size:13px">WABA ID <span style="color:#999">(optional)</span></label>
+                                        <input type="text" class="form-input" id="official-waba-id" value="{{ $officialApiConfig['waba_id'] ?? '' }}" placeholder="Business Account ID" style="font-size:13px">
+                                    </div>
+                                    <div style="margin-bottom:10px;padding:8px 10px;background:#f1f5f9;border-radius:6px;font-size:11px;color:#64748b">
+                                        <strong>Webhook URL:</strong><br>
+                                        <code style="font-size:11px;word-break:break-all">{{ url('/webhook/whatsapp-official') }}</code><br>
+                                        <strong>Verify Token:</strong> <code>{{ $officialVerifyToken }}</code>
+                                    </div>
+                                    <button type="button" class="btn btn-primary btn-sm" onclick="saveOfficialApiConfig()" style="width:100%">
+                                        <i data-lucide="save" style="width:14px;height:14px"></i> Save Official API
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Evolution API (QR Scan) Card -->
+                            <div style="border:2px solid {{ $evolutionApiEnabled ? '#3b82f6' : '#e2e8f0' }};border-radius:12px;padding:18px;transition:all 0.3s" id="evolution-api-card">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+                                    <div>
+                                        <h4 style="margin:0 0 4px;font-weight:700;color:#334155;display:flex;align-items:center;gap:6px">
+                                            <span style="font-size:18px">📱</span> Evolution API (QR Scan)
+                                        </h4>
+                                        <p style="margin:0;font-size:12px;color:#64748b">Free bulk sending, follow-ups, text menus</p>
+                                    </div>
+                                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                                        <span id="evolution-api-label" style="font-weight:600;font-size:13px;color:{{ $evolutionApiEnabled ? '#16a34a' : '#dc2626' }}">{{ $evolutionApiEnabled ? 'ON' : 'OFF' }}</span>
+                                        <div style="position:relative;width:44px;height:24px">
+                                            <input type="checkbox" id="evolution-api-toggle" {{ $evolutionApiEnabled ? 'checked' : '' }}
+                                                onchange="toggleEvolutionApi(this.checked)"
+                                                style="opacity:0;width:0;height:0;position:absolute">
+                                            <div id="evolution-api-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $evolutionApiEnabled ? '#3b82f6' : '#ccc' }};border-radius:24px;transition:0.3s" onclick="document.getElementById('evolution-api-toggle').click()">
+                                                <div style="position:absolute;height:18px;width:18px;left:{{ $evolutionApiEnabled ? '23px' : '3px' }};bottom:3px;background:white;border-radius:50%;transition:0.3s" id="evolution-api-knob"></div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div style="{{ $evolutionApiEnabled ? '' : 'opacity:0.5' }}">
+                                    <div style="padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1e40af;line-height:1.6">
+                                        <strong>Status:</strong> {{ !empty($whatsappApiConfig['api_url']) ? '✅ Configured' : '❌ Not configured' }}<br>
+                                        <strong>Config:</strong> Set in WhatsApp API tab below<br>
+                                        <strong>Usage:</strong> Bulk Sender, Follow-ups, Text menu fallback<br>
+                                        <strong>Cost:</strong> ₹0 (FREE — no per-message charges)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -2160,9 +2258,9 @@ RULE 4 — NO MATCH → NONE</textarea>
         // ═══════════════════════════════════════
 
         function selectBotMode(mode) {
-            var colors = { auto_reply: '#22c55e', list_bot: '#3b82f6', ai_bot: '#8b5cf6' };
-            var gradients = { auto_reply: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', list_bot: 'linear-gradient(135deg,#eff6ff,#dbeafe)', ai_bot: 'linear-gradient(135deg,#f5f3ff,#ede9fe)' };
-            var infos = { auto_reply: '📨 Auto Reply active — keyword-based template responses', list_bot: '📋 List Bot active — menu-driven, zero AI. Uses your Chatflow Steps.', ai_bot: '🤖 AI Bot active — smart AI chatbot with Gemini' };
+            var colors = { list_bot: '#3b82f6', ai_bot: '#8b5cf6' };
+            var gradients = { list_bot: 'linear-gradient(135deg,#eff6ff,#dbeafe)', ai_bot: 'linear-gradient(135deg,#f5f3ff,#ede9fe)' };
+            var infos = { list_bot: '📋 Bot List active — menu-driven bot + auto reply rules. Zero AI cost.', ai_bot: '🤖 AI Bot active — smart AI chatbot with Gemini' };
 
             // Update card visuals
             document.querySelectorAll('.bot-mode-card').forEach(function(card) {
@@ -2200,7 +2298,89 @@ RULE 4 — NO MATCH → NONE</textarea>
 
         // Legacy compat — old toggle calls this
         function toggleAiBot(enabled) {
-            selectBotMode(enabled ? 'ai_bot' : 'auto_reply');
+            selectBotMode(enabled ? 'ai_bot' : 'list_bot');
+        }
+
+        // ═══════════════════════════════════════
+        // Dual API Toggle/Save Functions
+        // ═══════════════════════════════════════
+
+        function toggleOfficialApi(enabled) {
+            // Update UI immediately
+            document.getElementById('official-api-label').textContent = enabled ? 'ON' : 'OFF';
+            document.getElementById('official-api-label').style.color = enabled ? '#16a34a' : '#dc2626';
+            document.getElementById('official-api-slider').style.background = enabled ? '#22c55e' : '#ccc';
+            document.getElementById('official-api-knob').style.left = enabled ? '23px' : '3px';
+            document.getElementById('official-api-card').style.borderColor = enabled ? '#22c55e' : '#e2e8f0';
+            document.getElementById('official-api-config-form').style.opacity = enabled ? '1' : '0.5';
+            document.getElementById('official-api-config-form').style.pointerEvents = enabled ? 'auto' : 'none';
+            updateCostIndicator();
+
+            fetch('{{ route("admin.settings.official-api.toggle") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({ enabled: enabled })
+            }).then(r => r.json()).then(data => {
+                if (data.success) showToast(data.message, 'success');
+            }).catch(() => alert('Failed to toggle Official API'));
+        }
+
+        function toggleEvolutionApi(enabled) {
+            document.getElementById('evolution-api-label').textContent = enabled ? 'ON' : 'OFF';
+            document.getElementById('evolution-api-label').style.color = enabled ? '#16a34a' : '#dc2626';
+            document.getElementById('evolution-api-slider').style.background = enabled ? '#3b82f6' : '#ccc';
+            document.getElementById('evolution-api-knob').style.left = enabled ? '23px' : '3px';
+            document.getElementById('evolution-api-card').style.borderColor = enabled ? '#3b82f6' : '#e2e8f0';
+            updateCostIndicator();
+
+            fetch('{{ route("admin.settings.evolution-api.toggle") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({ enabled: enabled })
+            }).then(r => r.json()).then(data => {
+                if (data.success) showToast(data.message, 'success');
+            }).catch(() => alert('Failed to toggle Evolution API'));
+        }
+
+        function saveOfficialApiConfig() {
+            var phoneId = document.getElementById('official-phone-number-id').value.trim();
+            var token = document.getElementById('official-access-token').value.trim();
+            var wabaId = document.getElementById('official-waba-id').value.trim();
+
+            if (!phoneId || !token) {
+                alert('Phone Number ID and Access Token are required.');
+                return;
+            }
+
+            fetch('{{ route("admin.settings.official-api.save") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({ phone_number_id: phoneId, access_token: token, waba_id: wabaId })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    // Auto-enable toggle
+                    document.getElementById('official-api-toggle').checked = true;
+                    toggleOfficialApi(true);
+                } else {
+                    alert(data.message || 'Failed to save');
+                }
+            }).catch(() => alert('Request failed'));
+        }
+
+        function updateCostIndicator() {
+            var officialOn = document.getElementById('official-api-toggle').checked;
+            var evolutionOn = document.getElementById('evolution-api-toggle').checked;
+
+            document.getElementById('cost-bot').textContent = officialOn
+                ? '₹0 (FREE via Cloud API — user-initiated)'
+                : '₹0 (Evolution API)';
+            document.getElementById('cost-bulk').textContent = evolutionOn
+                ? '₹0 (FREE via QR)'
+                : '~₹1/msg (Cloud API)';
+            document.getElementById('cost-followup').textContent = evolutionOn
+                ? '₹0 (FREE via QR)'
+                : '~₹0.12/msg (Cloud API)';
         }
 
         function saveListBotSettings() {

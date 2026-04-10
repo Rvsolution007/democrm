@@ -58,15 +58,22 @@ class SettingsController extends Controller
         $aiFollowupStopStage = Setting::getValue('ai_bot', 'followup_stop_stage', '');
         $aiTargetStage = Setting::getValue('ai_bot', 'target_stage', '');
 
-        // Bot Mode Configuration (3-way: ai_bot / list_bot / auto_reply)
+        // Bot Mode Configuration (2-way: ai_bot / list_bot — auto_reply merged into list_bot)
         $botMode = Setting::getValue('whatsapp', 'bot_mode', null);
-        if ($botMode === null) {
-            // Backward compat: derive from old setting
-            $botMode = $aiBotEnabled ? 'ai_bot' : 'auto_reply';
+        if ($botMode === null || $botMode === 'auto_reply') {
+            $botMode = $aiBotEnabled ? 'ai_bot' : 'list_bot';
         }
         $interactiveListMode = Setting::getValue('ai_bot', 'interactive_list_mode', false);
         $listBotWelcome = Setting::getValue('list_bot', 'welcome_message', '');
         $listBotButtonText = Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu');
+
+        // Dual API Configuration
+        $officialApiEnabled = (bool) Setting::getValue('whatsapp', 'official_api_enabled', false);
+        $officialApiConfig = Setting::getValue('whatsapp', 'official_api_config', [
+            'phone_number_id' => '', 'access_token' => '', 'waba_id' => '',
+        ]);
+        $evolutionApiEnabled = (bool) Setting::getValue('whatsapp', 'evolution_api_enabled', true);
+        $officialVerifyToken = Setting::getValue('whatsapp', 'official_verify_token', 'rvcrm_verify_token');
 
         $followupSchedules = \App\Models\ChatFollowupSchedule::where('company_id', auth()->user()->company_id)
             ->orderBy('delay_minutes')
@@ -102,7 +109,8 @@ class SettingsController extends Controller
             'company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources',
             'taskStatuses', 'paymentTypes', 'whatsappApiConfig', 'backupFiles',
             'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiGreetingPrompt', 'aiBusinessPrompt', 'aiReplyLanguage', 'aiArchitectureRules', 'aiSessionValidDays', 'aiSpellPrompt', 'aiTier3Prompt', 'aiGreetingWords', 'aiMatchConfidence', 'aiFollowupStopStage', 'aiTargetStage', 'followupSchedules',
-            'botMode', 'interactiveListMode', 'listBotWelcome', 'listBotButtonText'
+            'botMode', 'interactiveListMode', 'listBotWelcome', 'listBotButtonText',
+            'officialApiEnabled', 'officialApiConfig', 'evolutionApiEnabled', 'officialVerifyToken'
         ));
     }
 
@@ -697,12 +705,12 @@ class SettingsController extends Controller
     // ═══════════════════════════════════════════════════════
 
     /**
-     * Save WhatsApp Bot Mode (ai_bot / list_bot / auto_reply)
+     * Save WhatsApp Bot Mode (ai_bot / list_bot — auto_reply merged into list_bot)
      */
     public function saveBotMode(Request $request)
     {
         $request->validate([
-            'bot_mode' => 'required|in:auto_reply,list_bot,ai_bot',
+            'bot_mode' => 'required|in:list_bot,ai_bot',
         ]);
 
         $mode = $request->bot_mode;
@@ -716,28 +724,71 @@ class SettingsController extends Controller
                 'message' => 'AI Bot requires Enterprise package. Please upgrade your plan.',
             ], 403);
         }
-        if ($mode === 'list_bot' && $company && !$company->hasFeature('list_bot')) {
-            return response()->json([
-                'success' => false,
-                'message' => 'List Bot requires Professional package. Please upgrade your plan.',
-            ], 403);
-        }
 
         Setting::setValue('whatsapp', 'bot_mode', $mode);
-
-        // Also update legacy setting for backward compat
         Setting::setValue('ai_bot', 'enabled', $mode === 'ai_bot');
-
-        // If mode is not auto_reply, disable auto-reply rules
-        if ($mode !== 'auto_reply') {
-            \App\Models\WhatsappAutoReplyRule::where('company_id', $companyId)
-                ->update(['is_active' => false]);
-        }
 
         return response()->json([
             'success' => true,
             'mode' => $mode,
             'message' => 'Bot mode updated to ' . str_replace('_', ' ', ucfirst($mode)),
+        ]);
+    }
+
+    /**
+     * Save Official WhatsApp Cloud API configuration
+     */
+    public function saveOfficialApiConfig(Request $request)
+    {
+        $request->validate([
+            'phone_number_id' => 'required|string',
+            'access_token' => 'required|string',
+            'waba_id' => 'nullable|string',
+        ]);
+
+        Setting::setValue('whatsapp', 'official_api_config', [
+            'phone_number_id' => $request->phone_number_id,
+            'access_token' => $request->access_token,
+            'waba_id' => $request->waba_id ?? '',
+        ], auth()->user()->company_id);
+
+        // Auto-enable if saving config
+        Setting::setValue('whatsapp', 'official_api_enabled', true, auth()->user()->company_id);
+
+        return response()->json(['success' => true, 'message' => 'Official WhatsApp API configuration saved & enabled.']);
+    }
+
+    /**
+     * Toggle Official WhatsApp Cloud API ON/OFF
+     */
+    public function toggleOfficialApi(Request $request)
+    {
+        $enabled = $request->boolean('enabled');
+        Setting::setValue('whatsapp', 'official_api_enabled', $enabled, auth()->user()->company_id);
+
+        return response()->json([
+            'success' => true,
+            'enabled' => $enabled,
+            'message' => $enabled
+                ? 'Official Cloud API enabled. Bot will use native interactive lists.'
+                : 'Official Cloud API disabled. Bot will use text-based menus.',
+        ]);
+    }
+
+    /**
+     * Toggle Evolution API (QR Scan) ON/OFF
+     */
+    public function toggleEvolutionApi(Request $request)
+    {
+        $enabled = $request->boolean('enabled');
+        Setting::setValue('whatsapp', 'evolution_api_enabled', $enabled, auth()->user()->company_id);
+
+        return response()->json([
+            'success' => true,
+            'enabled' => $enabled,
+            'message' => $enabled
+                ? 'Evolution API (QR Scan) enabled. Bulk sender & follow-ups will use this.'
+                : 'Evolution API (QR Scan) disabled.',
         ]);
     }
 

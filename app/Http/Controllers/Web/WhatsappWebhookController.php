@@ -94,9 +94,9 @@ class WhatsappWebhookController extends Controller
         $imageUrl = $this->extractImageUrl($data, $instanceName);
 
         // ═══════════════════════════════════════════════════════════
-        // ROUTING: 3-Way Bot Mode (AI Bot / List Bot / Auto-Reply)
-        // Only ONE mode is active at a time per company.
-        // Package enforcement: if mode isn't available, fallback.
+        // ROUTING: 2-Way Bot Mode (AI Bot / Bot List)
+        // Auto-Reply is merged INTO Bot List mode.
+        // Package enforcement: if mode isn't available, use list_bot default.
         // ═══════════════════════════════════════════════════════════
         $userId = $this->getUserIdFromInstance($instanceName);
         $companyId = 1;
@@ -111,22 +111,19 @@ class WhatsappWebhookController extends Controller
             'company_id' => $companyId,
         ]);
 
-        // Get bot mode (new 3-way setting)
+        // Get bot mode (2-way: ai_bot / list_bot)
         $botMode = Setting::getValue('whatsapp', 'bot_mode', null, $companyId);
 
-        // Backward compatibility: old ai_bot.enabled → new bot_mode
-        if ($botMode === null) {
+        // Backward compatibility: old settings → new mode
+        if ($botMode === null || $botMode === 'auto_reply') {
             $oldAiBot = Setting::getValue('ai_bot', 'enabled', false, $companyId);
-            $botMode = $oldAiBot ? 'ai_bot' : 'auto_reply';
+            $botMode = $oldAiBot ? 'ai_bot' : 'list_bot';
         }
 
         // Package enforcement — fallback if company doesn't have the feature
         $company = Company::find($companyId);
         if ($botMode === 'ai_bot' && $company && !$company->hasFeature('ai_bot')) {
-            $botMode = $company->hasFeature('list_bot') ? 'list_bot' : 'auto_reply';
-        }
-        if ($botMode === 'list_bot' && $company && !$company->hasFeature('list_bot')) {
-            $botMode = 'auto_reply';
+            $botMode = 'list_bot';
         }
 
         switch ($botMode) {
@@ -136,13 +133,26 @@ class WhatsappWebhookController extends Controller
                 break;
 
             case 'list_bot':
-                ProcessListBotJob::dispatch($instanceName, $senderPhone, $messageText, $listRowId)->onConnection('sync');
-                Log::info("Webhook: Dispatched List Bot Job for {$senderPhone}", ['mode' => 'list_bot', 'rowId' => $listRowId]);
-                break;
+            default:
+                // Auto-Reply check FIRST (skip 'any_message' type in list_bot mode)
+                $autoReplied = false;
+                try {
+                    $autoReplyService = new \App\Services\AutoReplyService();
+                    // Check if there are keyword/first_message rules that match (skip any_message type)
+                    $result = $autoReplyService->processIncomingMessage($instanceName, $senderPhone, $messageText, true);
+                    if ($result['status'] === 'sent') {
+                        $autoReplied = true;
+                        Log::info("Webhook: Auto-Reply handled message for {$senderPhone} (within list_bot mode)");
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("Webhook: Auto-Reply check failed, proceeding to List Bot", ['error' => $e->getMessage()]);
+                }
 
-            default: // 'auto_reply'
-                ProcessAutoReplyJob::dispatch($instanceName, $senderPhone, $messageText)->onConnection('sync');
-                Log::info("Webhook: Dispatched Auto-Reply Job for {$senderPhone}", ['mode' => 'auto_reply']);
+                // If no auto-reply matched → run List Bot
+                if (!$autoReplied) {
+                    ProcessListBotJob::dispatch($instanceName, $senderPhone, $messageText, $listRowId)->onConnection('sync');
+                    Log::info("Webhook: Dispatched List Bot Job for {$senderPhone}", ['mode' => 'list_bot', 'rowId' => $listRowId]);
+                }
                 break;
         }
 
@@ -499,6 +509,197 @@ class WhatsappWebhookController extends Controller
         return 1;
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // OFFICIAL WHATSAPP CLOUD API WEBHOOK HANDLERS
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Verify webhook for Meta Cloud API (GET request).
+     * Meta sends a GET with hub.challenge that must be echoed back.
+     */
+    public function verifyOfficialWebhook(Request $request)
+    {
+        $verifyToken = Setting::getValue('whatsapp', 'official_verify_token', 'rvcrm_verify_token');
+
+        $mode = $request->query('hub_mode');
+        $token = $request->query('hub_verify_token');
+        $challenge = $request->query('hub_challenge');
+
+        if ($mode === 'subscribe' && $token === $verifyToken) {
+            Log::info('Official Webhook: Verified successfully');
+            return response($challenge, 200);
+        }
+
+        Log::warning('Official Webhook: Verification failed', [
+            'mode' => $mode,
+            'token' => $token,
+        ]);
+        return response('Forbidden', 403);
+    }
+
+    /**
+     * Handle incoming message webhook from Official WhatsApp Cloud API.
+     * Route: POST /webhook/whatsapp-official
+     */
+    public function handleOfficialWebhook(Request $request)
+    {
+        $payload = $request->all();
+
+        Log::info('Official Webhook received', [
+            'payload_preview' => substr(json_encode($payload), 0, 500),
+        ]);
+
+        // Meta sends 'object' = 'whatsapp_business_account'
+        if (($payload['object'] ?? '') !== 'whatsapp_business_account') {
+            return response()->json(['status' => 'ok']);
+        }
+
+        $entries = $payload['entry'] ?? [];
+        foreach ($entries as $entry) {
+            $changes = $entry['changes'] ?? [];
+            foreach ($changes as $change) {
+                if (($change['field'] ?? '') !== 'messages') continue;
+
+                $value = $change['value'] ?? [];
+                $messages = $value['messages'] ?? [];
+                $metadata = $value['metadata'] ?? [];
+                $phoneNumberId = $metadata['phone_number_id'] ?? '';
+
+                foreach ($messages as $message) {
+                    $senderPhone = $message['from'] ?? '';
+                    $messageType = $message['type'] ?? '';
+                    $messageId = $message['id'] ?? '';
+
+                    if (empty($senderPhone)) continue;
+
+                    // Deduplication
+                    if ($messageId) {
+                        $cacheKey = "official_webhook_{$messageId}";
+                        if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
+                            continue;
+                        }
+                        \Illuminate\Support\Facades\Cache::put($cacheKey, true, now()->addMinutes(15));
+                    }
+
+                    // Extract message text
+                    $messageText = '';
+                    $listRowId = null;
+
+                    switch ($messageType) {
+                        case 'text':
+                            $messageText = $message['text']['body'] ?? '';
+                            break;
+                        case 'interactive':
+                            $interactive = $message['interactive'] ?? [];
+                            $interactiveType = $interactive['type'] ?? '';
+                            if ($interactiveType === 'list_reply') {
+                                $listRowId = $interactive['list_reply']['id'] ?? null;
+                                $messageText = $interactive['list_reply']['title'] ?? '';
+                            } elseif ($interactiveType === 'button_reply') {
+                                $messageText = $interactive['button_reply']['title'] ?? '';
+                            }
+                            break;
+                        case 'image':
+                            $messageText = $message['image']['caption'] ?? '[image]';
+                            break;
+                        case 'document':
+                            $messageText = $message['document']['caption'] ?? '[document]';
+                            break;
+                        default:
+                            $messageText = '[media]';
+                    }
+
+                    if (empty($messageText)) $messageText = '[media]';
+
+                    Log::info("Official Webhook: Message from {$senderPhone}", [
+                        'text' => $messageText,
+                        'type' => $messageType,
+                        'list_row_id' => $listRowId,
+                    ]);
+
+                    // Resolve company from phone_number_id
+                    $companyId = $this->resolveCompanyFromOfficialApi($phoneNumberId);
+                    $company = Company::find($companyId);
+
+                    // Resolve instance name (for Evolution API compatibility)
+                    $instanceName = $this->resolveInstanceForCompany($companyId);
+
+                    // Route to bot — same logic as Evolution API
+                    $botMode = Setting::getValue('whatsapp', 'bot_mode', 'list_bot', $companyId);
+                    if ($botMode === 'auto_reply') $botMode = 'list_bot';
+                    if ($botMode === 'ai_bot' && $company && !$company->hasFeature('ai_bot')) {
+                        $botMode = 'list_bot';
+                    }
+
+                    switch ($botMode) {
+                        case 'ai_bot':
+                            ProcessAIChatJob::dispatch($instanceName, $senderPhone, $messageText, null, null, $listRowId)->onConnection('sync');
+                            break;
+                        case 'list_bot':
+                        default:
+                            // Auto-Reply check first
+                            $autoReplied = false;
+                            try {
+                                $autoReplyService = new \App\Services\AutoReplyService();
+                                $result = $autoReplyService->processIncomingMessage($instanceName, $senderPhone, $messageText, true);
+                                if ($result['status'] === 'sent') {
+                                    $autoReplied = true;
+                                }
+                            } catch (\Exception $e) {
+                                Log::warning("Official Webhook: Auto-Reply check failed", ['error' => $e->getMessage()]);
+                            }
+
+                            if (!$autoReplied) {
+                                ProcessListBotJob::dispatch($instanceName, $senderPhone, $messageText, $listRowId)->onConnection('sync');
+                            }
+                            break;
+                    }
+                }
+            }
+        }
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    /**
+     * Resolve company_id from Official API phone_number_id.
+     */
+    private function resolveCompanyFromOfficialApi(string $phoneNumberId): int
+    {
+        $settings = Setting::where('group', 'whatsapp')
+            ->where('key', 'official_api_config')
+            ->get();
+
+        foreach ($settings as $setting) {
+            $config = is_array($setting->value) ? $setting->value : json_decode($setting->value, true);
+            if (($config['phone_number_id'] ?? '') === $phoneNumberId) {
+                return $setting->company_id;
+            }
+        }
+
+        return 1; // Default fallback
+    }
+
+    /**
+     * Resolve Evolution API instance name for a company (for backward compat).
+     */
+    private function resolveInstanceForCompany(int $companyId): string
+    {
+        $config = Setting::getValue('whatsapp', 'api_config', [], $companyId);
+        if (!empty($config['instance_name'])) {
+            return $config['instance_name'];
+        }
+
+        // Build from first admin user of company
+        $user = \App\Models\User::where('company_id', $companyId)->first();
+        if ($user) {
+            $cleanName = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $user->name));
+            return 'rvcrm_' . $cleanName . '_' . $user->id;
+        }
+
+        return 'rvcrm_default';
+    }
+
     /**
      * Test endpoint for webhook (GET request)
      * Used to verify that the webhook URL is reachable and HTTPS redirects are working
@@ -515,4 +716,3 @@ class WhatsappWebhookController extends Controller
         ]);
     }
 }
-
