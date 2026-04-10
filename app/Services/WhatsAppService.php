@@ -26,6 +26,11 @@ class WhatsAppService
     private bool $evolutionConfigured = false;
     private bool $evolutionEnabled = false;
 
+    // Evolution sub-feature toggles
+    private bool $evoFollowupEnabled = true;
+    private bool $evoBulkEnabled = true;
+    private bool $evoTextmenuEnabled = true;
+
     // Official WhatsApp Cloud API
     private string $officialPhoneNumberId = '';
     private string $officialAccessToken = '';
@@ -48,6 +53,11 @@ class WhatsAppService
         $this->apiKey = $config['api_key'] ?? '';
         $this->evolutionConfigured = !empty($this->apiUrl) && !empty($this->apiKey);
         $this->evolutionEnabled = (bool) Setting::getValue('whatsapp', 'evolution_api_enabled', true, $companyId);
+
+        // Evolution sub-feature toggles
+        $this->evoFollowupEnabled = (bool) Setting::getValue('whatsapp', 'evolution_followup_enabled', true, $companyId);
+        $this->evoBulkEnabled = (bool) Setting::getValue('whatsapp', 'evolution_bulk_enabled', true, $companyId);
+        $this->evoTextmenuEnabled = (bool) Setting::getValue('whatsapp', 'evolution_textmenu_enabled', true, $companyId);
 
         // Load Official Cloud API config
         $officialConfig = Setting::getValue('whatsapp', 'official_api_config', [
@@ -196,11 +206,44 @@ class WhatsAppService
     }
 
     /**
-     * Send message specifically for bulk/follow-up — ALWAYS uses Evolution API (free).
+     * Send message for bulk sending — uses Evolution API (free) if sub-toggle ON, else Official.
      */
     public function sendForBulk(string $instanceName, string $phone, string $text): bool
     {
+        if ($this->evolutionConfigured && $this->evolutionEnabled && $this->evoBulkEnabled) {
+            return $this->sendTextViaEvolution($instanceName, $phone, $text);
+        }
+        // Fallback to Official API
+        if ($this->officialConfigured && $this->officialEnabled) {
+            return $this->sendTextViaOfficialApi($phone, $text);
+        }
+        // Last resort: try Evolution anyway
         return $this->sendTextViaEvolution($instanceName, $phone, $text);
+    }
+
+    /**
+     * Send message for follow-up — uses Evolution API (free) if sub-toggle ON, else Official.
+     */
+    public function sendForFollowup(string $instanceName, string $phone, string $text): bool
+    {
+        if ($this->evolutionConfigured && $this->evolutionEnabled && $this->evoFollowupEnabled) {
+            return $this->sendTextViaEvolution($instanceName, $phone, $text);
+        }
+        // Fallback to Official API
+        if ($this->officialConfigured && $this->officialEnabled) {
+            return $this->sendTextViaOfficialApi($phone, $text);
+        }
+        // Last resort: try Evolution anyway
+        return $this->sendTextViaEvolution($instanceName, $phone, $text);
+    }
+
+    /**
+     * Check if text menu fallback should use Evolution API.
+     * When evoTextmenuEnabled is OFF, sendList() will prefer Official API native list.
+     */
+    public function shouldUseTextMenuFallback(): bool
+    {
+        return $this->evolutionEnabled && $this->evoTextmenuEnabled;
     }
 
     /**
@@ -251,7 +294,7 @@ class WhatsAppService
             }
         }
 
-        // ── Priority 2: Evolution API — try native list ──
+        // ── Priority 2: Evolution API — try native list (only if text menu is enabled for evo) ──
         if ($this->isEvolutionApiActive()) {
             try {
                 $payload = [
@@ -283,7 +326,14 @@ class WhatsAppService
         }
 
         // ── Priority 3: Text-based menu fallback ──
-        return $this->sendListAsText($instanceName, $phone, $title, $description, $sections, $footer);
+        // Only use text fallback if evoTextmenuEnabled is ON (or no Official API available)
+        if ($this->shouldUseTextMenuFallback() || !$this->isOfficialApiActive()) {
+            return $this->sendListAsText($instanceName, $phone, $title, $description, $sections, $footer);
+        }
+
+        // Text menu OFF + Official API active = native list is the only option (already tried above)
+        Log::warning('WhatsAppService: Text menu disabled and Official API already tried. Cannot send list.', ['phone' => $phone]);
+        return false;
     }
 
     /**

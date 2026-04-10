@@ -856,12 +856,70 @@
                                         </div>
                                     </label>
                                 </div>
-                                <div style="{{ $evolutionApiEnabled ? '' : 'opacity:0.5' }}">
-                                    <div style="padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1e40af;line-height:1.6">
-                                        <strong>Status:</strong> {{ !empty($whatsappApiConfig['api_url']) ? '✅ Configured' : '❌ Not configured' }}<br>
-                                        <strong>Config:</strong> Set in WhatsApp API tab below<br>
-                                        <strong>Usage:</strong> Bulk Sender, Follow-ups, Text menu fallback<br>
-                                        <strong>Cost:</strong> ₹0 (FREE — no per-message charges)
+
+                                <!-- Status line -->
+                                <div style="padding:8px 10px;background:#f1f5f9;border-radius:6px;font-size:11px;color:#64748b;margin-bottom:14px">
+                                    <strong>Status:</strong> {{ !empty($whatsappApiConfig['api_url']) ? '✅ Configured' : '❌ Not configured' }} &nbsp;|&nbsp;
+                                    <strong>Config:</strong> WhatsApp API tab
+                                </div>
+
+                                <!-- Sub-feature toggles -->
+                                <div id="evo-sub-toggles" style="{{ $evolutionApiEnabled ? '' : 'opacity:0.4;pointer-events:none' }};display:flex;flex-direction:column;gap:10px">
+                                    <!-- Follow-up Toggle -->
+                                    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid {{ $evoFollowupEnabled ? '#bbf7d0' : '#fecaca' }};border-radius:8px;background:{{ $evoFollowupEnabled ? '#f0fdf4' : '#fef2f2' }};transition:all 0.3s" id="evo-followup-row">
+                                        <div>
+                                            <span style="font-weight:600;font-size:13px;color:#334155">🔁 Follow-ups</span>
+                                            <div style="font-size:11px;color:#64748b;margin-top:2px" id="evo-followup-api">{{ $evoFollowupEnabled ? '→ Evolution (FREE)' : '→ Official API (paid)' }}</div>
+                                        </div>
+                                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+                                            <span id="evo-followup-label" style="font-weight:600;font-size:11px;color:{{ $evoFollowupEnabled ? '#16a34a' : '#dc2626' }}">{{ $evoFollowupEnabled ? 'EVO' : 'CLOUD' }}</span>
+                                            <div style="position:relative;width:36px;height:20px">
+                                                <input type="checkbox" id="evo-followup-toggle" {{ $evoFollowupEnabled ? 'checked' : '' }}
+                                                    onchange="toggleEvoSubFeature('followup', this.checked)"
+                                                    style="opacity:0;width:0;height:0;position:absolute">
+                                                <div id="evo-followup-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $evoFollowupEnabled ? '#22c55e' : '#f87171' }};border-radius:20px;transition:0.3s" onclick="document.getElementById('evo-followup-toggle').click()">
+                                                    <div style="position:absolute;height:14px;width:14px;left:{{ $evoFollowupEnabled ? '19px' : '3px' }};bottom:3px;background:white;border-radius:50%;transition:0.3s" id="evo-followup-knob"></div>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    <!-- Bulk Sender Toggle -->
+                                    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid {{ $evoBulkEnabled ? '#bbf7d0' : '#fecaca' }};border-radius:8px;background:{{ $evoBulkEnabled ? '#f0fdf4' : '#fef2f2' }};transition:all 0.3s" id="evo-bulk-row">
+                                        <div>
+                                            <span style="font-weight:600;font-size:13px;color:#334155">📤 Bulk Sender</span>
+                                            <div style="font-size:11px;color:#64748b;margin-top:2px" id="evo-bulk-api">{{ $evoBulkEnabled ? '→ Evolution (FREE)' : '→ Official API (paid)' }}</div>
+                                        </div>
+                                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+                                            <span id="evo-bulk-label" style="font-weight:600;font-size:11px;color:{{ $evoBulkEnabled ? '#16a34a' : '#dc2626' }}">{{ $evoBulkEnabled ? 'EVO' : 'CLOUD' }}</span>
+                                            <div style="position:relative;width:36px;height:20px">
+                                                <input type="checkbox" id="evo-bulk-toggle" {{ $evoBulkEnabled ? 'checked' : '' }}
+                                                    onchange="toggleEvoSubFeature('bulk', this.checked)"
+                                                    style="opacity:0;width:0;height:0;position:absolute">
+                                                <div id="evo-bulk-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $evoBulkEnabled ? '#22c55e' : '#f87171' }};border-radius:20px;transition:0.3s" onclick="document.getElementById('evo-bulk-toggle').click()">
+                                                    <div style="position:absolute;height:14px;width:14px;left:{{ $evoBulkEnabled ? '19px' : '3px' }};bottom:3px;background:white;border-radius:50%;transition:0.3s" id="evo-bulk-knob"></div>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    <!-- Text Menu Toggle (Bot List mode only) -->
+                                    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid {{ $evoTextmenuEnabled ? '#bbf7d0' : '#fecaca' }};border-radius:8px;background:{{ $evoTextmenuEnabled ? '#f0fdf4' : '#fef2f2' }};transition:all 0.3s;{{ $botMode === 'ai_bot' ? 'display:none' : '' }}" id="evo-textmenu-row">
+                                        <div>
+                                            <span style="font-weight:600;font-size:13px;color:#334155">📝 Text Menu</span>
+                                            <div style="font-size:11px;color:#64748b;margin-top:2px" id="evo-textmenu-api">{{ $evoTextmenuEnabled ? '→ Evolution text (1. 2. 3.)' : '→ Official API native ≡ list' }}</div>
+                                        </div>
+                                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+                                            <span id="evo-textmenu-label" style="font-weight:600;font-size:11px;color:{{ $evoTextmenuEnabled ? '#16a34a' : '#dc2626' }}">{{ $evoTextmenuEnabled ? 'TEXT' : 'LIST' }}</span>
+                                            <div style="position:relative;width:36px;height:20px">
+                                                <input type="checkbox" id="evo-textmenu-toggle" {{ $evoTextmenuEnabled ? 'checked' : '' }}
+                                                    onchange="toggleEvoSubFeature('textmenu', this.checked)"
+                                                    style="opacity:0;width:0;height:0;position:absolute">
+                                                <div id="evo-textmenu-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $evoTextmenuEnabled ? '#22c55e' : '#f87171' }};border-radius:20px;transition:0.3s" onclick="document.getElementById('evo-textmenu-toggle').click()">
+                                                    <div style="position:absolute;height:14px;width:14px;left:{{ $evoTextmenuEnabled ? '19px' : '3px' }};bottom:3px;background:white;border-radius:50%;transition:0.3s" id="evo-textmenu-knob"></div>
+                                                </div>
+                                            </div>
+                                        </label>
                                     </div>
                                 </div>
                             </div>
@@ -2281,6 +2339,10 @@ RULE 4 — NO MATCH → NONE</textarea>
             document.getElementById('list-bot-settings-card').style.display = mode === 'list_bot' ? '' : 'none';
             document.getElementById('interactive-list-card').style.display = mode === 'ai_bot' ? '' : 'none';
 
+            // Show/hide Text Menu sub-toggle (only in Bot List mode)
+            var textmenuRow = document.getElementById('evo-textmenu-row');
+            if (textmenuRow) textmenuRow.style.display = mode === 'list_bot' ? '' : 'none';
+
             // Save to server
             fetch('{{ route("admin.settings.bot-mode.save") }}', {
                 method: 'POST',
@@ -2331,6 +2393,25 @@ RULE 4 — NO MATCH → NONE</textarea>
             document.getElementById('evolution-api-slider').style.background = enabled ? '#3b82f6' : '#ccc';
             document.getElementById('evolution-api-knob').style.left = enabled ? '23px' : '3px';
             document.getElementById('evolution-api-card').style.borderColor = enabled ? '#3b82f6' : '#e2e8f0';
+
+            // Enable/disable sub-toggles
+            var subToggles = document.getElementById('evo-sub-toggles');
+            if (subToggles) {
+                subToggles.style.opacity = enabled ? '1' : '0.4';
+                subToggles.style.pointerEvents = enabled ? 'auto' : 'none';
+            }
+
+            // When master OFF, reset sub-toggles visually
+            if (!enabled) {
+                ['followup', 'bulk', 'textmenu'].forEach(function(f) {
+                    var toggle = document.getElementById('evo-' + f + '-toggle');
+                    if (toggle) {
+                        toggle.checked = false;
+                        updateEvoSubUI(f, false);
+                    }
+                });
+            }
+
             updateCostIndicator();
 
             fetch('{{ route("admin.settings.evolution-api.toggle") }}', {
@@ -2340,6 +2421,46 @@ RULE 4 — NO MATCH → NONE</textarea>
             }).then(r => r.json()).then(data => {
                 if (data.success) showToast(data.message, 'success');
             }).catch(() => alert('Failed to toggle Evolution API'));
+        }
+
+        function toggleEvoSubFeature(feature, enabled) {
+            updateEvoSubUI(feature, enabled);
+            updateCostIndicator();
+
+            fetch('{{ route("admin.settings.evolution-api.sub-toggle") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                body: JSON.stringify({ feature: feature, enabled: enabled })
+            }).then(r => r.json()).then(data => {
+                if (data.success) showToast(data.message, 'success');
+            }).catch(() => alert('Failed to toggle ' + feature));
+        }
+
+        function updateEvoSubUI(feature, enabled) {
+            var labels = { followup: ['EVO', 'CLOUD'], bulk: ['EVO', 'CLOUD'], textmenu: ['TEXT', 'LIST'] };
+            var apiTexts = {
+                followup: ['→ Evolution (FREE)', '→ Official API (paid)'],
+                bulk: ['→ Evolution (FREE)', '→ Official API (paid)'],
+                textmenu: ['→ Evolution text (1. 2. 3.)', '→ Official API native ≡ list']
+            };
+
+            var row = document.getElementById('evo-' + feature + '-row');
+            var label = document.getElementById('evo-' + feature + '-label');
+            var slider = document.getElementById('evo-' + feature + '-slider');
+            var knob = document.getElementById('evo-' + feature + '-knob');
+            var api = document.getElementById('evo-' + feature + '-api');
+
+            if (row) {
+                row.style.borderColor = enabled ? '#bbf7d0' : '#fecaca';
+                row.style.background = enabled ? '#f0fdf4' : '#fef2f2';
+            }
+            if (label) {
+                label.textContent = enabled ? labels[feature][0] : labels[feature][1];
+                label.style.color = enabled ? '#16a34a' : '#dc2626';
+            }
+            if (slider) slider.style.background = enabled ? '#22c55e' : '#f87171';
+            if (knob) knob.style.left = enabled ? '19px' : '3px';
+            if (api) api.textContent = enabled ? apiTexts[feature][0] : apiTexts[feature][1];
         }
 
         function saveOfficialApiConfig() {
@@ -2370,15 +2491,16 @@ RULE 4 — NO MATCH → NONE</textarea>
 
         function updateCostIndicator() {
             var officialOn = document.getElementById('official-api-toggle').checked;
-            var evolutionOn = document.getElementById('evolution-api-toggle').checked;
+            var evoFollowup = document.getElementById('evo-followup-toggle') && document.getElementById('evo-followup-toggle').checked;
+            var evoBulk = document.getElementById('evo-bulk-toggle') && document.getElementById('evo-bulk-toggle').checked;
 
             document.getElementById('cost-bot').textContent = officialOn
                 ? '₹0 (FREE via Cloud API — user-initiated)'
                 : '₹0 (Evolution API)';
-            document.getElementById('cost-bulk').textContent = evolutionOn
+            document.getElementById('cost-bulk').textContent = evoBulk
                 ? '₹0 (FREE via QR)'
                 : '~₹1/msg (Cloud API)';
-            document.getElementById('cost-followup').textContent = evolutionOn
+            document.getElementById('cost-followup').textContent = evoFollowup
                 ? '₹0 (FREE via QR)'
                 : '~₹0.12/msg (Cloud API)';
         }

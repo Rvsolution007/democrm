@@ -1181,6 +1181,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'subscription'])->gr
     Route::post('/settings/official-api-config', [SettingsController::class, 'saveOfficialApiConfig'])->name('settings.official-api.save');
     Route::post('/settings/official-api-toggle', [SettingsController::class, 'toggleOfficialApi'])->name('settings.official-api.toggle');
     Route::post('/settings/evolution-api-toggle', [SettingsController::class, 'toggleEvolutionApi'])->name('settings.evolution-api.toggle');
+    Route::post('/settings/evolution-api-sub-toggle', [SettingsController::class, 'toggleEvolutionSubFeature'])->name('settings.evolution-api.sub-toggle');
 
     // Billing & Subscription (Admin self-service)
     Route::get('/billing', [\App\Http\Controllers\Web\BillingController::class, 'index'])->name('billing.index');

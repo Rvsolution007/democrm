@@ -75,6 +75,11 @@ class SettingsController extends Controller
         $evolutionApiEnabled = (bool) Setting::getValue('whatsapp', 'evolution_api_enabled', true);
         $officialVerifyToken = Setting::getValue('whatsapp', 'official_verify_token', 'rvcrm_verify_token');
 
+        // Evolution API granular sub-toggles (default ON when evolution enabled)
+        $evoFollowupEnabled = (bool) Setting::getValue('whatsapp', 'evolution_followup_enabled', true);
+        $evoBulkEnabled = (bool) Setting::getValue('whatsapp', 'evolution_bulk_enabled', true);
+        $evoTextmenuEnabled = (bool) Setting::getValue('whatsapp', 'evolution_textmenu_enabled', true);
+
         $followupSchedules = \App\Models\ChatFollowupSchedule::where('company_id', auth()->user()->company_id)
             ->orderBy('delay_minutes')
             ->get();
@@ -110,7 +115,8 @@ class SettingsController extends Controller
             'taskStatuses', 'paymentTypes', 'whatsappApiConfig', 'backupFiles',
             'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiGreetingPrompt', 'aiBusinessPrompt', 'aiReplyLanguage', 'aiArchitectureRules', 'aiSessionValidDays', 'aiSpellPrompt', 'aiTier3Prompt', 'aiGreetingWords', 'aiMatchConfidence', 'aiFollowupStopStage', 'aiTargetStage', 'followupSchedules',
             'botMode', 'interactiveListMode', 'listBotWelcome', 'listBotButtonText',
-            'officialApiEnabled', 'officialApiConfig', 'evolutionApiEnabled', 'officialVerifyToken'
+            'officialApiEnabled', 'officialApiConfig', 'evolutionApiEnabled', 'officialVerifyToken',
+            'evoFollowupEnabled', 'evoBulkEnabled', 'evoTextmenuEnabled'
         ));
     }
 
@@ -781,14 +787,54 @@ class SettingsController extends Controller
     public function toggleEvolutionApi(Request $request)
     {
         $enabled = $request->boolean('enabled');
-        Setting::setValue('whatsapp', 'evolution_api_enabled', $enabled, auth()->user()->company_id);
+        $companyId = auth()->user()->company_id;
+        Setting::setValue('whatsapp', 'evolution_api_enabled', $enabled, $companyId);
+
+        // When master toggle is OFF, sub-features also go OFF
+        if (!$enabled) {
+            Setting::setValue('whatsapp', 'evolution_followup_enabled', false, $companyId);
+            Setting::setValue('whatsapp', 'evolution_bulk_enabled', false, $companyId);
+            Setting::setValue('whatsapp', 'evolution_textmenu_enabled', false, $companyId);
+        }
 
         return response()->json([
             'success' => true,
             'enabled' => $enabled,
             'message' => $enabled
-                ? 'Evolution API (QR Scan) enabled. Bulk sender & follow-ups will use this.'
-                : 'Evolution API (QR Scan) disabled.',
+                ? 'Evolution API (QR Scan) enabled.'
+                : 'Evolution API disabled. All features will use Official API.',
+        ]);
+    }
+
+    /**
+     * Toggle individual Evolution API sub-features (followup/bulk/textmenu)
+     */
+    public function toggleEvolutionSubFeature(Request $request)
+    {
+        $request->validate([
+            'feature' => 'required|in:followup,bulk,textmenu',
+            'enabled' => 'required',
+        ]);
+
+        $feature = $request->feature;
+        $enabled = $request->boolean('enabled');
+        $companyId = auth()->user()->company_id;
+
+        Setting::setValue('whatsapp', "evolution_{$feature}_enabled", $enabled, $companyId);
+
+        $labels = [
+            'followup' => 'Follow-ups',
+            'bulk' => 'Bulk Sender',
+            'textmenu' => 'Text Menu',
+        ];
+
+        $apiUsed = $enabled ? 'Evolution API (FREE)' : 'Official Cloud API';
+
+        return response()->json([
+            'success' => true,
+            'feature' => $feature,
+            'enabled' => $enabled,
+            'message' => "{$labels[$feature]} will now use {$apiUsed}.",
         ]);
     }
 
