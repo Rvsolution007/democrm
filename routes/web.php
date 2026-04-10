@@ -87,6 +87,14 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmi
     Route::post('/settings/credits', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'saveCredits'])->name('settings.save-credits');
     Route::post('/settings/platform', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'savePlatform'])->name('settings.save-platform');
     Route::post('/settings/payment', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'savePayment'])->name('settings.save-payment');
+    Route::post('/settings/ai-config', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'saveAiConfig'])->name('settings.save-ai-config');
+    Route::post('/settings/ai-prompts', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'saveAiPrompts'])->name('settings.save-ai-prompts');
+    Route::post('/settings/evolution', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'saveEvolutionConfig'])->name('settings.save-evolution');
+
+    // Per-business match config (from business detail)
+    Route::post('/businesses/{companyId}/match-confidence', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'saveMatchConfidence'])->name('businesses.match-confidence');
+    Route::post('/businesses/{companyId}/match-test', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'testMatch'])->name('businesses.match-test');
+    Route::post('/businesses/{companyId}/clear-cache', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'clearMatchCache'])->name('businesses.clear-cache');
 });
 
 // Temporary Route to seed users — inline logic, no class dependency

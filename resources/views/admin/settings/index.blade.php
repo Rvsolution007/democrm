@@ -1,4 +1,4 @@
-@extends('admin.layouts.app')
+﻿@extends('admin.layouts.app')
 
 @section('title', 'Settings')
 @section('breadcrumb', 'Settings')
@@ -117,7 +117,7 @@
                         </button>
                     </div>
 
-                    <!-- WhatsApp Section — Bot List package+ only -->
+                    <!-- WhatsApp Section Ã¢â‚¬â€ Bot List package+ only -->
                     @if(hasFeature('whatsapp_connect'))
                     <div style="margin-bottom:16px">
                         <div
@@ -130,7 +130,7 @@
                     </div>
                     @endif
 
-                    <!-- AI Bot Section — AI Bot package only -->
+                    <!-- AI Bot Section Ã¢â‚¬â€ AI Bot package only -->
                     @if(hasFeature('ai_bot'))
                     <div style="margin-bottom:16px">
                         <div
@@ -142,7 +142,7 @@
                         </button>
                     </div>
                     @elseif(hasFeature('whatsapp_connect'))
-                    <!-- Bot List user — show AI Bot tab but for bot mode selector only -->
+                    <!-- Bot List user Ã¢â‚¬â€ show AI Bot tab but for bot mode selector only -->
                     <div style="margin-bottom:16px">
                         <div
                             style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#999;padding:8px 12px">
@@ -188,7 +188,7 @@
                                         <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('company-logo-input').click()">
                                             <i data-lucide="upload" style="width:14px;height:14px"></i> {{ $company && $company->logo ? 'Change Logo' : 'Upload Logo' }}
                                         </button>
-                                        <p style="font-size:12px;color:#94a3b8;margin-top:6px">JPEG, PNG, GIF — max 2MB</p>
+                                        <p style="font-size:12px;color:#94a3b8;margin-top:6px">JPEG, PNG, GIF Ã¢â‚¬â€ max 2MB</p>
                                     </div>
                                 </div>
                             </div>
@@ -223,7 +223,7 @@
                 <div class="card">
                     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <div>
-                            <h3 class="card-title">Leads — Column Visibility</h3>
+                            <h3 class="card-title">Leads Ã¢â‚¬â€ Column Visibility</h3>
                             <p class="text-sm text-muted" style="margin-top:4px">Toggle which columns are visible on the
                                 Leads page</p>
                         </div>
@@ -253,7 +253,7 @@
                 <div class="card" style="margin-top:24px">
                     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <div>
-                            <h3 class="card-title">Leads — Stages</h3>
+                            <h3 class="card-title">Leads Ã¢â‚¬â€ Stages</h3>
                             <p class="text-sm text-muted" style="margin-top:4px">Manage custom stages for your leads</p>
                         </div>
                         <button class="btn btn-primary btn-sm" onclick="addStageRow('lead')">+ Add Stage</button>
@@ -271,7 +271,7 @@
                 <div class="card" style="margin-top:24px">
                     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <div>
-                            <h3 class="card-title">Leads — Sources</h3>
+                            <h3 class="card-title">Leads Ã¢â‚¬â€ Sources</h3>
                             <p class="text-sm text-muted" style="margin-top:4px">Manage custom sources for your leads (e.g.
                                 Walk-in, Facebook)</p>
                         </div>
@@ -292,7 +292,7 @@
                 <div class="card">
                     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <div>
-                            <h3 class="card-title">Clients — Column Visibility</h3>
+                            <h3 class="card-title">Clients Ã¢â‚¬â€ Column Visibility</h3>
                             <p class="text-sm text-muted" style="margin-top:4px">Toggle which columns are visible on the
                                 Clients page</p>
                         </div>
@@ -324,7 +324,7 @@
                 <div class="card">
                     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <div>
-                            <h3 class="card-title">Quotes — Column Visibility</h3>
+                            <h3 class="card-title">Quotes Ã¢â‚¬â€ Column Visibility</h3>
                             <p class="text-sm text-muted" style="margin-top:4px">Toggle which columns are visible on the
                                 Quotes page</p>
                         </div>
@@ -354,7 +354,7 @@
                 <div class="card" style="margin-top:24px">
                     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <div>
-                            <h3 class="card-title">Quotes — Tax Options</h3>
+                            <h3 class="card-title">Quotes Ã¢â‚¬â€ Tax Options</h3>
                             <p class="text-sm text-muted" style="margin-top:4px">Manage tax rates that can be applied to
                                 quotes</p>
                         </div>
@@ -387,7 +387,7 @@
                 <div class="card">
                     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <div>
-                            <h3 class="card-title">Products — Column Visibility</h3>
+                            <h3 class="card-title">Products Ã¢â‚¬â€ Column Visibility</h3>
                             <p class="text-sm text-muted" style="margin-top:4px">Toggle which columns are visible on the
                                 Products page</p>
                         </div>
@@ -403,9 +403,9 @@
                             <label class="column-toggle"><input type="checkbox" data-module="products"
                                     data-column="category" checked> <span>Category</span></label>
                             <label class="column-toggle"><input type="checkbox" data-module="products" data-column="mrp"
-                                    checked> <span>MRP (₹)</span></label>
+                                    checked> <span>MRP (Ã¢â€šÂ¹)</span></label>
                             <label class="column-toggle"><input type="checkbox" data-module="products"
-                                    data-column="sale_price" checked> <span>Sale Price (₹)</span></label>
+                                    data-column="sale_price" checked> <span>Sale Price (Ã¢â€šÂ¹)</span></label>
                             <label class="column-toggle"><input type="checkbox" data-module="products" data-column="unit"
                                     checked> <span>Unit</span></label>
                             <label class="column-toggle"><input type="checkbox" data-module="products" data-column="gst"
@@ -425,7 +425,7 @@
                 <div class="card">
                     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <div>
-                            <h3 class="card-title">Categories — Column Visibility</h3>
+                            <h3 class="card-title">Categories Ã¢â‚¬â€ Column Visibility</h3>
                             <p class="text-sm text-muted" style="margin-top:4px">Toggle which fields are visible on the
                                 Categories page</p>
                         </div>
@@ -456,7 +456,7 @@
                 <div class="card">
                     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <div>
-                            <h3 class="card-title">Users — Column Visibility</h3>
+                            <h3 class="card-title">Users Ã¢â‚¬â€ Column Visibility</h3>
                             <p class="text-sm text-muted" style="margin-top:4px">Toggle which columns are visible on the
                                 Users page</p>
                         </div>
@@ -485,7 +485,7 @@
                 <div class="card">
                     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <div>
-                            <h3 class="card-title">Tasks — Column Visibility</h3>
+                            <h3 class="card-title">Tasks Ã¢â‚¬â€ Column Visibility</h3>
                             <p class="text-sm text-muted" style="margin-top:4px">Toggle which columns are visible on the
                                 Tasks page</p>
                         </div>
@@ -512,7 +512,7 @@
                 <div class="card" style="margin-top:24px">
                     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <div>
-                            <h3 class="card-title">Tasks — Statuses</h3>
+                            <h3 class="card-title">Tasks Ã¢â‚¬â€ Statuses</h3>
                             <p class="text-sm text-muted" style="margin-top:4px">Manage custom statuses for your tasks</p>
                         </div>
                         <button class="btn btn-primary btn-sm" onclick="addStageRow('task')">+ Add Status</button>
@@ -532,7 +532,7 @@
                 <div class="card">
                     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <div>
-                            <h3 class="card-title">Payments — Unified Types</h3>
+                            <h3 class="card-title">Payments Ã¢â‚¬â€ Unified Types</h3>
                             <p class="text-sm text-muted" style="margin-top:4px">Manage custom payment types for both sales
                                 and purchases</p>
                         </div>
@@ -662,75 +662,13 @@
                 </div>
             </div>
 
-            <!-- WhatsApp API Configuration Tab -->
-            @if(hasFeature('whatsapp_connect'))
-            <div class="settings-tab" id="tab-whatsapp-api" style="display:none">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title" style="display:flex;align-items:center;gap:8px">
-                            <i data-lucide="message-circle" style="width:20px;height:20px;color:#25D366"></i>
-                            WhatsApp API Configuration
-                        </h3>
-                        <p class="text-sm text-muted" style="margin-top:4px">Configure your Evolution API credentials to
-                            enable WhatsApp messaging</p>
-                    </div>
-                    <div class="card-content">
-                        <div
-                            style="background:linear-gradient(135deg,#dcfce7,#f0fdf4);border:1px solid #bbf7d0;border-radius:8px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px">
-                            <i data-lucide="info"
-                                style="width:18px;height:18px;color:#16a34a;flex-shrink:0;margin-top:1px"></i>
-                            <div style="font-size:13px;color:#166534;line-height:1.5">
-                                Enter your Evolution API server URL and global API key below. Each user will get their own
-                                WhatsApp instance automatically when they scan QR from the WhatsApp Connect page.
-                            </div>
-                        </div>
-
-                        <div class="form-group" style="margin-bottom:16px">
-                            <label class="form-label" style="font-weight:600">API URL</label>
-                            <input type="url" class="form-input" id="wa-api-url"
-                                value="{{ $whatsappApiConfig['api_url'] ?? '' }}"
-                                placeholder="https://your-evolution-api.com">
-                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Your Evolution API server
-                                URL (e.g. https://evo.yourdomain.com)</small>
-                        </div>
-
-                        <div class="form-group" style="margin-bottom:16px">
-                            <label class="form-label" style="font-weight:600">Global API Key</label>
-                            <div style="position:relative">
-                                <input type="password" class="form-input" id="wa-api-key"
-                                    value="{{ $whatsappApiConfig['api_key'] ?? '' }}"
-                                    placeholder="Your Evolution API global key" style="padding-right:44px">
-                                <button type="button" onclick="toggleApiKeyVisibility()" id="wa-key-toggle-btn"
-                                    style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:4px;color:#888">
-                                    <i data-lucide="eye" style="width:18px;height:18px" id="wa-key-icon"></i>
-                                </button>
-                            </div>
-                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">The master API key from
-                                your Evolution API server</small>
-                        </div>
-
-                        <div class="form-group" style="margin-bottom:16px">
-                            <label class="form-label" style="font-weight:600">Webhook Base URL <span style="color:#999;font-weight:400">(Your CRM Server URL)</span></label>
-                            <input type="url" class="form-input" id="wa-webhook-url"
-                                value="{{ $whatsappApiConfig['webhook_base_url'] ?? '' }}"
-                                placeholder="https://your-crm-domain.com">
-                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Your CRM server's public URL 
-                                (e.g. https://crm.yourdomain.com). Evolution API ko webhook callbacks ke liye is URL ka zaroorat hai. Agar ye empty hai, to Auto-Reply kaam nahi karega.</small>
-                        </div>
-
-                        <button class="btn btn-primary" id="wa-save-btn" onclick="saveWhatsappApiConfig()">
-                            <i data-lucide="save" style="width:16px;height:16px"></i> Save Configuration
-                        </button>
-                    </div>
-                </div>
-            </div>
-            @endif
+            <!-- Evolution API credentials moved to Super Admin Global Settings -->
 
             <!-- AI Bot Configuration Tab -->
             @if(hasFeature('whatsapp_connect'))
             <div class="settings-tab" id="tab-ai-bot" style="display:none">
 
-                <!-- ═══ Bot Mode Selector (2-Card) ═══ -->
+                <!-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â Bot Mode Selector (2-Card) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â -->
                 <div class="card" style="margin-bottom:24px">
                     <div class="card-header">
                         <h3 class="card-title" style="display:flex;align-items:center;gap:8px">
@@ -746,30 +684,30 @@
                         <div style="display:grid;grid-template-columns:{{ $hasAiBot ? '1fr' : 'repeat(2,1fr)' }};gap:16px" id="bot-mode-cards">
 
                             @if($hasAiBot)
-                            <!-- ═══ AI Bot Package → Only AI Bot Card (auto-selected) ═══ -->
+                            <!-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â AI Bot Package Ã¢â€ â€™ Only AI Bot Card (auto-selected) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â -->
                             <div class="bot-mode-card active" data-mode="ai_bot"
                                  style="border:2px solid #8b5cf6;border-radius:12px;padding:24px;background:linear-gradient(135deg,#f5f3ff,#ede9fe);position:relative;text-align:center">
                                 <div style="position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;border:2px solid #8b5cf6;background:#8b5cf6;display:flex;align-items:center;justify-content:center" id="radio-ai_bot">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
                                 </div>
-                                <div style="font-size:36px;margin-bottom:8px">🤖</div>
+                                <div style="font-size:36px;margin-bottom:8px">Ã°Å¸Â¤â€“</div>
                                 <h4 style="margin:0 0 4px;font-size:16px;font-weight:700;color:#334155">AI Bot</h4>
                                 <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Smart AI + Interactive Lists<br>Gemini-powered chatbot<br>AI credits required</p>
-                                <div style="margin-top:10px;font-size:11px;color:#8b5cf6;background:rgba(139,92,246,0.1);padding:4px 10px;border-radius:6px;font-weight:600">✓ Your Package</div>
+                                <div style="margin-top:10px;font-size:11px;color:#8b5cf6;background:rgba(139,92,246,0.1);padding:4px 10px;border-radius:6px;font-weight:600">Ã¢Å“â€œ Your Package</div>
                             </div>
 
                             @else
-                            <!-- ═══ Bot List Package → Only Bot List Card + Locked AI Bot ═══ -->
+                            <!-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â Bot List Package Ã¢â€ â€™ Only Bot List Card + Locked AI Bot Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â -->
                             <!-- Bot List Card (active) -->
                             <div class="bot-mode-card active" data-mode="list_bot"
                                  style="border:2px solid #3b82f6;border-radius:12px;padding:20px;background:linear-gradient(135deg,#eff6ff,#dbeafe);position:relative;text-align:center">
                                 <div style="position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;border:2px solid #3b82f6;background:#3b82f6;display:flex;align-items:center;justify-content:center" id="radio-list_bot">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
                                 </div>
-                                <div style="font-size:32px;margin-bottom:8px">📋</div>
+                                <div style="font-size:32px;margin-bottom:8px">Ã°Å¸â€œâ€¹</div>
                                 <h4 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#334155">Bot List</h4>
-                                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Menu-driven catalogue bot<br>+ Auto Reply rules included<br>Zero AI cost — all PHP</p>
-                                <div style="margin-top:10px;font-size:11px;color:#3b82f6;background:rgba(59,130,246,0.1);padding:4px 10px;border-radius:6px;font-weight:600">✓ Your Package</div>
+                                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Menu-driven catalogue bot<br>+ Auto Reply rules included<br>Zero AI cost Ã¢â‚¬â€ all PHP</p>
+                                <div style="margin-top:10px;font-size:11px;color:#3b82f6;background:rgba(59,130,246,0.1);padding:4px 10px;border-radius:6px;font-weight:600">Ã¢Å“â€œ Your Package</div>
                             </div>
 
                             <!-- AI Bot Locked Card -->
@@ -777,29 +715,29 @@
                                 <div style="position:absolute;top:10px;right:10px">
                                     <i data-lucide="lock" style="width:16px;height:16px;color:#f59e0b"></i>
                                 </div>
-                                <div style="font-size:32px;margin-bottom:8px">🤖</div>
+                                <div style="font-size:32px;margin-bottom:8px">Ã°Å¸Â¤â€“</div>
                                 <h4 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#94a3b8">AI Bot</h4>
                                 <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.5">Smart AI chatbot<br>Requires AI Bot package</p>
-                                <div style="margin-top:10px;font-size:11px;color:#f59e0b;background:#fffbeb;padding:4px 8px;border-radius:6px;font-weight:600">🔒 Upgrade Required</div>
+                                <div style="margin-top:10px;font-size:11px;color:#f59e0b;background:#fffbeb;padding:4px 8px;border-radius:6px;font-weight:600">Ã°Å¸â€â€™ Upgrade Required</div>
                             </div>
                             @endif
                         </div>
                         <p class="text-sm text-muted" style="margin-top:12px;text-align:center" id="bot-mode-info">
-                            @if($hasAiBot) 🤖 AI Bot active — smart AI chatbot with Gemini
-                            @else 📋 Bot List active — menu-driven bot + auto reply rules. Zero AI cost.
+                            @if($hasAiBot) Ã°Å¸Â¤â€“ AI Bot active Ã¢â‚¬â€ smart AI chatbot with Gemini
+                            @else Ã°Å¸â€œâ€¹ Bot List active Ã¢â‚¬â€ menu-driven bot + auto reply rules. Zero AI cost.
                             @endif
                         </p>
                     </div>
                 </div>
 
-                <!-- ═══ Dual WhatsApp API Configuration ═══ -->
+                <!-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â Dual WhatsApp API Configuration Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â -->
                 <div class="card" style="margin-bottom:24px">
                     <div class="card-header">
                         <h3 class="card-title" style="display:flex;align-items:center;gap:8px">
                             <i data-lucide="smartphone" style="width:20px;height:20px;color:#25D366"></i>
                             WhatsApp API Configuration
                         </h3>
-                        <p class="text-sm text-muted" style="margin-top:4px">Configure one or both APIs. Official API enables native interactive lists (≡ Menu). Evolution API enables free bulk sending.</p>
+                        <p class="text-sm text-muted" style="margin-top:4px">Configure one or both APIs. Official API enables native interactive lists (Ã¢â€°Â¡ Menu). Evolution API enables free bulk sending.</p>
                     </div>
                     <div class="card-content">
                         <!-- Cost Indicator -->
@@ -811,15 +749,15 @@
                             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:13px">
                                 <div>
                                     <span style="color:#166534;font-weight:600">Bot Replies</span><br>
-                                    <span style="color:#15803d" id="cost-bot">{{ $officialApiEnabled ? '₹0 (FREE via Cloud API)' : '₹0 (Evolution API)' }}</span>
+                                    <span style="color:#15803d" id="cost-bot">{{ $officialApiEnabled ? 'Ã¢â€šÂ¹0 (FREE via Cloud API)' : 'Ã¢â€šÂ¹0 (Evolution API)' }}</span>
                                 </div>
                                 <div>
                                     <span style="color:#166534;font-weight:600">Bulk Sender</span><br>
-                                    <span style="color:#15803d" id="cost-bulk">{{ $evolutionApiEnabled ? '₹0 (FREE via QR)' : '~₹1/msg (Cloud API)' }}</span>
+                                    <span style="color:#15803d" id="cost-bulk">{{ $evolutionApiEnabled ? 'Ã¢â€šÂ¹0 (FREE via QR)' : '~Ã¢â€šÂ¹1/msg (Cloud API)' }}</span>
                                 </div>
                                 <div>
                                     <span style="color:#166534;font-weight:600">Follow-ups</span><br>
-                                    <span style="color:#15803d" id="cost-followup">{{ $evolutionApiEnabled ? '₹0 (FREE via QR)' : '~₹0.12/msg (Cloud API)' }}</span>
+                                    <span style="color:#15803d" id="cost-followup">{{ $evolutionApiEnabled ? 'Ã¢â€šÂ¹0 (FREE via QR)' : '~Ã¢â€šÂ¹0.12/msg (Cloud API)' }}</span>
                                 </div>
                             </div>
                         </div>
@@ -830,9 +768,9 @@
                                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
                                     <div>
                                         <h4 style="margin:0 0 4px;font-weight:700;color:#334155;display:flex;align-items:center;gap:6px">
-                                            <span style="font-size:18px">☁️</span> Official Cloud API
+                                            <span style="font-size:18px">Ã¢ËœÂÃ¯Â¸Â</span> Official Cloud API
                                         </h4>
-                                        <p style="margin:0;font-size:12px;color:#64748b">Native ≡ Menu, Buttons, Templates</p>
+                                        <p style="margin:0;font-size:12px;color:#64748b">Native Ã¢â€°Â¡ Menu, Buttons, Templates</p>
                                     </div>
                                     <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
                                         <span id="official-api-label" style="font-weight:600;font-size:13px;color:{{ $officialApiEnabled ? '#16a34a' : '#dc2626' }}">{{ $officialApiEnabled ? 'ON' : 'OFF' }}</span>
@@ -875,7 +813,7 @@
                                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
                                     <div>
                                         <h4 style="margin:0 0 4px;font-weight:700;color:#334155;display:flex;align-items:center;gap:6px">
-                                            <span style="font-size:18px">📱</span> Evolution API (QR Scan)
+                                            <span style="font-size:18px">Ã°Å¸â€œÂ±</span> Evolution API (QR Scan)
                                         </h4>
                                         <p style="margin:0;font-size:12px;color:#64748b">Free bulk sending, follow-ups, text menus</p>
                                     </div>
@@ -894,7 +832,7 @@
 
                                 <!-- Status line -->
                                 <div style="padding:8px 10px;background:#f1f5f9;border-radius:6px;font-size:11px;color:#64748b;margin-bottom:14px">
-                                    <strong>Status:</strong> {{ !empty($whatsappApiConfig['api_url']) ? '✅ Configured' : '❌ Not configured' }} &nbsp;|&nbsp;
+                                    <strong>Status:</strong> {{ !empty($whatsappApiConfig['api_url']) ? 'Ã¢Å“â€¦ Configured' : 'Ã¢ÂÅ’ Not configured' }} &nbsp;|&nbsp;
                                     <strong>Config:</strong> WhatsApp API tab
                                 </div>
 
@@ -903,8 +841,8 @@
                                     <!-- Follow-up Toggle -->
                                     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid {{ $evoFollowupEnabled ? '#bbf7d0' : '#fecaca' }};border-radius:8px;background:{{ $evoFollowupEnabled ? '#f0fdf4' : '#fef2f2' }};transition:all 0.3s" id="evo-followup-row">
                                         <div>
-                                            <span style="font-weight:600;font-size:13px;color:#334155">🔁 Follow-ups</span>
-                                            <div style="font-size:11px;color:#64748b;margin-top:2px" id="evo-followup-api">{{ $evoFollowupEnabled ? '→ Evolution (FREE)' : '→ Official API (paid)' }}</div>
+                                            <span style="font-weight:600;font-size:13px;color:#334155">Ã°Å¸â€Â Follow-ups</span>
+                                            <div style="font-size:11px;color:#64748b;margin-top:2px" id="evo-followup-api">{{ $evoFollowupEnabled ? 'Ã¢â€ â€™ Evolution (FREE)' : 'Ã¢â€ â€™ Official API (paid)' }}</div>
                                         </div>
                                         <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
                                             <span id="evo-followup-label" style="font-weight:600;font-size:11px;color:{{ $evoFollowupEnabled ? '#16a34a' : '#dc2626' }}">{{ $evoFollowupEnabled ? 'EVO' : 'CLOUD' }}</span>
@@ -922,8 +860,8 @@
                                     <!-- Bulk Sender Toggle -->
                                     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid {{ $evoBulkEnabled ? '#bbf7d0' : '#fecaca' }};border-radius:8px;background:{{ $evoBulkEnabled ? '#f0fdf4' : '#fef2f2' }};transition:all 0.3s" id="evo-bulk-row">
                                         <div>
-                                            <span style="font-weight:600;font-size:13px;color:#334155">📤 Bulk Sender</span>
-                                            <div style="font-size:11px;color:#64748b;margin-top:2px" id="evo-bulk-api">{{ $evoBulkEnabled ? '→ Evolution (FREE)' : '→ Official API (paid)' }}</div>
+                                            <span style="font-weight:600;font-size:13px;color:#334155">Ã°Å¸â€œÂ¤ Bulk Sender</span>
+                                            <div style="font-size:11px;color:#64748b;margin-top:2px" id="evo-bulk-api">{{ $evoBulkEnabled ? 'Ã¢â€ â€™ Evolution (FREE)' : 'Ã¢â€ â€™ Official API (paid)' }}</div>
                                         </div>
                                         <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
                                             <span id="evo-bulk-label" style="font-weight:600;font-size:11px;color:{{ $evoBulkEnabled ? '#16a34a' : '#dc2626' }}">{{ $evoBulkEnabled ? 'EVO' : 'CLOUD' }}</span>
@@ -941,8 +879,8 @@
                                     <!-- Text Menu Toggle (Bot List mode only) -->
                                     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid {{ $evoTextmenuEnabled ? '#bbf7d0' : '#fecaca' }};border-radius:8px;background:{{ $evoTextmenuEnabled ? '#f0fdf4' : '#fef2f2' }};transition:all 0.3s;{{ $botMode === 'ai_bot' ? 'display:none' : '' }}" id="evo-textmenu-row">
                                         <div>
-                                            <span style="font-weight:600;font-size:13px;color:#334155">📝 Text Menu</span>
-                                            <div style="font-size:11px;color:#64748b;margin-top:2px" id="evo-textmenu-api">{{ $evoTextmenuEnabled ? '→ Evolution text (1. 2. 3.)' : '→ Official API native ≡ list' }}</div>
+                                            <span style="font-weight:600;font-size:13px;color:#334155">Ã°Å¸â€œÂ Text Menu</span>
+                                            <div style="font-size:11px;color:#64748b;margin-top:2px" id="evo-textmenu-api">{{ $evoTextmenuEnabled ? 'Ã¢â€ â€™ Evolution text (1. 2. 3.)' : 'Ã¢â€ â€™ Official API native Ã¢â€°Â¡ list' }}</div>
                                         </div>
                                         <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
                                             <span id="evo-textmenu-label" style="font-weight:600;font-size:11px;color:{{ $evoTextmenuEnabled ? '#16a34a' : '#dc2626' }}">{{ $evoTextmenuEnabled ? 'TEXT' : 'LIST' }}</span>
@@ -962,24 +900,24 @@
                     </div>
                 </div>
 
-                <!-- ═══ List Bot Settings (shown only when list_bot mode) ═══ -->
+                <!-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â List Bot Settings (shown only when list_bot mode) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â -->
                 <div class="card" style="margin-bottom:24px;{{ $botMode !== 'list_bot' ? 'display:none' : '' }}" id="list-bot-settings-card">
                     <div class="card-header">
                         <h3 class="card-title" style="display:flex;align-items:center;gap:8px">
                             <i data-lucide="message-square-text" style="width:20px;height:20px;color:#3b82f6"></i>
                             List Bot Settings
                         </h3>
-                        <p class="text-sm text-muted" style="margin-top:4px">Configure welcome message and menu button. List Bot uses your Chatflow Steps — no AI credits required!</p>
+                        <p class="text-sm text-muted" style="margin-top:4px">Configure welcome message and menu button. List Bot uses your Chatflow Steps Ã¢â‚¬â€ no AI credits required!</p>
                     </div>
                     <div class="card-content">
                         <div style="margin-bottom:16px">
                             <label style="display:block;margin-bottom:6px;font-weight:500">Welcome Message</label>
-                            <textarea class="form-textarea" id="list-bot-welcome" rows="4" placeholder="Welcome! 👋&#10;Please select a category from the menu below." style="font-size:14px">{{ $listBotWelcome }}</textarea>
+                            <textarea class="form-textarea" id="list-bot-welcome" rows="4" placeholder="Welcome! Ã°Å¸â€˜â€¹&#10;Please select a category from the menu below." style="font-size:14px">{{ $listBotWelcome }}</textarea>
                             <small style="color:#999;font-size:12px;margin-top:4px;display:block">First message users see when they text. Empty = default message.</small>
                         </div>
                         <div style="margin-bottom:16px">
                             <label style="display:block;margin-bottom:6px;font-weight:500">Menu Button Text</label>
-                            <input type="text" class="form-input" id="list-bot-button-text" value="{{ $listBotButtonText }}" placeholder="🛍 Menu" maxlength="20" style="max-width:300px">
+                            <input type="text" class="form-input" id="list-bot-button-text" value="{{ $listBotButtonText }}" placeholder="Ã°Å¸â€ºÂ Menu" maxlength="20" style="max-width:300px">
                             <small style="color:#999;font-size:12px;margin-top:4px;display:block">Max 20 characters. Shown on the WhatsApp list button.</small>
                         </div>
                         <button type="button" class="btn btn-primary" onclick="saveListBotSettings()">
@@ -988,7 +926,7 @@
                     </div>
                 </div>
 
-                <!-- ═══ Interactive List Mode Toggle (shown only when ai_bot mode) ═══ -->
+                <!-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â Interactive List Mode Toggle (shown only when ai_bot mode) Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â -->
                 <div class="card" style="margin-bottom:24px;{{ $botMode !== 'ai_bot' ? 'display:none' : '' }}" id="interactive-list-card">
                     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
                         <div>
@@ -1015,239 +953,7 @@
                     </div>
                 </div>
 
-                <!-- Vertex AI Configuration -->
-                <div class="card" style="margin-bottom:24px">
-                    <div class="card-header">
-                        <h3 class="card-title">Google Vertex AI Configuration</h3>
-                        <p class="text-sm text-muted" style="margin-top:4px">Service Account credentials for Vertex AI (Gemini) API</p>
-                    </div>
-                    <div class="card-content">
-                        <div style="background:linear-gradient(135deg,#ede9fe,#f5f3ff);border:1px solid #c4b5fd;border-radius:8px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px">
-                            <i data-lucide="info" style="width:18px;height:18px;color:#7c3aed;flex-shrink:0;margin-top:1px"></i>
-                            <div style="font-size:13px;color:#5b21b6;line-height:1.5">
-                                Google Cloud Console se Service Account ka JSON file download karke niche paste karo. Project ID, Location aur Model bhi dal do.
-                            </div>
-                        </div>
-
-                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">
-                            <div>
-                                <label style="display:block;margin-bottom:4px;font-weight:500">Project ID *</label>
-                                <input type="text" class="form-input" id="ai-project-id" value="{{ $aiVertexConfig['project_id'] ?? '' }}" placeholder="my-gcp-project">
-                            </div>
-                            <div>
-                                <label style="display:block;margin-bottom:4px;font-weight:500">Location</label>
-                                <input type="text" class="form-input" id="ai-location" value="{{ $aiVertexConfig['location'] ?? 'us-central1' }}" placeholder="us-central1">
-                            </div>
-                            <div>
-                                <label style="display:block;margin-bottom:4px;font-weight:500">Model</label>
-                                <input type="text" class="form-input" id="ai-model" value="{{ $aiVertexConfig['model'] ?? 'gemini-1.5-flash-001' }}" placeholder="gemini-1.5-flash-001">
-                            </div>
-                        </div>
-
-                        <div style="margin-bottom:16px">
-                            <label style="display:block;margin-bottom:4px;font-weight:500">Service Account JSON *</label>
-                            <textarea class="form-textarea" id="ai-service-account" rows="8" placeholder='{ "type": "service_account", "project_id": "...", "client_email": "...", "private_key": "..." }' style="font-family:monospace;font-size:12px">{{ !empty($aiVertexConfig['service_account']) ? json_encode($aiVertexConfig['service_account'], JSON_PRETTY_PRINT) : '' }}</textarea>
-                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Google Cloud Console → IAM & Admin → Service Accounts → Keys → Add Key → JSON</small>
-                        </div>
-
-                        <button type="button" class="btn btn-primary" onclick="saveAiConfig()">
-                            <i data-lucide="save" style="width:16px;height:16px"></i> Save AI Config
-                        </button>
-                    </div>
-                </div>
-
-                <!-- System Prompt -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">AI System Prompt</h3>
-                        <p class="text-sm text-muted" style="margin-top:4px">Ye prompt AI ko batata hai ki wo kaise behave kare</p>
-                    </div>
-                    <div class="card-content">
-                        <div style="margin-bottom:16px">
-                            <label style="display:block;margin-bottom:4px;font-weight:600;display:flex;align-items:center;gap:6px;color:#b91c1c;">
-                                <i data-lucide="lock" style="width:16px;height:16px;"></i> Tier 1 Contextual AI (Locked)
-                            </label>
-                            <textarea class="form-textarea" rows="10" readonly style="background-color:#fee2e2; border-color:#fca5a5; cursor:not-allowed; font-family:monospace; font-size:12px; color:#991b1b;">[LOCKED — Dynamic Prompt Engine]
-AVAILABLE OPTIONS: [Auto-Injected from Product Database]
-USER MESSAGE: [Customer ka WhatsApp message]
-
-═══ RULES (follow in order, stop at first match) ═══
-
-RULE 1 — SINGLE MATCH → MATCH_ID: <ID>
-RULE 2 — MULTIPLE MATCHES → QUEUE_MATCHES: <ID1>,<ID2>
-   (Examples dynamically generated from actual product names)
-   STRICT: Only include IDs user EXPLICITLY named.
-RULE 3 — AMBIGUOUS → Ask clarifying question in Hindi/Hinglish
-RULE 4 — NO MATCH → NONE</textarea>
-                            <small style="color:#ef4444;font-size:12px;margin-top:4px;display:block">
-                                Ye Backend System Manager ka core algorithm hai jo orders nikalta hai. Security aur stability ke liye ye backend code me locked hai uper admin settings format me.
-                            </small>
-                        </div>
-                        
-                        <hr style="margin:20px 0;border-top:1px dashed #e2e8f0;">
-
-                        <div style="margin-bottom:16px">
-                            <label style="display:block;margin-bottom:4px;font-weight:600">Primary System Prompt (Tier 2)</label>
-                            <textarea class="form-textarea" id="ai-system-prompt" rows="6" placeholder="Tum ek helpful WhatsApp AI assistant ho...">{{ $aiSystemPrompt ?? '' }}</textarea>
-                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: Explain general bot persona and rules.</small>
-                        </div>
-
-                        <div style="margin-bottom:16px">
-                            <label style="display:block;margin-bottom:4px;font-weight:600">Greeting Prompt (Optional)</label>
-                            <textarea class="form-textarea" id="ai-greeting-prompt" rows="4" placeholder="User just said hi or hello...">{{ $aiGreetingPrompt ?? '' }}</textarea>
-                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: Define how the bot should greet users specifically when they only send a greeting phrase like "Hi", "Hello", "Namaste".</small>
-                        </div>
-
-                        <div style="margin-bottom:16px">
-                            <label style="display:block;margin-bottom:4px;font-weight:600">Business Query Prompt (Optional)</label>
-                            <textarea class="form-textarea" id="ai-business-prompt" rows="4" placeholder="User asked about office hours or location...">{{ $aiBusinessPrompt ?? '' }}</textarea>
-                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: Provide business details like address, support number, and business hours to use when user wants to know about the company.</small>
-                        </div>
-
-                        <div style="margin-bottom:16px">
-                            <label style="display:block;margin-bottom:4px;font-weight:600">Spell Correction Prompt (Optional)</label>
-                            <textarea class="form-textarea" id="ai-spell-prompt" rows="3" placeholder="Fix spelling: {text}. Items: [{items}]. Reply corrected text only.">{{ $aiSpellPrompt ?? '' }}</textarea>
-                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: This micro-prompt corrects user typos before product matching. Use {text} for user input and {items} for available options. Keep it short to save tokens.</small>
-                        </div>
-
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <button type="button" class="btn btn-primary" onclick="saveAiPrompt()">
-                                <i data-lucide="save" style="width:16px;height:16px"></i> Save Prompt
-                            </button>
-                            
-                            <a href="{{ route('admin.system-logs.index') }}" class="btn btn-outline" style="display:flex; align-items:center; gap:6px;">
-                                <i data-lucide="terminal" style="width:16px;height:16px"></i> System Error Logs
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tier 3 Column Analytics Prompt -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">🧠 Tier 3 — Column Analytics AI Prompt</h3>
-                        <p class="text-sm text-muted" style="margin-top:4px">Jab user koi product-related keyword bole jo current chatflow step se match nahi kare, tab ye prompt use hoga.</p>
-                    </div>
-                    <div class="card-content">
-                        <div style="margin-bottom:16px">
-                            <label style="display:block;margin-bottom:4px;font-weight:600">Tier 3 Prompt (Editable)</label>
-                            <textarea class="form-textarea" id="ai-tier3-prompt" rows="6" placeholder="You are a senior sales executive...">{{ $aiTier3Prompt ?? '' }}</textarea>
-                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">
-                                Hint: Define AI's sales persona for product column queries. AI ko product data match results ke sath ye prompt milega. Khali chhodne pe default prompt use hoga.
-                            </small>
-                        </div>
-                        <button type="button" class="btn btn-primary" onclick="saveAiTier3Prompt()">
-                            <i data-lucide="save" style="width:16px;height:16px"></i> Save Tier 3 Prompt
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Greeting Detection Settings -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">👋 Greeting Detection Settings</h3>
-                        <p class="text-sm text-muted" style="margin-top:4px">System me 200+ greetings builtin hain (hi, hello, namaste, etc). Aap apne custom words add kar sakte hain.</p>
-                    </div>
-                    <div class="card-content">
-                        <div style="margin-bottom:16px; padding:12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px;">
-                            <div style="font-weight:600; color:#166534; margin-bottom:8px;">🔒 System Default Greetings (200+ words)</div>
-                            <p style="font-size:12px; color:#15803d; line-height:1.6; max-height:60px; overflow:hidden;">
-                                hi, hello, hey, namaste, namaskar, good morning, good afternoon, good evening, jai shri ram, ram ram, radhe radhe, sat sri akal, assalamu alaikum, kem cho, vanakkam, hare krishna, jai mata di, pranam, shukriya, dhanyavaad, hii, hiii, hlw, helo, kaise ho, kya haal hai...
-                            </p>
-                            <small style="color:#166534; font-size:11px; font-weight:500;">Ye words read-only hain aur system me built-in hain. Inhe edit nahi kar sakte.</small>
-                        </div>
-                        
-                        <div style="margin-bottom:16px">
-                            <label style="display:block;margin-bottom:4px;font-weight:600">Your Custom Greeting Words</label>
-                            <textarea class="form-textarea" id="ai-greeting-words" rows="5" placeholder="radhe radhe&#10;khamma ghani&#10;padharo mhare des&#10;(ek word per line)">{{ $aiGreetingWords ?? '' }}</textarea>
-                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">
-                                One word/phrase per line. Ye words system defaults ke sath merge honge. Total: <strong>200+ system + your custom</strong>
-                            </small>
-                        </div>
-                        <button type="button" class="btn btn-primary" onclick="saveAiGreetingWords()">
-                            <i data-lucide="save" style="width:16px;height:16px"></i> Save Greeting Words
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Match Playground & Cache -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">🎮 Match Playground & Cache</h3>
-                        <p class="text-sm text-muted" style="margin-top:4px">PHP Product Group Match engine test karo — live confidence % dekho. Cache controls bhi yahan hain.</p>
-                    </div>
-                    <div class="card-content">
-                        <!-- Confidence Threshold -->
-                        <div style="margin-bottom:20px; padding:16px; background:linear-gradient(135deg, #fef3c7, #fde68a); border:1px solid #fbbf24; border-radius:10px;">
-                            <label style="display:block;margin-bottom:8px;font-weight:700;color:#92400e;font-size:15px;">⚙️ Minimum Match Confidence</label>
-                            <div style="display:flex; align-items:center; gap:12px;">
-                                <input type="range" id="ai-match-confidence-slider" min="0" max="100" value="{{ $aiMatchConfidence ?? 60 }}" 
-                                    style="flex:1; accent-color:#f59e0b; height:6px;" oninput="document.getElementById('ai-match-confidence-val').value=this.value">
-                                <input type="number" id="ai-match-confidence-val" min="0" max="100" value="{{ $aiMatchConfidence ?? 60 }}" 
-                                    style="width:70px; text-align:center; font-weight:700; font-size:18px; border:2px solid #f59e0b; border-radius:8px; padding:4px;" 
-                                    oninput="document.getElementById('ai-match-confidence-slider').value=this.value">
-                                <span style="font-weight:600; color:#92400e;">%</span>
-                                <button type="button" class="btn btn-primary btn-sm" onclick="saveAiMatchConfidence()" style="background:#f59e0b; border-color:#f59e0b;">
-                                    <i data-lucide="save" style="width:14px;height:14px"></i> Save
-                                </button>
-                            </div>
-                            <div style="margin-top:10px; display:grid; grid-template-columns:repeat(4,1fr); gap:4px; font-size:11px; color:#92400e;">
-                                <span>50-60% Aggressive</span>
-                                <span style="font-weight:700;">60-75% Balanced ✅</span>
-                                <span>75-90% Strict</span>
-                                <span>90-100% Very Strict</span>
-                            </div>
-                            <small style="color:#b45309; font-size:12px; margin-top:6px; display:block;">
-                                ℹ️ Is % se neeche ke matches bot IGNORE karega. Bot ko Tier 2 AI pe bhejega.
-                            </small>
-                        </div>
-
-                        <!-- Match Test -->
-                        <div style="margin-bottom:16px">
-                            <label style="display:block;margin-bottom:4px;font-weight:600;font-size:15px;">🧪 Test Message</label>
-                            <div style="display:flex;gap:8px;">
-                                <input type="text" class="form-input" id="pgm-test-message" placeholder="Eg: mujhe chrome handle chahiye..." style="flex:1">
-                                <button type="button" class="btn btn-primary" onclick="testProductGroupMatch()" id="pgm-test-btn">
-                                    <i data-lucide="search" style="width:16px;height:16px"></i> Test
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div id="pgm-results" style="display:none;">
-                            <div id="pgm-stats" style="margin-bottom:12px; padding:10px; background:#f8fafc; border-radius:8px; display:grid; grid-template-columns:repeat(4,1fr); gap:8px; font-size:13px;"></div>
-                            <div id="pgm-matches" style="margin-bottom:12px;"></div>
-                            <div id="pgm-index" style="margin-bottom:12px;"></div>
-                        </div>
-                        
-                        <hr style="margin:20px 0;border-top:1px dashed #e2e8f0;">
-                        
-                        <!-- Cache Controls -->
-                        <div style="display:flex; align-items:center; gap:12px;">
-                            <button type="button" class="btn btn-outline" onclick="clearPgmCache()" style="border-color:#ef4444; color:#ef4444;">
-                                <i data-lucide="refresh-cw" style="width:16px;height:16px"></i> Clear Product Match Cache
-                            </button>
-                            <small style="color:#999; font-size:12px;">Cache auto-clears on product/category/column changes. Manual clear for testing.</small>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- AI Architecture Rules -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">AI Architecture & Development Rules</h3>
-                        <p class="text-sm text-muted" style="margin-top:4px">Technical logic, condition instructions for future AI Agents (e.g. Antigravity) to refer to.</p>
-                    </div>
-                    <div class="card-content">
-                        <div style="margin-bottom:16px">
-                            <textarea class="form-textarea" id="ai-architecture-rules" rows="12" placeholder="Testing conditions and architecture rules here...">{{ $aiArchitectureRules ?? '' }}</textarea>
-                            <small style="color:#999;font-size:12px;margin-top:4px;display:block">Hint: Paste your system architecture description, dynamic catalogue columns instructions, or anything future AIs need to know.</small>
-                        </div>
-
-                        <button type="button" class="btn btn-primary" onclick="saveAiArchitectureRules()">
-                            <i data-lucide="save" style="width:16px;height:16px"></i> Save Rules
-                        </button>
-                    </div>
-                </div>
+                <!-- AI Config, Prompts, Match Playground moved to Super Admin Global Settings -->
 
                 <!-- Reply Language Setting -->
                 <div class="card">
@@ -1258,9 +964,9 @@ RULE 4 — NO MATCH → NONE</textarea>
                     <div class="card-content">
                         <div style="margin-bottom:16px">
                             <select class="form-input" id="ai-reply-language" style="max-width:350px">
-                                <option value="auto" {{ ($aiReplyLanguage ?? 'auto') === 'auto' ? 'selected' : '' }}>🌐 Same as User (Auto-detect)</option>
-                                <option value="en" {{ ($aiReplyLanguage ?? '') === 'en' ? 'selected' : '' }}>🇬🇧 English Only</option>
-                                <option value="hi" {{ ($aiReplyLanguage ?? '') === 'hi' ? 'selected' : '' }}>🇮🇳 Hindi Only</option>
+                                <option value="auto" {{ ($aiReplyLanguage ?? 'auto') === 'auto' ? 'selected' : '' }}>Ã°Å¸Å’Â Same as User (Auto-detect)</option>
+                                <option value="en" {{ ($aiReplyLanguage ?? '') === 'en' ? 'selected' : '' }}>Ã°Å¸â€¡Â¬Ã°Å¸â€¡Â§ English Only</option>
+                                <option value="hi" {{ ($aiReplyLanguage ?? '') === 'hi' ? 'selected' : '' }}>Ã°Å¸â€¡Â®Ã°Å¸â€¡Â³ Hindi Only</option>
                             </select>
                             <small style="color:#999;font-size:12px;margin-top:4px;display:block">Auto-detect = user jis language me pooche usi me reply hoga</small>
                         </div>
@@ -1388,7 +1094,7 @@ RULE 4 — NO MATCH → NONE</textarea>
                                 onmouseout="this.style.borderColor='#cbd5e1';this.style.background='#fafbfc'">
                                 <i data-lucide="upload-cloud" style="width:40px;height:40px;color:#94a3b8;margin-bottom:8px;"></i>
                                 <p style="margin:0;font-size:14px;color:#64748b;"><strong style="color:#ca8a04">Click to browse</strong> for backup file</p>
-                                <p style="margin:6px 0 0;font-size:12px;color:#94a3b8;">.zip or .sql file — Google Drive se downloaded backup</p>
+                                <p style="margin:6px 0 0;font-size:12px;color:#94a3b8;">.zip or .sql file Ã¢â‚¬â€ Google Drive se downloaded backup</p>
                             </div>
                             <input type="file" name="backup_file" id="settings-restore-file" accept=".zip,.sql" style="display:none;"
                                 onchange="settingsShowRestoreFile(this)">
@@ -1397,7 +1103,7 @@ RULE 4 — NO MATCH → NONE</textarea>
 
                             <div style="margin-top:16px;">
                                 <button type="submit" class="btn btn-primary" style="display:none;background:linear-gradient(135deg,#ca8a04,#a16207);border:none;padding:10px 24px;" id="settings-restore-btn"
-                                    onclick="return confirm('⚠️ WARNING: Is se puura database overwrite ho jayega backup data se. Kya aap sure hain?');">
+                                    onclick="return confirm('Ã¢Å¡Â Ã¯Â¸Â WARNING: Is se puura database overwrite ho jayega backup data se. Kya aap sure hain?');">
                                     <i data-lucide="alert-triangle" style="width:14px;height:14px;margin-right:6px;"></i> Restore Database
                                 </button>
                             </div>
@@ -1423,7 +1129,7 @@ RULE 4 — NO MATCH → NONE</textarea>
                             <i data-lucide="info"
                                 style="width:18px;height:18px;color:#16a34a;flex-shrink:0;margin-top:1px"></i>
                             <div style="font-size:13px;color:#166534;line-height:1.5">
-                                Ye method safer hai — ye existing data ke saath <strong>merge</strong> karta hai. Naya data add hota hai, existing data update hota hai.
+                                Ye method safer hai Ã¢â‚¬â€ ye existing data ke saath <strong>merge</strong> karta hai. Naya data add hota hai, existing data update hota hai.
                             </div>
                         </div>
 
@@ -1435,7 +1141,7 @@ RULE 4 — NO MATCH → NONE</textarea>
                                 onmouseout="this.style.borderColor='#cbd5e1';this.style.background='#fafbfc'">
                                 <i data-lucide="file-json" style="width:40px;height:40px;color:#94a3b8;margin-bottom:8px;"></i>
                                 <p style="margin:0;font-size:14px;color:#64748b;"><strong style="color:#16a34a">Click to browse</strong> for JSON backup files</p>
-                                <p style="margin:6px 0 0;font-size:12px;color:#94a3b8;">JSON files only • Multiple files allowed • Max 50MB each</p>
+                                <p style="margin:6px 0 0;font-size:12px;color:#94a3b8;">JSON files only Ã¢â‚¬Â¢ Multiple files allowed Ã¢â‚¬Â¢ Max 50MB each</p>
                             </div>
                             <input type="file" name="backup_files[]" id="settings-import-files" multiple accept=".json" style="display:none;"
                                 onchange="settingsShowImportFiles(this)">
@@ -1461,7 +1167,7 @@ RULE 4 — NO MATCH → NONE</textarea>
                             </div>
                             <div>
                                 <h3 class="card-title" style="margin:0">Manage Backup Files</h3>
-                                <p class="text-sm text-muted" style="margin:2px 0 0">JSON, ZIP aur SQL backup files jo server pe saved hain — download ya delete karo</p>
+                                <p class="text-sm text-muted" style="margin:2px 0 0">JSON, ZIP aur SQL backup files jo server pe saved hain Ã¢â‚¬â€ download ya delete karo</p>
                             </div>
                         </div>
                         @if(count($backupFiles ?? []) > 0)
@@ -1474,7 +1180,7 @@ RULE 4 — NO MATCH → NONE</textarea>
                         @if(empty($backupFiles))
                             <div style="padding:40px;text-align:center;color:#94a3b8;">
                                 <i data-lucide="inbox" style="width:36px;height:36px;display:block;margin:0 auto 8px;opacity:0.4;"></i>
-                                <p style="margin:0;font-size:13px;">Abhi koi backup file nahi hai — pehle ek backup run karo.</p>
+                                <p style="margin:0;font-size:13px;">Abhi koi backup file nahi hai Ã¢â‚¬â€ pehle ek backup run karo.</p>
                             </div>
                         @else
                             <div style="max-height:400px;overflow-y:auto;">
@@ -1492,7 +1198,7 @@ RULE 4 — NO MATCH → NONE</textarea>
                                         </div>
                                         <div style="flex:1;min-width:0;">
                                             <p style="margin:0;font-size:13px;font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ $file['name'] }}</p>
-                                            <p style="margin:2px 0 0;font-size:11px;color:#94a3b8;">{{ strtoupper($ext) }} File • {{ $file['size'] }} KB • {{ $file['date'] }}</p>
+                                            <p style="margin:2px 0 0;font-size:11px;color:#94a3b8;">{{ strtoupper($ext) }} File Ã¢â‚¬Â¢ {{ $file['size'] }} KB Ã¢â‚¬Â¢ {{ $file['date'] }}</p>
                                         </div>
                                         <div style="display:flex; gap:8px; flex-shrink:0;">
                                             <a href="{{ route('admin.backups.download', $file['name']) }}" class="btn btn-outline btn-sm"
@@ -1648,7 +1354,7 @@ RULE 4 — NO MATCH → NONE</textarea>
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-lite.min.js"></script>
     <script>
-        // ─── Database-backed column visibility settings ───
+        // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Database-backed column visibility settings Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
         // Settings loaded from controller (server-side), saved via AJAX to database
         const dbSettings = @json($columnVisibility ?? new \stdClass());
         let quoteTaxes = @json($quoteTaxes ?? []);
@@ -1767,7 +1473,7 @@ RULE 4 — NO MATCH → NONE</textarea>
                         // Build transfer options (all other stages)
                         let otherStages = leadStages.filter((s, i) => i !== idx && s.trim() !== '');
                         if (otherStages.length === 0) {
-                            alert('इस stage में ' + data.count + ' lead(s) हैं। कम से कम एक और stage होना चाहिए जिसमें leads को transfer किया जा सके।');
+                            alert('Ã Â¤â€¡Ã Â¤Â¸ stage Ã Â¤Â®Ã Â¥â€¡Ã Â¤â€š ' + data.count + ' lead(s) Ã Â¤Â¹Ã Â¥Ë†Ã Â¤â€šÃ Â¥Â¤ Ã Â¤â€¢Ã Â¤Â® Ã Â¤Â¸Ã Â¥â€¡ Ã Â¤â€¢Ã Â¤Â® Ã Â¤ÂÃ Â¤â€¢ Ã Â¤â€Ã Â¤Â° stage Ã Â¤Â¹Ã Â¥â€¹Ã Â¤Â¨Ã Â¤Â¾ Ã Â¤Å¡Ã Â¤Â¾Ã Â¤Â¹Ã Â¤Â¿Ã Â¤Â Ã Â¤Å“Ã Â¤Â¿Ã Â¤Â¸Ã Â¤Â®Ã Â¥â€¡Ã Â¤â€š leads Ã Â¤â€¢Ã Â¥â€¹ transfer Ã Â¤â€¢Ã Â¤Â¿Ã Â¤Â¯Ã Â¤Â¾ Ã Â¤Å“Ã Â¤Â¾ Ã Â¤Â¸Ã Â¤â€¢Ã Â¥â€¡Ã Â¥Â¤');
                             return;
                         }
 
@@ -1817,7 +1523,7 @@ RULE 4 — NO MATCH → NONE</textarea>
                                     <i data-lucide="alert-triangle" style="width:20px;height:20px;color:white"></i>
                                 </div>
                                 <div>
-                                    <h3 style="margin:0;font-size:16px;font-weight:700;color:#1e293b">Stage Delete — Leads Found</h3>
+                                    <h3 style="margin:0;font-size:16px;font-weight:700;color:#1e293b">Stage Delete Ã¢â‚¬â€ Leads Found</h3>
                                     <p style="margin:2px 0 0;font-size:13px;color:#64748b">"${displayName}" stage me <b>${leadCount}</b> lead(s) hain</p>
                                 </div>
                             </div>
@@ -2104,7 +1810,7 @@ RULE 4 — NO MATCH → NONE</textarea>
                 toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1a73e8;color:white;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:500;z-index:9999;opacity:0;transition:opacity 0.3s ease;box-shadow:0 4px 12px rgba(0,0,0,0.15)';
                 document.body.appendChild(toast);
             }
-            toast.textContent = '✓ Settings saved to database';
+            toast.textContent = 'Ã¢Å“â€œ Settings saved to database';
             toast.style.opacity = '1';
             setTimeout(function () { toast.style.opacity = '0'; }, 2000);
         }
@@ -2128,7 +1834,7 @@ RULE 4 — NO MATCH → NONE</textarea>
                     cb.checked = dbSettings[module][column];
                 }
 
-                // Listen for changes — save to database
+                // Listen for changes Ã¢â‚¬â€ save to database
                 cb.addEventListener('change', function () {
                     saveModuleToDb(this.dataset.module);
                 });
@@ -2189,65 +1895,7 @@ RULE 4 — NO MATCH → NONE</textarea>
             lucide.createIcons();
         });
 
-        // --- WhatsApp API Configuration ---
-        function toggleApiKeyVisibility() {
-            var input = document.getElementById('wa-api-key');
-            var icon = document.getElementById('wa-key-icon');
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.setAttribute('data-lucide', 'eye-off');
-            } else {
-                input.type = 'password';
-                icon.setAttribute('data-lucide', 'eye');
-            }
-            lucide.createIcons();
-        }
-
-        function saveWhatsappApiConfig() {
-            var apiUrl = document.getElementById('wa-api-url').value.trim();
-            var apiKey = document.getElementById('wa-api-key').value.trim();
-            var webhookUrl = document.getElementById('wa-webhook-url').value.trim();
-
-            if (!apiUrl || !apiKey) {
-                alert('Please fill in API URL and API Key.');
-                return;
-            }
-
-            var btn = document.getElementById('wa-save-btn');
-            btn.textContent = 'Saving...';
-            btn.disabled = true;
-
-            fetch('{{ route("admin.settings.whatsapp-api.save") }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': CSRF_TOKEN,
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    api_url: apiUrl,
-                    api_key: apiKey,
-                    webhook_base_url: webhookUrl
-                })
-            })
-                .then(function (res) { return res.json(); })
-                .then(function (data) {
-                    if (data.success) {
-                        showSavedToast();
-                    } else if (data.errors) {
-                        alert(Object.values(data.errors).flat().join('\n'));
-                    }
-                })
-                .catch(function (err) {
-                    console.error('Error saving WhatsApp config:', err);
-                    alert('An error occurred while saving.');
-                })
-                .finally(function () {
-                    btn.innerHTML = '<i data-lucide="save" style="width:16px;height:16px"></i> Save Configuration';
-                    btn.disabled = false;
-                    lucide.createIcons();
-                });
-        }
+        // --- WhatsApp API Configuration (moved to SA Global Settings) ---
 
         // Preview logo when selected
         function previewLogo(input) {
@@ -2270,7 +1918,7 @@ RULE 4 — NO MATCH → NONE</textarea>
     </script>
 
     <script>
-        // ─── Backup & Restore Tab Handlers ───
+        // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Backup & Restore Tab Handlers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
         function settingsShowRestoreFile(input) {
             var container = document.getElementById('settings-restore-selected');
             var btn = document.getElementById('settings-restore-btn');
@@ -2347,14 +1995,14 @@ RULE 4 — NO MATCH → NONE</textarea>
             }
         })();
 
-        // ═══════════════════════════════════════
+        // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
         // Bot Mode & List Bot Settings Functions
-        // ═══════════════════════════════════════
+        // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
         function selectBotMode(mode) {
             var colors = { list_bot: '#3b82f6', ai_bot: '#8b5cf6' };
             var gradients = { list_bot: 'linear-gradient(135deg,#eff6ff,#dbeafe)', ai_bot: 'linear-gradient(135deg,#f5f3ff,#ede9fe)' };
-            var infos = { list_bot: '📋 Bot List active — menu-driven bot + auto reply rules. Zero AI cost.', ai_bot: '🤖 AI Bot active — smart AI chatbot with Gemini' };
+            var infos = { list_bot: 'Ã°Å¸â€œâ€¹ Bot List active Ã¢â‚¬â€ menu-driven bot + auto reply rules. Zero AI cost.', ai_bot: 'Ã°Å¸Â¤â€“ AI Bot active Ã¢â‚¬â€ smart AI chatbot with Gemini' };
 
             // Update card visuals
             document.querySelectorAll('.bot-mode-card').forEach(function(card) {
@@ -2396,14 +2044,14 @@ RULE 4 — NO MATCH → NONE</textarea>
             }).catch(() => alert('Request failed'));
         }
 
-        // Legacy compat — old toggle calls this
+        // Legacy compat Ã¢â‚¬â€ old toggle calls this
         function toggleAiBot(enabled) {
             selectBotMode(enabled ? 'ai_bot' : 'list_bot');
         }
 
-        // ═══════════════════════════════════════
+        // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
         // Dual API Toggle/Save Functions
-        // ═══════════════════════════════════════
+        // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
         function toggleOfficialApi(enabled) {
             // Update UI immediately
@@ -2477,9 +2125,9 @@ RULE 4 — NO MATCH → NONE</textarea>
         function updateEvoSubUI(feature, enabled) {
             var labels = { followup: ['EVO', 'CLOUD'], bulk: ['EVO', 'CLOUD'], textmenu: ['TEXT', 'LIST'] };
             var apiTexts = {
-                followup: ['→ Evolution (FREE)', '→ Official API (paid)'],
-                bulk: ['→ Evolution (FREE)', '→ Official API (paid)'],
-                textmenu: ['→ Evolution text (1. 2. 3.)', '→ Official API native ≡ list']
+                followup: ['Ã¢â€ â€™ Evolution (FREE)', 'Ã¢â€ â€™ Official API (paid)'],
+                bulk: ['Ã¢â€ â€™ Evolution (FREE)', 'Ã¢â€ â€™ Official API (paid)'],
+                textmenu: ['Ã¢â€ â€™ Evolution text (1. 2. 3.)', 'Ã¢â€ â€™ Official API native Ã¢â€°Â¡ list']
             };
 
             var row = document.getElementById('evo-' + feature + '-row');
@@ -2533,14 +2181,14 @@ RULE 4 — NO MATCH → NONE</textarea>
             var evoBulk = document.getElementById('evo-bulk-toggle') && document.getElementById('evo-bulk-toggle').checked;
 
             document.getElementById('cost-bot').textContent = officialOn
-                ? '₹0 (FREE via Cloud API — user-initiated)'
-                : '₹0 (Evolution API)';
+                ? 'Ã¢â€šÂ¹0 (FREE via Cloud API Ã¢â‚¬â€ user-initiated)'
+                : 'Ã¢â€šÂ¹0 (Evolution API)';
             document.getElementById('cost-bulk').textContent = evoBulk
-                ? '₹0 (FREE via QR)'
-                : '~₹1/msg (Cloud API)';
+                ? 'Ã¢â€šÂ¹0 (FREE via QR)'
+                : '~Ã¢â€šÂ¹1/msg (Cloud API)';
             document.getElementById('cost-followup').textContent = evoFollowup
-                ? '₹0 (FREE via QR)'
-                : '~₹0.12/msg (Cloud API)';
+                ? 'Ã¢â€šÂ¹0 (FREE via QR)'
+                : '~Ã¢â€šÂ¹0.12/msg (Cloud API)';
         }
 
         function saveListBotSettings() {
@@ -2576,21 +2224,6 @@ RULE 4 — NO MATCH → NONE</textarea>
             }).catch(() => alert('Request failed'));
         }
 
-        function saveAiConfig() {
-            fetch('{{ route("admin.settings.ai-config.save") }}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
-                body: JSON.stringify({
-                    project_id: document.getElementById('ai-project-id').value,
-                    location: document.getElementById('ai-location').value,
-                    model: document.getElementById('ai-model').value,
-                    service_account_json: document.getElementById('ai-service-account').value,
-                })
-            }).then(r => r.json()).then(data => {
-                alert(data.message || 'Saved');
-            }).catch(() => alert('Request failed'));
-        }
-
         function saveAiSessionSettings() {
             let val = document.getElementById('ai-session-valid-days').value;
             fetch('{{ route("admin.settings.ai-session.save") }}', {
@@ -2607,33 +2240,6 @@ RULE 4 — NO MATCH → NONE</textarea>
             }).catch(() => alert('Request failed'));
         }
 
-        function saveAiPrompt() {
-            fetch('{{ route("admin.settings.ai-prompt.save") }}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
-                body: JSON.stringify({
-                    system_prompt: document.getElementById('ai-system-prompt').value,
-                    greeting_prompt: document.getElementById('ai-greeting-prompt').value,
-                    business_prompt: document.getElementById('ai-business-prompt').value,
-                    spell_correction_prompt: document.getElementById('ai-spell-prompt').value,
-                })
-            }).then(r => r.json()).then(data => {
-                alert(data.message || 'Saved');
-            }).catch(() => alert('Request failed'));
-        }
-
-        function saveAiArchitectureRules() {
-            const rulesContent = $('#ai-architecture-rules').summernote('code');
-            fetch('{{ route("admin.settings.ai-architecture-rules.save") }}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
-                body: JSON.stringify({
-                    architecture_rules: rulesContent,
-                })
-            }).then(r => r.json()).then(data => {
-                alert(data.message || 'Saved');
-            }).catch(() => alert('Request failed'));
-        }
 
         function saveAiLanguage() {
             fetch('{{ route("admin.settings.ai-language.save") }}', {
@@ -2648,18 +2254,6 @@ RULE 4 — NO MATCH → NONE</textarea>
             }).catch(() => alert('Request failed'));
         }
 
-        // ═══════════════════════════════════════
-        // AI V2 — Tier 3, Greetings, Playground
-        // ═══════════════════════════════════════
-        function saveAiTier3Prompt() {
-            fetch('{{ route("admin.settings.ai-tier3-prompt.save") }}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
-                body: JSON.stringify({ tier3_prompt: document.getElementById('ai-tier3-prompt').value })
-            }).then(r => r.json()).then(data => {
-                alert(data.message || 'Saved');
-            }).catch(() => alert('Request failed'));
-        }
 
         function saveAiGreetingWords() {
             fetch('{{ route("admin.settings.ai-greeting-words.save") }}', {
@@ -2671,91 +2265,10 @@ RULE 4 — NO MATCH → NONE</textarea>
             }).catch(() => alert('Request failed'));
         }
 
-        function saveAiMatchConfidence() {
-            fetch('{{ route("admin.settings.ai-match-confidence.save") }}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
-                body: JSON.stringify({ match_min_confidence: parseInt(document.getElementById('ai-match-confidence-val').value) })
-            }).then(r => r.json()).then(data => {
-                alert(data.message || 'Saved');
-            }).catch(() => alert('Request failed'));
-        }
 
-        function clearPgmCache() {
-            if (!confirm('Product Match Cache clear karein?')) return;
-            fetch('{{ route("admin.settings.ai-clear-pgm-cache") }}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }
-            }).then(r => r.json()).then(data => {
-                alert(data.message || 'Cache cleared');
-            }).catch(() => alert('Request failed'));
-        }
-
-        function testProductGroupMatch() {
-            const msg = document.getElementById('pgm-test-message').value.trim();
-            if (!msg) { alert('Please enter a test message'); return; }
-            const btn = document.getElementById('pgm-test-btn');
-            btn.disabled = true; btn.innerHTML = '<i data-lucide="loader" style="width:16px;height:16px"></i> Testing...';
-
-            fetch('{{ route("admin.settings.ai-test-pgm") }}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
-                body: JSON.stringify({ message: msg })
-            }).then(r => r.json()).then(data => {
-                btn.disabled = false; btn.innerHTML = '<i data-lucide="search" style="width:16px;height:16px"></i> Test';
-                if (typeof lucide !== 'undefined') lucide.createIcons();
-                document.getElementById('pgm-results').style.display = 'block';
-
-                // Stats
-                document.getElementById('pgm-stats').innerHTML = `
-                    <div style="text-align:center"><strong>${data.total_products}</strong><br><small style="color:#666">Products</small></div>
-                    <div style="text-align:center"><strong>${data.total_columns}</strong><br><small style="color:#666">AI Columns</small></div>
-                    <div style="text-align:center"><strong>${data.total_words}</strong><br><small style="color:#666">Indexable Values</small></div>
-                    <div style="text-align:center"><strong style="color:${data.match_count > 0 ? '#16a34a' : '#dc2626'}">${data.match_count}</strong><br><small style="color:#666">Matches Found</small></div>
-                `;
-
-                // Matches Table
-                let matchHtml = '';
-                if (data.matches && data.matches.length > 0) {
-                    matchHtml = '<div style="font-weight:600;margin-bottom:8px;color:#16a34a;">✅ Matches Found</div>';
-                    matchHtml += '<table style="width:100%;border-collapse:collapse;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">';
-                    matchHtml += '<thead><tr style="background:#f8fafc;"><th style="padding:8px;text-align:left;border-bottom:2px solid #e2e8f0;">Column</th><th style="padding:8px;text-align:left;border-bottom:2px solid #e2e8f0;">Matched Value</th><th style="padding:8px;text-align:center;border-bottom:2px solid #e2e8f0;">Type</th><th style="padding:8px;text-align:center;border-bottom:2px solid #e2e8f0;">Confidence</th></tr></thead><tbody>';
-                    data.matches.forEach(m => {
-                        let confColor = m.confidence >= 90 ? '#16a34a' : (m.confidence >= 75 ? '#f59e0b' : '#dc2626');
-                        let confBg = m.confidence >= 90 ? '#dcfce7' : (m.confidence >= 75 ? '#fef3c7' : '#fef2f2');
-                        let typeLabel = m.match_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                        matchHtml += `<tr style="border-bottom:1px solid #f0f0f0;">
-                            <td style="padding:8px;font-weight:500;">${m.column_name}${m.is_category ? ' <span style="color:#7c3aed;font-size:11px;">[Category]</span>' : ''}${m.is_unique ? ' <span style="color:#2563eb;font-size:11px;">[Unique]</span>' : ''}</td>
-                            <td style="padding:8px;">${m.matched_value}</td>
-                            <td style="padding:8px;text-align:center;"><span style="background:#f0f9ff;color:#1e40af;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">${typeLabel}</span></td>
-                            <td style="padding:8px;text-align:center;"><span style="background:${confBg};color:${confColor};padding:3px 10px;border-radius:20px;font-weight:700;font-size:13px;">${m.confidence}%</span></td>
-                        </tr>`;
-                    });
-                    matchHtml += '</tbody></table>';
-                } else {
-                    matchHtml = '<div style="padding:16px;background:#fef2f2;border-radius:8px;color:#dc2626;font-weight:600;text-align:center;">❌ No Matches Found — Message will go to Tier 2 AI</div>';
-                }
-                document.getElementById('pgm-matches').innerHTML = matchHtml;
-
-                // Index Summary
-                let idxHtml = '<details style="margin-top:8px;"><summary style="cursor:pointer;font-weight:600;color:#6b7280;font-size:13px;">📚 Product Group Index (Click to expand)</summary><div style="margin-top:8px;">';
-                if (data.index) {
-                    data.index.forEach(col => {
-                        idxHtml += `<div style="margin-bottom:8px;padding:8px;background:#f8fafc;border-radius:6px;"><strong>${col.column_name}</strong> <small style="color:#999;">(${col.count} values)</small><br><small style="color:#64748b;">${col.values.slice(0,10).join(', ')}${col.count > 10 ? '...' : ''}</small></div>`;
-                    });
-                }
-                idxHtml += '</div></details>';
-                document.getElementById('pgm-index').innerHTML = idxHtml;
-                if (typeof lucide !== 'undefined') lucide.createIcons();
-            }).catch(e => {
-                btn.disabled = false; btn.innerHTML = '<i data-lucide="search" style="width:16px;height:16px"></i> Test';
-                alert('Test failed: ' + e.message);
-            });
-        }
-
-        // ═══════════════════════════════════════
+        // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
         // Smart Follow-Up JS
-        // ═══════════════════════════════════════
+        // Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
         let followupSchedules = @json($followupSchedules ?? []);
 
         function syncFollowupSchedulesFromDOM() {

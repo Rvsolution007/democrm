@@ -115,6 +115,12 @@
     <button class="settings-tab active" onclick="switchTab('credits')" id="tab-credits">
         <i data-lucide="coins"></i> AI Credits
     </button>
+    <button class="settings-tab" onclick="switchTab('ai-config')" id="tab-ai-config">
+        <i data-lucide="brain"></i> AI Config
+    </button>
+    <button class="settings-tab" onclick="switchTab('evolution')" id="tab-evolution">
+        <i data-lucide="message-circle"></i> Evolution API
+    </button>
     <button class="settings-tab" onclick="switchTab('platform')" id="tab-platform">
         <i data-lucide="settings-2"></i> Platform
     </button>
@@ -319,6 +325,192 @@
         <div class="save-row">
             <button type="submit" class="btn btn-primary">
                 <i data-lucide="save" style="width:16px;height:16px;"></i> Save Payment Settings
+            </button>
+        </div>
+    </form>
+</div>
+
+{{-- ═══ TAB 4: AI Config ═══ --}}
+<div class="settings-panel" id="panel-ai-config" style="display:none;">
+    {{-- Vertex AI Configuration --}}
+    <form method="POST" action="{{ route('superadmin.settings.save-ai-config') }}">
+        @csrf
+        <div class="settings-card" style="margin-bottom:20px;">
+            <div class="settings-card-header">
+                <i data-lucide="cpu" style="width:16px;height:16px;color:#8b5cf6;"></i>
+                <h3>Google Vertex AI Configuration</h3>
+            </div>
+            <div class="settings-card-body">
+                <div style="background:linear-gradient(135deg,#ede9fe,#f5f3ff);border:1px solid #c4b5fd;border-radius:8px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px">
+                    <i data-lucide="info" style="width:18px;height:18px;color:#7c3aed;flex-shrink:0;margin-top:1px"></i>
+                    <div style="font-size:13px;color:#5b21b6;line-height:1.5">
+                        Google Cloud Console se Service Account ka JSON file download karke niche paste karo. Project ID, Location aur Model bhi dal do. <strong>Ye config sabhi businesses ke liye common hoga.</strong>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">
+                    <div class="form-row">
+                        <label class="field-label">Project ID *</label>
+                        <input type="text" name="project_id" class="form-control" value="{{ $aiConfig['project_id'] }}" placeholder="my-gcp-project" required>
+                    </div>
+                    <div class="form-row">
+                        <label class="field-label">Location</label>
+                        <input type="text" name="location" class="form-control" value="{{ $aiConfig['location'] }}" placeholder="us-central1" required>
+                    </div>
+                    <div class="form-row">
+                        <label class="field-label">Model</label>
+                        <input type="text" name="model" class="form-control" value="{{ $aiConfig['model'] }}" placeholder="gemini-1.5-flash-001" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label class="field-label">Service Account JSON *</label>
+                    <textarea name="service_account_json" class="form-control" rows="8" placeholder='{ "type": "service_account", "project_id": "...", "client_email": "...", "private_key": "..." }' style="font-family:monospace;font-size:12px;" required>{{ !empty($aiConfig['service_account']) ? json_encode($aiConfig['service_account'], JSON_PRETTY_PRINT) : '' }}</textarea>
+                    <div class="hint">Google Cloud Console → IAM & Admin → Service Accounts → Keys → Add Key → JSON</div>
+                </div>
+
+                <div class="save-row">
+                    <button type="submit" class="btn btn-primary">
+                        <i data-lucide="save" style="width:16px;height:16px;"></i> Save Vertex AI Config
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    {{-- AI Prompts --}}
+    <form method="POST" action="{{ route('superadmin.settings.save-ai-prompts') }}">
+        @csrf
+        <div class="settings-card">
+            <div class="settings-card-header">
+                <i data-lucide="file-text" style="width:16px;height:16px;color:#0ea5e9;"></i>
+                <h3>AI System Prompts (Global)</h3>
+            </div>
+            <div class="settings-card-body">
+                {{-- Tier 1 Locked --}}
+                <div class="form-row">
+                    <label class="field-label" style="color:#b91c1c;display:flex;align-items:center;gap:6px;">
+                        <i data-lucide="lock" style="width:14px;height:14px;"></i> Tier 1 Contextual AI (Locked)
+                    </label>
+                    <textarea class="form-control" rows="8" readonly style="background-color:#fee2e2;border-color:#fca5a5;cursor:not-allowed;font-family:monospace;font-size:12px;color:#991b1b;">[LOCKED — Dynamic Prompt Engine]
+AVAILABLE OPTIONS: [Auto-Injected from Product Database]
+USER MESSAGE: [Customer ka WhatsApp message]
+
+═══ RULES (follow in order, stop at first match) ═══
+
+RULE 1 — SINGLE MATCH → MATCH_ID: <ID>
+RULE 2 — MULTIPLE MATCHES → QUEUE_MATCHES: <ID1>,<ID2>
+   (Examples dynamically generated from actual product names)
+   STRICT: Only include IDs user EXPLICITLY named.
+RULE 3 — AMBIGUOUS → Ask clarifying question in Hindi/Hinglish
+RULE 4 — NO MATCH → NONE</textarea>
+                    <div class="hint" style="color:#ef4444;">Backend system ka core algorithm. Security ke liye locked hai.</div>
+                </div>
+
+                <hr style="margin:20px 0;border-top:1px dashed hsl(var(--border));">
+
+                <div class="form-row">
+                    <label class="field-label">Primary System Prompt (Tier 2)</label>
+                    <textarea name="system_prompt" class="form-control" rows="5" placeholder="Tum ek helpful WhatsApp AI assistant ho...">{{ $aiPrompts['system_prompt'] }}</textarea>
+                    <div class="hint">General bot persona and rules define karo.</div>
+                </div>
+
+                <div class="form-row">
+                    <label class="field-label">Greeting Prompt (Optional)</label>
+                    <textarea name="greeting_prompt" class="form-control" rows="3" placeholder="User just said hi or hello...">{{ $aiPrompts['greeting_prompt'] }}</textarea>
+                    <div class="hint">Bot greet kaise kare jab user "Hi", "Hello", "Namaste" bole.</div>
+                </div>
+
+                <div class="form-row">
+                    <label class="field-label">Business Query Prompt (Optional)</label>
+                    <textarea name="business_prompt" class="form-control" rows="3" placeholder="User asked about office hours or location...">{{ $aiPrompts['business_prompt'] }}</textarea>
+                    <div class="hint">Business details like address, support number, hours.</div>
+                </div>
+
+                <div class="form-row">
+                    <label class="field-label">Spell Correction Prompt (Optional)</label>
+                    <textarea name="spell_prompt" class="form-control" rows="3" placeholder="Fix spelling: {text}. Items: [{items}]. Reply corrected text only.">{{ $aiPrompts['spell_prompt'] }}</textarea>
+                    <div class="hint">User typos fix karne ka micro-prompt. {text} aur {items} placeholders use karo.</div>
+                </div>
+
+                <hr style="margin:20px 0;border-top:1px dashed hsl(var(--border));">
+
+                <div class="form-row">
+                    <label class="field-label">🧠 Tier 3 — Column Analytics AI Prompt</label>
+                    <textarea name="tier3_prompt" class="form-control" rows="5" placeholder="You are a senior sales executive...">{{ $aiPrompts['tier3_prompt'] }}</textarea>
+                    <div class="hint">Product column queries ke liye AI's sales persona define karo. Khali chhodne pe default prompt use hoga.</div>
+                </div>
+
+                <div class="save-row">
+                    <button type="submit" class="btn btn-primary">
+                        <i data-lucide="save" style="width:16px;height:16px;"></i> Save All Prompts
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+{{-- ═══ TAB 5: Evolution API ═══ --}}
+<div class="settings-panel" id="panel-evolution" style="display:none;">
+    <form method="POST" action="{{ route('superadmin.settings.save-evolution') }}">
+        @csrf
+        <div class="settings-grid">
+            <div class="settings-card">
+                <div class="settings-card-header">
+                    <i data-lucide="message-circle" style="width:16px;height:16px;color:#25D366;"></i>
+                    <h3>Evolution API Configuration</h3>
+                </div>
+                <div class="settings-card-body">
+                    <div style="background:linear-gradient(135deg,#dcfce7,#f0fdf4);border:1px solid #bbf7d0;border-radius:8px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px">
+                        <i data-lucide="info" style="width:18px;height:18px;color:#16a34a;flex-shrink:0;margin-top:1px"></i>
+                        <div style="font-size:13px;color:#166534;line-height:1.5">
+                            Ye Evolution API server credentials sabhi businesses ke liye common hain. Har business ka WhatsApp instance automatically create hota hai jab wo QR scan kare.
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <label class="field-label">API URL *</label>
+                        <input type="url" name="api_url" class="form-control" value="{{ $evolutionConfig['api_url'] }}" placeholder="https://your-evolution-api.com" required>
+                        <div class="hint">Your Evolution API server URL (e.g. https://evo.yourdomain.com)</div>
+                    </div>
+
+                    <div class="form-row">
+                        <label class="field-label">Global API Key *</label>
+                        <input type="password" name="api_key" class="form-control" value="{{ $evolutionConfig['api_key'] }}" placeholder="Your Evolution API global key" required id="sa-evo-key">
+                        <div class="hint">The master API key from your Evolution API server</div>
+                    </div>
+
+                    <div class="form-row">
+                        <label class="field-label">Webhook Base URL <span style="color:hsl(var(--muted-foreground));font-weight:400;">(Your CRM Server URL)</span></label>
+                        <input type="url" name="webhook_base_url" class="form-control" value="{{ $evolutionConfig['webhook_base_url'] }}" placeholder="https://your-crm-domain.com">
+                        <div class="hint">CRM server ka public URL. Evolution API ko webhook callbacks bhejne ke liye chahiye.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-card">
+                <div class="settings-card-header">
+                    <i data-lucide="info" style="width:16px;height:16px;color:hsl(var(--muted-foreground));"></i>
+                    <h3>How It Works</h3>
+                </div>
+                <div class="settings-card-body">
+                    <div class="info-box" style="line-height:2;">
+                        <strong>Platform-wide config:</strong><br>
+                        1. Ye credentials <strong>sabhi businesses</strong> ke liye apply hote hain<br>
+                        2. Har admin apna QR scan karega "WhatsApp Connect" page se<br>
+                        3. Instance name automatically generate hoti hai per-user<br>
+                        4. Webhook auto-register hota hai is server URL pe<br>
+                        <br>
+                        <em>Admins ko ye config dikhta nahi — sirf QR scan aur connect dikhta hai.</em>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="save-row">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save" style="width:16px;height:16px;"></i> Save Evolution API Config
             </button>
         </div>
     </form>

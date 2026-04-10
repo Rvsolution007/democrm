@@ -35,26 +35,11 @@ class SettingsController extends Controller
         $leadSources = Setting::getValue('leads', 'sources', Lead::SOURCES);
         $taskStatuses = Setting::getValue('tasks', 'statuses', Task::STATUSES);
         $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
-        $whatsappApiConfig = Setting::getValue('whatsapp', 'api_config', ['api_url' => '', 'api_key' => '', 'webhook_base_url' => '']);
-
-        // AI Bot Configuration
+        // AI Bot Configuration (only per-business settings remain)
         $aiBotEnabled = Setting::getValue('ai_bot', 'enabled', false);
-        $aiVertexConfig = Setting::getValue('ai_bot', 'vertex_config', [
-            'project_id' => '',
-            'location' => 'us-central1',
-            'model' => 'gemini-2.0-flash',
-            'service_account' => [],
-        ]);
-        $aiSystemPrompt = Setting::getValue('ai_bot', 'system_prompt', '');
-        $aiGreetingPrompt = Setting::getValue('ai_bot', 'greeting_prompt', '');
-        $aiBusinessPrompt = Setting::getValue('ai_bot', 'business_prompt', '');
         $aiReplyLanguage = Setting::getValue('ai_bot', 'reply_language', 'auto');
-        $aiArchitectureRules = Setting::getValue('ai_bot', 'architecture_rules', '');
         $aiSessionValidDays = Setting::getValue('ai_bot', 'session_valid_days', 10);
-        $aiSpellPrompt = Setting::getValue('ai_bot', 'spell_correction_prompt', '');
-        $aiTier3Prompt = Setting::getValue('ai_bot', 'tier3_prompt', '');
         $aiGreetingWords = Setting::getValue('ai_bot', 'greeting_words', '');
-        $aiMatchConfidence = Setting::getValue('ai_bot', 'match_min_confidence', 60);
         $aiFollowupStopStage = Setting::getValue('ai_bot', 'followup_stop_stage', '');
         $aiTargetStage = Setting::getValue('ai_bot', 'target_stage', '');
 
@@ -112,8 +97,8 @@ class SettingsController extends Controller
 
         return view('admin.settings.index', compact(
             'company', 'columnVisibility', 'quoteTaxes', 'leadStages', 'leadSources',
-            'taskStatuses', 'paymentTypes', 'whatsappApiConfig', 'backupFiles',
-            'aiBotEnabled', 'aiVertexConfig', 'aiSystemPrompt', 'aiGreetingPrompt', 'aiBusinessPrompt', 'aiReplyLanguage', 'aiArchitectureRules', 'aiSessionValidDays', 'aiSpellPrompt', 'aiTier3Prompt', 'aiGreetingWords', 'aiMatchConfidence', 'aiFollowupStopStage', 'aiTargetStage', 'followupSchedules',
+            'taskStatuses', 'paymentTypes', 'backupFiles',
+            'aiBotEnabled', 'aiReplyLanguage', 'aiSessionValidDays', 'aiGreetingWords', 'aiFollowupStopStage', 'aiTargetStage', 'followupSchedules',
             'botMode', 'interactiveListMode', 'listBotWelcome', 'listBotButtonText',
             'officialApiEnabled', 'officialApiConfig', 'evolutionApiEnabled', 'officialVerifyToken',
             'evoFollowupEnabled', 'evoBulkEnabled', 'evoTextmenuEnabled'
