@@ -1,22 +1,14 @@
 <?php
 chdir(dirname(__DIR__));
-// Delete debug/temp scripts
-$files = ['debug_divs.php', 'git_final.php'];
-foreach ($files as $f) {
-    $path = __DIR__ . '/' . $f;
-    if (file_exists($path)) unlink($path);
-}
-
+unlink(__DIR__ . '/fix_gate.php');
 echo "<pre>\n";
 echo shell_exec('git add -A 2>&1') . "\n";
-echo shell_exec('git commit -m "fix: isolate bot settings to Bot Mode tab only
+echo shell_exec('git commit -m "fix: Session Validity and Follow-Up visible for both packages
 
-- Fixed extra </div> that prematurely closed tab-ai-bot container
-- Reply Language, Session Validity, Follow-Up now gated with @if(hasFeature(\'ai_bot\'))
-- Only Business Query Prompt shows for all whatsapp_connect users
-- Cleaned up temp debug scripts" 2>&1') . "\n";
-echo shell_exec('git log --oneline -5 2>&1') . "\n";
+- Reply Language: only shows for AI Bot package (hasFeature ai_bot)
+- Session Validity: shows for both Bot List and AI Bot packages  
+- Smart Follow-Up: shows for both Bot List and AI Bot packages
+- Fixed duplicate @if/@endif from previous script" 2>&1') . "\n";
+echo shell_exec('git log --oneline -3 2>&1') . "\n";
 echo "</pre>\n";
-
-// Self-destruct
 unlink(__FILE__);
