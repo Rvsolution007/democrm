@@ -157,6 +157,11 @@
                     <i data-lucide="settings"></i>
                     <span>Global Settings</span>
                 </a>
+                <a href="{{ route('superadmin.setup-tour.index') }}"
+                   class="nav-link {{ request()->routeIs('superadmin.setup-tour.*') ? 'active' : '' }}">
+                    <i data-lucide="wand-2"></i>
+                    <span>Setup Tour</span>
+                </a>
             </nav>
         </div>
     </aside>

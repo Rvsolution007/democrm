@@ -207,6 +207,12 @@
         @if(can('products.read') || can('categories.read') || can('projects.global') || can('quotes.global'))
             <div class="nav-section">
                 <div class="nav-section-title">Catalog</div>
+                @if(can('settings.manage'))
+                    <a href="{{ route('admin.setup-wizard.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.setup-wizard.*') ? 'active' : '' }}">
+                        <i data-lucide="wand-2" style="color:#8b5cf6"></i> <span>AI Setup Wizard</span>
+                    </a>
+                @endif
                 @if(can('products.read'))
                     <a href="{{ route('admin.products.index') }}"
                         class="nav-link {{ request()->routeIs('admin.products.*') ? 'active' : '' }}">

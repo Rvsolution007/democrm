@@ -95,6 +95,10 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmi
     Route::post('/businesses/{companyId}/match-confidence', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'saveMatchConfidence'])->name('businesses.match-confidence');
     Route::post('/businesses/{companyId}/match-test', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'testMatch'])->name('businesses.match-test');
     Route::post('/businesses/{companyId}/clear-cache', [App\Http\Controllers\SuperAdmin\GlobalSettingsController::class, 'clearMatchCache'])->name('businesses.clear-cache');
+
+    // Setup Tour Management
+    Route::get('/setup-tour', [App\Http\Controllers\SuperAdmin\SetupTourController::class, 'index'])->name('setup-tour.index');
+    Route::post('/setup-tour', [App\Http\Controllers\SuperAdmin\SetupTourController::class, 'save'])->name('setup-tour.save');
 });
 
 // Temporary Route to seed users — inline logic, no class dependency
@@ -515,6 +519,16 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'subscription'])->gr
     Route::post('/service-templates', [ServiceTemplatesController::class, 'store'])->name('service-templates.store');
     Route::put('/service-templates/{id}', [ServiceTemplatesController::class, 'update'])->name('service-templates.update');
     Route::delete('/service-templates/{id}', [ServiceTemplatesController::class, 'destroy'])->name('service-templates.destroy');
+
+    // ═══ AI Setup Wizard — Catalogue Onboarding ═══
+    Route::get('/setup-wizard', [App\Http\Controllers\Web\SetupWizardController::class, 'index'])->name('setup-wizard.index');
+    Route::post('/setup-wizard/analyze', [App\Http\Controllers\Web\SetupWizardController::class, 'analyze'])->name('setup-wizard.analyze');
+    Route::get('/setup-wizard/download-columns-excel', [App\Http\Controllers\Web\SetupWizardController::class, 'downloadColumnsExcel'])->name('setup-wizard.download-columns');
+    Route::post('/setup-wizard/import-columns', [App\Http\Controllers\Web\SetupWizardController::class, 'importColumns'])->name('setup-wizard.import-columns');
+    Route::post('/setup-wizard/extract-products', [App\Http\Controllers\Web\SetupWizardController::class, 'extractProducts'])->name('setup-wizard.extract-products');
+    Route::get('/setup-wizard/download-products-excel', [App\Http\Controllers\Web\SetupWizardController::class, 'downloadProductsExcel'])->name('setup-wizard.download-products');
+    Route::post('/setup-wizard/complete', [App\Http\Controllers\Web\SetupWizardController::class, 'complete'])->name('setup-wizard.complete');
+    Route::post('/setup-wizard/reset', [App\Http\Controllers\Web\SetupWizardController::class, 'reset'])->name('setup-wizard.reset');
 
     // Products — Excel Import/Export (must be before resource routes)
     Route::get('/products/demo-excel', [ProductsController::class, 'downloadDemoExcel'])->name('products.demo-excel');
