@@ -128,62 +128,78 @@
             </div>
         @endif
 
-        {{-- ═══ AI BOT — Catalogue=All packages, Chatflow+Token=Package 3 only ═══ --}}
-        @if(can('settings.manage'))
+        {{-- ═══ BOT LIST — Package 2+ (chatflow, catalogue_columns) ═══ --}}
+        @if(hasFeature('chatflow') || hasFeature('list_bot'))
+            @if(can('settings.manage'))
+                <div class="nav-section">
+                    <div class="nav-section-title"
+                        style="margin-top: 15px; font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.8;">
+                        Bot List</div>
+
+                    {{-- Catalogue Columns --}}
+                    @if(hasFeature('catalogue_columns'))
+                    <a href="{{ route('admin.catalogue-columns.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.catalogue-columns.*') ? 'active' : '' }}">
+                        <i data-lucide="columns" style="color:#06b6d4"></i> <span>Catalogue Columns</span>
+                    </a>
+                    @endif
+
+                    {{-- Chatflow Builder --}}
+                    @if(hasFeature('chatflow'))
+                    <a href="{{ route('admin.chatflow.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.chatflow.*') ? 'active' : '' }}">
+                        <i data-lucide="git-branch" style="color:#10b981"></i> <span>Chatflow Builder</span>
+                    </a>
+                    @endif
+                </div>
+            @endif
+        @endif
+
+        {{-- ═══ AI BOT — Package 3 only (token_analytics, chat_history, ai_bot) ═══ --}}
+        @if(hasFeature('ai_bot'))
+            @if(can('settings.manage'))
+                <div class="nav-section">
+                    <div class="nav-section-title"
+                        style="margin-top: 15px; font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.8;">
+                        AI Bot</div>
+
+                    {{-- Token Analytics --}}
+                    @if(hasFeature('token_analytics'))
+                    <a href="{{ route('admin.ai-analytics.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.ai-analytics.index') ? 'active' : '' }}">
+                        <i data-lucide="bar-chart-3" style="color:#f59e0b"></i> <span>Token Analytics</span>
+                    </a>
+                    @endif
+
+                    {{-- Chat History --}}
+                    @if(hasFeature('chat_history'))
+                    <a href="{{ route('admin.ai-analytics.chats') }}"
+                        class="nav-link {{ request()->routeIs('admin.ai-analytics.chats') || request()->routeIs('admin.ai-analytics.chat-detail') ? 'active' : '' }}">
+                        <i data-lucide="message-square" style="color:#8b5cf6"></i> <span>Chat History</span>
+                    </a>
+                    <a href="{{ route('admin.ai-analytics.tester') }}"
+                        class="nav-link {{ request()->routeIs('admin.ai-analytics.tester') ? 'active' : '' }}">
+                        <i data-lucide="stethoscope" style="color:#6366f1"></i> <span>AI Bot Tester</span>
+                    </a>
+                    <a href="{{ route('admin.ai-analytics.traces.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.ai-analytics.traces.*') ? 'active' : '' }}">
+                        <i data-lucide="git-merge" style="color:#ec4899"></i> <span>Node Traces</span>
+                    </a>
+                    @endif
+                </div>
+            @endif
+        @elseif(hasFeature('chatflow') && can('settings.manage'))
+            {{-- Bot List user sees locked AI Bot upgrade prompt --}}
             <div class="nav-section">
-                <div class="nav-section-title"
-                    style="margin-top: 15px; font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.8;">
-                    AI Bot</div>
-
-                {{-- Catalogue Columns — Available in ALL packages --}}
-                @if(hasFeature('catalogue_columns'))
-                <a href="{{ route('admin.catalogue-columns.index') }}"
-                    class="nav-link {{ request()->routeIs('admin.catalogue-columns.*') ? 'active' : '' }}">
-                    <i data-lucide="columns" style="color:#06b6d4"></i> <span>Catalogue Columns</span>
-                </a>
-                @endif
-
-                {{-- Chatflow Builder — Enterprise only --}}
-                @if(hasFeature('chatflow'))
-                <a href="{{ route('admin.chatflow.index') }}"
-                    class="nav-link {{ request()->routeIs('admin.chatflow.*') ? 'active' : '' }}">
-                    <i data-lucide="git-branch" style="color:#10b981"></i> <span>Chatflow Builder</span>
-                </a>
-                @else
-                <div class="nav-link" style="opacity:0.4;cursor:not-allowed;pointer-events:none;">
-                    <i data-lucide="git-branch" style="color:#10b981"></i> <span>Chatflow Builder</span>
-                    <i data-lucide="lock" style="width:12px;height:12px;margin-left:auto;color:#f59e0b;"></i>
-                </div>
-                @endif
-
-                {{-- Token Analytics — Enterprise only --}}
-                @if(hasFeature('token_analytics'))
-                <a href="{{ route('admin.ai-analytics.index') }}"
-                    class="nav-link {{ request()->routeIs('admin.ai-analytics.index') ? 'active' : '' }}">
-                    <i data-lucide="bar-chart-3" style="color:#f59e0b"></i> <span>Token Analytics</span>
-                </a>
-                @else
+                <div class="nav-section-title" style="margin-top:15px;font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;opacity:0.8;">AI Bot</div>
                 <div class="nav-link" style="opacity:0.4;cursor:not-allowed;pointer-events:none;">
                     <i data-lucide="bar-chart-3" style="color:#f59e0b"></i> <span>Token Analytics</span>
                     <i data-lucide="lock" style="width:12px;height:12px;margin-left:auto;color:#f59e0b;"></i>
                 </div>
-                @endif
-
-                {{-- Chat History — Enterprise only --}}
-                @if(hasFeature('chat_history'))
-                <a href="{{ route('admin.ai-analytics.chats') }}"
-                    class="nav-link {{ request()->routeIs('admin.ai-analytics.chats') || request()->routeIs('admin.ai-analytics.chat-detail') ? 'active' : '' }}">
-                    <i data-lucide="message-square" style="color:#8b5cf6"></i> <span>Chat History</span>
+                <a href="#" onclick="event.preventDefault();alert('AI Bot requires the AI Bot package. Contact your administrator to upgrade.');" class="nav-link" style="opacity:0.5;">
+                    <i data-lucide="sparkles" style="color:#f59e0b;width:14px;height:14px;"></i>
+                    <span style="font-size:11px;color:#f59e0b;">Upgrade to AI Bot</span>
                 </a>
-                <a href="{{ route('admin.ai-analytics.tester') }}"
-                    class="nav-link {{ request()->routeIs('admin.ai-analytics.tester') ? 'active' : '' }}">
-                    <i data-lucide="stethoscope" style="color:#6366f1"></i> <span>AI Bot Tester</span>
-                </a>
-                <a href="{{ route('admin.ai-analytics.traces.index') }}"
-                    class="nav-link {{ request()->routeIs('admin.ai-analytics.traces.*') ? 'active' : '' }}">
-                    <i data-lucide="git-merge" style="color:#ec4899"></i> <span>Node Traces</span>
-                </a>
-                @endif
             </div>
         @endif
 

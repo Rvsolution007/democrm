@@ -15,7 +15,7 @@ class PackageController extends Controller
     private function getAllModules(): array
     {
         return [
-            // Package 1 — Starter
+            // ═══ Tier 1 — Core CRM ═══
             'leads' => ['label' => 'Leads', 'tier' => 1, 'group' => 'CRM Core'],
             'clients' => ['label' => 'Clients', 'tier' => 1, 'group' => 'CRM Core'],
             'quotes' => ['label' => 'Quotes', 'tier' => 1, 'group' => 'CRM Core'],
@@ -24,7 +24,6 @@ class PackageController extends Controller
             'followups' => ['label' => 'Follow-ups', 'tier' => 1, 'group' => 'CRM Core'],
             'products' => ['label' => 'Products', 'tier' => 1, 'group' => 'Catalog'],
             'categories' => ['label' => 'Categories', 'tier' => 1, 'group' => 'Catalog'],
-            'catalogue_columns' => ['label' => 'Catalogue Columns', 'tier' => 1, 'group' => 'Catalog'],
             'users' => ['label' => 'Users', 'tier' => 1, 'group' => 'Team'],
             'roles' => ['label' => 'Roles', 'tier' => 1, 'group' => 'Team'],
             'activities' => ['label' => 'Activities', 'tier' => 1, 'group' => 'Team'],
@@ -32,15 +31,17 @@ class PackageController extends Controller
             'reports' => ['label' => 'Reports', 'tier' => 1, 'group' => 'Analytics'],
             'settings' => ['label' => 'Settings', 'tier' => 1, 'group' => 'Analytics'],
 
-            // Package 2 — Professional
-            'whatsapp_connect' => ['label' => 'WhatsApp Connect', 'tier' => 2, 'group' => 'WhatsApp'],
-            'whatsapp_campaigns' => ['label' => 'Bulk Campaigns', 'tier' => 2, 'group' => 'WhatsApp'],
-            'whatsapp_templates' => ['label' => 'Templates', 'tier' => 2, 'group' => 'WhatsApp'],
-            'whatsapp_auto_reply' => ['label' => 'Auto-Reply', 'tier' => 2, 'group' => 'WhatsApp'],
-            'whatsapp_analytics' => ['label' => 'Reply Analytics', 'tier' => 2, 'group' => 'WhatsApp'],
+            // ═══ Tier 2 — Bot List (WhatsApp + Chatflow + Auto Reply) ═══
+            'whatsapp_connect' => ['label' => 'WhatsApp Connect', 'tier' => 2, 'group' => 'Bot List'],
+            'whatsapp_campaigns' => ['label' => 'Bulk Campaigns', 'tier' => 2, 'group' => 'Bot List'],
+            'whatsapp_templates' => ['label' => 'Templates', 'tier' => 2, 'group' => 'Bot List'],
+            'whatsapp_auto_reply' => ['label' => 'Auto-Reply Rules', 'tier' => 2, 'group' => 'Bot List'],
+            'whatsapp_analytics' => ['label' => 'Reply Analytics', 'tier' => 2, 'group' => 'Bot List'],
+            'chatflow' => ['label' => 'Chatflow Builder', 'tier' => 2, 'group' => 'Bot List'],
+            'list_bot' => ['label' => 'List Bot Engine', 'tier' => 2, 'group' => 'Bot List'],
+            'catalogue_columns' => ['label' => 'Catalogue Columns', 'tier' => 2, 'group' => 'Bot List'],
 
-            // Package 3 — Enterprise
-            'chatflow' => ['label' => 'Chatflow Builder', 'tier' => 3, 'group' => 'AI Bot'],
+            // ═══ Tier 3 — AI Bot (extends Bot List) ═══
             'ai_bot' => ['label' => 'AI Bot Engine', 'tier' => 3, 'group' => 'AI Bot'],
             'token_analytics' => ['label' => 'Token Analytics', 'tier' => 3, 'group' => 'AI Bot'],
             'chat_history' => ['label' => 'Chat History', 'tier' => 3, 'group' => 'AI Bot'],

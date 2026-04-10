@@ -326,9 +326,14 @@
                             <div class="pkg-feature"><span class="cross">✗</span> <span style="color:#9ca3af;">WhatsApp</span></div>
                         @endif
                         @if($pkg->hasFeature('chatflow'))
-                            <div class="pkg-feature"><span class="check">✓</span> AI Chatbot & Chatflow</div>
+                            <div class="pkg-feature"><span class="check">✓</span> Bot List & Chatflow</div>
                         @else
-                            <div class="pkg-feature"><span class="cross">✗</span> <span style="color:#9ca3af;">AI Chatbot</span></div>
+                            <div class="pkg-feature"><span class="cross">✗</span> <span style="color:#9ca3af;">Bot List</span></div>
+                        @endif
+                        @if($pkg->hasFeature('ai_bot'))
+                            <div class="pkg-feature"><span class="check">✓</span> AI Bot & Analytics</div>
+                        @else
+                            <div class="pkg-feature"><span class="cross">✗</span> <span style="color:#9ca3af;">AI Bot</span></div>
                         @endif
                     </div>
                     <div>

@@ -117,7 +117,8 @@
                         </button>
                     </div>
 
-                    <!-- WhatsApp Section -->
+                    <!-- WhatsApp Section — Bot List package+ only -->
+                    @if(hasFeature('whatsapp_connect'))
                     <div style="margin-bottom:16px">
                         <div
                             style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#999;padding:8px 12px">
@@ -127,8 +128,10 @@
                             <i data-lucide="message-circle" style="width:16px;height:16px"></i> WhatsApp API
                         </button>
                     </div>
+                    @endif
 
-                    <!-- AI Bot Section -->
+                    <!-- AI Bot Section — AI Bot package only -->
+                    @if(hasFeature('ai_bot'))
                     <div style="margin-bottom:16px">
                         <div
                             style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#999;padding:8px 12px">
@@ -138,6 +141,18 @@
                             <i data-lucide="brain" style="width:16px;height:16px"></i> AI Bot Config
                         </button>
                     </div>
+                    @elseif(hasFeature('whatsapp_connect'))
+                    <!-- Bot List user — show AI Bot tab but for bot mode selector only -->
+                    <div style="margin-bottom:16px">
+                        <div
+                            style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#999;padding:8px 12px">
+                            Bot Config</div>
+                        <button class="settings-nav-btn" data-tab="ai-bot"
+                            onclick="switchSettingsTab('ai-bot', this)">
+                            <i data-lucide="bot" style="width:16px;height:16px"></i> Bot Mode
+                        </button>
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -648,6 +663,7 @@
             </div>
 
             <!-- WhatsApp API Configuration Tab -->
+            @if(hasFeature('whatsapp_connect'))
             <div class="settings-tab" id="tab-whatsapp-api" style="display:none">
                 <div class="card">
                     <div class="card-header">
@@ -708,8 +724,10 @@
                     </div>
                 </div>
             </div>
+            @endif
 
             <!-- AI Bot Configuration Tab -->
+            @if(hasFeature('whatsapp_connect'))
             <div class="settings-tab" id="tab-ai-bot" style="display:none">
 
                 <!-- ═══ Bot Mode Selector (2-Card) ═══ -->
@@ -733,10 +751,11 @@
                                 <div style="font-size:32px;margin-bottom:8px">📋</div>
                                 <h4 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#334155">Bot List</h4>
                                 <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Menu-driven catalogue bot<br>+ Auto Reply rules included<br>Zero AI cost — all PHP</p>
-                                <div style="margin-top:10px;font-size:11px;color:#94a3b8;background:#f1f5f9;padding:4px 8px;border-radius:6px">All packages</div>
+                                <div style="margin-top:10px;font-size:11px;color:#94a3b8;background:#f1f5f9;padding:4px 8px;border-radius:6px">Bot List package</div>
                             </div>
 
-                            <!-- AI Bot Card -->
+                            <!-- AI Bot Card — Package gated -->
+                            @if(auth()->user()->company && auth()->user()->company->hasFeature('ai_bot'))
                             <div class="bot-mode-card {{ $botMode === 'ai_bot' ? 'active' : '' }}"
                                  data-mode="ai_bot" onclick="selectBotMode('ai_bot')"
                                  style="border:2px solid {{ $botMode === 'ai_bot' ? '#8b5cf6' : '#e2e8f0' }};border-radius:12px;padding:20px;cursor:pointer;transition:all 0.3s;background:{{ $botMode === 'ai_bot' ? 'linear-gradient(135deg,#f5f3ff,#ede9fe)' : '#fafafa' }};position:relative;text-align:center">
@@ -748,6 +767,18 @@
                                 <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Smart AI + Interactive Lists<br>Gemini-powered chatbot<br>AI credits required</p>
                                 <div style="margin-top:10px;font-size:11px;color:#94a3b8;background:#f1f5f9;padding:4px 8px;border-radius:6px">AI Bot package</div>
                             </div>
+                            @else
+                            <!-- AI Bot Locked Card -->
+                            <div style="border:2px solid #e2e8f0;border-radius:12px;padding:20px;cursor:not-allowed;background:#fafafa;position:relative;text-align:center;opacity:0.6">
+                                <div style="position:absolute;top:10px;right:10px">
+                                    <i data-lucide="lock" style="width:16px;height:16px;color:#f59e0b"></i>
+                                </div>
+                                <div style="font-size:32px;margin-bottom:8px">🤖</div>
+                                <h4 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#94a3b8">AI Bot</h4>
+                                <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.5">Smart AI chatbot<br>Requires AI Bot package</p>
+                                <div style="margin-top:10px;font-size:11px;color:#f59e0b;background:#fffbeb;padding:4px 8px;border-radius:6px;font-weight:600">🔒 Upgrade Required</div>
+                            </div>
+                            @endif
                         </div>
                         <p class="text-sm text-muted" style="margin-top:12px;text-align:center" id="bot-mode-info">
                             @if($botMode === 'list_bot') 📋 Bot List active — menu-driven bot + auto reply rules. Zero AI cost.
@@ -1311,6 +1342,7 @@ RULE 4 — NO MATCH → NONE</textarea>
                     </div>
                 </div>
             </div>
+            @endif
 
             <!-- Backup & Restore Tab -->
             <div class="settings-tab" id="tab-backup-restore" style="display:none">
