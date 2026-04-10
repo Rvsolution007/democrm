@@ -805,7 +805,7 @@
                                             <input type="checkbox" id="official-api-toggle" {{ $officialApiEnabled ? 'checked' : '' }}
                                                 onchange="toggleOfficialApi(this.checked)"
                                                 style="opacity:0;width:0;height:0;position:absolute">
-                                            <div id="official-api-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $officialApiEnabled ? '#22c55e' : '#ccc' }};border-radius:24px;transition:0.3s" onclick="document.getElementById('official-api-toggle').click()">
+                                            <div id="official-api-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $officialApiEnabled ? '#22c55e' : '#ccc' }};border-radius:24px;transition:0.3s">
                                                 <div style="position:absolute;height:18px;width:18px;left:{{ $officialApiEnabled ? '23px' : '3px' }};bottom:3px;background:white;border-radius:50%;transition:0.3s" id="official-api-knob"></div>
                                             </div>
                                         </div>
@@ -850,7 +850,7 @@
                                             <input type="checkbox" id="evolution-api-toggle" {{ $evolutionApiEnabled ? 'checked' : '' }}
                                                 onchange="toggleEvolutionApi(this.checked)"
                                                 style="opacity:0;width:0;height:0;position:absolute">
-                                            <div id="evolution-api-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $evolutionApiEnabled ? '#3b82f6' : '#ccc' }};border-radius:24px;transition:0.3s" onclick="document.getElementById('evolution-api-toggle').click()">
+                                            <div id="evolution-api-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $evolutionApiEnabled ? '#3b82f6' : '#ccc' }};border-radius:24px;transition:0.3s">
                                                 <div style="position:absolute;height:18px;width:18px;left:{{ $evolutionApiEnabled ? '23px' : '3px' }};bottom:3px;background:white;border-radius:50%;transition:0.3s" id="evolution-api-knob"></div>
                                             </div>
                                         </div>
@@ -877,7 +877,7 @@
                                                 <input type="checkbox" id="evo-followup-toggle" {{ $evoFollowupEnabled ? 'checked' : '' }}
                                                     onchange="toggleEvoSubFeature('followup', this.checked)"
                                                     style="opacity:0;width:0;height:0;position:absolute">
-                                                <div id="evo-followup-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $evoFollowupEnabled ? '#22c55e' : '#f87171' }};border-radius:20px;transition:0.3s" onclick="document.getElementById('evo-followup-toggle').click()">
+                                                <div id="evo-followup-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $evoFollowupEnabled ? '#22c55e' : '#f87171' }};border-radius:20px;transition:0.3s">
                                                     <div style="position:absolute;height:14px;width:14px;left:{{ $evoFollowupEnabled ? '19px' : '3px' }};bottom:3px;background:white;border-radius:50%;transition:0.3s" id="evo-followup-knob"></div>
                                                 </div>
                                             </div>
@@ -896,7 +896,7 @@
                                                 <input type="checkbox" id="evo-bulk-toggle" {{ $evoBulkEnabled ? 'checked' : '' }}
                                                     onchange="toggleEvoSubFeature('bulk', this.checked)"
                                                     style="opacity:0;width:0;height:0;position:absolute">
-                                                <div id="evo-bulk-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $evoBulkEnabled ? '#22c55e' : '#f87171' }};border-radius:20px;transition:0.3s" onclick="document.getElementById('evo-bulk-toggle').click()">
+                                                <div id="evo-bulk-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $evoBulkEnabled ? '#22c55e' : '#f87171' }};border-radius:20px;transition:0.3s">
                                                     <div style="position:absolute;height:14px;width:14px;left:{{ $evoBulkEnabled ? '19px' : '3px' }};bottom:3px;background:white;border-radius:50%;transition:0.3s" id="evo-bulk-knob"></div>
                                                 </div>
                                             </div>
@@ -915,7 +915,7 @@
                                                 <input type="checkbox" id="evo-textmenu-toggle" {{ $evoTextmenuEnabled ? 'checked' : '' }}
                                                     onchange="toggleEvoSubFeature('textmenu', this.checked)"
                                                     style="opacity:0;width:0;height:0;position:absolute">
-                                                <div id="evo-textmenu-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $evoTextmenuEnabled ? '#22c55e' : '#f87171' }};border-radius:20px;transition:0.3s" onclick="document.getElementById('evo-textmenu-toggle').click()">
+                                                <div id="evo-textmenu-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $evoTextmenuEnabled ? '#22c55e' : '#f87171' }};border-radius:20px;transition:0.3s">
                                                     <div style="position:absolute;height:14px;width:14px;left:{{ $evoTextmenuEnabled ? '19px' : '3px' }};bottom:3px;background:white;border-radius:50%;transition:0.3s" id="evo-textmenu-knob"></div>
                                                 </div>
                                             </div>
@@ -972,7 +972,7 @@
                                 <input type="checkbox" id="interactive-list-toggle" {{ $interactiveListMode ? 'checked' : '' }}
                                     onchange="toggleInteractiveListMode(this.checked)"
                                     style="opacity:0;width:0;height:0;position:absolute">
-                                <div id="interactive-list-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $interactiveListMode ? '#22c55e' : '#ccc' }};border-radius:28px;transition:0.3s" onclick="document.getElementById('interactive-list-toggle').click()">
+                                <div id="interactive-list-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:{{ $interactiveListMode ? '#22c55e' : '#ccc' }};border-radius:28px;transition:0.3s">
                                     <div style="position:absolute;content:'';height:22px;width:22px;left:{{ $interactiveListMode ? '25px' : '3px' }};bottom:3px;background:white;border-radius:50%;transition:0.3s" id="interactive-list-knob"></div>
                                 </div>
                             </div>
