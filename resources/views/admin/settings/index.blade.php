@@ -717,7 +717,6 @@
                             @endif
                         </p>
                     </div>
-                </div>
 
                 
                 <!-- AI Config, Prompts, Match Playground moved to Super Admin Global Settings -->
@@ -752,7 +751,11 @@
                     </div>
                 </div>
 
-<!-- Reply Language Setting -->
+
+                @if(hasFeature('ai_bot'))
+                
+                @if(hasFeature('ai_bot'))
+                <!-- Reply Language Setting -->
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">Reply Language</h3>
@@ -848,6 +851,8 @@
                         </button>
                     </div>
                 </div>
+                @endif
+                @endif
             </div>
             @endif
 
