@@ -120,7 +120,8 @@
                     <!-- WhatsApp API tab removed -->
 
                     <!-- AI Bot Section — AI Bot package only -->
-                    <div style="margin-bottom:16px">
+                                        @if(hasFeature('ai_bot'))
+<div style="margin-bottom:16px">
                         <div
                             style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#999;padding:8px 12px">
                             AI Bot</div>
@@ -972,6 +973,7 @@
                             <span style="background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;font-size:11px;padding:4px 12px;border-radius:12px;font-weight:700;">
                                 {{ count($backupFiles) }} Files
                             </span>
+                        @endif
                     </div>
                     <div class="card-content" style="padding:0;">
                         @if(empty($backupFiles))

@@ -1,14 +1,19 @@
 <?php
 chdir(dirname(__DIR__));
-unlink(__DIR__ . '/fix_gate.php');
+// Delete temp scripts
+foreach (['fix_gate.php', 'git_final.php'] as $f) {
+    if (file_exists(__DIR__ . '/' . $f)) unlink(__DIR__ . '/' . $f);
+}
+
 echo "<pre>\n";
 echo shell_exec('git add -A 2>&1') . "\n";
-echo shell_exec('git commit -m "fix: Session Validity and Follow-Up visible for both packages
+echo shell_exec('git commit -m "fix: correct feature gate for admin settings sections
 
-- Reply Language: only shows for AI Bot package (hasFeature ai_bot)
-- Session Validity: shows for both Bot List and AI Bot packages  
-- Smart Follow-Up: shows for both Bot List and AI Bot packages
-- Fixed duplicate @if/@endif from previous script" 2>&1') . "\n";
+- Reply Language: only visible for AI Bot package (hasFeature ai_bot)
+- Session Validity & Follow-Up: visible for both packages (whatsapp_connect)
+- Business Query Prompt: visible for all whatsapp_connect users
+- Fixed unclosed @if in backup section
+- Added @if(hasFeature ai_bot) to sidebar section" 2>&1') . "\n";
 echo shell_exec('git log --oneline -3 2>&1') . "\n";
 echo "</pre>\n";
 unlink(__FILE__);
