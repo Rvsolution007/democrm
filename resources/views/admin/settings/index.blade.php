@@ -1,4 +1,4 @@
-﻿@extends('admin.layouts.app')
+@extends('admin.layouts.app')
 
 @section('title', 'Settings')
 @section('breadcrumb', 'Settings')
@@ -1873,24 +1873,6 @@
                 });
             }
 
-            // Initialize Summernote for AI Architecture Rules
-            if ($('#ai-architecture-rules').length && !$('#ai-architecture-rules').next('.note-editor').length) {
-                $('#ai-architecture-rules').summernote({
-                    placeholder: 'Write your AI Architecture rules here...',
-                    tabsize: 2,
-                    height: 350,
-                    toolbar: [
-                        ['style', ['style', 'bold', 'italic', 'underline', 'clear']],
-                        ['font', ['strikethrough', 'superscript', 'subscript']],
-                        ['fontsize', ['fontsize']],
-                        ['color', ['color']],
-                        ['para', ['ul', 'ol', 'paragraph']],
-                        ['table', ['table']],
-                        ['insert', ['link', 'hr']],
-                        ['view', ['fullscreen', 'codeview', 'help']]
-                    ]
-                });
-            }
 
             lucide.createIcons();
         });
