@@ -200,16 +200,8 @@ class GlobalSettingsController extends Controller
 
     public function testMatch(Request $request, $companyId)
     {
-        $request->validate(['message' => 'required|string|max:500']);
-
-        // Run match test against this business's products
-        try {
-            $service = app(\App\Services\ListBotService::class);
-            $result = $service->testProductGroupMatch($request->message, $companyId);
-            return response()->json(['success' => true, 'data' => $result]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
+        // TODO: Implement product match testing when ListBotService supports it
+        return response()->json(['success' => false, 'message' => 'Match testing not yet implemented for this business']);
     }
 
     public function clearMatchCache(Request $request, $companyId)

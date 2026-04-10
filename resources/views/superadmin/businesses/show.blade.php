@@ -445,6 +445,58 @@
         </div>
     </div>
 </div>
+
+{{-- ═══ Match Playground & Bot Config (Per-Business) ═══ --}}
+<div style="margin-top:24px;">
+    <div class="card">
+        <div class="card-header" style="flex-direction:row;align-items:center;justify-content:space-between;">
+            <h3 class="card-title" style="font-size:16px;">
+                <i data-lucide="gamepad-2" style="width:16px;height:16px;margin-right:6px;color:#8b5cf6;vertical-align:text-bottom;"></i>
+                🎮 Match Playground & Cache — {{ $company->name }}
+            </h3>
+        </div>
+        <div class="card-content">
+            <div style="background:linear-gradient(135deg,#ede9fe,#f5f3ff);border:1px solid #c4b5fd;border-radius:8px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px">
+                <i data-lucide="info" style="width:18px;height:18px;color:#7c3aed;flex-shrink:0;margin-top:1px"></i>
+                <div style="font-size:13px;color:#5b21b6;line-height:1.5">
+                    Ye section <strong>{{ $company->name }}</strong> ke products ke liye match test karne ke liye hai. Confidence threshold aur cache controls per-business hain.
+                </div>
+            </div>
+
+            {{-- Confidence Threshold --}}
+            @php
+                $matchConfidence = \App\Models\Setting::getValue('ai_bot', 'match_min_confidence', 60, $company->id);
+            @endphp
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+                <div>
+                    <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Match Confidence Threshold</label>
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <input type="range" id="sa-match-slider" min="0" max="100" value="{{ $matchConfidence }}"
+                            style="flex:1;accent-color:#8b5cf6;"
+                            oninput="document.getElementById('sa-match-val').value=this.value">
+                        <input type="number" id="sa-match-val" value="{{ $matchConfidence }}" min="0" max="100"
+                            style="width:65px;text-align:center;border:1px solid hsl(var(--border));border-radius:6px;padding:4px 8px;font-weight:700;"
+                            oninput="document.getElementById('sa-match-slider').value=this.value">
+                        <span style="font-size:13px;color:hsl(var(--muted-foreground));">%</span>
+                    </div>
+                    <div style="font-size:12px;color:hsl(var(--muted-foreground));margin-top:6px;">Kam value = zyada matches (loose), Zyada value = strict matches</div>
+                    <button type="button" class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="saveMatchConfidence()">
+                        <i data-lucide="save" style="width:14px;height:14px;"></i> Save Threshold
+                    </button>
+                </div>
+                <div>
+                    <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Cache Controls</label>
+                    <div style="background:hsl(var(--secondary));border-radius:8px;padding:16px;">
+                        <p style="font-size:13px;color:hsl(var(--muted-foreground));margin-bottom:12px;">Product match index cache clear karo jab products change ho.</p>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="clearMatchCache()">
+                            <i data-lucide="trash-2" style="width:14px;height:14px;"></i> Clear Product Cache
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -475,5 +527,27 @@ document.addEventListener('DOMContentLoaded', function() {
     updatePrice();
     togglePaymentInfo();
 });
+
+// ─── Match Playground ───
+function saveMatchConfidence() {
+    const val = document.getElementById('sa-match-val').value;
+    fetch('{{ route("superadmin.businesses.match-confidence", $company->id) }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+        body: JSON.stringify({ confidence: parseInt(val) })
+    }).then(r => r.json()).then(data => {
+        alert(data.message || 'Saved');
+    }).catch(() => alert('Request failed'));
+}
+
+function clearMatchCache() {
+    if (!confirm('Is business ka product match cache clear karein?')) return;
+    fetch('{{ route("superadmin.businesses.clear-cache", $company->id) }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }
+    }).then(r => r.json()).then(data => {
+        alert(data.message || 'Cache cleared');
+    }).catch(() => alert('Request failed'));
+}
 </script>
 @endpush
