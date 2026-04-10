@@ -739,35 +739,39 @@
                         </h3>
                         <p class="text-sm text-muted" style="margin-top:4px">Select which bot mode to use. Auto-Reply rules are included in Bot List mode.</p>
                     </div>
-                    <div class="card-content">
-                        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px" id="bot-mode-cards">
-                            <!-- Bot List Card (includes Auto Reply) -->
-                            <div class="bot-mode-card {{ $botMode === 'list_bot' ? 'active' : '' }}"
-                                 data-mode="list_bot" onclick="selectBotMode('list_bot')"
-                                 style="border:2px solid {{ $botMode === 'list_bot' ? '#3b82f6' : '#e2e8f0' }};border-radius:12px;padding:20px;cursor:pointer;transition:all 0.3s;background:{{ $botMode === 'list_bot' ? 'linear-gradient(135deg,#eff6ff,#dbeafe)' : '#fafafa' }};position:relative;text-align:center">
-                                <div style="position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;border:2px solid {{ $botMode === 'list_bot' ? '#3b82f6' : '#d1d5db' }};background:{{ $botMode === 'list_bot' ? '#3b82f6' : 'transparent' }};display:flex;align-items:center;justify-content:center;transition:all 0.3s" id="radio-list_bot">
-                                    @if($botMode === 'list_bot')<i data-lucide="check" style="width:14px;height:14px;color:white"></i>@endif
+                        @php
+                            $hasAiBot = auth()->user()->company && auth()->user()->company->hasFeature('ai_bot');
+                        @endphp
+
+                        <div style="display:grid;grid-template-columns:{{ $hasAiBot ? '1fr' : 'repeat(2,1fr)' }};gap:16px" id="bot-mode-cards">
+
+                            @if($hasAiBot)
+                            <!-- ═══ AI Bot Package → Only AI Bot Card (auto-selected) ═══ -->
+                            <div class="bot-mode-card active" data-mode="ai_bot"
+                                 style="border:2px solid #8b5cf6;border-radius:12px;padding:24px;background:linear-gradient(135deg,#f5f3ff,#ede9fe);position:relative;text-align:center">
+                                <div style="position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;border:2px solid #8b5cf6;background:#8b5cf6;display:flex;align-items:center;justify-content:center" id="radio-ai_bot">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                                </div>
+                                <div style="font-size:36px;margin-bottom:8px">🤖</div>
+                                <h4 style="margin:0 0 4px;font-size:16px;font-weight:700;color:#334155">AI Bot</h4>
+                                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Smart AI + Interactive Lists<br>Gemini-powered chatbot<br>AI credits required</p>
+                                <div style="margin-top:10px;font-size:11px;color:#8b5cf6;background:rgba(139,92,246,0.1);padding:4px 10px;border-radius:6px;font-weight:600">✓ Your Package</div>
+                            </div>
+
+                            @else
+                            <!-- ═══ Bot List Package → Only Bot List Card + Locked AI Bot ═══ -->
+                            <!-- Bot List Card (active) -->
+                            <div class="bot-mode-card active" data-mode="list_bot"
+                                 style="border:2px solid #3b82f6;border-radius:12px;padding:20px;background:linear-gradient(135deg,#eff6ff,#dbeafe);position:relative;text-align:center">
+                                <div style="position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;border:2px solid #3b82f6;background:#3b82f6;display:flex;align-items:center;justify-content:center" id="radio-list_bot">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
                                 </div>
                                 <div style="font-size:32px;margin-bottom:8px">📋</div>
                                 <h4 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#334155">Bot List</h4>
                                 <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Menu-driven catalogue bot<br>+ Auto Reply rules included<br>Zero AI cost — all PHP</p>
-                                <div style="margin-top:10px;font-size:11px;color:#94a3b8;background:#f1f5f9;padding:4px 8px;border-radius:6px">Bot List package</div>
+                                <div style="margin-top:10px;font-size:11px;color:#3b82f6;background:rgba(59,130,246,0.1);padding:4px 10px;border-radius:6px;font-weight:600">✓ Your Package</div>
                             </div>
 
-                            <!-- AI Bot Card — Package gated -->
-                            @if(auth()->user()->company && auth()->user()->company->hasFeature('ai_bot'))
-                            <div class="bot-mode-card {{ $botMode === 'ai_bot' ? 'active' : '' }}"
-                                 data-mode="ai_bot" onclick="selectBotMode('ai_bot')"
-                                 style="border:2px solid {{ $botMode === 'ai_bot' ? '#8b5cf6' : '#e2e8f0' }};border-radius:12px;padding:20px;cursor:pointer;transition:all 0.3s;background:{{ $botMode === 'ai_bot' ? 'linear-gradient(135deg,#f5f3ff,#ede9fe)' : '#fafafa' }};position:relative;text-align:center">
-                                <div style="position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;border:2px solid {{ $botMode === 'ai_bot' ? '#8b5cf6' : '#d1d5db' }};background:{{ $botMode === 'ai_bot' ? '#8b5cf6' : 'transparent' }};display:flex;align-items:center;justify-content:center;transition:all 0.3s" id="radio-ai_bot">
-                                    @if($botMode === 'ai_bot')<i data-lucide="check" style="width:14px;height:14px;color:white"></i>@endif
-                                </div>
-                                <div style="font-size:32px;margin-bottom:8px">🤖</div>
-                                <h4 style="margin:0 0 4px;font-size:15px;font-weight:700;color:#334155">AI Bot</h4>
-                                <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5">Smart AI + Interactive Lists<br>Gemini-powered chatbot<br>AI credits required</p>
-                                <div style="margin-top:10px;font-size:11px;color:#94a3b8;background:#f1f5f9;padding:4px 8px;border-radius:6px">AI Bot package</div>
-                            </div>
-                            @else
                             <!-- AI Bot Locked Card -->
                             <div style="border:2px solid #e2e8f0;border-radius:12px;padding:20px;cursor:not-allowed;background:#fafafa;position:relative;text-align:center;opacity:0.6">
                                 <div style="position:absolute;top:10px;right:10px">
@@ -781,8 +785,8 @@
                             @endif
                         </div>
                         <p class="text-sm text-muted" style="margin-top:12px;text-align:center" id="bot-mode-info">
-                            @if($botMode === 'list_bot') 📋 Bot List active — menu-driven bot + auto reply rules. Zero AI cost.
-                            @else 🤖 AI Bot active — smart AI chatbot with Gemini
+                            @if($hasAiBot) 🤖 AI Bot active — smart AI chatbot with Gemini
+                            @else 📋 Bot List active — menu-driven bot + auto reply rules. Zero AI cost.
                             @endif
                         </p>
                     </div>
@@ -2367,9 +2371,11 @@ RULE 4 — NO MATCH → NONE</textarea>
             // Update info text
             document.getElementById('bot-mode-info').textContent = infos[mode] || '';
 
-            // Show/hide mode-specific cards
-            document.getElementById('list-bot-settings-card').style.display = mode === 'list_bot' ? '' : 'none';
-            document.getElementById('interactive-list-card').style.display = mode === 'ai_bot' ? '' : 'none';
+            // Show/hide mode-specific cards (null-safe: may not exist based on package)
+            var listBotCard = document.getElementById('list-bot-settings-card');
+            var interactiveCard = document.getElementById('interactive-list-card');
+            if (listBotCard) listBotCard.style.display = mode === 'list_bot' ? '' : 'none';
+            if (interactiveCard) interactiveCard.style.display = mode === 'ai_bot' ? '' : 'none';
 
             // Show/hide Text Menu sub-toggle (only in Bot List mode)
             var textmenuRow = document.getElementById('evo-textmenu-row');
