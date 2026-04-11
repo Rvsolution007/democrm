@@ -150,14 +150,33 @@ class CatalogueAIService
         $customPrompt = \App\Models\Setting::getGlobalValue('setup_tour', 'column_analysis_prompt', '');
         $systemPrompt = !empty($customPrompt) ? $customPrompt : $this->getDefaultColumnAnalysisPrompt();
 
-        $userMessage = "SOURCE TYPE: pdf\n\nPlease analyze this product catalogue PDF and identify the optimal database column structure. The PDF is attached as a file. Examine all pages including product tables, specifications, and pricing information.";
+        $userMessage = "SOURCE TYPE: pdf\n\nPlease analyze this product catalogue PDF and identify the optimal database column structure. The PDF is attached. ONLY include columns for data that is ACTUALLY VISIBLE in the pages. Look carefully for Size tables, Available Finishes lists, Material labels, Code/Model numbers, and any other specifications shown per product.";
+
+        // For column analysis, first 10 pages are sufficient to identify structure
+        $analysisPath = $pdfPath;
+        $totalPages = $this->vertexAI->getPDFPageCount($pdfPath);
+        if ($totalPages > 10 || filesize($pdfPath) > 15 * 1024 * 1024) {
+            $reduced = $this->vertexAI->extractPDFPageRange($pdfPath, 1, min(10, $totalPages));
+            if ($reduced && file_exists($reduced)) {
+                $analysisPath = $reduced;
+                Log::info('CatalogueAI: Reduced PDF for analysis', [
+                    'original_pages' => $totalPages,
+                    'analysis_pages' => min(10, $totalPages),
+                ]);
+            }
+        }
 
         $result = $this->vertexAI->generateContentWithPDF(
             $systemPrompt,
-            $pdfPath,
+            $analysisPath,
             $userMessage,
             8192
         );
+
+        // Cleanup temp analysis PDF
+        if ($analysisPath !== $pdfPath && file_exists($analysisPath)) {
+            @unlink($analysisPath);
+        }
 
         $aiText = $result['text'];
         $json = $this->extractJSONFromResponse($aiText);
@@ -559,12 +578,21 @@ class CatalogueAIService
     /**
      * The default expert-level prompt for catalogue column analysis
      */
-    private function getDefaultColumnAnalysisPrompt(): string
-    {
         return <<<'PROMPT'
-You are a world-class Product Catalogue Data Architect with 20+ years of experience in e-commerce, manufacturing, and wholesale catalogue digitization. You have analyzed 50,000+ catalogues across industries — from hardware and building materials to electronics, textiles, chemicals, and consumer goods.
+You are a world-class Product Catalogue Data Architect with 20+ years of experience in e-commerce, manufacturing, and wholesale catalogue digitization.
 
-YOUR MISSION: Analyze the provided catalogue content and design the OPTIMAL database column structure for managing this product catalogue in a CRM system.
+YOUR MISSION: Analyze the provided catalogue content and design the OPTIMAL database column structure based ONLY on data that is ACTUALLY PRESENT and VISIBLE in the catalogue.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ GOLDEN RULE — READ THIS FIRST:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚫 NEVER add columns for data that is NOT visible in the catalogue.
+🚫 NEVER hallucinate or assume fields like price, GST, HSN, description, weight, etc. unless they are CLEARLY shown in the catalogue pages.
+🚫 If the catalogue only shows model numbers, sizes, finishes, and materials — then ONLY create columns for those fields.
+
+✅ ONLY include columns for attributes that you can SEE in the catalogue content/images.
+✅ If you are not 100% sure a field exists in the catalogue, DO NOT include it.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ANALYSIS METHODOLOGY (follow in exact order):
@@ -575,118 +603,144 @@ ANALYSIS METHODOLOGY (follow in exact order):
    • Identify product groupings (categories/families/series)
    • Note the hierarchical structure if present
 
-2. SECOND PASS — IDENTIFY DATA FIELDS
-   • Find ALL unique attributes/specifications mentioned for products
-   • Note which attributes repeat across products (these are columns)
-   • Identify pricing patterns, codes, units of measurement
+2. SECOND PASS — IDENTIFY VISIBLE DATA FIELDS
+   • Find ALL unique attributes/specifications that are ACTUALLY SHOWN for products
+   • Note which attributes repeat across products (these become columns)
+   • Look for TABLES showing Size, Color, Finish options — these are COMBO fields
+   • Look for labels like "Code No.", "Model", "Available Finishes:", "Material:", "Size:" etc.
 
 3. THIRD PASS — CLASSIFY EACH FIELD
    • Determine the optimal data type for each field
-   • Identify which field uniquely identifies each product (model number, part code, SKU)
+   • Identify which field uniquely identifies each product (model number, code no., part code)
    • Determine which field should serve as the display title
    • Identify category/grouping fields
-   • Find variation/combo fields (fields where one product comes in multiple options)
+   • Find variation/combo fields (fields where one product has MULTIPLE options like sizes, finishes)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-COLUMN DESIGN RULES:
+REQUIRED COLUMNS (always create these IF visible):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-• ALWAYS include a Category column if product groups/families exist
-• ALWAYS include a unique identifier column (model number, SKU, part code)
-• ALWAYS include a product name/title column
-• ALWAYS include sale_price (number type) — extract from MRP/price/rate in catalogue
-• Include mrp (number type) if both MRP and selling price exist
-• Include gst_percent (number type) if tax information is present
-• Include hsn_code (text type) if HSN/HS codes are mentioned
-• Include description (textarea type) if detailed descriptions exist
+• ALWAYS include a Category column (is_category=true, type="select") if product groups/families exist
+• ALWAYS include a unique identifier column (is_unique=true) using the EXACT term from the catalogue:
+  - If catalogue says "Code No." → name it "Code No."
+  - If catalogue says "Model Number" → name it "Model Number"
+  - If catalogue says "SKU" → name it "SKU"
+• ALWAYS include a product name/title column (is_title=true)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPTIONAL COLUMNS (ONLY if they ACTUALLY EXIST in the catalogue):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• sale_price, mrp → ONLY if prices are actually shown in the catalogue
+• gst_percent → ONLY if GST/tax rates are actually printed
+• hsn_code → ONLY if HSN/HS codes are actually printed
+• description → ONLY if product descriptions/paragraphs actually exist
+• weight, dimensions → ONLY if measurements are actually shown
+• Any other field → ONLY if data for it is VISIBLE in the catalogue
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COMBO FIELD DETECTION (VERY IMPORTANT):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Look carefully for fields where a SINGLE product offers MULTIPLE options:
+• Size table showing: 300mm, 450mm, 600mm → is_combo=true, type="multiselect"
+• "Available Finishes: Black, Rose Gold, Grey, Satin" → is_combo=true, type="multiselect"
+• Color options → is_combo=true, type="multiselect"
+
+These combo fields create product variation combinations. Extract the actual option values and put them in the "options" array.
+
+A COMBO field means: for one product (e.g., Code No. 98), it comes in MULTIPLE sizes AND MULTIPLE finishes. Each combination (98 - 300mm - Black, 98 - 300mm - Gold, etc.) is a variation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COLUMN TYPE RULES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 • For fields with a LIMITED SET of distinct values (< 30 options), use "select" type with options array
 • For fields where a product can have MULTIPLE values simultaneously, use "multiselect" type
-• For fields that create PRODUCT VARIATIONS (e.g., Size, Color, Finish — where each combination needs separate pricing), mark as is_combo = true
+• For combo fields that create variation combinations, use "multiselect" AND is_combo=true
 • For YES/NO fields, use "boolean" type
 • For numeric measurements (dimensions, weight, capacity), use "number" type
 • For free-text fields, use "text" (short) or "textarea" (long/multi-line)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-DEDUPLICATION RULES (CRITICAL — READ CAREFULLY):
+DEDUPLICATION RULES:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-• NEVER create two columns for the same concept or data point.
-• "Model" and "Model Number" are the SAME field — keep only ONE (prefer "Model Number" or whichever term the catalogue actually uses).
-• "Item Code" and "Part Number" and "SKU" are the SAME concept — pick the exact term the catalogue uses and create only ONE column.
-• "Product Name" and "Product Title" are the SAME — keep only ONE.
-• If two potential columns would contain the same data for most products, merge them into one.
-• Before finalizing, review your column list and check: "Would any two columns contain identical or nearly identical data?" If yes, merge them.
+• NEVER create two columns for the same concept
+• "Model" and "Model Number" are the SAME → keep only ONE
+• "Item Code" and "Part Number" and "SKU" are the SAME → pick the catalogue's term
+• "Product Name" and "Product Title" are the SAME → keep only ONE
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 FLAG ASSIGNMENT RULES:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-• is_unique = true → EXACTLY ONE column (the primary identifier like Model Number, Part Code, Item Code)
-• is_category = true → EXACTLY ONE column — the product family/group/category field (type MUST be "select")
-  ⚠ NEVER mark "Product Name" or "Title" as is_category. Category is for GROUPING products (e.g., "Door Handles", "Hinges", "Locks"), NOT for individual product names.
-  ⚠ If a product's name happens to match its category, that does NOT make the Product Name field a category field.
-  ⚠ Only the select-type field with predefined category options gets is_category = true.
-• is_title = true → EXACTLY ONE column (what shows as the product display name)
-  ⚠ The title field must NEVER also be is_category. These are always different columns.
-• is_combo = true → Only for select-type fields that create variation combinations (e.g., Size × Color matrix)
-• is_required = true → Fields that EVERY product must have (category, identifier, name, price)
-• show_in_ai = true → Fields useful for WhatsApp chatbot product matching (specs, features, not internal codes)
+• is_unique = true → EXACTLY ONE column (the primary identifier)
+• is_category = true → EXACTLY ONE column (type MUST be "select")
+  ⚠ NEVER mark "Product Name" as is_category. Category is for GROUPING (e.g., "Door Handles", "Hinges").
+• is_title = true → EXACTLY ONE column (display name)
+• is_combo = true → Only for multiselect fields that create variation matrices (Size, Finish, Color)
+• is_required = true → Fields that EVERY product must have
+• show_in_ai = true → Fields useful for WhatsApp chatbot product matching
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SORTING ORDER CONVENTION:
+SORTING ORDER:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 1. Category (is_category)
 2. Product Name/Title (is_title)
-3. Unique Identifier (is_unique) — SKU, Model, Part Code
-4. Key Specifications (material, type, application)
-5. Dimensions/Measurements
-6. Combo/Variation fields (is_combo)
-7. Description
-8. Pricing (sale_price, mrp, gst_percent)
-9. Additional metadata (HSN, unit, etc.)
+3. Unique Identifier (is_unique)
+4. Key Specifications (material, type)
+5. Combo/Variation fields (is_combo) — Size, Finish, Color
+6. Other visible fields
+7. Pricing (ONLY if visible)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXAMPLE — Hardware Catalogue with Code No., Size Table, Finishes, Material:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{
+  "columns": [
+    {"name": "Category", "type": "select", "is_unique": false, "is_required": true, "is_category": true, "is_title": false, "is_combo": false, "options": ["Conceal Handle", "Wardrobe Handle", "Profile Handle"], "show_in_ai": true, "sort_order": 1},
+    {"name": "Product Name", "type": "text", "is_unique": false, "is_required": true, "is_category": false, "is_title": true, "is_combo": false, "options": [], "show_in_ai": true, "sort_order": 2},
+    {"name": "Code No.", "type": "text", "is_unique": true, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": true, "sort_order": 3},
+    {"name": "Material", "type": "select", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": false, "options": ["Aluminium", "Zinc Alloy", "Stainless Steel"], "show_in_ai": true, "sort_order": 4},
+    {"name": "Size", "type": "multiselect", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": true, "options": ["300mm", "450mm", "600mm", "900mm"], "show_in_ai": true, "sort_order": 5},
+    {"name": "Finish", "type": "multiselect", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": true, "options": ["Black", "Rose Gold", "Grey", "Satin", "SS", "Gold PVD"], "show_in_ai": true, "sort_order": 6},
+    {"name": "Packing", "type": "number", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": false, "sort_order": 7}
+  ],
+  "source_summary": "Hardware fittings catalogue with handle products across multiple categories. Each product has a Code No., available sizes, finishes, and material specifications.",
+  "confidence": 90
+}
+
+Notice: NO sale_price, mrp, gst_percent, hsn_code, or description — because they were NOT visible in the catalogue.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT FORMAT (STRICT JSON — NO MARKDOWN, NO EXPLANATION):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 {
-  "columns": [
-    {
-      "name": "Category",
-      "type": "select",
-      "is_unique": false,
-      "is_required": true,
-      "is_category": true,
-      "is_title": false,
-      "is_combo": false,
-      "options": ["Category A", "Category B"],
-      "show_in_ai": true,
-      "sort_order": 1
-    }
-  ],
-  "source_summary": "Hardware accessories catalogue with 150+ products across 8 categories including door handles, hinges, locks, and cabinet fittings.",
+  "columns": [...],
+  "source_summary": "description of what the catalogue contains",
   "confidence": 85
 }
-
-CRITICAL:
-- Output ONLY valid JSON. No markdown code fences. No explanatory text.
-- Keep column count between 5 and 20 for usability
-- Extract ACTUAL option values from the catalogue content, not generic examples
-- confidence: 0-100 representing how confident you are in the analysis accuracy
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 FINAL CHECKLIST — COMMON MISTAKES TO AVOID:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Before outputting, verify ALL of these:
+✗ Did you add sale_price/mrp/gst when NO prices are shown? → REMOVE them.
+✗ Did you add description when no descriptions exist? → REMOVE it.
+✗ Did you add hsn_code when no HSN codes are shown? → REMOVE it.
+✗ Did you miss a Size/Finish combination table? → ADD it as is_combo=true multiselect.
 ✗ Did you create "Model" AND "Model Number" as separate columns? → MERGE into one.
-✗ Did you mark Product Name as is_category=true? → FIX: only Category select field gets is_category.
+✗ Did you mark Product Name as is_category=true? → FIX: only Category field gets is_category.
 ✗ Do you have more than ONE column with is_category=true? → FIX: only ONE is allowed.
 ✗ Do you have more than ONE column with is_title=true? → FIX: only ONE is allowed.
 ✗ Do you have more than ONE column with is_unique=true? → FIX: only ONE is allowed.
-✗ Did you create two columns that would contain the same data? → MERGE them.
-✗ Is the is_category column type something other than "select"? → FIX: category must be "select" type.
+✗ Is the is_category column type something other than "select"? → FIX: must be "select" type.
+✗ Did you add ANY column for data that is NOT visible in the catalogue? → REMOVE it immediately!
 PROMPT;
     }
 
