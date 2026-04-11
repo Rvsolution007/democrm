@@ -95,21 +95,39 @@ class VertexAIService
             $accessToken = $this->getAccessToken();
             $endpoint = $this->getEndpoint();
 
-            // Check file size — Gemini inline limit is ~20MB
+            // Check file size — Gemini inline limit is ~20MB total request
             $fileSize = filesize($pdfPath);
-            Log::info('VertexAI PDF: Processing file', ['size_mb' => round($fileSize / 1024 / 1024, 2), 'path' => basename($pdfPath)]);
+            $fileSizeMB = round($fileSize / 1024 / 1024, 2);
+            Log::info('VertexAI PDF: Processing file', ['size_mb' => $fileSizeMB, 'path' => basename($pdfPath)]);
 
             if ($fileSize > 20 * 1024 * 1024) {
                 throw new \RuntimeException('PDF file is too large for AI analysis (max 20MB). Please compress the PDF and try again.');
             }
 
+            // For large PDFs (>5MB), try to reduce to first 5 pages using Ghostscript
+            $pdfToSend = $pdfPath;
+            if ($fileSize > 5 * 1024 * 1024) {
+                $pdfToSend = $this->reducePDFPages($pdfPath, 5);
+                $newSize = filesize($pdfToSend);
+                Log::info('VertexAI PDF: Reduced PDF for API', [
+                    'original_mb' => $fileSizeMB,
+                    'reduced_mb' => round($newSize / 1024 / 1024, 2),
+                    'max_pages' => 5,
+                ]);
+            }
+
             // Read PDF and encode as base64
-            $pdfContent = file_get_contents($pdfPath);
+            $pdfContent = file_get_contents($pdfToSend);
             if ($pdfContent === false) {
                 throw new \RuntimeException('Could not read PDF file.');
             }
             $pdfBase64 = base64_encode($pdfContent);
             unset($pdfContent); // Free memory immediately
+
+            // Clean up temp reduced PDF
+            if ($pdfToSend !== $pdfPath && file_exists($pdfToSend)) {
+                @unlink($pdfToSend);
+            }
 
             // Build multimodal request with PDF inline data
             $body = [
@@ -141,22 +159,45 @@ class VertexAIService
                 ];
             }
 
-            Log::info('VertexAI PDF: Sending request to Gemini API');
+            $jsonBody = json_encode($body);
+            unset($body); // Free array
 
-            $response = Http::withHeaders([
-                'Authorization' => "Bearer {$accessToken}",
-                'Content-Type' => 'application/json',
-                'Expect' => '', // Disable 100-continue which causes HTTP 417 with large payloads
-            ])->timeout(180)->connectTimeout(60)->post($endpoint, $body);
+            Log::info('VertexAI PDF: Sending request to Gemini API', ['request_size_mb' => round(strlen($jsonBody) / 1024 / 1024, 2)]);
 
-            unset($body); // Free request body memory
+            // Use cURL directly to avoid Expect:100-continue header (causes HTTP 417)
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $endpoint,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $jsonBody,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 180,
+                CURLOPT_CONNECTTIMEOUT => 60,
+                CURLOPT_HTTPHEADER => [
+                    "Authorization: Bearer {$accessToken}",
+                    'Content-Type: application/json',
+                    'Expect:', // Explicitly disable Expect: 100-continue
+                ],
+            ]);
 
-            if (!$response->successful()) {
-                Log::error('VertexAI PDF: API error', ['status' => $response->status(), 'body' => substr($response->body(), 0, 500)]);
-                throw new \RuntimeException('AI service returned an error while processing the PDF (HTTP ' . $response->status() . ').');
+            $responseBody = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+            unset($jsonBody); // Free JSON body
+
+            if ($curlError) {
+                Log::error('VertexAI PDF: cURL error', ['error' => $curlError]);
+                throw new \RuntimeException('Network error while sending PDF to AI: ' . $curlError);
             }
 
-            $data = $response->json();
+            if ($httpCode < 200 || $httpCode >= 300) {
+                Log::error('VertexAI PDF: API error', ['status' => $httpCode, 'body' => substr($responseBody, 0, 500)]);
+                throw new \RuntimeException('AI service returned an error while processing the PDF (HTTP ' . $httpCode . ').');
+            }
+
+            $data = json_decode($responseBody, true);
+            unset($responseBody);
 
             // Check for blocked/empty candidates
             if (empty($data['candidates'])) {
@@ -187,6 +228,86 @@ class VertexAIService
         } finally {
             ini_set('memory_limit', $originalMemory);
         }
+    }
+
+    /**
+     * Reduce a PDF to only the first N pages using available system tools.
+     * Tries Ghostscript (gs), pdftk, and qpdf in order.
+     * Returns path to reduced PDF, or original path if reduction fails.
+     */
+    private function reducePDFPages(string $pdfPath, int $maxPages = 5): string
+    {
+        $tempDir = dirname($pdfPath);
+        $reducedPath = $tempDir . DIRECTORY_SEPARATOR . 'reduced_' . basename($pdfPath);
+
+        // Try Ghostscript (most commonly available)
+        $gsPath = $this->findCommand('gs');
+        if ($gsPath) {
+            $cmd = sprintf(
+                '%s -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dFirstPage=1 -dLastPage=%d -sOutputFile=%s %s 2>&1',
+                escapeshellarg($gsPath),
+                $maxPages,
+                escapeshellarg($reducedPath),
+                escapeshellarg($pdfPath)
+            );
+            exec($cmd, $output, $returnCode);
+            if ($returnCode === 0 && file_exists($reducedPath) && filesize($reducedPath) > 0) {
+                Log::info('VertexAI PDF: Reduced using Ghostscript', ['pages' => $maxPages]);
+                return $reducedPath;
+            }
+            Log::warning('VertexAI PDF: Ghostscript reduction failed', ['code' => $returnCode, 'output' => implode("\n", array_slice($output, -3))]);
+        }
+
+        // Try pdftk
+        $pdftkPath = $this->findCommand('pdftk');
+        if ($pdftkPath) {
+            $cmd = sprintf(
+                '%s %s cat 1-%d output %s 2>&1',
+                escapeshellarg($pdftkPath),
+                escapeshellarg($pdfPath),
+                $maxPages,
+                escapeshellarg($reducedPath)
+            );
+            exec($cmd, $output, $returnCode);
+            if ($returnCode === 0 && file_exists($reducedPath) && filesize($reducedPath) > 0) {
+                Log::info('VertexAI PDF: Reduced using pdftk', ['pages' => $maxPages]);
+                return $reducedPath;
+            }
+        }
+
+        // Try qpdf
+        $qpdfPath = $this->findCommand('qpdf');
+        if ($qpdfPath) {
+            $cmd = sprintf(
+                '%s %s --pages . 1-%d -- %s 2>&1',
+                escapeshellarg($qpdfPath),
+                escapeshellarg($pdfPath),
+                $maxPages,
+                escapeshellarg($reducedPath)
+            );
+            exec($cmd, $output, $returnCode);
+            if ($returnCode === 0 && file_exists($reducedPath) && filesize($reducedPath) > 0) {
+                Log::info('VertexAI PDF: Reduced using qpdf', ['pages' => $maxPages]);
+                return $reducedPath;
+            }
+        }
+
+        // No tools available — return original and hope it works
+        Log::warning('VertexAI PDF: No PDF reduction tools available (gs, pdftk, qpdf). Sending full PDF.');
+        return $pdfPath;
+    }
+
+    /**
+     * Find a system command path.
+     */
+    private function findCommand(string $command): ?string
+    {
+        $cmd = PHP_OS_FAMILY === 'Windows' ? "where {$command}" : "which {$command}";
+        exec($cmd . ' 2>/dev/null', $output, $returnCode);
+        if ($returnCode === 0 && !empty($output[0])) {
+            return trim($output[0]);
+        }
+        return null;
     }
 
     /**
