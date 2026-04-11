@@ -578,6 +578,8 @@ class CatalogueAIService
     /**
      * The default expert-level prompt for catalogue column analysis
      */
+    private function getDefaultColumnAnalysisPrompt(): string
+    {
         return <<<'PROMPT'
 You are a world-class Product Catalogue Data Architect with 20+ years of experience in e-commerce, manufacturing, and wholesale catalogue digitization.
 
