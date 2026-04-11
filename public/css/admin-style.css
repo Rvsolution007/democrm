@@ -818,6 +818,103 @@ textarea {
     border-top: 1px solid var(--border);
     font-size: 0.875rem;
     color: var(--muted-foreground);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+/* ─── Pagination Styling ─── */
+.table-footer nav {
+    display: flex;
+    align-items: center;
+}
+.table-footer nav > div {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.table-footer nav > div > div:first-child {
+    display: none; /* Hide "Showing X to Y of Z results" text from Laravel */
+}
+.table-footer nav > div > div:last-child {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
+/* Universal pagination list reset */
+.table-footer ul,
+.table-footer nav ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.table-footer ul li,
+.table-footer nav ul li {
+    list-style: none;
+}
+.table-footer ul li a,
+.table-footer ul li span,
+.table-footer nav ul li a,
+.table-footer nav ul li span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--foreground);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+.table-footer ul li a:hover,
+.table-footer nav ul li a:hover {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border-color: var(--primary);
+    box-shadow: 0 2px 8px rgba(249, 115, 22, 0.25);
+}
+/* Active page */
+.table-footer ul li.active span,
+.table-footer ul li span[aria-current="page"],
+.table-footer nav ul li.active span,
+.table-footer nav ul li span[aria-current="page"],
+.table-footer nav span[aria-current="page"] {
+    background: var(--primary) !important;
+    color: var(--primary-foreground) !important;
+    border-color: var(--primary) !important;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(249, 115, 22, 0.25);
+}
+/* Disabled (prev/next when at boundary) */
+.table-footer ul li.disabled span,
+.table-footer nav ul li.disabled span,
+.table-footer nav span[aria-disabled="true"] {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: var(--muted);
+    border-color: var(--border);
+    color: var(--muted-foreground);
+}
+/* Dots / ellipsis */
+.table-footer ul li span.dots,
+.table-footer nav ul li span:not([aria-current]):not([aria-disabled]) {
+    border: none;
+    background: transparent;
+    min-width: 24px;
+    padding: 0 4px;
+    cursor: default;
+    color: var(--muted-foreground);
 }
 
 /* =============== MODALS =============== */

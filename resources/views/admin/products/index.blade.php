@@ -127,7 +127,6 @@
             <table class="table" id="products-table">
                 <thead>
                     <tr>
-                        <th>Category</th>
                         @foreach($customColumns->where('show_on_list', true) as $col)
                             <th>{{ $col->name }}</th>
                         @endforeach
@@ -138,10 +137,18 @@
                 <tbody>
                     @forelse($products as $product)
                         <tr>
-                            <td><span class="badge badge-secondary">{{ $product->category->name ?? 'N/A' }}</span></td>
                             @foreach($customColumns->where('show_on_list', true) as $col)
                                 <td>
-                                    @if($col->is_system)
+                                    @if($col->is_category && $col->is_title)
+                                        {{-- Column is both Category + Title: show product name (which = category name) --}}
+                                        <span class="font-medium">{{ $product->name }}</span>
+                                    @elseif($col->is_category)
+                                        {{-- Category-only column: show category name as badge --}}
+                                        <span class="badge badge-secondary">{{ $product->category->name ?? 'N/A' }}</span>
+                                    @elseif($col->is_title)
+                                        {{-- Title-only column: show product name --}}
+                                        <span class="font-medium">{{ $product->name }}</span>
+                                    @elseif($col->is_system)
                                         @php
                                             $val = $product->{$col->slug};
                                             if(in_array($col->slug, ['mrp', 'sale_price'])) $val = '₹' . number_format($val / 100, 2);
@@ -207,7 +214,10 @@
                 </tbody>
             </table>
         </div>
-        <div class="table-footer">{{ $products->links() }}</div>
+        <div class="table-footer">
+            <span>Showing {{ $products->count() }} of {{ $products->total() }} entries</span>
+            {{ $products->links() }}
+        </div>
     </div>
 
     <!-- ════════════ Add/Edit Product Modal ════════════ -->
