@@ -755,6 +755,13 @@ table tbody tr:last-child td {
     border-bottom: none;
 }
 
+/* Table Footer (Pagination wrapper) */
+.table-footer {
+    padding: 16px 20px;
+    border-top: 1px solid hsl(var(--border));
+    background: hsl(var(--card));
+}
+
 /* ======================================
    FORMS - Exact React match
    ====================================== */

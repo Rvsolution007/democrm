@@ -153,7 +153,6 @@
                 </tbody>
             </table>
             <div class="table-footer" id="payments-pagination">
-                <span>Showing {{ $payments->count() }} of {{ $payments->total() }} entries</span>
                 {{ $payments->links() }}
             </div>
         </div>

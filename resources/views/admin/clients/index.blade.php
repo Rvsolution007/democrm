@@ -100,7 +100,6 @@
             </table>
         </div>
         <div class="table-footer">
-            <span>Showing {{ $clients->count() }} of {{ $clients->total() }} entries</span>
             {{ $clients->links() }}
         </div>
     </div>

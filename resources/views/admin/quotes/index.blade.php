@@ -223,7 +223,6 @@
                 </tbody>
             </table>
             <div class="table-footer">
-                <span>Showing {{ $leadQuotes->count() }} of {{ $leadQuotes->total() }} entries</span>
                 {{ $leadQuotes->links() }}
             </div>
         </div>

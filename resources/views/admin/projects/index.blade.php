@@ -215,7 +215,6 @@
             </table>
         </div>
         <div class="table-footer" id="projects-table-footer">
-            <span id="projects-footer-text">Showing {{ $projects->count() }} of {{ $projects->total() }} entries</span>
             <span id="projects-pagination">{{ $projects->links() }}</span>
         </div>
     </div>

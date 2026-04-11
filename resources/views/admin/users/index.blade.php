@@ -124,7 +124,7 @@
             </table>
         </div>
         <div class="table-footer">
-            <span>Showing {{ $users->count() }} entries</span>
+            <span style="font-size:13px;color:#64748b;font-weight:500">Showing {{ $users->count() }} entries</span>
         </div>
     </div>
 
