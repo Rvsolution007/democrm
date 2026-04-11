@@ -261,6 +261,12 @@ class SetupWizardController extends Controller
         $columnsJson = Setting::getValue('setup_tour', 'ai_columns_json', null, $companyId);
         $columns = is_string($columnsJson) ? json_decode($columnsJson, true) : ($columnsJson ?? []);
 
+        Log::info('SetupWizard: extractProducts start', [
+            'source_mode' => $sourceMode,
+            'column_count' => count($columns),
+            'column_names' => array_column($columns, 'name'),
+        ]);
+
         if (empty($columns)) {
             return response()->json(['success' => false, 'message' => 'No columns defined. Please complete Step 2 first.'], 422);
         }
@@ -271,6 +277,12 @@ class SetupWizardController extends Controller
             if ($sourceMode === 'pdf_multimodal') {
                 // Image-based PDF → use Gemini multimodal for product extraction
                 $pdfPath = Setting::getValue('setup_tour', 'last_pdf_path', null, $companyId);
+                Log::info('SetupWizard: PDF mode', [
+                    'pdf_path' => $pdfPath,
+                    'exists' => $pdfPath ? file_exists($pdfPath) : false,
+                    'size_mb' => $pdfPath && file_exists($pdfPath) ? round(filesize($pdfPath) / 1024 / 1024, 2) : 0,
+                ]);
+
                 if (!$pdfPath || !file_exists($pdfPath)) {
                     return response()->json(['success' => false, 'message' => 'PDF file not found. Please re-upload in Step 1.'], 404);
                 }
@@ -283,8 +295,15 @@ class SetupWizardController extends Controller
                     return response()->json(['success' => false, 'message' => 'No catalogue source found. Please re-run Step 1.'], 404);
                 }
 
+                Log::info('SetupWizard: Text mode', ['text_length' => strlen($content)]);
                 $result = $service->extractProductData($content, $columns);
             }
+
+            Log::info('SetupWizard: extractProducts result', [
+                'total' => $result['total'],
+                'tokens' => $result['ai_tokens'] ?? 0,
+                'first_product' => !empty($result['products']) ? array_keys($result['products'][0]) : 'none',
+            ]);
 
             // Cache extracted products
             Setting::setValue('setup_tour', 'ai_products_json', json_encode($result['products']), $companyId);
@@ -298,7 +317,7 @@ class SetupWizardController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('SetupWizard: Product extraction failed', ['error' => $e->getMessage()]);
+            Log::error('SetupWizard: Product extraction failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }

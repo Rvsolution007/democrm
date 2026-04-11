@@ -191,21 +191,41 @@ class CatalogueAIService
         }
 
         $systemPrompt = $this->getProductExtractionPrompt($columns);
-        $userMessage = "Please extract ALL product data from this catalogue PDF. Map each product's attributes to the defined column structure. The PDF is attached as a file.";
+        $userMessage = "Please extract ALL product data from this catalogue PDF. Map each product's attributes to the defined column structure. The PDF is attached as a file. Return ONLY the JSON with the products array.";
 
+        // Use higher maxOutputTokens for product extraction (products can be very large)
         $result = $this->vertexAI->generateContentWithPDF(
             $systemPrompt,
             $pdfPath,
             $userMessage,
-            8192
+            16384
         );
+
+        Log::info('CatalogueAI: Product extraction raw response', [
+            'text_length' => strlen($result['text']),
+            'preview' => substr($result['text'], 0, 800),
+            'tokens' => $result['total_tokens'] ?? 0,
+        ]);
 
         $json = $this->extractJSONFromResponse($result['text']);
 
         if (!$json || !isset($json['products'])) {
-            Log::error('CatalogueAI: Failed to parse product extraction from PDF', ['response' => substr($result['text'], 0, 500)]);
+            Log::error('CatalogueAI: Failed to parse product extraction from PDF', [
+                'json_keys' => $json ? array_keys($json) : 'null',
+                'response_preview' => substr($result['text'], 0, 1000),
+            ]);
             throw new \RuntimeException('AI could not extract product data from the PDF. Please try again.');
         }
+
+        // Warn if products array is empty — likely truncated response
+        if (empty($json['products'])) {
+            Log::warning('CatalogueAI: Products array is empty — response may have been truncated', [
+                'response_length' => strlen($result['text']),
+                'response_tail' => substr($result['text'], -200),
+            ]);
+        }
+
+        Log::info('CatalogueAI: Products extracted', ['count' => count($json['products'])]);
 
         return [
             'products' => $json['products'] ?? [],
@@ -519,20 +539,32 @@ PROMPT;
 
         // Try extracting from markdown code block
         if (preg_match('/```(?:json)?\s*\n?(.*?)\n?```/s', $text, $matches)) {
-            $decoded = json_decode($matches[1], true);
+            $decoded = json_decode(trim($matches[1]), true);
             if ($decoded !== null) return $decoded;
         }
 
-        // Try finding JSON object pattern
-        if (preg_match('/\{[\s\S]*"columns"[\s\S]*\}/s', $text, $matches)) {
-            // Find the balanced JSON
-            $json = $this->findBalancedJSON($matches[0]);
+        // Try finding JSON object for columns OR products
+        foreach (['columns', 'products'] as $searchKey) {
+            if (preg_match('/\{[\s\S]*"' . $searchKey . '"[\s\S]*\}/s', $text, $matches)) {
+                $json = $this->findBalancedJSON($matches[0]);
+                if ($json) {
+                    $decoded = json_decode($json, true);
+                    if ($decoded !== null) return $decoded;
+                }
+            }
+        }
+
+        // Last resort: find any JSON object starting with {
+        if (preg_match('/\{/', $text)) {
+            $start = strpos($text, '{');
+            $json = $this->findBalancedJSON(substr($text, $start));
             if ($json) {
                 $decoded = json_decode($json, true);
                 if ($decoded !== null) return $decoded;
             }
         }
 
+        Log::warning('CatalogueAI: Could not extract JSON from response', ['text_preview' => substr($text, 0, 500)]);
         return null;
     }
 
