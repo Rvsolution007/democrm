@@ -57,13 +57,58 @@ class SetupWizardController extends Controller
         $companyId = auth()->user()->company_id;
         $service = new CatalogueAIService($companyId);
 
+        // Boost memory for PDF processing (14MB PDF → ~19MB base64 → ~40MB+ in JSON)
+        ini_set('memory_limit', '1G');
+
         try {
-            // Extract text from source
             $sourceType = $request->source_type;
             $content = '';
+            $pdfPath = null;
 
             if ($sourceType === 'pdf') {
-                $content = $service->extractTextFromPDF($request->file('catalogue_pdf'));
+                $uploadedFile = $request->file('catalogue_pdf');
+                $originalName = $uploadedFile->getClientOriginalName();
+
+                Log::info('SetupWizard: PDF upload received', [
+                    'name' => $originalName,
+                    'size_mb' => round($uploadedFile->getSize() / 1024 / 1024, 2),
+                ]);
+
+                // Save PDF to temp location first (needed for multimodal fallback & product extraction)
+                $tempDir = storage_path('app/temp');
+                if (!is_dir($tempDir)) mkdir($tempDir, 0755, true);
+                $tempName = 'catalogue_' . $companyId . '_' . time() . '.pdf';
+                $uploadedFile->move($tempDir, $tempName);
+                $pdfPath = $tempDir . DIRECTORY_SEPARATOR . $tempName;
+
+                // Try text extraction using the saved file
+                $fakeUpload = new \Illuminate\Http\UploadedFile($pdfPath, $originalName, 'application/pdf', null, true);
+                $content = $service->extractTextFromPDF($fakeUpload);
+
+                if (empty(trim($content))) {
+                    // Text extraction failed (image-based PDF) → use Gemini multimodal
+                    Log::info('SetupWizard: Using multimodal PDF analysis (text extraction returned empty)');
+
+                    // Cache the PDF path for product extraction in step 3
+                    Setting::setValue('setup_tour', 'last_pdf_path', $pdfPath, $companyId);
+                    Setting::setValue('setup_tour', 'last_source_text', '', $companyId);
+                    Setting::setValue('setup_tour', 'source_mode', 'pdf_multimodal', $companyId);
+
+                    // Analyze directly from PDF using Gemini vision
+                    $analysis = $service->analyzeCatalogueFromPDF($pdfPath);
+
+                    // Cache the analysis
+                    Setting::setValue('setup_tour', 'ai_columns_json', json_encode($analysis['columns']), $companyId);
+
+                    return response()->json([
+                        'success' => true,
+                        'columns' => $analysis['columns'],
+                        'source_summary' => $analysis['source_summary'],
+                        'confidence' => $analysis['confidence'],
+                        'ai_tokens' => $analysis['ai_tokens'],
+                        'message' => 'Catalogue analyzed successfully! ' . count($analysis['columns']) . ' columns identified. (Used AI vision for image-based PDF)',
+                    ]);
+                }
             } else {
                 $content = $service->scrapeWebsite($request->website_url);
             }
@@ -77,6 +122,10 @@ class SetupWizardController extends Controller
 
             // Cache the source content for product extraction in step 3
             Setting::setValue('setup_tour', 'last_source_text', $content, $companyId);
+            Setting::setValue('setup_tour', 'source_mode', 'text', $companyId);
+            if ($pdfPath) {
+                Setting::setValue('setup_tour', 'last_pdf_path', $pdfPath, $companyId);
+            }
 
             // AI Analysis: identify columns
             $analysis = $service->analyzeCatalogueSource($content, $sourceType);
@@ -94,10 +143,14 @@ class SetupWizardController extends Controller
             ]);
 
         } catch (\RuntimeException $e) {
+            Log::warning('SetupWizard: RuntimeException', ['message' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Error $e) {
+            Log::error('SetupWizard: Fatal error', ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return response()->json(['success' => false, 'message' => 'Server ran out of memory processing this PDF. Please try a smaller file (under 10MB).'], 500);
         } catch (\Exception $e) {
-            Log::error('SetupWizard: Analysis failed', ['error' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => 'An unexpected error occurred. Please try again.'], 500);
+            Log::error('SetupWizard: Analysis failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return response()->json(['success' => false, 'message' => 'An unexpected error occurred: ' . $e->getMessage()], 500);
         }
     }
 
@@ -194,10 +247,8 @@ class SetupWizardController extends Controller
     {
         $companyId = auth()->user()->company_id;
 
-        $content = Setting::getValue('setup_tour', 'last_source_text', null, $companyId);
-        if (!$content) {
-            return response()->json(['success' => false, 'message' => 'No catalogue source found. Please re-run Step 1.'], 404);
-        }
+        // Check which mode was used in step 1
+        $sourceMode = Setting::getValue('setup_tour', 'source_mode', 'text', $companyId);
 
         // Get column definitions (either from system or AI cache)
         $columnsJson = Setting::getValue('setup_tour', 'ai_columns_json', null, $companyId);
@@ -209,7 +260,24 @@ class SetupWizardController extends Controller
 
         try {
             $service = new CatalogueAIService($companyId);
-            $result = $service->extractProductData($content, $columns);
+
+            if ($sourceMode === 'pdf_multimodal') {
+                // Image-based PDF → use Gemini multimodal for product extraction
+                $pdfPath = Setting::getValue('setup_tour', 'last_pdf_path', null, $companyId);
+                if (!$pdfPath || !file_exists($pdfPath)) {
+                    return response()->json(['success' => false, 'message' => 'PDF file not found. Please re-upload in Step 1.'], 404);
+                }
+
+                $result = $service->extractProductDataFromPDF($pdfPath, $columns);
+            } else {
+                // Text-based extraction
+                $content = Setting::getValue('setup_tour', 'last_source_text', null, $companyId);
+                if (!$content) {
+                    return response()->json(['success' => false, 'message' => 'No catalogue source found. Please re-run Step 1.'], 404);
+                }
+
+                $result = $service->extractProductData($content, $columns);
+            }
 
             // Cache extracted products
             Setting::setValue('setup_tour', 'ai_products_json', json_encode($result['products']), $companyId);
@@ -283,10 +351,19 @@ class SetupWizardController extends Controller
     public function reset()
     {
         $companyId = auth()->user()->company_id;
+
+        // Clean up temp PDF file if exists
+        $pdfPath = Setting::getValue('setup_tour', 'last_pdf_path', null, $companyId);
+        if ($pdfPath && file_exists($pdfPath)) {
+            @unlink($pdfPath);
+        }
+
         Setting::setValue('setup_tour', 'completed', false, $companyId);
         Setting::setValue('setup_tour', 'ai_columns_json', null, $companyId);
         Setting::setValue('setup_tour', 'ai_products_json', null, $companyId);
         Setting::setValue('setup_tour', 'last_source_text', null, $companyId);
+        Setting::setValue('setup_tour', 'last_pdf_path', null, $companyId);
+        Setting::setValue('setup_tour', 'source_mode', null, $companyId);
 
         return response()->json([
             'success' => true,

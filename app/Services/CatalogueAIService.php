@@ -30,9 +30,31 @@ class CatalogueAIService
     // ═══════════════════════════════════════════════════════════
 
     /**
-     * Extract text content from uploaded PDF file
+     * Extract text content from uploaded PDF file.
+     * Returns extracted text, or empty string if text extraction is not possible
+     * (image-based PDFs). Caller should use multimodal fallback in that case.
      */
     public function extractTextFromPDF(UploadedFile $file): string
+    {
+        // Boost memory for PDF processing
+        $originalMemory = ini_get('memory_limit');
+        ini_set('memory_limit', '1G');
+
+        try {
+            return $this->doExtractTextFromPDF($file);
+        } catch (\Error $e) {
+            // Catch fatal errors like memory exhaustion
+            Log::error('PDF extraction fatal error: ' . $e->getMessage());
+            return '';
+        } finally {
+            ini_set('memory_limit', $originalMemory);
+        }
+    }
+
+    /**
+     * Internal PDF text extraction logic
+     */
+    private function doExtractTextFromPDF(UploadedFile $file): string
     {
         // Try smalot/pdfparser first
         if (class_exists(\Smalot\PdfParser\Parser::class)) {
@@ -40,23 +62,156 @@ class CatalogueAIService
                 $parser = new \Smalot\PdfParser\Parser();
                 $pdf = $parser->parseFile($file->getRealPath());
                 $text = $pdf->getText();
-                if (!empty(trim($text))) {
+                if ($this->isTextQualityGood($text)) {
+                    Log::info('PDF text extracted via smalot/pdfparser', ['length' => strlen($text)]);
                     return $this->cleanExtractedText($text);
+                } else {
+                    Log::warning('smalot/pdfparser extracted low-quality text', [
+                        'length' => strlen($text),
+                        'preview' => substr(trim($text), 0, 200),
+                    ]);
                 }
             } catch (\Exception $e) {
                 Log::warning('PDF Parser failed, trying fallback', ['error' => $e->getMessage()]);
+            } catch (\Error $e) {
+                Log::error('PDF Parser fatal error: ' . $e->getMessage());
             }
+        } else {
+            Log::info('smalot/pdfparser not installed, trying stream extraction');
         }
 
         // Fallback: Basic PHP stream-based extraction
-        $content = file_get_contents($file->getRealPath());
-        $text = $this->extractTextFromPDFStream($content);
+        $content = @file_get_contents($file->getRealPath());
+        if ($content !== false) {
+            $text = $this->extractTextFromPDFStream($content);
+            unset($content); // Free memory
 
-        if (empty(trim($text))) {
-            throw new \RuntimeException('Unable to extract text from PDF. The file may be image-based or encrypted. Please try a text-based PDF or provide a website URL instead.');
+            if ($this->isTextQualityGood($text)) {
+                Log::info('PDF text extracted via stream parser', ['length' => strlen($text)]);
+                return $this->cleanExtractedText($text);
+            } else {
+                Log::warning('Stream parser extracted low-quality text', [
+                    'length' => strlen($text),
+                    'preview' => substr(trim($text), 0, 200),
+                ]);
+            }
         }
 
-        return $this->cleanExtractedText($text);
+        // Return empty — caller should use multimodal PDF analysis
+        Log::info('No usable text extracted from PDF — will use multimodal AI analysis');
+        return '';
+    }
+
+    /**
+     * Check if extracted text is meaningful enough for AI analysis.
+     * Returns false for empty text, garbled text, or text too short to be useful.
+     */
+    private function isTextQualityGood(string $text): bool
+    {
+        $text = trim($text);
+
+        // Must have at least 200 characters of content
+        if (strlen($text) < 200) {
+            return false;
+        }
+
+        // Count printable, meaningful characters (letters, digits, common punctuation)
+        $meaningful = preg_match_all('/[a-zA-Z0-9\p{L}]/u', $text);
+        $total = strlen($text);
+
+        // At least 30% of characters should be meaningful (letters/digits)
+        // Image-based PDFs often extract as mostly special characters/gibberish
+        if ($total > 0 && ($meaningful / $total) < 0.3) {
+            return false;
+        }
+
+        // Must have at least some word-like sequences (3+ consecutive letters)
+        $wordCount = preg_match_all('/[a-zA-Z\p{L}]{3,}/u', $text);
+        if ($wordCount < 10) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Analyze a catalogue PDF directly using Gemini multimodal (vision) capabilities.
+     * Sends the entire PDF as base64 to Gemini, which can "read" both text and image content.
+     *
+     * @param string $pdfPath    Absolute path to the uploaded PDF file
+     * @return array  {columns: [...], source_summary: string, confidence: int}
+     */
+    public function analyzeCatalogueFromPDF(string $pdfPath): array
+    {
+        if (!$this->vertexAI->isConfigured()) {
+            throw new \RuntimeException('AI is not configured. Please ask your Super Admin to set up Vertex AI in Global Settings.');
+        }
+
+        $customPrompt = \App\Models\Setting::getGlobalValue('setup_tour', 'column_analysis_prompt', '');
+        $systemPrompt = !empty($customPrompt) ? $customPrompt : $this->getDefaultColumnAnalysisPrompt();
+
+        $userMessage = "SOURCE TYPE: pdf\n\nPlease analyze this product catalogue PDF and identify the optimal database column structure. The PDF is attached as a file. Examine all pages including product tables, specifications, and pricing information.";
+
+        $result = $this->vertexAI->generateContentWithPDF(
+            $systemPrompt,
+            $pdfPath,
+            $userMessage,
+            8192
+        );
+
+        $aiText = $result['text'];
+        $json = $this->extractJSONFromResponse($aiText);
+
+        if (!$json || !isset($json['columns'])) {
+            Log::error('CatalogueAI: Failed to parse column analysis from multimodal PDF', ['response' => substr($aiText, 0, 500)]);
+            throw new \RuntimeException('AI could not analyze the catalogue structure from the PDF. Please try again or use a website URL instead.');
+        }
+
+        $columns = $this->sanitizeColumns($json['columns']);
+
+        return [
+            'columns' => $columns,
+            'source_summary' => $json['source_summary'] ?? 'Catalogue analyzed successfully from PDF',
+            'confidence' => $json['confidence'] ?? 80,
+            'ai_tokens' => $result['total_tokens'] ?? 0,
+        ];
+    }
+
+    /**
+     * Extract product data directly from a PDF file using Gemini multimodal.
+     *
+     * @param string $pdfPath   Absolute path to the PDF
+     * @param array  $columns   Column definitions
+     * @return array  {products: [...], total: int, ai_tokens: int}
+     */
+    public function extractProductDataFromPDF(string $pdfPath, array $columns): array
+    {
+        if (!$this->vertexAI->isConfigured()) {
+            throw new \RuntimeException('AI is not configured.');
+        }
+
+        $systemPrompt = $this->getProductExtractionPrompt($columns);
+        $userMessage = "Please extract ALL product data from this catalogue PDF. Map each product's attributes to the defined column structure. The PDF is attached as a file.";
+
+        $result = $this->vertexAI->generateContentWithPDF(
+            $systemPrompt,
+            $pdfPath,
+            $userMessage,
+            8192
+        );
+
+        $json = $this->extractJSONFromResponse($result['text']);
+
+        if (!$json || !isset($json['products'])) {
+            Log::error('CatalogueAI: Failed to parse product extraction from PDF', ['response' => substr($result['text'], 0, 500)]);
+            throw new \RuntimeException('AI could not extract product data from the PDF. Please try again.');
+        }
+
+        return [
+            'products' => $json['products'] ?? [],
+            'total' => count($json['products'] ?? []),
+            'ai_tokens' => $result['total_tokens'] ?? 0,
+        ];
     }
 
     /**

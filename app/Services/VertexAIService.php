@@ -31,7 +31,7 @@ class VertexAIService
      *
      * @return array  ['text' => string, 'prompt_tokens' => int, 'completion_tokens' => int, 'total_tokens' => int]
      */
-    public function generateContent(string $systemPrompt, array $messages, ?string $imageUrl = null): array
+    public function generateContent(string $systemPrompt, array $messages, ?string $imageUrl = null, int $maxOutputTokens = 8192): array
     {
         if (empty($this->projectId) || empty($this->serviceAccount)) {
             Log::error('VertexAI: Service not configured');
@@ -41,12 +41,12 @@ class VertexAIService
         try {
             $accessToken = $this->getAccessToken();
             $endpoint = $this->getEndpoint();
-            $requestBody = $this->buildRequestBody($systemPrompt, $messages, $imageUrl);
+            $requestBody = $this->buildRequestBody($systemPrompt, $messages, $imageUrl, $maxOutputTokens);
 
             $response = Http::withHeaders([
                 'Authorization' => "Bearer {$accessToken}",
                 'Content-Type' => 'application/json',
-            ])->timeout(60)->post($endpoint, $requestBody);
+            ])->timeout(120)->post($endpoint, $requestBody);
 
             if (!$response->successful()) {
                 Log::error('VertexAI: API error', ['status' => $response->status(), 'body' => $response->body()]);
@@ -67,6 +67,124 @@ class VertexAIService
         } catch (\Exception $e) {
             Log::error('VertexAI: Exception - ' . $e->getMessage());
             return ['text' => 'Sorry, an error occurred. Please try again later.', 'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
+        }
+    }
+
+    /**
+     * Generate content with a PDF file sent as inline base64 data (multimodal)
+     * This allows Gemini to "see" the PDF pages — works for both text and image-based PDFs.
+     *
+     * @param string $systemPrompt  System instruction
+     * @param string $pdfPath       Absolute path to the PDF file
+     * @param string $userMessage   User prompt text
+     * @param int    $maxOutputTokens  Max output tokens
+     * @return array  ['text' => string, 'prompt_tokens' => int, 'completion_tokens' => int, 'total_tokens' => int]
+     */
+    public function generateContentWithPDF(string $systemPrompt, string $pdfPath, string $userMessage, int $maxOutputTokens = 8192): array
+    {
+        if (empty($this->projectId) || empty($this->serviceAccount)) {
+            Log::error('VertexAI: Service not configured');
+            return ['text' => 'AI bot is not configured. Please set up Vertex AI in Settings.', 'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
+        }
+
+        // Boost memory for large PDF base64 encoding
+        $originalMemory = ini_get('memory_limit');
+        ini_set('memory_limit', '1G');
+
+        try {
+            $accessToken = $this->getAccessToken();
+            $endpoint = $this->getEndpoint();
+
+            // Check file size — Gemini inline limit is ~20MB
+            $fileSize = filesize($pdfPath);
+            Log::info('VertexAI PDF: Processing file', ['size_mb' => round($fileSize / 1024 / 1024, 2), 'path' => basename($pdfPath)]);
+
+            if ($fileSize > 20 * 1024 * 1024) {
+                throw new \RuntimeException('PDF file is too large for AI analysis (max 20MB). Please compress the PDF and try again.');
+            }
+
+            // Read PDF and encode as base64
+            $pdfContent = file_get_contents($pdfPath);
+            if ($pdfContent === false) {
+                throw new \RuntimeException('Could not read PDF file.');
+            }
+            $pdfBase64 = base64_encode($pdfContent);
+            unset($pdfContent); // Free memory immediately
+
+            // Build multimodal request with PDF inline data
+            $body = [
+                'contents' => [
+                    [
+                        'role' => 'user',
+                        'parts' => [
+                            [
+                                'inlineData' => [
+                                    'mimeType' => 'application/pdf',
+                                    'data' => $pdfBase64,
+                                ],
+                            ],
+                            ['text' => $userMessage],
+                        ],
+                    ],
+                ],
+                'generationConfig' => [
+                    'temperature' => 0.3,
+                    'topP' => 0.95,
+                    'maxOutputTokens' => $maxOutputTokens,
+                ],
+            ];
+            unset($pdfBase64); // Free base64 string
+
+            if (!empty($systemPrompt)) {
+                $body['systemInstruction'] = [
+                    'parts' => [['text' => $systemPrompt]],
+                ];
+            }
+
+            Log::info('VertexAI PDF: Sending request to Gemini API');
+
+            $response = Http::withHeaders([
+                'Authorization' => "Bearer {$accessToken}",
+                'Content-Type' => 'application/json',
+            ])->timeout(180)->post($endpoint, $body);
+
+            unset($body); // Free request body memory
+
+            if (!$response->successful()) {
+                Log::error('VertexAI PDF: API error', ['status' => $response->status(), 'body' => substr($response->body(), 0, 500)]);
+                throw new \RuntimeException('AI service returned an error while processing the PDF (HTTP ' . $response->status() . ').');
+            }
+
+            $data = $response->json();
+
+            // Check for blocked/empty candidates
+            if (empty($data['candidates'])) {
+                Log::error('VertexAI PDF: No candidates in response', ['data' => json_encode(array_keys($data))]);
+                throw new \RuntimeException('AI could not process this PDF. The content may be too complex or blocked by safety filters.');
+            }
+
+            $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+            $usage = $data['usageMetadata'] ?? [];
+
+            Log::info('VertexAI PDF: Response received', ['text_length' => strlen($text), 'tokens' => ($usage['promptTokenCount'] ?? 0) + ($usage['candidatesTokenCount'] ?? 0)]);
+
+            return [
+                'text' => trim($text) ?: 'Could not extract content from PDF.',
+                'prompt_tokens' => $usage['promptTokenCount'] ?? 0,
+                'completion_tokens' => $usage['candidatesTokenCount'] ?? 0,
+                'total_tokens' => ($usage['promptTokenCount'] ?? 0) + ($usage['candidatesTokenCount'] ?? 0),
+            ];
+
+        } catch (\RuntimeException $e) {
+            throw $e;
+        } catch (\Error $e) {
+            Log::error('VertexAI PDF: Fatal error - ' . $e->getMessage());
+            throw new \RuntimeException('PDF processing ran out of memory. Please try a smaller PDF file (under 10MB).');
+        } catch (\Exception $e) {
+            Log::error('VertexAI PDF: Exception - ' . $e->getMessage());
+            throw new \RuntimeException('An error occurred while processing the PDF with AI: ' . $e->getMessage());
+        } finally {
+            ini_set('memory_limit', $originalMemory);
         }
     }
 
@@ -141,7 +259,7 @@ class VertexAIService
     /**
      * Build the Gemini API request body
      */
-    private function buildRequestBody(string $systemPrompt, array $messages, ?string $imageUrl): array
+    private function buildRequestBody(string $systemPrompt, array $messages, ?string $imageUrl, int $maxOutputTokens = 8192): array
     {
         $contents = [];
 
@@ -153,6 +271,13 @@ class VertexAIService
             // Add text
             if (!empty($msg['text'])) {
                 $parts[] = ['text' => $msg['text']];
+            }
+
+            // Add inline data (for PDF/file parts passed in messages)
+            if (!empty($msg['inline_data'])) {
+                $parts[] = [
+                    'inlineData' => $msg['inline_data'],
+                ];
             }
 
             // Add image for the last user message if provided
@@ -178,7 +303,7 @@ class VertexAIService
             'generationConfig' => [
                 'temperature' => 0.7,
                 'topP' => 0.95,
-                'maxOutputTokens' => 512,
+                'maxOutputTokens' => $maxOutputTokens,
             ],
         ];
 
