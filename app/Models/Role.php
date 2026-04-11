@@ -62,12 +62,7 @@ class Role extends Model
         'purchases.read', 'purchases.write', 'purchases.delete', 'purchases.global',
         'purchase-payments.read', 'purchase-payments.write', 'purchase-payments.delete', 'purchase-payments.global',
 
-        // Production
-        'projects.read', 'projects.write', 'projects.delete', 'projects.global',
-        'tasks.read', 'tasks.write', 'tasks.delete', 'tasks.global',
-        'micro-tasks.read', 'micro-tasks.write', 'micro-tasks.delete', 'micro-tasks.global',
-        'task-followups.read', 'task-followups.write', 'task-followups.delete', 'task-followups.global',
-        'service-templates.read', 'service-templates.write', 'service-templates.delete',
+
 
         // Team
         'users.read', 'users.write', 'users.delete', 'users.global',

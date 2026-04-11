@@ -12,7 +12,7 @@
         </div>
         @endif
 
-        {{-- ═══ MAIN — Always visible ═══ --}}
+        {{-- ═══ 1. MAIN — Always visible ═══ --}}
         <div class="nav-section">
             <div class="nav-section-title">Main</div>
             <a href="{{ route('admin.dashboard') }}"
@@ -21,7 +21,7 @@
             </a>
         </div>
 
-        {{-- ═══ SALES — Package 1+ (leads, clients, quotes, invoices, payments, followups) ═══ --}}
+        {{-- ═══ 2. SALES — Package 1+ (leads, clients, quotes, invoices, payments, followups) ═══ --}}
         @if(can('leads.read') || can('clients.read') || can('quotes.read'))
             <div class="nav-section">
                 <div class="nav-section-title">Sales</div>
@@ -61,13 +61,105 @@
             </div>
         @endif
 
-        {{-- ═══ WHATSAPP BULK — Package 2+ (whatsapp_connect, campaigns, templates, auto_reply) ═══ --}}
+        {{-- ═══ 3. CATALOGUE — Package 1+ ═══ --}}
+        @if(can('products.read') || can('categories.read') || can('quotes.global'))
+            <div class="nav-section">
+                <div class="nav-section-title">Catalogue</div>
+                @if(can('settings.manage'))
+                    <a href="{{ route('admin.setup-wizard.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.setup-wizard.*') ? 'active' : '' }}">
+                        <i data-lucide="wand-2" style="color:#8b5cf6"></i> <span>AI Setup Wizard</span>
+                    </a>
+                @endif
+                @if(can('products.read'))
+                    <a href="{{ route('admin.products.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.products.*') ? 'active' : '' }}">
+                        <i data-lucide="package"></i> <span>Products</span>
+                    </a>
+                @endif
+
+                {{-- Catalogue Columns — after Products --}}
+                @if(hasFeature('catalogue_columns') && can('settings.manage'))
+                    <a href="{{ route('admin.catalogue-columns.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.catalogue-columns.*') ? 'active' : '' }}">
+                        <i data-lucide="columns" style="color:#06b6d4"></i> <span>Catalogue Columns</span>
+                    </a>
+                @endif
+
+                @if(can('quotes.global'))
+                    <a href="{{ route('admin.vendors.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.vendors.*') ? 'active' : '' }}">
+                        <i data-lucide="truck"></i> <span>Vendors</span>
+                    </a>
+                    <a href="{{ route('admin.purchases.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.purchases.*') ? 'active' : '' }}">
+                        <i data-lucide="shopping-cart"></i> <span>Purchases</span>
+                    </a>
+                    <a href="{{ route('admin.purchase-payments.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.purchase-payments.*') ? 'active' : '' }}">
+                        <i data-lucide="credit-card"></i> <span>Purchase Payments</span>
+                    </a>
+                @endif
+            </div>
+        @endif
+
+        {{-- ═══ 4. TEAM — Package 1+ ═══ --}}
+        @if(can('users.read') || can('roles.read'))
+            <div class="nav-section">
+                <div class="nav-section-title">Team</div>
+                @if(can('users.read'))
+                    <a href="{{ route('admin.users.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
+                        <i data-lucide="users-2"></i> <span>Users</span>
+                    </a>
+                @endif
+                @if(can('roles.read'))
+                    <a href="{{ route('admin.roles.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.roles.*') ? 'active' : '' }}">
+                        <i data-lucide="shield"></i> <span>Roles</span>
+                    </a>
+                @endif
+                @if(can('activities.read'))
+                    <a href="{{ route('admin.activities.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.activities.*') ? 'active' : '' }}">
+                        <i data-lucide="activity"></i> <span>Activities</span>
+                    </a>
+                @endif
+            </div>
+        @endif
+
+        {{-- ═══ 5. ANALYTICS & SETTINGS — Package 1+ ═══ --}}
+        <div class="nav-section">
+            <div class="nav-section-title">Analytics</div>
+            <a href="{{ route('admin.profile.index') }}"
+                class="nav-link {{ request()->routeIs('admin.profile.*') ? 'active' : '' }}">
+                <i data-lucide="user"></i> <span>My Profile</span>
+            </a>
+            @if(can('reports.read'))
+                <a href="{{ route('admin.reports.index') }}"
+                    class="nav-link {{ request()->routeIs('admin.reports.*') ? 'active' : '' }}">
+                    <i data-lucide="bar-chart-2"></i> <span>Reports</span>
+                </a>
+            @endif
+            @if(can('settings.manage'))
+                <a href="{{ route('admin.settings.index') }}"
+                    class="nav-link {{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">
+                    <i data-lucide="settings"></i> <span>Settings</span>
+                </a>
+            @endif
+            @if(auth()->user()->user_type === 'admin')
+                <a href="{{ route('admin.billing.index') }}"
+                    class="nav-link {{ request()->routeIs('admin.billing.*') ? 'active' : '' }}">
+                    <i data-lucide="wallet" style="color:#f57c00;"></i> <span>Billing</span>
+                </a>
+            @endif
+        </div>
+
+        {{-- ═══ 6. WHATSAPP BULK — Package 2+ ═══ --}}
         @if(hasFeature('whatsapp_connect'))
             @if(can('whatsapp-connect.read') || can('whatsapp-connect.write') || can('whatsapp-extension.read') || can('whatsapp-campaigns.read') || can('whatsapp-templates.read') || can('whatsapp-auto-reply.read') || can('whatsapp-analytics.read'))
                 <div class="nav-section">
-                    <div class="nav-section-title"
-                        style="margin-top: 15px; font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.8;">
-                        WhatsApp Bulk</div>
+                    <div class="nav-section-title">WhatsApp Bulk</div>
                     
                     @if(can('whatsapp-connect.read') || can('whatsapp-connect.write'))
                         <a href="{{ route('admin.whatsapp-connect.index') }}"
@@ -116,7 +208,7 @@
         @elseif(can('settings.manage'))
             {{-- Locked WhatsApp section — visible but locked for Package 1 admins --}}
             <div class="nav-section">
-                <div class="nav-section-title" style="margin-top:15px;font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;opacity:0.8;">WhatsApp Bulk</div>
+                <div class="nav-section-title">WhatsApp Bulk</div>
                 <div class="nav-link" style="opacity:0.4;cursor:not-allowed;pointer-events:none;">
                     <i data-lucide="smartphone" style="color:#25D366"></i> <span>WhatsApp Connect</span>
                     <i data-lucide="lock" style="width:12px;height:12px;margin-left:auto;color:#f59e0b;"></i>
@@ -128,42 +220,21 @@
             </div>
         @endif
 
-        {{-- ═══ BOT LIST — Package 2+ (chatflow, catalogue_columns) ═══ --}}
-        @if(hasFeature('chatflow') || hasFeature('list_bot'))
+        {{-- ═══ 7. AI BOT — Package 2+ (chatflow) & Package 3 (token_analytics, chat_history) ═══ --}}
+        @if(hasFeature('ai_bot') || hasFeature('chatflow') || hasFeature('list_bot'))
             @if(can('settings.manage'))
                 <div class="nav-section">
-                    <div class="nav-section-title"
-                        style="margin-top: 15px; font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.8;">
-                        Bot List</div>
+                    <div class="nav-section-title">AI Bot</div>
 
-                    {{-- Catalogue Columns --}}
-                    @if(hasFeature('catalogue_columns'))
-                    <a href="{{ route('admin.catalogue-columns.index') }}"
-                        class="nav-link {{ request()->routeIs('admin.catalogue-columns.*') ? 'active' : '' }}">
-                        <i data-lucide="columns" style="color:#06b6d4"></i> <span>Catalogue Columns</span>
-                    </a>
-                    @endif
-
-                    {{-- Chatflow Builder --}}
+                    {{-- Chatflow Builder — Available for Bot List & AI Bot packages --}}
                     @if(hasFeature('chatflow'))
                     <a href="{{ route('admin.chatflow.index') }}"
                         class="nav-link {{ request()->routeIs('admin.chatflow.*') ? 'active' : '' }}">
                         <i data-lucide="git-branch" style="color:#10b981"></i> <span>Chatflow Builder</span>
                     </a>
                     @endif
-                </div>
-            @endif
-        @endif
 
-        {{-- ═══ AI BOT — Package 3 only (token_analytics, chat_history, ai_bot) ═══ --}}
-        @if(hasFeature('ai_bot'))
-            @if(can('settings.manage'))
-                <div class="nav-section">
-                    <div class="nav-section-title"
-                        style="margin-top: 15px; font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.8;">
-                        AI Bot</div>
-
-                    {{-- Token Analytics --}}
+                    {{-- Token Analytics — AI Bot package only --}}
                     @if(hasFeature('token_analytics'))
                     <a href="{{ route('admin.ai-analytics.index') }}"
                         class="nav-link {{ request()->routeIs('admin.ai-analytics.index') ? 'active' : '' }}">
@@ -171,7 +242,7 @@
                     </a>
                     @endif
 
-                    {{-- Chat History --}}
+                    {{-- Chat History — AI Bot package only --}}
                     @if(hasFeature('chat_history'))
                     <a href="{{ route('admin.ai-analytics.chats') }}"
                         class="nav-link {{ request()->routeIs('admin.ai-analytics.chats') || request()->routeIs('admin.ai-analytics.chat-detail') ? 'active' : '' }}">
@@ -188,143 +259,20 @@
                     @endif
                 </div>
             @endif
-        @elseif(hasFeature('chatflow') && can('settings.manage'))
-            {{-- Bot List user sees locked AI Bot upgrade prompt --}}
+        @elseif(can('settings.manage'))
+            {{-- No bot package — show locked AI Bot upgrade prompt --}}
             <div class="nav-section">
-                <div class="nav-section-title" style="margin-top:15px;font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;opacity:0.8;">AI Bot</div>
+                <div class="nav-section-title">AI Bot</div>
                 <div class="nav-link" style="opacity:0.4;cursor:not-allowed;pointer-events:none;">
-                    <i data-lucide="bar-chart-3" style="color:#f59e0b"></i> <span>Token Analytics</span>
+                    <i data-lucide="git-branch" style="color:#10b981"></i> <span>Chatflow Builder</span>
                     <i data-lucide="lock" style="width:12px;height:12px;margin-left:auto;color:#f59e0b;"></i>
                 </div>
-                <a href="#" onclick="event.preventDefault();alert('AI Bot requires the AI Bot package. Contact your administrator to upgrade.');" class="nav-link" style="opacity:0.5;">
+                <a href="#" onclick="event.preventDefault();alert('AI Bot requires the Bot List or AI Bot package. Contact your administrator to upgrade.');" class="nav-link" style="opacity:0.5;">
                     <i data-lucide="sparkles" style="color:#f59e0b;width:14px;height:14px;"></i>
                     <span style="font-size:11px;color:#f59e0b;">Upgrade to AI Bot</span>
                 </a>
             </div>
         @endif
-
-        {{-- ═══ CATALOG — Package 1+ ═══ --}}
-        @if(can('products.read') || can('categories.read') || can('projects.global') || can('quotes.global'))
-            <div class="nav-section">
-                <div class="nav-section-title">Catalog</div>
-                @if(can('settings.manage'))
-                    <a href="{{ route('admin.setup-wizard.index') }}"
-                        class="nav-link {{ request()->routeIs('admin.setup-wizard.*') ? 'active' : '' }}">
-                        <i data-lucide="wand-2" style="color:#8b5cf6"></i> <span>AI Setup Wizard</span>
-                    </a>
-                @endif
-                @if(can('products.read'))
-                    <a href="{{ route('admin.products.index') }}"
-                        class="nav-link {{ request()->routeIs('admin.products.*') ? 'active' : '' }}">
-                        <i data-lucide="package"></i> <span>Products</span>
-                    </a>
-                @endif
-
-                @if(can('projects.global') || can('quotes.global'))
-                    <a href="{{ route('admin.vendors.index') }}"
-                        class="nav-link {{ request()->routeIs('admin.vendors.*') ? 'active' : '' }}">
-                        <i data-lucide="truck"></i> <span>Vendors</span>
-                    </a>
-                    <a href="{{ route('admin.purchases.index') }}"
-                        class="nav-link {{ request()->routeIs('admin.purchases.*') ? 'active' : '' }}">
-                        <i data-lucide="shopping-cart"></i> <span>Purchases</span>
-                    </a>
-                    <a href="{{ route('admin.purchase-payments.index') }}"
-                        class="nav-link {{ request()->routeIs('admin.purchase-payments.*') ? 'active' : '' }}">
-                        <i data-lucide="credit-card"></i> <span>Purchase Payments</span>
-                    </a>
-                @endif
-            </div>
-        @endif
-
-        {{-- ═══ PRODUCTION — Package 1+ ═══ --}}
-        @if(can('projects.read') || can('tasks.read'))
-            <div class="nav-section">
-                <div class="nav-section-title">Production</div>
-                @if(can('projects.read'))
-                    <a href="{{ route('admin.projects.index') }}"
-                        class="nav-link {{ request()->routeIs('admin.projects.*') ? 'active' : '' }}">
-                        <i data-lucide="briefcase"></i> <span>Projects</span>
-                    </a>
-                @endif
-                @if(can('tasks.read'))
-                    <a href="{{ route('admin.tasks.index') }}"
-                        class="nav-link {{ request()->routeIs('admin.tasks.*') ? 'active' : '' }}">
-                        <i data-lucide="check-square"></i> <span>Tasks</span>
-                    </a>
-                @endif
-                @if(can('tasks.read'))
-                    <a href="{{ route('admin.micro-tasks.index') }}"
-                        class="nav-link {{ request()->routeIs('admin.micro-tasks.*') ? 'active' : '' }}">
-                        <i data-lucide="list-todo"></i> <span>Micro Tasks</span>
-                    </a>
-                @endif
-                @if(can('tasks.read'))
-                    <a href="{{ route('admin.task-followups.index') }}"
-                        class="nav-link {{ request()->routeIs('admin.task-followups.*') ? 'active' : '' }}">
-                        <i data-lucide="bell-ring"></i> <span>Micro Task Follow-ups</span>
-                    </a>
-                @endif
-                @if(can('settings.manage'))
-                    <a href="{{ route('admin.service-templates.index') }}"
-                        class="nav-link {{ request()->routeIs('admin.service-templates.*') ? 'active' : '' }}">
-                        <i data-lucide="clipboard-list"></i> <span>Service Templates</span>
-                    </a>
-                @endif
-            </div>
-        @endif
-
-        {{-- ═══ TEAM — Package 1+ ═══ --}}
-        @if(can('users.read') || can('roles.read'))
-            <div class="nav-section">
-                <div class="nav-section-title">Team</div>
-                @if(can('users.read'))
-                    <a href="{{ route('admin.users.index') }}"
-                        class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
-                        <i data-lucide="users-2"></i> <span>Users</span>
-                    </a>
-                @endif
-                @if(can('roles.read'))
-                    <a href="{{ route('admin.roles.index') }}"
-                        class="nav-link {{ request()->routeIs('admin.roles.*') ? 'active' : '' }}">
-                        <i data-lucide="shield"></i> <span>Roles</span>
-                    </a>
-                @endif
-                @if(can('activities.read'))
-                    <a href="{{ route('admin.activities.index') }}"
-                        class="nav-link {{ request()->routeIs('admin.activities.*') ? 'active' : '' }}">
-                        <i data-lucide="activity"></i> <span>Activities</span>
-                    </a>
-                @endif
-            </div>
-        @endif
-
-        {{-- ═══ ANALYTICS & SETTINGS — Package 1+ ═══ --}}
-        <div class="nav-section">
-            <div class="nav-section-title">Analytics</div>
-            <a href="{{ route('admin.profile.index') }}"
-                class="nav-link {{ request()->routeIs('admin.profile.*') ? 'active' : '' }}">
-                <i data-lucide="user"></i> <span>My Profile</span>
-            </a>
-            @if(can('reports.read'))
-                <a href="{{ route('admin.reports.index') }}"
-                    class="nav-link {{ request()->routeIs('admin.reports.*') ? 'active' : '' }}">
-                    <i data-lucide="bar-chart-2"></i> <span>Reports</span>
-                </a>
-            @endif
-            @if(can('settings.manage'))
-                <a href="{{ route('admin.settings.index') }}"
-                    class="nav-link {{ request()->routeIs('admin.settings.*') ? 'active' : '' }}">
-                    <i data-lucide="settings"></i> <span>Settings</span>
-                </a>
-            @endif
-            @if(auth()->user()->user_type === 'admin')
-                <a href="{{ route('admin.billing.index') }}"
-                    class="nav-link {{ request()->routeIs('admin.billing.*') ? 'active' : '' }}">
-                    <i data-lucide="wallet" style="color:#f57c00;"></i> <span>Billing</span>
-                </a>
-            @endif
-        </div>
 
         {{-- ═══ SUBSCRIPTION INFO — visible to admin users ═══ --}}
         @if(auth()->user()->user_type === 'admin')

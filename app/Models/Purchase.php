@@ -14,6 +14,7 @@ class Purchase extends Model
         'company_id',
         'vendor_id',
         'client_id',
+        'quote_id',
         'project_id',
         'product_id',
         'purchase_no',
@@ -38,10 +39,8 @@ class Purchase extends Model
         return $this->belongsTo(Client::class);
     }
 
-    public function project()
-    {
-        return $this->belongsTo(Project::class);
-    }
+
+
 
     public function product()
     {

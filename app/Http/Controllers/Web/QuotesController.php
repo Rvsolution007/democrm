@@ -11,11 +11,7 @@ use App\Models\QuoteItem;
 use App\Models\Company;
 use App\Models\User;
 use App\Models\Setting;
-use App\Models\Project;
-use App\Models\Task;
 use App\Models\Purchase;
-use App\Models\ServiceTemplate;
-use App\Models\MicroTask;
 use Illuminate\Http\Request;
 
 class QuotesController extends Controller
@@ -117,19 +113,7 @@ class QuotesController extends Controller
         })->values()->toArray();
         $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
 
-        // Users with projects.global permission (for convert-to-client assign dropdown)
-        $projectGlobalUsers = User::where('status', 'active')
-            ->where(function ($q) {
-                $q->whereHas('role', function ($rq) {
-                    $rq->whereJsonContains('permissions', 'projects.global');
-                })->orWhereHas('role', function ($rq) {
-                    $rq->whereJsonContains('permissions', 'all');
-                });
-            })
-            ->orderBy('name')
-            ->get();
-
-        return view('admin.quotes.index', compact('leadQuotes', 'clients', 'products', 'leads', 'users', 'quoteTaxes', 'paymentTypes', 'leadTotalAmount', 'leadDueAmount', 'projectGlobalUsers'));
+        return view('admin.quotes.index', compact('leadQuotes', 'clients', 'products', 'leads', 'users', 'quoteTaxes', 'paymentTypes', 'leadTotalAmount', 'leadDueAmount'));
     }
 
     public function store(Request $request)
@@ -416,30 +400,6 @@ class QuotesController extends Controller
                 }
             }
             $quote->refresh();
-
-            // Sync purchase_amount to existing purchases linked to this quote's project
-            $projectQuery = \App\Models\Project::query();
-            if ($quote->lead_id) {
-                $projectQuery->where(function($q) use ($quote) {
-                    $q->where('lead_id', $quote->lead_id)
-                      ->orWhere('quote_id', $quote->id);
-                });
-            } else {
-                $projectQuery->where('quote_id', $quote->id);
-            }
-            $project = $projectQuery->first();
-            if ($project) {
-                foreach ($quote->items as $item) {
-                    if ($item->product_id && $item->purchase_amount > 0) {
-                        $purchase = Purchase::where('project_id', $project->id)
-                            ->where('product_id', $item->product_id)
-                            ->first();
-                        if ($purchase) {
-                            $purchase->update(['total_amount' => $item->purchase_amount]);
-                        }
-                    }
-                }
-            }
         } elseif ($request->has('clear_products')) {
             $quote->items()->delete();
         }
@@ -503,12 +463,9 @@ class QuotesController extends Controller
             'date' => now()->toDateString(),
         ]);
 
-        $assignedUsers = $request->input('assigned_to_users', []);
-
-        // Auto-create project and purchases
-        $project = null;
+        // Auto-create purchases for items with purchase-enabled products
         if ($quote->client_id) {
-            $project = $this->autoCreateProjectAndPurchases($quote, $assignedUsers);
+            $this->autoCreatePurchases($quote);
         }
 
         $response = [
@@ -516,155 +473,53 @@ class QuotesController extends Controller
             'redirect' => route('admin.invoices.index'),
         ];
 
-        if ($project) {
-            $response['project_id'] = $project->id;
-            $response['project_name'] = $project->name;
-        }
-
         return response()->json($response);
     }
 
     /**
-     * Auto-create a Project (with tasks) and Purchases for a client quote.
-     * This runs when a quote is created/updated with a client_id.
-     * It mirrors the logic from LeadsController::createProjectsAndTasks.
+     * Auto-create Purchases for a client quote.
+     * This runs when a quote is converted to an invoice.
      */
-    private function autoCreateProjectAndPurchases(Quote $quote, array $assignedUsers = []): ?Project
+    private function autoCreatePurchases(Quote $quote): void
     {
         $quote->load('items');
 
         $client = Client::find($quote->client_id);
         if (!$client) {
-            return null;
+            return;
         }
 
         $companyId = $client->company_id ?? auth()->user()->company_id;
+        $company = Company::find($companyId);
 
-        // Check if a project already exists for this quote
-        $project = Project::where('quote_id', $quote->id)->first();
-
-        // Also check by client_id + lead_id if quote has a lead
-        if (!$project && $quote->lead_id) {
-            $project = Project::where('lead_id', $quote->lead_id)
-                ->where('client_id', $client->id)
-                ->first();
-        }
-
-        if ($project) {
-            // Update the budget
-            $project->update(['budget' => $quote->grand_total]);
-        } else {
-            // Create a new project for this quote
-            $project = Project::create([
-                'company_id' => $companyId,
-                'client_id' => $client->id,
-                'quote_id' => $quote->id,
-                'lead_id' => $quote->lead_id,
-                'created_by_user_id' => auth()->id(),
-                'name' => $client->display_name . ' - Project',
-                'status' => 'pending',
-                'start_date' => now()->toDateString(),
-                'budget' => $quote->grand_total,
-            ]);
-
-            $quoteAssignedUsers = !empty($assignedUsers) ? $assignedUsers : $quote->assignedUsers->pluck('id')->toArray();
-            if (empty($quoteAssignedUsers)) {
-                $quoteAssignedUsers = [auth()->id()];
-            }
-            $project->assignedUsers()->sync($quoteAssignedUsers);
-        }
-
-        // Get existing task titles to avoid duplicates
-        $existingTaskTitles = Task::where('project_id', $project->id)
-            ->pluck('title')
-            ->map(fn($t) => strtolower(trim($t)))
-            ->toArray();
-
-        // Get existing purchase product IDs to avoid duplicates
-        $existingPurchaseProductIds = Purchase::where('project_id', $project->id)
+        // Get existing purchase product IDs for this quote to avoid duplicates
+        $existingPurchaseProductIds = Purchase::where('quote_id', $quote->id)
             ->pluck('product_id')
             ->toArray();
 
-        $sortOrder = Task::where('project_id', $project->id)->max('sort_order') ?? 0;
-
         foreach ($quote->items as $item) {
-            // Auto-create purchase if product has is_purchase_enabled
             if ($item->product_id && !in_array($item->product_id, $existingPurchaseProductIds)) {
                 $product = Product::find($item->product_id);
                 if ($product && $product->is_purchase_enabled) {
-                    $company = Company::find($companyId);
-                    // Use custom purchase_amount if set, otherwise fall back to line item total
                     $purchaseTotalPaise = ($item->purchase_amount > 0)
                         ? $item->purchase_amount
                         : $item->unit_price * max(1, $item->qty);
                     Purchase::create([
                         'company_id' => $company->id,
                         'client_id' => $client->id,
-                        'project_id' => $project->id,
+                        'quote_id' => $quote->id,
                         'product_id' => $product->id,
                         'purchase_no' => Purchase::generatePurchaseNumber($company),
                         'date' => now()->toDateString(),
                         'total_amount' => $purchaseTotalPaise,
                         'paid_amount' => 0,
                         'status' => 'draft',
-                        'notes' => 'Auto-generated from quote ' . $quote->quote_no . ' for product: ' . $product->name,
+                        'notes' => 'Auto-generated from invoice ' . $quote->quote_no . ' for product: ' . $product->name,
                     ]);
                     $existingPurchaseProductIds[] = $product->id;
                 }
             }
-
-            $taskTitle = $item->product_name;
-
-            // Skip if this project already has a task for this product
-            if (in_array(strtolower(trim($taskTitle)), $existingTaskTitles)) {
-                continue;
-            }
-
-            // Check for a linked ServiceTemplate
-            $template = null;
-            if ($item->product_id) {
-                $template = ServiceTemplate::where('product_id', $item->product_id)
-                    ->where('is_active', true)
-                    ->first();
-            }
-
-            $sortOrder++;
-            $task = Task::create([
-                'company_id' => $companyId,
-                'project_id' => $project->id,
-                'created_by_user_id' => auth()->id(),
-                'entity_type' => 'project',
-                'entity_id' => $project->id,
-                'title' => $taskTitle,
-                'description' => ($item->description ? $item->description . ' | ' : '') . 'Qty: ' . $item->qty,
-                'priority' => 'medium',
-                'status' => 'todo',
-                'sort_order' => $sortOrder,
-            ]);
-
-            $taskAssignedUsers = !empty($assignedUsers) ? $assignedUsers : $quote->assignedUsers->pluck('id')->toArray();
-            if (empty($taskAssignedUsers)) {
-                $taskAssignedUsers = [auth()->id()];
-            }
-            $task->assignedUsers()->sync($taskAssignedUsers);
-
-            $existingTaskTitles[] = strtolower(trim($taskTitle));
-
-            // Auto-create micro tasks if template exists
-            if ($template && !empty($template->getTaskSteps())) {
-                foreach ($template->getTaskSteps() as $stepIndex => $step) {
-                    MicroTask::create([
-                        'task_id' => $task->id,
-                        'role_id' => $step['role_id'] ?? null,
-                        'title' => $step['title'],
-                        'status' => 'todo',
-                        'sort_order' => $step['order'] ?? ($stepIndex + 1),
-                    ]);
-                }
-            }
         }
-
-        return $project;
     }
 
     public function destroy($id)
