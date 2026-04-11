@@ -146,7 +146,8 @@ class VertexAIService
             $response = Http::withHeaders([
                 'Authorization' => "Bearer {$accessToken}",
                 'Content-Type' => 'application/json',
-            ])->timeout(180)->post($endpoint, $body);
+                'Expect' => '', // Disable 100-continue which causes HTTP 417 with large payloads
+            ])->timeout(180)->connectTimeout(60)->post($endpoint, $body);
 
             unset($body); // Free request body memory
 
