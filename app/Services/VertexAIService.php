@@ -324,7 +324,8 @@ class VertexAIService
             }
 
             if (filesize($pdfToSend) > 20 * 1024 * 1024) {
-                throw new \RuntimeException('PDF is too large for Gemini (max 20MB per request after reduction).');
+                $sizeMB = round(filesize($pdfToSend) / 1024 / 1024, 1);
+                throw new \RuntimeException("PDF file is still {$sizeMB}MB after reduction (max 20MB). Please compress your PDF or use a smaller catalogue file.");
             }
 
             // Read PDF and encode as base64
@@ -496,7 +497,33 @@ class VertexAIService
             }
         }
 
-        Log::warning('VertexAI PDF: No reduction tools available (gs, pdftk, qpdf). Sending full PDF.');
+        Log::warning('VertexAI PDF: No system reduction tools available (gs, pdftk, qpdf). Trying PHP fallback.');
+
+        // PHP fallback: use smalot/pdfparser to at least know page count
+        // and FPDI if available for extraction
+        if (class_exists(\setasign\Fpdi\Fpdi::class)) {
+            try {
+                $fpdi = new \setasign\Fpdi\Fpdi();
+                $pageCount = $fpdi->setSourceFile($pdfPath);
+                $lastPage = min($maxPages, $pageCount);
+
+                for ($i = 1; $i <= $lastPage; $i++) {
+                    $templateId = $fpdi->importPage($i);
+                    $size = $fpdi->getTemplateSize($templateId);
+                    $fpdi->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                    $fpdi->useTemplate($templateId);
+                }
+
+                $fpdi->Output('F', $reducedPath);
+                if (file_exists($reducedPath) && filesize($reducedPath) > 0) {
+                    Log::info('VertexAI PDF: Reduced using FPDI PHP fallback', ['pages' => $lastPage]);
+                    return $reducedPath;
+                }
+            } catch (\Exception $e) {
+                Log::warning('VertexAI PDF: FPDI fallback failed', ['error' => $e->getMessage()]);
+            }
+        }
+
         return $pdfPath;
     }
 
@@ -569,7 +596,32 @@ class VertexAIService
             }
         }
 
-        Log::warning('VertexAI: Could not extract PDF page range', ['first' => $firstPage, 'last' => $lastPage]);
+        Log::warning('VertexAI: System tools unavailable for page range, trying FPDI PHP fallback', ['first' => $firstPage, 'last' => $lastPage]);
+
+        // FPDI PHP fallback
+        if (class_exists(\setasign\Fpdi\Fpdi::class)) {
+            try {
+                $fpdi = new \setasign\Fpdi\Fpdi();
+                $pageCount = $fpdi->setSourceFile($pdfPath);
+                $actualLast = min($lastPage, $pageCount);
+
+                for ($i = $firstPage; $i <= $actualLast; $i++) {
+                    $templateId = $fpdi->importPage($i);
+                    $size = $fpdi->getTemplateSize($templateId);
+                    $fpdi->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                    $fpdi->useTemplate($templateId);
+                }
+
+                $fpdi->Output('F', $chunkPath);
+                if (file_exists($chunkPath) && filesize($chunkPath) > 0) {
+                    Log::info('VertexAI: Page range extracted using FPDI', ['pages' => "{$firstPage}-{$actualLast}"]);
+                    return $chunkPath;
+                }
+            } catch (\Exception $e) {
+                Log::warning('VertexAI: FPDI page range fallback failed', ['error' => $e->getMessage()]);
+            }
+        }
+
         return null;
     }
 
