@@ -57,8 +57,9 @@ class SetupWizardController extends Controller
         $companyId = auth()->user()->company_id;
         $service = new CatalogueAIService($companyId);
 
-        // Boost memory for PDF processing (14MB PDF → ~19MB base64 → ~40MB+ in JSON)
+        // Boost resources for PDF processing — Gemini API needs 60-180s for analysis
         ini_set('memory_limit', '1G');
+        set_time_limit(300); // 5 minutes for PDF analysis via Gemini API
 
         try {
             $sourceType = $request->source_type;

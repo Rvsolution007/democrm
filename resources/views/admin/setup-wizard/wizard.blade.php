@@ -924,8 +924,8 @@
 
     function startCountdown() {
         var fileSizeMB = selectedFile ? selectedFile.size / 1024 / 1024 : 5;
-        // Estimate: ~5s per MB for upload+processing, min 30s, max 120s
-        var totalSeconds = Math.max(30, Math.min(120, Math.round(fileSizeMB * 5)));
+        // Estimate: Large PDFs need more time via Gemini API
+        var totalSeconds = Math.max(60, Math.min(300, Math.round(fileSizeMB * 15)));
         var elapsed = 0;
         var ring = document.getElementById('countdown-ring');
         var timeEl = document.getElementById('countdown-time');
@@ -1011,13 +1011,19 @@
             formData.append('website_url', document.getElementById('website-url').value.trim());
         }
 
+        // Timeout: 5 minutes for Gemini PDF analysis
+        var controller = new AbortController();
+        var timeoutId = setTimeout(function() { controller.abort(); }, 300000);
+
         fetch('{{ route("admin.setup-wizard.analyze") }}', {
             method: 'POST',
             headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
-            body: formData
+            body: formData,
+            signal: controller.signal,
         })
         .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
         .then(function(res) {
+            clearTimeout(timeoutId);
             if (res.ok && res.data.success) {
                 stopCountdown(true);
                 aiColumns = res.data.columns;
@@ -1035,8 +1041,10 @@
             }
         })
         .catch(function(err) {
+            clearTimeout(timeoutId);
             stopCountdown(false);
-            showAlert('error', 'Network error. Please check your connection and try again.');
+            var msg = err && err.name === 'AbortError' ? 'Analysis timed out. Please try again.' : 'Network error. Please check your connection and try again.';
+            showAlert('error', msg);
             btn.disabled = false;
             textEl.innerHTML = '<i data-lucide="sparkles" style="width:18px;height:18px"></i> Retry Analysis';
             if (typeof lucide !== 'undefined') lucide.createIcons();
