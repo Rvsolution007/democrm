@@ -97,7 +97,7 @@
 
 /* Bigger action icons */
 #products-table .action-btn { padding:6px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; }
-#products-table .action-btn i, #products-table .action-btn svg { width:20px !important; height:20px !important; }
+#products-table .action-btn i, #products-table .action-btn svg { width:18px !important; height:18px !important; }
 </style>
 @endpush
 
@@ -134,6 +134,49 @@
             </ul>
         </div>
     @endif
+
+    {{-- ════ Search Bar ════ --}}
+    @php
+        $categoryCol = $customColumns->where('is_category', true)->first();
+        $uniqueCol = $customColumns->where('is_unique', true)->first();
+    @endphp
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+        {{-- Category Filter --}}
+        @if($categoryCol)
+        <div style="flex:1;min-width:180px;max-width:250px">
+            <select id="search-category" onchange="searchProducts()"
+                style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#fff;color:#1e293b;outline:none;transition:border-color .2s;cursor:pointer"
+                onfocus="this.style.borderColor='#6366f1';this.style.boxShadow='0 0 0 3px rgba(99,102,241,.1)'"
+                onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
+                <option value="">All {{ $categoryCol->name ?? 'Categories' }}</option>
+                @foreach($categories as $cat)
+                    <option value="{{ $cat->id }}" {{ request('category_search') == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        @endif
+
+        {{-- Unique ID Search --}}
+        @if($uniqueCol)
+        <div style="flex:1;min-width:180px;max-width:280px;position:relative">
+            <i data-lucide="search" style="width:16px;height:16px;position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none"></i>
+            <input type="text" id="search-unique" placeholder="Search by {{ $uniqueCol->name ?? 'Code' }}..."
+                value="{{ request('unique_search') }}"
+                oninput="debounceSearch()"
+                style="width:100%;padding:9px 12px 9px 36px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#fff;color:#1e293b;outline:none;transition:border-color .2s"
+                onfocus="this.style.borderColor='#6366f1';this.style.boxShadow='0 0 0 3px rgba(99,102,241,.1)'"
+                onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
+        </div>
+        @endif
+
+        {{-- Reset Button --}}
+        <button onclick="resetSearch()" title="Reset"
+            style="padding:9px 14px;border:1.5px solid #e2e8f0;background:#fff;border-radius:8px;cursor:pointer;font-size:13px;color:#64748b;display:flex;align-items:center;gap:6px;transition:all .2s"
+            onmouseover="this.style.borderColor='#ef4444';this.style.color='#ef4444'"
+            onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#64748b'">
+            <i data-lucide="x-circle" style="width:15px;height:15px"></i> Reset
+        </button>
+    </div>
 
     <div class="table-container">
         {{-- Bulk Delete Floating Bar --}}
@@ -1491,6 +1534,61 @@ function bulkDeleteProducts() {
     .catch(function() {
         showImportToast('Network error. Try again.', 'error');
     });
+}
+// ═══ AJAX Product Search ═══
+var _searchTimer = null;
+
+function debounceSearch() {
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(searchProducts, 400);
+}
+
+function searchProducts() {
+    var catEl = document.getElementById('search-category');
+    var uniqueEl = document.getElementById('search-unique');
+    var catVal = catEl ? catEl.value : '';
+    var uniqueVal = uniqueEl ? uniqueEl.value.trim() : '';
+
+    var params = new URLSearchParams();
+    if (catVal) params.set('category_search', catVal);
+    if (uniqueVal) params.set('unique_search', uniqueVal);
+
+    // Update URL without reload
+    var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    window.history.replaceState({}, '', newUrl);
+
+    // Show loading state on tbody
+    var tbody = document.querySelector('#products-table tbody');
+    if (tbody) tbody.style.opacity = '0.5';
+
+    fetch('{{ route("admin.products.index") }}?' + params.toString(), {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'text/html'
+        }
+    })
+    .then(function(r) { return r.text(); })
+    .then(function(html) {
+        if (tbody) {
+            tbody.innerHTML = html;
+            tbody.style.opacity = '1';
+            // Re-init lucide icons for new content
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            // Re-bind edit buttons
+            if (typeof bindEditButtons === 'function') bindEditButtons();
+        }
+    })
+    .catch(function() {
+        if (tbody) tbody.style.opacity = '1';
+    });
+}
+
+function resetSearch() {
+    var catEl = document.getElementById('search-category');
+    var uniqueEl = document.getElementById('search-unique');
+    if (catEl) catEl.value = '';
+    if (uniqueEl) uniqueEl.value = '';
+    searchProducts();
 }
 </script>
 @endpush

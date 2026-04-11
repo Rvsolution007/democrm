@@ -11,27 +11,62 @@ use Illuminate\Http\Request;
 
 class ProductsController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         if (!can('products.read')) {
             abort(403, 'Unauthorized action.');
         }
 
+        $companyId = auth()->user()->company_id;
+
         $query = Product::with(['category', 'customValues', 'variations'])
-            ->where('company_id', auth()->user()->company_id);
+            ->where('company_id', $companyId);
 
         // Global permission filter
         if (!can('products.global')) {
             $query->where('created_by_user_id', auth()->id());
         }
 
-        $products = $query->latest()->paginate(20);
-        $categories = Category::where('company_id', auth()->user()->company_id)->orderBy('name')->get();
+        // Search by Category
+        if ($request->filled('category_search')) {
+            $catSearch = $request->category_search;
+            $query->where('category_id', $catSearch);
+        }
+
+        // Search by Unique Identifier (Code No. / Model No. etc.)
+        if ($request->filled('unique_search')) {
+            $uniqueSearch = trim($request->unique_search);
+            // Find the unique-flagged custom column
+            $uniqueCol = \App\Models\CatalogueCustomColumn::where('company_id', $companyId)
+                ->where('is_active', true)
+                ->where('is_unique', true)
+                ->first();
+            if ($uniqueCol) {
+                if ($uniqueCol->is_system) {
+                    // System column (like sku) — search directly
+                    $query->where($uniqueCol->slug, 'LIKE', "%{$uniqueSearch}%");
+                } else {
+                    // Custom column — search in custom values
+                    $query->whereHas('customValues', function ($q) use ($uniqueCol, $uniqueSearch) {
+                        $q->where('column_id', $uniqueCol->id)
+                          ->where('value', 'LIKE', "%{$uniqueSearch}%");
+                    });
+                }
+            }
+        }
+
+        $products = $query->latest()->paginate(20)->appends($request->only(['category_search', 'unique_search']));
+        $categories = Category::where('company_id', $companyId)->orderBy('name')->get();
         
-        $customColumns = \App\Models\CatalogueCustomColumn::where('company_id', auth()->user()->company_id)
+        $customColumns = \App\Models\CatalogueCustomColumn::where('company_id', $companyId)
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->get();
+
+        // AJAX: return just the table HTML
+        if ($request->ajax()) {
+            return view('admin.products._table', compact('products', 'customColumns'))->render();
+        }
 
         return view('admin.products.index', compact('products', 'categories', 'customColumns'));
     }
