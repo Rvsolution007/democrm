@@ -629,15 +629,24 @@ ANALYSIS METHODOLOGY (follow in exact order):
    • Find variation/combo fields (fields where one product has MULTIPLE options like sizes, finishes)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-REQUIRED COLUMNS (always create these IF visible):
+SMART COLUMN CREATION — DO NOT FORCE COLUMNS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-• ALWAYS include a Category column (is_category=true, type="select") if product groups/families exist
-• ALWAYS include a unique identifier column (is_unique=true) using the EXACT term from the catalogue:
+⚠️ CRITICAL: Only create "Category" and "Product Name" as SEPARATE columns if the catalogue GENUINELY has BOTH:
+  - A GROUP/FAMILY name (e.g., "Conceal Handle", "Door Handle") → this becomes Category (is_category=true)
+  - AND a DISTINCT product name or title that differs from the category → this becomes Product Name (is_title=true)
+
+🚫 If the catalogue ONLY has model numbers or code numbers as identifiers (like "Code No. 9015"), then:
+  - Do NOT force a separate "Product Name" column
+  - Instead, use the Category name as the product identity (mark it is_title=true AND is_category=true)
+  - Or mark the unique identifier column (Code No.) as is_title=true
+
+✅ ALWAYS include a Category column (is_category=true, type="select") if product groups/families exist
+✅ ALWAYS include a unique identifier column (is_unique=true) — use the EXACT label from the catalogue:
   - If catalogue says "Code No." → name it "Code No."
   - If catalogue says "Model Number" → name it "Model Number"
   - If catalogue says "SKU" → name it "SKU"
-• ALWAYS include a product name/title column (is_title=true)
+✅ Only create a SEPARATE "Product Name" (is_title=true) column if products have actual descriptive names DIFFERENT from the category
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OPTIONAL COLUMNS (ONLY if they ACTUALLY EXIST in the catalogue):
@@ -708,24 +717,35 @@ SORTING ORDER:
 7. Pricing (ONLY if visible)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EXAMPLE — Hardware Catalogue with Code No., Size Table, Finishes, Material:
+EXAMPLE A — Catalogue where products have DESCRIPTIVE NAMES (e.g., "Premium Conceal Handle"):
+→ Create BOTH Category AND Product Name columns
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 {
   "columns": [
     {"name": "Category", "type": "select", "is_unique": false, "is_required": true, "is_category": true, "is_title": false, "is_combo": false, "options": ["Conceal Handle", "Wardrobe Handle", "Profile Handle"], "show_in_ai": true, "sort_order": 1},
     {"name": "Product Name", "type": "text", "is_unique": false, "is_required": true, "is_category": false, "is_title": true, "is_combo": false, "options": [], "show_in_ai": true, "sort_order": 2},
-    {"name": "Code No.", "type": "text", "is_unique": true, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": true, "sort_order": 3},
-    {"name": "Material", "type": "select", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": false, "options": ["Aluminium", "Zinc Alloy", "Stainless Steel"], "show_in_ai": true, "sort_order": 4},
-    {"name": "Size", "type": "multiselect", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": true, "options": ["300mm", "450mm", "600mm", "900mm"], "show_in_ai": true, "sort_order": 5},
-    {"name": "Finish", "type": "multiselect", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": true, "options": ["Black", "Rose Gold", "Grey", "Satin", "SS", "Gold PVD"], "show_in_ai": true, "sort_order": 6},
-    {"name": "Packing", "type": "number", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": false, "sort_order": 7}
-  ],
-  "source_summary": "Hardware fittings catalogue with handle products across multiple categories. Each product has a Code No., available sizes, finishes, and material specifications.",
-  "confidence": 90
+    {"name": "Code No.", "type": "text", "is_unique": true, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": true, "sort_order": 3}
+  ]
 }
 
-Notice: NO sale_price, mrp, gst_percent, hsn_code, or description — because they were NOT visible in the catalogue.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXAMPLE B — Catalogue where products are ONLY identified by code numbers (e.g., "Code No. 9015"):
+→ Do NOT create separate Product Name — Category gets BOTH is_category AND is_title
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{
+  "columns": [
+    {"name": "Category", "type": "select", "is_unique": false, "is_required": true, "is_category": true, "is_title": true, "is_combo": false, "options": ["Conceal Handle", "Wardrobe Handle", "Profile Handle"], "show_in_ai": true, "sort_order": 1},
+    {"name": "Code No.", "type": "text", "is_unique": true, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": true, "sort_order": 2},
+    {"name": "Material", "type": "select", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": false, "options": ["Aluminium", "Zinc Alloy"], "show_in_ai": true, "sort_order": 3},
+    {"name": "Size", "type": "multiselect", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": true, "options": ["300mm", "450mm", "600mm"], "show_in_ai": true, "sort_order": 4},
+    {"name": "Finish", "type": "multiselect", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": true, "options": ["Black", "Rose Gold", "SS"], "show_in_ai": true, "sort_order": 5}
+  ]
+}
+
+Notice: NO "Product Name" column because products don't have descriptive names — only Code No. identifies them.
+Also NO sale_price, mrp, gst_percent, hsn_code, or description — because they were NOT visible in the catalogue.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BUSINESS DETAILS EXTRACTION:
@@ -770,6 +790,8 @@ Before outputting, verify ALL of these:
 ✗ Do you have more than ONE column with is_unique=true? → FIX: only ONE is allowed.
 ✗ Is the is_category column type something other than "select"? → FIX: must be "select" type.
 ✗ Did you add ANY column for data that is NOT visible in the catalogue? → REMOVE it immediately!
+✗ Did you create a "Product Name" column when products DON'T have descriptive names? → REMOVE it and put is_title=true on Category instead.
+✗ Are "Category" and "Product Name" showing the SAME data? → REMOVE Product Name, set is_title=true on Category.
 PROMPT;
     }
 
@@ -1068,50 +1090,71 @@ CRITICAL EXTRACTION RULES:
    - If a catalogue page shows 10 different models, you must create 10 separate product entries
    - Each model number, even within the same category, is a SEPARATE product
 
-2. ⚠️ CATEGORY COLUMN — VERY IMPORTANT:
-   - The Category value is the PRODUCT GROUP/FAMILY name (e.g. "Conceal Handle", "Door Handle", "Wardrobe Handle")
+2. ⚠️ CATEGORY COLUMN [CATEGORY flag] — VERY IMPORTANT:
+   - The Category value is the PRODUCT GROUP/FAMILY name only
    - Multiple products MUST share the same category value
    - NEVER append model numbers, code numbers, or unique identifiers to the category
-   - ❌ WRONG: Category = "Conceal Handle 0010" (includes model number)
-   - ❌ WRONG: Category = "Knob Handle 401" (includes code number)
-   - ✅ CORRECT: Category = "Conceal Handle" (group name only)
-   - ✅ CORRECT: Category = "Knob Handle" (group name only)
-   - If the Category and Unique Identifier are on the SAME line in the catalogue, SEPARATE them into two different fields
+   - Think of it as: Category = A (group name), Unique Code = X (identifier)
+   - ❌ WRONG: Category = "A X" (group name + code combined into one value)
+   - ✅ CORRECT: Category = "A" (group name only, code goes in its own column)
+   - If the Category and Unique Identifier appear on the SAME line in the catalogue, SEPARATE them into two different fields
    - Category should have FAR FEWER unique values than the number of products (e.g. 5 categories for 100 products)
 
-3. For COMBO/VARIATION fields (like Finish, Color, Size):
+3. ⚠️ PRODUCT NAME / TITLE COLUMN [TITLE flag] — EQUALLY IMPORTANT:
+   - Product Name must NEVER contain the code/model number
+   - If Category = "A" and Code = "X", then Product Name = "A", NOT "A X"
+   - ❌ WRONG: Product Name = "A X" (group + code combined)
+   - ✅ CORRECT: Product Name = "A" (group name only, code stays in UNIQUE column)
+   - The UNIQUE IDENTIFIER column already captures the code — do NOT repeat it in Product Name
+   - If the catalogue has a SPECIFIC descriptive name for the product, use that descriptive name
+   - If no specific name exists, use the Category group name as the Product Name
+
+4. For COMBO/VARIATION fields (like Finish, Color, Size):
    - Separate available options with " | " (pipe with spaces)
-   - Example: "Matte Black | Brushed Gold | Silver"
    - These represent the options available FOR THAT SPECIFIC MODEL
 
-4. For PRICES: use numeric values only (no currency symbols, no commas)
+5. For PRICES: use numeric values only (no currency symbols, no commas)
 
-5. If a field value is not visible/available for a product, use empty string ""
+6. If a field value is not visible/available for a product, use empty string ""
 
-6. Do NOT include image URLs or file paths — text data only
+7. Do NOT include image URLs or file paths — text data only
 
-7. For select-type fields, pick the closest matching option from the defined options
+8. For select-type fields, pick the closest matching option from the defined options
 
-8. Extract ALL products from ALL visible pages of the catalogue
+9. Extract ALL products from ALL visible pages of the catalogue
    - Even if products look similar, if they have different model numbers, sizes or specifications — they are separate products
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EXAMPLE — CORRECT vs WRONG:
+EXAMPLE — Using abstract names A, B and codes X1, X2, Y1:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-❌ WRONG (grouping by category):
+Let's say Category groups are "A" and "B", with unique codes "X1", "X2", "Y1":
+
+❌ WRONG — code merged into Product Name:
 {"products": [
-  {"Category": "Conceal Handle", "Product Name": "Conceal Handle", "Model Number": "", ...},
-  {"Category": "Wardrobe Handle", "Product Name": "Wardrobe Handle", "Model Number": "", ...}
+  {"[CATEGORY col]": "A", "[TITLE col]": "A X1", "[UNIQUE col]": "X1"},
+  {"[CATEGORY col]": "B", "[TITLE col]": "B Y1", "[UNIQUE col]": "Y1"}
 ]}
 
-✅ CORRECT (each model = separate row):
+❌ WRONG — code merged into Category:
 {"products": [
-  {"Category": "Conceal Handle", "Product Name": "Conceal Handle CH-101", "Model Number": "CH-101", "Material": "Aluminium", "Finish": "Black | Gold | Silver", ...},
-  {"Category": "Conceal Handle", "Product Name": "Conceal Handle CH-102", "Model Number": "CH-102", "Material": "Zinc Alloy", "Finish": "Black | Rose Gold", ...},
-  {"Category": "Conceal Handle", "Product Name": "Conceal Handle CH-103", "Model Number": "CH-103", "Material": "Stainless Steel", "Finish": "Silver", ...},
-  {"Category": "Wardrobe Handle", "Product Name": "Wardrobe Handle WH-201", "Model Number": "WH-201", ...}
+  {"[CATEGORY col]": "A X1", "[TITLE col]": "A X1", "[UNIQUE col]": "X1"}
 ]}
+
+❌ WRONG — grouped by category, no individual models:
+{"products": [
+  {"[CATEGORY col]": "A", "[TITLE col]": "A", "[UNIQUE col]": ""}
+]}
+
+✅ CORRECT — each model is its own row, names are group-only, code is separate:
+{"products": [
+  {"[CATEGORY col]": "A", "[TITLE col]": "A", "[UNIQUE col]": "X1", ...},
+  {"[CATEGORY col]": "A", "[TITLE col]": "A", "[UNIQUE col]": "X2", ...},
+  {"[CATEGORY col]": "B", "[TITLE col]": "B", "[UNIQUE col]": "Y1", ...}
+]}
+
+↑ TITLE value = CATEGORY value = Group name. UNIQUE column has the code. They are ALWAYS SEPARATE.
+↑ Replace [CATEGORY col], [TITLE col], [UNIQUE col] with the actual column names defined above.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT FORMAT (STRICT JSON — NO MARKDOWN):
@@ -1135,9 +1178,11 @@ FINAL CHECKLIST:
 - Extract as many INDIVIDUAL products/models as possible (up to 500)
 - Prices should be numbers only, no ₹ or Rs or $ symbols
 - ⚠️ Did you create one row per MODEL? Not one row per CATEGORY! Double check!
-- ⚠️ Count your product entries — if you have less than 10 products from a multi-page catalogue, you are probably grouping incorrectly!
+- ⚠️ Count your product entries — if you have less than 10 products from a multi-page catalogue, you probably grouped incorrectly!
 - ⚠️ Count your UNIQUE Category values — if you have as many categories as products, you are putting model numbers IN the category! Fix this!
-- ⚠️ Category must be the GROUP NAME only (e.g. "Conceal Handle"), NEVER "Conceal Handle 0010"
+- ⚠️ CATEGORY [CATEGORY flag] must be the GROUP NAME only — NEVER append code/model numbers!
+- ⚠️ PRODUCT NAME [TITLE flag] must be the GROUP NAME only — NEVER append code/model numbers! Code goes ONLY in the UNIQUE IDENTIFIER column!
+- ⚠️ If any value in CATEGORY or TITLE column ends with a number/code that matches the UNIQUE column value — that number does NOT belong there, REMOVE it!
 PROMPT;
     }
 
