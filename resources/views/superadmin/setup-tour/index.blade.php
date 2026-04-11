@@ -99,20 +99,66 @@
             </div>
         </div>
 
-        {{-- AI Prompt Override --}}
+        {{-- ═══ AI Column Analysis Prompt ═══ --}}
         <div class="card" style="margin-bottom:20px">
             <div class="card-content" style="padding:24px">
                 <h3 style="font-size:16px;font-weight:600;margin:0 0 6px 0;display:flex;align-items:center;gap:8px">
                     <i data-lucide="bot" style="width:18px;height:18px;color:#f59e0b"></i>
-                    AI Column Analysis Prompt (Advanced)
+                    AI Column Analysis Prompt
                 </h3>
                 <p style="font-size:13px;color:hsl(var(--muted-foreground));margin:0 0 12px 0">
-                    Leave empty to use the default expert prompt. Only override if you know what you're doing.
+                    This prompt is used when AI scans the PDF to identify the database column structure (Step 1: Upload Catalogue).
                 </p>
 
-                <textarea name="column_analysis_prompt" rows="8"
-                          placeholder="Leave empty for default 20-year expert catalogue analyst prompt..."
-                          style="width:100%;padding:10px 14px;border:1px solid hsl(var(--border));border-radius:8px;font-size:13px;resize:vertical;font-family:'JetBrains Mono',monospace;line-height:1.6;background:hsl(var(--muted)/0.2)">{{ $tourConfig['column_analysis_prompt'] }}</textarea>
+                {{-- Default Prompt (Read-Only, Collapsible) --}}
+                <details style="margin-bottom:14px;border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden">
+                    <summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:600;color:#6366f1;background:hsl(var(--muted)/0.3);user-select:none;display:flex;align-items:center;gap:6px">
+                        <i data-lucide="eye" style="width:14px;height:14px"></i>
+                        View Current Default Prompt (Read-Only)
+                    </summary>
+                    <pre style="padding:14px;margin:0;font-size:11px;font-family:'JetBrains Mono',Consolas,monospace;line-height:1.5;background:hsl(var(--muted)/0.15);white-space:pre-wrap;word-wrap:break-word;max-height:500px;overflow-y:auto;color:hsl(var(--foreground))">{{ $tourConfig['default_column_prompt'] }}</pre>
+                </details>
+
+                {{-- Custom Override --}}
+                <label style="font-weight:600;font-size:12px;display:block;margin-bottom:6px;color:hsl(var(--muted-foreground))">
+                    Custom Override (leave empty to use default above)
+                </label>
+                <textarea name="column_analysis_prompt" rows="6"
+                          placeholder="Paste your custom column analysis prompt here..."
+                          style="width:100%;padding:10px 14px;border:1px solid hsl(var(--border));border-radius:8px;font-size:12px;resize:vertical;font-family:'JetBrains Mono',Consolas,monospace;line-height:1.5;background:hsl(var(--muted)/0.2)">{{ $tourConfig['column_analysis_prompt'] }}</textarea>
+            </div>
+        </div>
+
+        {{-- ═══ AI Product Extraction Prompt ═══ --}}
+        <div class="card" style="margin-bottom:20px">
+            <div class="card-content" style="padding:24px">
+                <h3 style="font-size:16px;font-weight:600;margin:0 0 6px 0;display:flex;align-items:center;gap:8px">
+                    <i data-lucide="database" style="width:18px;height:18px;color:#3b82f6"></i>
+                    AI Product Data Extraction Prompt
+                </h3>
+                <p style="font-size:13px;color:hsl(var(--muted-foreground));margin:0 0 4px 0">
+                    This prompt is used when AI extracts individual product rows from the catalogue (Step 3: Product Data).
+                </p>
+                <p style="font-size:11px;color:hsl(var(--muted-foreground));margin:0 0 12px 0;font-style:italic">
+                    Note: This prompt is dynamic — the column list section changes based on each business's catalogue columns. Below shows a sample with 3 demo columns.
+                </p>
+
+                {{-- Default Prompt (Read-Only, Collapsible) --}}
+                <details style="margin-bottom:14px;border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden">
+                    <summary style="padding:10px 14px;cursor:pointer;font-size:13px;font-weight:600;color:#3b82f6;background:hsl(var(--muted)/0.3);user-select:none;display:flex;align-items:center;gap:6px">
+                        <i data-lucide="eye" style="width:14px;height:14px"></i>
+                        View Current Default Prompt (Read-Only — Sample Columns)
+                    </summary>
+                    <pre style="padding:14px;margin:0;font-size:11px;font-family:'JetBrains Mono',Consolas,monospace;line-height:1.5;background:hsl(var(--muted)/0.15);white-space:pre-wrap;word-wrap:break-word;max-height:500px;overflow-y:auto;color:hsl(var(--foreground))">{{ $tourConfig['default_product_prompt'] }}</pre>
+                </details>
+
+                {{-- Custom Override --}}
+                <label style="font-weight:600;font-size:12px;display:block;margin-bottom:6px;color:hsl(var(--muted-foreground))">
+                    Custom Override (leave empty to use default above)
+                </label>
+                <textarea name="product_extraction_prompt" rows="6"
+                          placeholder="Paste your custom product extraction prompt here..."
+                          style="width:100%;padding:10px 14px;border:1px solid hsl(var(--border));border-radius:8px;font-size:12px;resize:vertical;font-family:'JetBrains Mono',Consolas,monospace;line-height:1.5;background:hsl(var(--muted)/0.2)">{{ $tourConfig['product_extraction_prompt'] }}</textarea>
             </div>
         </div>
 

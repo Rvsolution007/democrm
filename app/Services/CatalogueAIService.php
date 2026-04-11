@@ -1039,7 +1039,9 @@ PROMPT;
             throw new \RuntimeException('AI is not configured.');
         }
 
-        $systemPrompt = $this->getProductExtractionPrompt($columns);
+        // Custom prompt override from Super Admin settings
+        $customPrompt = Setting::getGlobalValue('setup_tour', 'product_extraction_prompt', '');
+        $systemPrompt = !empty($customPrompt) ? $customPrompt : $this->getProductExtractionPrompt($columns);
         $userMessage = "CATALOGUE CONTENT:\n\n{$content}";
 
         $result = $this->vertexAI->generateContent(
@@ -1197,6 +1199,32 @@ FINAL CHECKLIST:
 - ⚠️ PRODUCT NAME [TITLE flag] must be the GROUP NAME only — NEVER append code/model numbers! Code goes ONLY in the UNIQUE IDENTIFIER column!
 - ⚠️ If any value in CATEGORY or TITLE column ends with a number/code that matches the UNIQUE column value — that number does NOT belong there, REMOVE it!
 PROMPT;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // PUBLIC PROMPT ACCESSORS (for Super Admin display)
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Get the default column analysis prompt for display in Super Admin settings
+     */
+    public function getDefaultColumnAnalysisPromptPublic(): string
+    {
+        return $this->getDefaultColumnAnalysisPrompt();
+    }
+
+    /**
+     * Get the default product extraction prompt for display in Super Admin settings
+     * Uses sample columns since the actual prompt is dynamic
+     */
+    public function getDefaultProductExtractionPromptPublic(): string
+    {
+        $sampleColumns = [
+            ['name' => 'Category', 'type' => 'select', 'is_category' => true, 'is_unique' => false, 'is_title' => true, 'is_combo' => false, 'options' => ['Sample A', 'Sample B']],
+            ['name' => 'Code No.', 'type' => 'text', 'is_category' => false, 'is_unique' => true, 'is_title' => false, 'is_combo' => false, 'options' => []],
+            ['name' => 'Material', 'type' => 'select', 'is_category' => false, 'is_unique' => false, 'is_title' => false, 'is_combo' => false, 'options' => ['Steel', 'Aluminium']],
+        ];
+        return $this->getProductExtractionPrompt($sampleColumns);
     }
 
     // ═══════════════════════════════════════════════════════════

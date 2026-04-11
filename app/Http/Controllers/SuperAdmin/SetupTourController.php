@@ -22,7 +22,13 @@ class SetupTourController extends Controller
             'welcome_subtitle' => Setting::getGlobalValue('setup_tour', 'welcome_subtitle', "Let's set up your product catalogue in minutes using AI"),
             'intro_message' => Setting::getGlobalValue('setup_tour', 'intro_message', 'Upload your product catalogue PDF or share your website URL — our AI will automatically analyze your products and create the perfect database structure for you.'),
             'column_analysis_prompt' => Setting::getGlobalValue('setup_tour', 'column_analysis_prompt', ''),
+            'product_extraction_prompt' => Setting::getGlobalValue('setup_tour', 'product_extraction_prompt', ''),
         ];
+
+        // Get default prompts from the service for display
+        $catalogueService = new \App\Services\CatalogueAIService(0);
+        $tourConfig['default_column_prompt'] = $catalogueService->getDefaultColumnAnalysisPromptPublic();
+        $tourConfig['default_product_prompt'] = $catalogueService->getDefaultProductExtractionPromptPublic();
 
         // Stats: businesses that completed the tour
         $totalBusinesses = Company::where('status', 'active')->count();
@@ -66,7 +72,8 @@ class SetupTourController extends Controller
             'welcome_title' => 'required|string|max:200',
             'welcome_subtitle' => 'required|string|max:300',
             'intro_message' => 'required|string|max:1000',
-            'column_analysis_prompt' => 'nullable|string|max:10000',
+            'column_analysis_prompt' => 'nullable|string|max:20000',
+            'product_extraction_prompt' => 'nullable|string|max:20000',
         ]);
 
         Setting::setGlobalValue('setup_tour', 'enabled', $request->has('enabled'));
@@ -79,6 +86,12 @@ class SetupTourController extends Controller
             Setting::setGlobalValue('setup_tour', 'column_analysis_prompt', $request->column_analysis_prompt);
         } else {
             Setting::setGlobalValue('setup_tour', 'column_analysis_prompt', '');
+        }
+
+        if ($request->filled('product_extraction_prompt')) {
+            Setting::setGlobalValue('setup_tour', 'product_extraction_prompt', $request->product_extraction_prompt);
+        } else {
+            Setting::setGlobalValue('setup_tour', 'product_extraction_prompt', '');
         }
 
         return back()->with('success', 'Setup Tour settings saved successfully!');
