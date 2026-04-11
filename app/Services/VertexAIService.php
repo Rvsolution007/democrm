@@ -31,7 +31,7 @@ class VertexAIService
      *
      * @return array  ['text' => string, 'prompt_tokens' => int, 'completion_tokens' => int, 'total_tokens' => int]
      */
-    public function generateContent(string $systemPrompt, array $messages, ?string $imageUrl = null, int $maxOutputTokens = 8192): array
+    public function generateContent(string $systemPrompt, array $messages, ?string $imageUrl = null): array
     {
         if (empty($this->projectId) || empty($this->serviceAccount)) {
             Log::error('VertexAI: Service not configured');
@@ -41,12 +41,12 @@ class VertexAIService
         try {
             $accessToken = $this->getAccessToken();
             $endpoint = $this->getEndpoint();
-            $requestBody = $this->buildRequestBody($systemPrompt, $messages, $imageUrl, $maxOutputTokens);
+            $requestBody = $this->buildRequestBody($systemPrompt, $messages, $imageUrl);
 
             $response = Http::withHeaders([
                 'Authorization' => "Bearer {$accessToken}",
                 'Content-Type' => 'application/json',
-            ])->timeout(120)->post($endpoint, $requestBody);
+            ])->timeout(60)->post($endpoint, $requestBody);
 
             if (!$response->successful()) {
                 Log::error('VertexAI: API error', ['status' => $response->status(), 'body' => $response->body()]);
@@ -68,338 +68,6 @@ class VertexAIService
             Log::error('VertexAI: Exception - ' . $e->getMessage());
             return ['text' => 'Sorry, an error occurred. Please try again later.', 'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
         }
-    }
-
-    /**
-     * Generate content with a PDF file sent as inline base64 data (multimodal)
-     * This allows Gemini to "see" the PDF pages — works for both text and image-based PDFs.
-     *
-     * @param string $systemPrompt  System instruction
-     * @param string $pdfPath       Absolute path to the PDF file
-     * @param string $userMessage   User prompt text
-     * @param int    $maxOutputTokens  Max output tokens
-     * @return array  ['text' => string, 'prompt_tokens' => int, 'completion_tokens' => int, 'total_tokens' => int]
-     */
-    public function generateContentWithPDF(string $systemPrompt, string $pdfPath, string $userMessage, int $maxOutputTokens = 8192): array
-    {
-        if (empty($this->projectId) || empty($this->serviceAccount)) {
-            Log::error('VertexAI: Service not configured');
-            return ['text' => 'AI bot is not configured. Please set up Vertex AI in Settings.', 'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
-        }
-
-        // Boost memory for large PDF base64 encoding
-        $originalMemory = ini_get('memory_limit');
-        ini_set('memory_limit', '1G');
-
-        try {
-            $accessToken = $this->getAccessToken();
-            $endpoint = $this->getEndpoint();
-
-            // Check file size — Gemini inline limit is ~20MB total request
-            $fileSize = filesize($pdfPath);
-            $fileSizeMB = round($fileSize / 1024 / 1024, 2);
-            Log::info('VertexAI PDF: Processing file', ['size_mb' => $fileSizeMB, 'path' => basename($pdfPath)]);
-
-            if ($fileSize > 20 * 1024 * 1024) {
-                throw new \RuntimeException('PDF chunk is too large for Gemini (max 20MB per request). Split into smaller chunks.');
-            }
-
-            // Read PDF and encode as base64
-            $pdfContent = file_get_contents($pdfPath);
-            if ($pdfContent === false) {
-                throw new \RuntimeException('Could not read PDF file.');
-            }
-            $pdfBase64 = base64_encode($pdfContent);
-            unset($pdfContent); // Free memory immediately
-
-            // Build multimodal request with PDF inline data
-            $body = [
-                'contents' => [
-                    [
-                        'role' => 'user',
-                        'parts' => [
-                            [
-                                'inlineData' => [
-                                    'mimeType' => 'application/pdf',
-                                    'data' => $pdfBase64,
-                                ],
-                            ],
-                            ['text' => $userMessage],
-                        ],
-                    ],
-                ],
-                'generationConfig' => [
-                    'temperature' => 0.3,
-                    'topP' => 0.95,
-                    'maxOutputTokens' => $maxOutputTokens,
-                ],
-            ];
-            unset($pdfBase64); // Free base64 string
-
-            if (!empty($systemPrompt)) {
-                $body['systemInstruction'] = [
-                    'parts' => [['text' => $systemPrompt]],
-                ];
-            }
-
-            $jsonBody = json_encode($body);
-            unset($body); // Free array
-
-            Log::info('VertexAI PDF: Sending request to Gemini API', ['request_size_mb' => round(strlen($jsonBody) / 1024 / 1024, 2)]);
-
-            // Use cURL directly to avoid Expect:100-continue header (causes HTTP 417)
-            $ch = curl_init();
-            curl_setopt_array($ch, [
-                CURLOPT_URL => $endpoint,
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => $jsonBody,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT => 180,
-                CURLOPT_CONNECTTIMEOUT => 60,
-                CURLOPT_HTTPHEADER => [
-                    "Authorization: Bearer {$accessToken}",
-                    'Content-Type: application/json',
-                    'Expect:', // Explicitly disable Expect: 100-continue
-                ],
-            ]);
-
-            $responseBody = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
-            curl_close($ch);
-            unset($jsonBody); // Free JSON body
-
-            if ($curlError) {
-                Log::error('VertexAI PDF: cURL error', ['error' => $curlError]);
-                throw new \RuntimeException('Network error while sending PDF to AI: ' . $curlError);
-            }
-
-            if ($httpCode < 200 || $httpCode >= 300) {
-                Log::error('VertexAI PDF: API error', ['status' => $httpCode, 'body' => substr($responseBody, 0, 500)]);
-                throw new \RuntimeException('AI service returned an error while processing the PDF (HTTP ' . $httpCode . ').');
-            }
-
-            $data = json_decode($responseBody, true);
-            unset($responseBody);
-
-            // Check for blocked/empty candidates
-            if (empty($data['candidates'])) {
-                Log::error('VertexAI PDF: No candidates in response', ['data' => json_encode(array_keys($data))]);
-                throw new \RuntimeException('AI could not process this PDF. The content may be too complex or blocked by safety filters.');
-            }
-
-            $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-            $usage = $data['usageMetadata'] ?? [];
-
-            Log::info('VertexAI PDF: Response received', ['text_length' => strlen($text), 'tokens' => ($usage['promptTokenCount'] ?? 0) + ($usage['candidatesTokenCount'] ?? 0)]);
-
-            return [
-                'text' => trim($text) ?: 'Could not extract content from PDF.',
-                'prompt_tokens' => $usage['promptTokenCount'] ?? 0,
-                'completion_tokens' => $usage['candidatesTokenCount'] ?? 0,
-                'total_tokens' => ($usage['promptTokenCount'] ?? 0) + ($usage['candidatesTokenCount'] ?? 0),
-            ];
-
-        } catch (\RuntimeException $e) {
-            throw $e;
-        } catch (\Error $e) {
-            Log::error('VertexAI PDF: Fatal error - ' . $e->getMessage());
-            throw new \RuntimeException('PDF processing ran out of memory. Please try a smaller PDF file (under 10MB).');
-        } catch (\Exception $e) {
-            Log::error('VertexAI PDF: Exception - ' . $e->getMessage());
-            throw new \RuntimeException('An error occurred while processing the PDF with AI: ' . $e->getMessage());
-        } finally {
-            ini_set('memory_limit', $originalMemory);
-        }
-    }
-
-    /**
-     * Reduce a PDF to only the first N pages using available system tools.
-     * Tries Ghostscript (gs), pdftk, and qpdf in order.
-     * Returns path to reduced PDF, or original path if reduction fails.
-     */
-    private function reducePDFPages(string $pdfPath, int $maxPages = 5): string
-    {
-        $tempDir = dirname($pdfPath);
-        $reducedPath = $tempDir . DIRECTORY_SEPARATOR . 'reduced_' . basename($pdfPath);
-
-        // Try Ghostscript (most commonly available)
-        $gsPath = $this->findCommand('gs');
-        if ($gsPath) {
-            $cmd = sprintf(
-                '%s -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dFirstPage=1 -dLastPage=%d -sOutputFile=%s %s 2>&1',
-                escapeshellarg($gsPath),
-                $maxPages,
-                escapeshellarg($reducedPath),
-                escapeshellarg($pdfPath)
-            );
-            exec($cmd, $output, $returnCode);
-            if ($returnCode === 0 && file_exists($reducedPath) && filesize($reducedPath) > 0) {
-                Log::info('VertexAI PDF: Reduced using Ghostscript', ['pages' => $maxPages]);
-                return $reducedPath;
-            }
-            Log::warning('VertexAI PDF: Ghostscript reduction failed', ['code' => $returnCode, 'output' => implode("\n", array_slice($output, -3))]);
-        }
-
-        // Try pdftk
-        $pdftkPath = $this->findCommand('pdftk');
-        if ($pdftkPath) {
-            $cmd = sprintf(
-                '%s %s cat 1-%d output %s 2>&1',
-                escapeshellarg($pdftkPath),
-                escapeshellarg($pdfPath),
-                $maxPages,
-                escapeshellarg($reducedPath)
-            );
-            exec($cmd, $output, $returnCode);
-            if ($returnCode === 0 && file_exists($reducedPath) && filesize($reducedPath) > 0) {
-                Log::info('VertexAI PDF: Reduced using pdftk', ['pages' => $maxPages]);
-                return $reducedPath;
-            }
-        }
-
-        // Try qpdf
-        $qpdfPath = $this->findCommand('qpdf');
-        if ($qpdfPath) {
-            $cmd = sprintf(
-                '%s %s --pages . 1-%d -- %s 2>&1',
-                escapeshellarg($qpdfPath),
-                escapeshellarg($pdfPath),
-                $maxPages,
-                escapeshellarg($reducedPath)
-            );
-            exec($cmd, $output, $returnCode);
-            if ($returnCode === 0 && file_exists($reducedPath) && filesize($reducedPath) > 0) {
-                Log::info('VertexAI PDF: Reduced using qpdf', ['pages' => $maxPages]);
-                return $reducedPath;
-            }
-        }
-
-        // No tools available — return original and hope it works
-        Log::warning('VertexAI PDF: No PDF reduction tools available (gs, pdftk, qpdf). Sending full PDF.');
-        return $pdfPath;
-    }
-
-    /**
-     * Find a system command path.
-     */
-    private function findCommand(string $command): ?string
-    {
-        $cmd = PHP_OS_FAMILY === 'Windows' ? "where {$command}" : "which {$command}";
-        exec($cmd . ' 2>/dev/null', $output, $returnCode);
-        if ($returnCode === 0 && !empty($output[0])) {
-            return trim($output[0]);
-        }
-        return null;
-    }
-
-    /**
-     * Extract a specific page range from a PDF (public — used by CatalogueAIService for chunked processing)
-     *
-     * @return string|null  Path to extracted chunk, or null on failure
-     */
-    public function extractPDFPageRange(string $pdfPath, int $firstPage, int $lastPage): ?string
-    {
-        $tempDir = dirname($pdfPath);
-        $chunkPath = $tempDir . DIRECTORY_SEPARATOR . "chunk_{$firstPage}_{$lastPage}_" . basename($pdfPath);
-
-        // Try Ghostscript
-        $gsPath = $this->findCommand('gs');
-        if ($gsPath) {
-            $cmd = sprintf(
-                '%s -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dFirstPage=%d -dLastPage=%d -sOutputFile=%s %s 2>&1',
-                escapeshellarg($gsPath),
-                $firstPage,
-                $lastPage,
-                escapeshellarg($chunkPath),
-                escapeshellarg($pdfPath)
-            );
-            exec($cmd, $output, $returnCode);
-            if ($returnCode === 0 && file_exists($chunkPath) && filesize($chunkPath) > 0) {
-                return $chunkPath;
-            }
-        }
-
-        // Try pdftk
-        $pdftkPath = $this->findCommand('pdftk');
-        if ($pdftkPath) {
-            $cmd = sprintf(
-                '%s %s cat %d-%d output %s 2>&1',
-                escapeshellarg($pdftkPath),
-                escapeshellarg($pdfPath),
-                $firstPage,
-                $lastPage,
-                escapeshellarg($chunkPath)
-            );
-            exec($cmd, $output, $returnCode);
-            if ($returnCode === 0 && file_exists($chunkPath) && filesize($chunkPath) > 0) {
-                return $chunkPath;
-            }
-        }
-
-        // Try qpdf
-        $qpdfPath = $this->findCommand('qpdf');
-        if ($qpdfPath) {
-            $cmd = sprintf(
-                '%s %s --pages . %d-%d -- %s 2>&1',
-                escapeshellarg($qpdfPath),
-                escapeshellarg($pdfPath),
-                $firstPage,
-                $lastPage,
-                escapeshellarg($chunkPath)
-            );
-            exec($cmd, $output, $returnCode);
-            if ($returnCode === 0 && file_exists($chunkPath) && filesize($chunkPath) > 0) {
-                return $chunkPath;
-            }
-        }
-
-        Log::warning('VertexAI: Could not extract PDF page range', ['first' => $firstPage, 'last' => $lastPage]);
-        return null;
-    }
-
-    /**
-     * Get the total page count of a PDF using system tools
-     */
-    public function getPDFPageCount(string $pdfPath): int
-    {
-        // Try pdfinfo (usually from poppler-utils)
-        $pdfinfoPath = $this->findCommand('pdfinfo');
-        if ($pdfinfoPath) {
-            exec(escapeshellarg($pdfinfoPath) . ' ' . escapeshellarg($pdfPath) . ' 2>/dev/null', $output, $returnCode);
-            if ($returnCode === 0) {
-                foreach ($output as $line) {
-                    if (preg_match('/^Pages:\s+(\d+)/i', $line, $m)) {
-                        return (int)$m[1];
-                    }
-                }
-            }
-        }
-
-        // Try Ghostscript page count
-        $gsPath = $this->findCommand('gs');
-        if ($gsPath) {
-            $cmd = sprintf(
-                '%s -q -dNODISPLAY -dNOSAFER -c "(%s) (r) file runpdfbegin pdfpagecount = quit" 2>/dev/null',
-                escapeshellarg($gsPath),
-                str_replace(['(', ')'], ['\\(', '\\)'], $pdfPath)
-            );
-            exec($cmd, $output2, $returnCode);
-            if ($returnCode === 0 && !empty($output2[0]) && is_numeric(trim($output2[0]))) {
-                return (int)trim($output2[0]);
-            }
-        }
-
-        // Fallback: read PDF and count /Type /Page entries (rough estimate)
-        $content = file_get_contents($pdfPath);
-        if ($content !== false) {
-            $count = preg_match_all('/\/Type\s*\/Page[^s]/i', $content);
-            if ($count > 0) return $count;
-        }
-
-        // Absolute fallback — estimate from file size (roughly 100KB per page for image-heavy PDFs)
-        $sizeMB = filesize($pdfPath) / 1024 / 1024;
-        return max(1, (int)ceil($sizeMB * 10)); // ~10 pages per MB
     }
 
     /**
@@ -473,7 +141,7 @@ class VertexAIService
     /**
      * Build the Gemini API request body
      */
-    private function buildRequestBody(string $systemPrompt, array $messages, ?string $imageUrl, int $maxOutputTokens = 8192): array
+    private function buildRequestBody(string $systemPrompt, array $messages, ?string $imageUrl): array
     {
         $contents = [];
 
@@ -485,13 +153,6 @@ class VertexAIService
             // Add text
             if (!empty($msg['text'])) {
                 $parts[] = ['text' => $msg['text']];
-            }
-
-            // Add inline data (for PDF/file parts passed in messages)
-            if (!empty($msg['inline_data'])) {
-                $parts[] = [
-                    'inlineData' => $msg['inline_data'],
-                ];
             }
 
             // Add image for the last user message if provided
@@ -517,7 +178,7 @@ class VertexAIService
             'generationConfig' => [
                 'temperature' => 0.7,
                 'topP' => 0.95,
-                'maxOutputTokens' => $maxOutputTokens,
+                'maxOutputTokens' => 512,
             ],
         ];
 
@@ -565,15 +226,15 @@ class VertexAIService
 
         // Sign with RSA private key
         $privateKeyString = $this->serviceAccount['private_key'] ?? '';
-        
+
         // Fix all possible newline escape variants from JSON/DB storage
         // Order matters: fix double-escaped first, then single-escaped
         $privateKeyString = str_replace(['\\n', '\\r'], ["\n", ""], $privateKeyString);
         $privateKeyString = str_replace("\r", "", $privateKeyString);
-        
+
         // Ensure proper PEM format: header/footer on own lines
         $privateKeyString = trim($privateKeyString);
-        
+
         $privateKey = openssl_pkey_get_private($privateKeyString);
         if (!$privateKey) {
             Log::error('VertexAI: Private key parse failed', [
@@ -624,6 +285,322 @@ class VertexAIService
     public function isConfigured(): bool
     {
         return !empty($this->projectId) && !empty($this->serviceAccount);
+    }
+
+    /**
+     * Generate content using Vertex AI Gemini with a PDF file (multimodal)
+     */
+    public function generateContentWithPDF(string $systemPrompt, string $pdfPath, string $userMessage, int $maxOutputTokens = 8192): array
+    {
+        if (empty($this->projectId) || empty($this->serviceAccount)) {
+            Log::error('VertexAI: Service not configured');
+            return ['text' => 'AI bot is not configured. Please set up Vertex AI in Settings.', 'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0];
+        }
+
+        // Boost memory for large PDF base64 encoding
+        $originalMemory = ini_get('memory_limit');
+        ini_set('memory_limit', '1G');
+
+        try {
+            $accessToken = $this->getAccessToken();
+            $endpoint = $this->getEndpoint();
+
+            // Check file size
+            $fileSize = filesize($pdfPath);
+            $fileSizeMB = round($fileSize / 1024 / 1024, 2);
+            Log::info('VertexAI PDF: Processing file', ['size_mb' => $fileSizeMB, 'path' => basename($pdfPath)]);
+
+            // Safety: if file is too large for inline, try to reduce pages
+            $pdfToSend = $pdfPath;
+            if ($fileSize > 15 * 1024 * 1024) {
+                $reduced = $this->reducePDFPages($pdfPath, 10);
+                if ($reduced !== $pdfPath && file_exists($reduced) && filesize($reduced) < $fileSize) {
+                    $pdfToSend = $reduced;
+                    Log::info('VertexAI PDF: Auto-reduced for API', [
+                        'original_mb' => $fileSizeMB,
+                        'reduced_mb' => round(filesize($reduced) / 1024 / 1024, 2),
+                    ]);
+                }
+            }
+
+            if (filesize($pdfToSend) > 20 * 1024 * 1024) {
+                throw new \RuntimeException('PDF is too large for Gemini (max 20MB per request after reduction).');
+            }
+
+            // Read PDF and encode as base64
+            $pdfContent = file_get_contents($pdfToSend);
+            if ($pdfContent === false) {
+                throw new \RuntimeException('Could not read PDF file.');
+            }
+            $pdfBase64 = base64_encode($pdfContent);
+            unset($pdfContent); // Free memory immediately
+
+            // Cleanup temp reduced PDF
+            if ($pdfToSend !== $pdfPath && file_exists($pdfToSend)) {
+                @unlink($pdfToSend);
+            }
+
+            // Build multimodal request with PDF inline data
+            $body = [
+                'contents' => [
+                    [
+                        'role' => 'user',
+                        'parts' => [
+                            [
+                                'inlineData' => [
+                                    'mimeType' => 'application/pdf',
+                                    'data' => $pdfBase64,
+                                ],
+                            ],
+                            [
+                                'text' => $userMessage,
+                            ],
+                        ],
+                    ],
+                ],
+                'generationConfig' => [
+                    'temperature' => 0.2,
+                    'topP' => 0.8,
+                    'maxOutputTokens' => $maxOutputTokens,
+                ],
+            ];
+
+            unset($pdfBase64); // Free memory
+
+            if (!empty($systemPrompt)) {
+                $body['systemInstruction'] = [
+                    'parts' => [['text' => $systemPrompt]],
+                ];
+            }
+
+            Log::info('VertexAI PDF: Sending request to Gemini API');
+
+            // Use cURL for large payloads — Laravel HTTP client may add Expect header
+            $ch = curl_init($endpoint);
+            $jsonBody = json_encode($body);
+            unset($body);
+
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $jsonBody,
+                CURLOPT_HTTPHEADER => [
+                    'Authorization: Bearer ' . $accessToken,
+                    'Content-Type: application/json',
+                    'Expect:',  // Disable Expect: 100-continue
+                ],
+                CURLOPT_TIMEOUT => 300,
+                CURLOPT_CONNECTTIMEOUT => 30,
+            ]);
+
+            unset($jsonBody);
+            $responseBody = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlError) {
+                throw new \RuntimeException('VertexAI PDF: cURL error - ' . $curlError);
+            }
+
+            if ($httpCode < 200 || $httpCode >= 300) {
+                Log::error('VertexAI PDF: API error', ['status' => $httpCode, 'body' => substr($responseBody, 0, 500)]);
+                throw new \RuntimeException("VertexAI PDF: API error (HTTP {$httpCode})");
+            }
+
+            $data = json_decode($responseBody, true);
+            unset($responseBody);
+
+            if (!$data) {
+                throw new \RuntimeException('VertexAI PDF: Invalid JSON response');
+            }
+
+            $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+            $usage = $data['usageMetadata'] ?? [];
+
+            Log::info('VertexAI PDF: Response received', [
+                'text_length' => strlen($text),
+                'tokens' => ($usage['promptTokenCount'] ?? 0) + ($usage['candidatesTokenCount'] ?? 0),
+            ]);
+
+            return [
+                'text' => trim($text) ?: 'No response from AI.',
+                'prompt_tokens' => $usage['promptTokenCount'] ?? 0,
+                'completion_tokens' => $usage['candidatesTokenCount'] ?? 0,
+                'total_tokens' => ($usage['promptTokenCount'] ?? 0) + ($usage['candidatesTokenCount'] ?? 0),
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('VertexAI PDF: Exception', ['error' => $e->getMessage()]);
+            throw $e;
+        } finally {
+            ini_set('memory_limit', $originalMemory);
+        }
+    }
+
+    /**
+     * Reduce a PDF to a specific number of pages using system tools
+     */
+    private function reducePDFPages(string $pdfPath, int $maxPages = 10): string
+    {
+        $tempDir = dirname($pdfPath);
+        $reducedPath = $tempDir . DIRECTORY_SEPARATOR . 'reduced_' . basename($pdfPath);
+
+        // Try Ghostscript
+        $gsPath = $this->findCommand('gs');
+        if ($gsPath) {
+            $cmd = sprintf(
+                '%s -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dFirstPage=1 -dLastPage=%d -sOutputFile=%s %s 2>&1',
+                escapeshellarg($gsPath),
+                $maxPages,
+                escapeshellarg($reducedPath),
+                escapeshellarg($pdfPath)
+            );
+            exec($cmd, $output, $returnCode);
+            if ($returnCode === 0 && file_exists($reducedPath) && filesize($reducedPath) > 0) {
+                Log::info('VertexAI PDF: Reduced using Ghostscript', ['pages' => $maxPages]);
+                return $reducedPath;
+            }
+            Log::warning('VertexAI PDF: Ghostscript reduction failed', ['code' => $returnCode]);
+        }
+
+        // Try pdftk
+        $pdftkPath = $this->findCommand('pdftk');
+        if ($pdftkPath) {
+            $cmd = sprintf(
+                '%s %s cat 1-%d output %s 2>&1',
+                escapeshellarg($pdftkPath),
+                escapeshellarg($pdfPath),
+                $maxPages,
+                escapeshellarg($reducedPath)
+            );
+            exec($cmd, $output, $returnCode);
+            if ($returnCode === 0 && file_exists($reducedPath) && filesize($reducedPath) > 0) {
+                return $reducedPath;
+            }
+        }
+
+        // Try qpdf
+        $qpdfPath = $this->findCommand('qpdf');
+        if ($qpdfPath) {
+            $cmd = sprintf(
+                '%s %s --pages . 1-%d -- %s 2>&1',
+                escapeshellarg($qpdfPath),
+                escapeshellarg($pdfPath),
+                $maxPages,
+                escapeshellarg($reducedPath)
+            );
+            exec($cmd, $output, $returnCode);
+            if ($returnCode === 0 && file_exists($reducedPath) && filesize($reducedPath) > 0) {
+                return $reducedPath;
+            }
+        }
+
+        Log::warning('VertexAI PDF: No reduction tools available (gs, pdftk, qpdf). Sending full PDF.');
+        return $pdfPath;
+    }
+
+    /**
+     * Find a system command path
+     */
+    private function findCommand(string $command): ?string
+    {
+        $cmd = PHP_OS_FAMILY === 'Windows' ? "where {$command}" : "which {$command}";
+        exec($cmd . ' 2>/dev/null', $output, $returnCode);
+        if ($returnCode === 0 && !empty($output[0])) {
+            return trim($output[0]);
+        }
+        return null;
+    }
+
+    /**
+     * Extract a specific page range from a PDF
+     */
+    public function extractPDFPageRange(string $pdfPath, int $firstPage, int $lastPage): ?string
+    {
+        $tempDir = dirname($pdfPath);
+        $chunkPath = $tempDir . DIRECTORY_SEPARATOR . "chunk_{$firstPage}_{$lastPage}_" . basename($pdfPath);
+
+        $gsPath = $this->findCommand('gs');
+        if ($gsPath) {
+            $cmd = sprintf(
+                '%s -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dFirstPage=%d -dLastPage=%d -sOutputFile=%s %s 2>&1',
+                escapeshellarg($gsPath),
+                $firstPage,
+                $lastPage,
+                escapeshellarg($chunkPath),
+                escapeshellarg($pdfPath)
+            );
+            exec($cmd, $output, $returnCode);
+            if ($returnCode === 0 && file_exists($chunkPath) && filesize($chunkPath) > 0) {
+                return $chunkPath;
+            }
+        }
+
+        $pdftkPath = $this->findCommand('pdftk');
+        if ($pdftkPath) {
+            $cmd = sprintf(
+                '%s %s cat %d-%d output %s 2>&1',
+                escapeshellarg($pdftkPath),
+                escapeshellarg($pdfPath),
+                $firstPage,
+                $lastPage,
+                escapeshellarg($chunkPath)
+            );
+            exec($cmd, $output, $returnCode);
+            if ($returnCode === 0 && file_exists($chunkPath) && filesize($chunkPath) > 0) {
+                return $chunkPath;
+            }
+        }
+
+        $qpdfPath = $this->findCommand('qpdf');
+        if ($qpdfPath) {
+            $cmd = sprintf(
+                '%s %s --pages . %d-%d -- %s 2>&1',
+                escapeshellarg($qpdfPath),
+                escapeshellarg($pdfPath),
+                $firstPage,
+                $lastPage,
+                escapeshellarg($chunkPath)
+            );
+            exec($cmd, $output, $returnCode);
+            if ($returnCode === 0 && file_exists($chunkPath) && filesize($chunkPath) > 0) {
+                return $chunkPath;
+            }
+        }
+
+        Log::warning('VertexAI: Could not extract PDF page range', ['first' => $firstPage, 'last' => $lastPage]);
+        return null;
+    }
+
+    /**
+     * Get the total page count of a PDF
+     */
+    public function getPDFPageCount(string $pdfPath): int
+    {
+        // Try pdfinfo
+        $pdfinfoPath = $this->findCommand('pdfinfo');
+        if ($pdfinfoPath) {
+            exec(escapeshellarg($pdfinfoPath) . ' ' . escapeshellarg($pdfPath) . ' 2>/dev/null', $output, $returnCode);
+            if ($returnCode === 0) {
+                foreach ($output as $line) {
+                    if (preg_match('/^Pages:\s+(\d+)/i', $line, $m)) {
+                        return (int)$m[1];
+                    }
+                }
+            }
+        }
+
+        // Fallback: read PDF and count /Type /Page entries
+        $content = file_get_contents($pdfPath);
+        if ($content !== false) {
+            $count = preg_match_all('/\/Type\s*\/Page[^s]/i', $content);
+            if ($count > 0) return $count;
+        }
+
+        // Estimate from file size (~100KB per page for image-heavy PDFs)
+        $sizeMB = filesize($pdfPath) / 1024 / 1024;
+        return max(1, (int)ceil($sizeMB * 10));
     }
 }
 
