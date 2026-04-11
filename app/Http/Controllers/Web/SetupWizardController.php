@@ -101,12 +101,20 @@ class SetupWizardController extends Controller
                     // Cache the analysis
                     Setting::setValue('setup_tour', 'ai_columns_json', json_encode($analysis['columns']), $companyId);
 
+                    // Auto-save business details to Business Query Prompt if found
+                    $businessDetails = $analysis['business_details'] ?? null;
+                    if (!empty($businessDetails)) {
+                        Setting::setValue('ai_bot', 'business_prompt', $businessDetails, $companyId);
+                        Log::info('SetupWizard: Auto-saved business details to business_prompt', ['length' => strlen($businessDetails)]);
+                    }
+
                     return response()->json([
                         'success' => true,
                         'columns' => $analysis['columns'],
                         'source_summary' => $analysis['source_summary'],
                         'confidence' => $analysis['confidence'],
                         'ai_tokens' => $analysis['ai_tokens'],
+                        'business_details' => $businessDetails,
                         'message' => 'Catalogue analyzed successfully! ' . count($analysis['columns']) . ' columns identified. (Used AI vision for image-based PDF)',
                     ]);
                 }
@@ -134,12 +142,20 @@ class SetupWizardController extends Controller
             // Cache analysis for later use
             Setting::setValue('setup_tour', 'ai_columns_json', json_encode($analysis['columns']), $companyId);
 
+            // Auto-save business details to Business Query Prompt if found
+            $businessDetails = $analysis['business_details'] ?? null;
+            if (!empty($businessDetails)) {
+                Setting::setValue('ai_bot', 'business_prompt', $businessDetails, $companyId);
+                Log::info('SetupWizard: Auto-saved business details to business_prompt', ['length' => strlen($businessDetails)]);
+            }
+
             return response()->json([
                 'success' => true,
                 'columns' => $analysis['columns'],
                 'source_summary' => $analysis['source_summary'],
                 'confidence' => $analysis['confidence'],
                 'ai_tokens' => $analysis['ai_tokens'],
+                'business_details' => $businessDetails,
                 'message' => 'Catalogue analyzed successfully! ' . count($analysis['columns']) . ' columns identified.',
             ]);
 

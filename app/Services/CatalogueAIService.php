@@ -193,6 +193,7 @@ class CatalogueAIService
             'source_summary' => $json['source_summary'] ?? 'Catalogue analyzed successfully from PDF',
             'confidence' => $json['confidence'] ?? 80,
             'ai_tokens' => $result['total_tokens'] ?? 0,
+            'business_details' => $json['business_details'] ?? null,
         ];
     }
 
@@ -580,6 +581,7 @@ class CatalogueAIService
             'source_summary' => $json['source_summary'] ?? 'Catalogue analyzed successfully',
             'confidence' => $json['confidence'] ?? 80,
             'ai_tokens' => $result['total_tokens'] ?? 0,
+            'business_details' => $json['business_details'] ?? null,
         ];
     }
 
@@ -726,13 +728,30 @@ EXAMPLE — Hardware Catalogue with Code No., Size Table, Finishes, Material:
 Notice: NO sale_price, mrp, gst_percent, hsn_code, or description — because they were NOT visible in the catalogue.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUSINESS DETAILS EXTRACTION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+While analyzing, ALSO look for any BUSINESS INFORMATION visible in the catalogue/website:
+• Company/Brand Name
+• Contact Number, Email, Website
+• Address, City, State
+• GST Number, Registration details
+• Tagline, About the business
+• Social media links
+• Any other business identity details
+
+If you find business details, include them in a "business_details" field as a well-formatted text block.
+If NO business details are visible, set "business_details" to null.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT FORMAT (STRICT JSON — NO MARKDOWN, NO EXPLANATION):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 {
   "columns": [...],
   "source_summary": "description of what the catalogue contains",
-  "confidence": 85
+  "confidence": 85,
+  "business_details": "Company: XYZ Corp\nPhone: +91-9876543210\nEmail: info@xyz.com\nAddress: Mumbai, Maharashtra\nGST: 27XXXXX1234X1Z5\nWebsite: www.xyz.com" or null
 }
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

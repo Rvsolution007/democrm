@@ -1031,6 +1031,12 @@
                 renderColumnsEditor(aiColumns);
                 document.getElementById('analysis-summary').textContent = res.data.source_summary;
                 document.getElementById('confidence-badge').textContent = res.data.confidence + '% confidence';
+
+                // Show notification if business details were auto-captured
+                if (res.data.business_details) {
+                    showAlert('success', '🏢 Business details detected and auto-saved to Settings → Business Query Prompt!');
+                }
+
                 setTimeout(function() { goToStep(2); }, 1200);
             } else {
                 stopCountdown(false);
