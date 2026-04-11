@@ -227,11 +227,19 @@ class CatalogueAIService
         $chunkCount = 0;
         $chunkPaths = []; // Track temp files for cleanup
 
-        // If PDF is small enough (<15MB), send the whole thing in one call
-        if (filesize($pdfPath) <= 15 * 1024 * 1024) {
-            Log::info('CatalogueAI: PDF small enough for single-pass extraction');
+        // Use chunking if: more than 15 pages OR file > 8MB
+        // A 124-page PDF MUST be chunked regardless of file size
+        if ($totalPages <= 15 && filesize($pdfPath) <= 8 * 1024 * 1024) {
+            Log::info('CatalogueAI: PDF small enough for single-pass extraction', [
+                'pages' => $totalPages,
+                'size_mb' => $fileSizeMB,
+            ]);
             return $this->extractProductsFromSinglePDF($systemPrompt, $pdfPath);
         }
+
+        Log::info('CatalogueAI: Using chunked extraction', [
+            'reason' => $totalPages > 15 ? "pages={$totalPages}>15" : "size={$fileSizeMB}MB>8MB",
+        ]);
 
         // Chunked extraction: split PDF and process each chunk
         for ($startPage = 1; $startPage <= $totalPages; $startPage += $pagesPerChunk) {
