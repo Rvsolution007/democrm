@@ -324,12 +324,22 @@ class ProductsController extends Controller
             $price = isset($varData['price']) && $varData['price'] !== '' ? round($varData['price'] * 100) : 0;
             $discount = isset($varData['discount']) && $varData['discount'] !== '' ? $varData['discount'] : 0;
             
+            // Collect custom_fields from dynamic variation fields
+            $customFields = null;
+            if (isset($varData['custom_fields']) && is_array($varData['custom_fields'])) {
+                $customFields = array_filter($varData['custom_fields'], function($v) {
+                    return $v !== null && $v !== '';
+                });
+                if (empty($customFields)) $customFields = null;
+            }
+            
             \App\Models\ProductVariation::create([
                 'product_id' => $product->id,
                 'combination' => $combination,
                 'combination_key' => $key,
                 'price' => $price,
                 'discount' => $discount,
+                'custom_fields' => $customFields,
             ]);
         }
     }

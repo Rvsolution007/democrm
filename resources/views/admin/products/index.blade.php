@@ -952,8 +952,9 @@ function deleteInlineCategory(btn) {
 }
 
 var comboColDefs = @json(isset($comboCols) ? $comboCols->values() : collect());
+var variationFieldDefs = @json(isset($customColumns) ? $customColumns->where('is_variation_field', true)->where('is_active', true)->values() : collect());
 var comboSelections = {}; // { comboId: [val1, val2..] }
-var existingVariationData = {}; // { "black|large": { price: 100, discount: 10 } }
+var existingVariationData = {}; // { "black|large": { price: 100, discount: 10, custom_fields: {...} } }
 var dotColors = ['#6366f1','#f59e0b','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4'];
 
 // ─── Chip Multiselect ───
@@ -1030,18 +1031,29 @@ function rebuildComboMatrix() {
     // --- Save current DOM values BEFORE tearing down ---
     if (body.children.length > 0) {
         Array.from(body.children).forEach(function(row) {
+            var hiddenComboInputs = Array.from(row.querySelectorAll('input[name*="[combination]"]'));
+            if (hiddenComboInputs.length === 0) return;
+
+            var rowComboVals = hiddenComboInputs.map(function(inp) { return inp.value; });
+            var key = rowComboVals.map(function(v) { return v.toLowerCase().replace(/\s+/g,'-'); }).join('|');
+
+            var saved = { custom_fields: {} };
+
+            // Save dynamic variation field values
+            if (variationFieldDefs.length > 0) {
+                variationFieldDefs.forEach(function(vf) {
+                    var inp = row.querySelector('input[name$="[custom_fields][' + vf.slug + ']"]');
+                    if (inp) saved.custom_fields[vf.slug] = inp.value;
+                });
+            }
+
+            // Save legacy price/discount if present
             var priceInput = row.querySelector('input[name$="[price]"]');
             var discountInput = row.querySelector('input[name$="[discount]"]');
-            var hiddenComboInputs = Array.from(row.querySelectorAll('input[type="hidden"]'));
-            
-            if (priceInput && discountInput && hiddenComboInputs.length > 0) {
-                var rowComboVals = hiddenComboInputs.map(function(inp) { return inp.value; });
-                var key = rowComboVals.map(function(v) { return v.toLowerCase().replace(/\s+/g,'-'); }).join('|');
-                existingVariationData[key] = {
-                    price: priceInput.value,
-                    discount: discountInput.value
-                };
-            }
+            if (priceInput) saved.price = priceInput.value;
+            if (discountInput) saved.discount = discountInput.value;
+
+            existingVariationData[key] = saved;
         });
     }
 
@@ -1059,14 +1071,26 @@ function rebuildComboMatrix() {
         return;
     }
 
+    // Determine which fields to show in variation table
+    var useCustomFields = variationFieldDefs.length > 0;
+
     // Generate cartesian product
     var combos = cartesian(activeCombo.map(function(c) { return c.vals; }));
 
     // Build header
     var hHtml = '';
     activeCombo.forEach(function(c) { hHtml += '<th>' + c.name + '</th>'; });
-    hHtml += '<th style="width:160px">Price (₹)</th>';
-    hHtml += '<th style="width:140px">Discount (%)</th>';
+
+    if (useCustomFields) {
+        // Dynamic headers from variation field definitions
+        variationFieldDefs.forEach(function(vf) {
+            hHtml += '<th style="min-width:120px">' + vf.name + '</th>';
+        });
+    } else {
+        // Fallback to default Price + Discount
+        hHtml += '<th style="width:160px">Price (₹)</th>';
+        hHtml += '<th style="width:140px">Discount (%)</th>';
+    }
     header.innerHTML = hHtml;
 
     // Build rows
@@ -1074,15 +1098,29 @@ function rebuildComboMatrix() {
     combos.forEach(function(combo, idx) {
         var comboArr = Array.isArray(combo) ? combo : [combo];
         var key = comboArr.map(function(v) { return v.toLowerCase().replace(/\s+/g,'-'); }).join('|');
-        var ex = existingVariationData[key] || { price: '', discount: '' };
+        var ex = existingVariationData[key] || { price: '', discount: '', custom_fields: {} };
 
         bHtml += '<tr>';
+        // Combo label cells
         comboArr.forEach(function(val, ci) {
             var color = dotColors[ci % dotColors.length];
             bHtml += '<td><span class="combo-label"><span class="combo-dot" style="background:' + color + '"></span>' + val + '</span></td>';
         });
-        bHtml += '<td><input type="number" name="variations[' + idx + '][price]" placeholder="0.00" step="0.01" min="0" value="' + ex.price + '"></td>';
-        bHtml += '<td><input type="number" name="variations[' + idx + '][discount]" placeholder="0" step="0.01" min="0" max="100" value="' + ex.discount + '"></td>';
+
+        if (useCustomFields) {
+            // Dynamic input cells for each variation field
+            variationFieldDefs.forEach(function(vf) {
+                var existVal = (ex.custom_fields && ex.custom_fields[vf.slug]) || '';
+                var inputType = (vf.type === 'number') ? 'number' : 'text';
+                var placeholder = (vf.type === 'number') ? '0' : '';
+                var step = (vf.type === 'number') ? ' step="0.01" min="0"' : '';
+                bHtml += '<td><input type="' + inputType + '" name="variations[' + idx + '][custom_fields][' + vf.slug + ']" placeholder="' + placeholder + '"' + step + ' value="' + existVal + '" style="width:100%"></td>';
+            });
+        } else {
+            // Fallback: hardcoded Price + Discount
+            bHtml += '<td><input type="number" name="variations[' + idx + '][price]" placeholder="0.00" step="0.01" min="0" value="' + (ex.price || '') + '"></td>';
+            bHtml += '<td><input type="number" name="variations[' + idx + '][discount]" placeholder="0" step="0.01" min="0" max="100" value="' + (ex.discount || '') + '"></td>';
+        }
 
         // Hidden combination data
         activeCombo.forEach(function(c, ci) {
@@ -1150,7 +1188,8 @@ document.addEventListener('click', function (e) {
             var fKey = comboVals.map(function(val) { return val.toLowerCase().replace(/\s+/g,'-'); }).join('|');
             existingVariationData[fKey] = {
                 price: v.price ? (v.price / 100).toFixed(2) : '',
-                discount: v.discount || ''
+                discount: v.discount || '',
+                custom_fields: v.custom_fields || {}
             };
         }
     });

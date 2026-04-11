@@ -697,6 +697,8 @@ What data appears per EACH product variant (per item block)?
   • Pack info: "MASTER PACK: 144 NOS.", "INNER PACK: 12 NOS." → REQUIRED
 
 → These become is_required=true fields
+→ If these field VALUES DIFFER per variant (e.g., 750ML has price 168, 500ML has price 146), also set is_variation_field=true
+→ is_variation_field=true means: this field appears in the variation pricing table, each variant gets its own value
 
 ─── STEP F: FIND DESCRIPTIVE/OPTIONAL FIELDS ───
 
@@ -727,10 +729,12 @@ FLAG ASSIGNMENT RULES:
 • is_title=true → EXACTLY ONE column (display name — the product line name)
 • is_unique=true → EXACTLY ONE column (primary identifier — usually same as title for named products, or Code No. for code-based catalogues)
 • is_combo=true → Only for multiselect fields creating variation matrices
+• is_variation_field=true → Fields whose VALUE changes per variant (e.g., different price per size). NEVER on combo columns.
 • is_required=true → Fields every product MUST have
 • show_in_ai=true → Fields useful for WhatsApp chatbot matching
 
-⚠️ is_title and is_unique CAN be on the same column (Product Name is both displayable AND unique)
+⚠️ is_title and is_unique CAN be on the same column
+⚠️ is_combo and is_variation_field are MUTUALLY EXCLUSIVE (a column cannot be both)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SORTING ORDER:
@@ -762,17 +766,17 @@ Pattern analysis:
 Result:
 {
   "columns": [
-    {"name": "Category", "type": "select", "is_unique": false, "is_required": true, "is_category": true, "is_title": false, "is_combo": false, "options": ["Chopper", "Juicer", "Mug"], "show_in_ai": true, "sort_order": 1},
-    {"name": "Product Name", "type": "text", "is_unique": true, "is_required": true, "is_category": false, "is_title": true, "is_combo": false, "options": [], "show_in_ai": true, "sort_order": 2},
-    {"name": "Capacity", "type": "multiselect", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": true, "options": ["500ML", "750ML", "900ML", "900 & 500ML"], "show_in_ai": true, "sort_order": 3},
-    {"name": "Sale Price (with GST)", "type": "number", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": true, "sort_order": 4},
-    {"name": "Base Price (without GST)", "type": "number", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": true, "sort_order": 5},
-    {"name": "GST Percentage", "type": "number", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": true, "sort_order": 6},
-    {"name": "HSN Code", "type": "text", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": false, "sort_order": 7},
-    {"name": "MRP", "type": "number", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": true, "sort_order": 8},
-    {"name": "Price Unit Quantity", "type": "number", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": false, "sort_order": 9},
-    {"name": "Master Pack Quantity", "type": "number", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": false, "sort_order": 10},
-    {"name": "Inner Pack Quantity", "type": "number", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": false, "sort_order": 11}
+    {"name": "Category", "type": "select", "is_unique": false, "is_required": true, "is_category": true, "is_title": false, "is_combo": false, "is_variation_field": false, "options": ["Chopper", "Juicer", "Mug"], "show_in_ai": true, "sort_order": 1},
+    {"name": "Product Name", "type": "text", "is_unique": true, "is_required": true, "is_category": false, "is_title": true, "is_combo": false, "is_variation_field": false, "options": [], "show_in_ai": true, "sort_order": 2},
+    {"name": "Capacity", "type": "multiselect", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": true, "is_variation_field": false, "options": ["500ML", "750ML", "900ML", "900 & 500ML"], "show_in_ai": true, "sort_order": 3},
+    {"name": "Sale Price (with GST)", "type": "number", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "is_variation_field": true, "options": [], "show_in_ai": true, "sort_order": 4},
+    {"name": "Base Price (without GST)", "type": "number", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "is_variation_field": true, "options": [], "show_in_ai": true, "sort_order": 5},
+    {"name": "GST Percentage", "type": "number", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "is_variation_field": true, "options": [], "show_in_ai": true, "sort_order": 6},
+    {"name": "HSN Code", "type": "text", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "is_variation_field": true, "options": [], "show_in_ai": false, "sort_order": 7},
+    {"name": "MRP", "type": "number", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "is_variation_field": true, "options": [], "show_in_ai": true, "sort_order": 8},
+    {"name": "Price Unit Quantity", "type": "number", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "is_variation_field": true, "options": [], "show_in_ai": false, "sort_order": 9},
+    {"name": "Master Pack Quantity", "type": "number", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "is_variation_field": true, "options": [], "show_in_ai": false, "sort_order": 10},
+    {"name": "Inner Pack Quantity", "type": "number", "is_unique": false, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "is_variation_field": true, "options": [], "show_in_ai": false, "sort_order": 11}
   ]
 }
 
@@ -799,10 +803,10 @@ Pattern analysis:
 Result:
 {
   "columns": [
-    {"name": "Category", "type": "select", "is_unique": false, "is_required": true, "is_category": true, "is_title": true, "is_combo": false, "options": ["Conceal Handle", "Door Handle"], "show_in_ai": true, "sort_order": 1},
-    {"name": "Code No.", "type": "text", "is_unique": true, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "options": [], "show_in_ai": true, "sort_order": 2},
-    {"name": "Size", "type": "multiselect", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": true, "options": ["300mm", "450mm", "600mm"], "show_in_ai": true, "sort_order": 3},
-    {"name": "Finish", "type": "multiselect", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": true, "options": ["Black", "Rose Gold", "SS"], "show_in_ai": true, "sort_order": 4}
+    {"name": "Category", "type": "select", "is_unique": false, "is_required": true, "is_category": true, "is_title": true, "is_combo": false, "is_variation_field": false, "options": ["Conceal Handle", "Door Handle"], "show_in_ai": true, "sort_order": 1},
+    {"name": "Code No.", "type": "text", "is_unique": true, "is_required": true, "is_category": false, "is_title": false, "is_combo": false, "is_variation_field": false, "options": [], "show_in_ai": true, "sort_order": 2},
+    {"name": "Size", "type": "multiselect", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": true, "is_variation_field": false, "options": ["300mm", "450mm", "600mm"], "show_in_ai": true, "sort_order": 3},
+    {"name": "Finish", "type": "multiselect", "is_unique": false, "is_required": false, "is_category": false, "is_title": false, "is_combo": true, "is_variation_field": false, "options": ["Black", "Rose Gold", "SS"], "show_in_ai": true, "sort_order": 4}
   ]
 }
 
@@ -961,6 +965,7 @@ PROMPT;
                 'is_category' => (bool) ($col['is_category'] ?? false),
                 'is_title' => (bool) ($col['is_title'] ?? false),
                 'is_combo' => (bool) ($col['is_combo'] ?? false),
+                'is_variation_field' => (bool) ($col['is_variation_field'] ?? false),
                 'options' => $options,
                 'show_in_ai' => (bool) ($col['show_in_ai'] ?? true),
                 'sort_order' => $col['sort_order'] ?? ($index + 1),

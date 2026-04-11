@@ -103,6 +103,9 @@
                                 @if($column->is_title)
                                     <span class="badge badge-info" style="margin:2px;background:#8b5cf6;color:white;border-color:#8b5cf6">🏷️ Title</span>
                                 @endif
+                                @if($column->is_variation_field)
+                                    <span class="badge badge-destructive" style="margin:2px;font-size:10px">🔄 Per-Variation</span>
+                                @endif
                                 @if($column->show_in_ai)
                                     <span class="badge badge-primary" style="margin:2px;font-size:10px">🤖 AI</span>
                                 @endif
@@ -275,10 +278,18 @@
                             </label>
 
                             <label class="premium-checkbox-card badge-anim">
-                                <input type="checkbox" id="col-combo" style="margin-top:2px;width:18px;height:18px;accent-color:#f59e0b;cursor:pointer">
+                                <input type="checkbox" id="col-combo" style="margin-top:2px;width:18px;height:18px;accent-color:#f59e0b;cursor:pointer" onchange="toggleVariationField()">
                                 <div>
                                     <div style="font-weight:600;color:#1e293b;font-size:14px;margin-bottom:2px">Variation Matrix</div>
-                                    <div style="font-size:12px;color:#64748b">Creates product variants</div>
+                                    <div style="font-size:12px;color:#64748b">Creates product variants (e.g., Capacity: 500ML, 750ML)</div>
+                                </div>
+                            </label>
+
+                            <label class="premium-checkbox-card badge-anim" id="variation-field-card">
+                                <input type="checkbox" id="col-variation-field" style="margin-top:2px;width:18px;height:18px;accent-color:#ef4444;cursor:pointer">
+                                <div>
+                                    <div style="font-weight:600;color:#1e293b;font-size:14px;margin-bottom:2px">🔄 Per-Variation Field</div>
+                                    <div style="font-size:12px;color:#64748b">Value changes per variant (e.g., different price per size)</div>
                                 </div>
                             </label>
 
@@ -336,9 +347,11 @@
         document.getElementById('col-unique').checked = false;
         document.getElementById('col-category').checked = false;
         document.getElementById('col-combo').checked = false;
+        document.getElementById('col-variation-field').checked = false;
         document.getElementById('col-title').checked = false;
         document.getElementById('col-show-list').checked = false;
         document.getElementById('col-show-ai').checked = true;
+        toggleVariationField();
         
         document.getElementById('system-warning').style.display = 'none';
         document.querySelectorAll('.system-locked-group input:not([type="checkbox"]), .system-locked-group select').forEach(el => el.disabled = false);
@@ -364,9 +377,11 @@
         document.getElementById('col-unique').checked = col.is_unique;
         document.getElementById('col-category').checked = col.is_category;
         document.getElementById('col-combo').checked = col.is_combo;
+        document.getElementById('col-variation-field').checked = col.is_variation_field || false;
         document.getElementById('col-title').checked = col.is_title || false;
         document.getElementById('col-show-list').checked = col.show_on_list || false;
         document.getElementById('col-show-ai').checked = col.show_in_ai !== undefined ? col.show_in_ai : true;
+        toggleVariationField();
         
         if (col.is_system) {
             document.getElementById('system-warning').style.display = 'block';
@@ -450,6 +465,7 @@
                 is_category: document.getElementById('col-category').checked ? 1 : 0,
                 is_title: document.getElementById('col-title').checked ? 1 : 0,
                 is_combo: document.getElementById('col-combo').checked ? 1 : 0,
+                is_variation_field: document.getElementById('col-variation-field').checked ? 1 : 0,
                 show_on_list: document.getElementById('col-show-list').checked ? 1 : 0,
                 show_in_ai: document.getElementById('col-show-ai').checked ? 1 : 0,
                 is_active: id ? undefined : 1
@@ -670,6 +686,22 @@
         .catch(function() {
             showAlert('error', 'Network error. Try again.');
         });
+    }
+
+    // ═══════════ TOGGLE VARIATION FIELD ═══════════
+    function toggleVariationField() {
+        var comboChecked = document.getElementById('col-combo').checked;
+        var card = document.getElementById('variation-field-card');
+        var input = document.getElementById('col-variation-field');
+        if (comboChecked) {
+            // A combo column can't also be a per-variation field
+            input.checked = false;
+            card.style.opacity = '0.4';
+            card.style.pointerEvents = 'none';
+        } else {
+            card.style.opacity = '1';
+            card.style.pointerEvents = 'auto';
+        }
     }
 </script>
 @endpush

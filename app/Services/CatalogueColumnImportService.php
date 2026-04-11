@@ -96,6 +96,7 @@ class CatalogueColumnImportService
             $isCategory = $this->parseBoolean($rowData[$fieldMap['is_category'] ?? 0] ?? 'No');
             $isTitle = $this->parseBoolean($rowData[$fieldMap['is_title'] ?? 0] ?? 'No');
             $isCombo = $this->parseBoolean($rowData[$fieldMap['is_combo'] ?? 0] ?? 'No');
+            $isVariationField = $this->parseBoolean($rowData[$fieldMap['is_variation_field'] ?? 0] ?? 'No');
             $showInAI = $this->parseBoolean($rowData[$fieldMap['show_in_ai'] ?? 0] ?? 'Yes');
             $sortOrder = intval($rowData[$fieldMap['sort_order'] ?? 0] ?? 0);
             if ($sortOrder <= 0) $sortOrder = ++$maxSort;
@@ -133,6 +134,7 @@ class CatalogueColumnImportService
                     'is_category' => $isCategory,
                     'is_title' => $isTitle,
                     'is_combo' => $isCombo,
+                    'is_variation_field' => $isVariationField,
                     'is_system' => false,
                     'is_active' => true,
                     'show_on_list' => true,
@@ -220,6 +222,7 @@ class CatalogueColumnImportService
                     'is_category' => $isCategory,
                     'is_title' => $col['is_title'] ?? false,
                     'is_combo' => $col['is_combo'] ?? false,
+                    'is_variation_field' => $col['is_variation_field'] ?? false,
                     'is_system' => false,
                     'is_active' => true,
                     'show_on_list' => true,
@@ -258,6 +261,7 @@ class CatalogueColumnImportService
             'is_category' => ['is category', 'category', 'is_category', 'category linked'],
             'is_title' => ['is title', 'title', 'is_title', 'display title'],
             'is_combo' => ['is combo', 'combo', 'is_combo', 'variation', 'variation matrix'],
+            'is_variation_field' => ['is variation field', 'variation field', 'is_variation_field', 'per-variation', 'per variation'],
             'show_in_ai' => ['show in ai', 'ai', 'show_in_ai', 'ai bot access'],
             'sort_order' => ['sort order', 'order', 'sort_order', 'position'],
         ];

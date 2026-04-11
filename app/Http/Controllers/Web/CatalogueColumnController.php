@@ -124,7 +124,9 @@ class CatalogueColumnController extends Controller
             'is_category' => $request->boolean('is_category'),
             'is_title' => $request->boolean('is_title'),
             'is_combo' => $request->boolean('is_combo'),
+            'is_variation_field' => $request->boolean('is_variation_field'),
             'show_on_list' => $request->boolean('show_on_list'),
+            'show_in_ai' => $request->has('show_in_ai') ? $request->boolean('show_in_ai') : true,
             'is_active' => true,
             'sort_order' => $maxOrder + 1,
         ]);
@@ -229,7 +231,9 @@ class CatalogueColumnController extends Controller
             'is_category' => $request->boolean('is_category'),
             'is_title' => $request->boolean('is_title'),
             'is_combo' => $request->boolean('is_combo'),
+            'is_variation_field' => $request->boolean('is_variation_field'),
             'show_on_list' => $request->boolean('show_on_list'),
+            'show_in_ai' => $request->has('show_in_ai') ? $request->boolean('show_in_ai') : $column->show_in_ai,
         ]);
 
         // Clear Product Group Match cache

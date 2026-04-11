@@ -13,6 +13,7 @@ class ProductVariation extends Model
         'combination_key',
         'price',
         'discount',
+        'custom_fields',
         'description',
         'status',
     ];
@@ -21,6 +22,7 @@ class ProductVariation extends Model
         'combination' => 'array',
         'price' => 'integer',
         'discount' => 'decimal:2',
+        'custom_fields' => 'array',
     ];
 
     // Relationships
