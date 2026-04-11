@@ -85,6 +85,19 @@
     min-width:22px; height:22px; border-radius:12px;
     background:#6366f1; color:#fff; font-size:11px; font-weight:700;
 }
+
+/* ─── Product Table: Full Width, No Scroll ─── */
+#products-table { table-layout:fixed; width:100%; }
+#products-table th, #products-table td { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:10px 8px; font-size:13px; }
+#products-table td { white-space:normal; word-wrap:break-word; }
+#products-table .col-checkbox { width:40px; text-align:center; }
+#products-table .col-status { width:70px; }
+#products-table .col-actions { width:90px; }
+.table-wrapper { overflow-x:hidden !important; }
+
+/* Bigger action icons */
+#products-table .action-btn { padding:6px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; }
+#products-table .action-btn i, #products-table .action-btn svg { width:20px !important; height:20px !important; }
 </style>
 @endpush
 
@@ -139,15 +152,15 @@
                 <thead>
                     <tr>
                         @if(can('products.delete'))
-                            <th style="width:40px;text-align:center">
+                            <th class="col-checkbox">
                                 <input type="checkbox" id="select-all-products" onchange="toggleAllProducts(this)" style="width:16px;height:16px;accent-color:#6366f1;cursor:pointer">
                             </th>
                         @endif
                         @foreach($customColumns->where('show_on_list', true)->where('is_required', true) as $col)
                             <th>{{ $col->name }}</th>
                         @endforeach
-                        <th>Status</th>
-                        <th style="width:150px">Actions</th>
+                        <th class="col-status">Status</th>
+                        <th class="col-actions">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -203,9 +216,9 @@
                                 </span>
                             </td>
                             <td>
-                                <div style="display:flex;gap:8px">
+                                <div style="display:flex;gap:6px;align-items:center">
                                     @if(can('products.write'))
-                                        <button class="btn btn-ghost btn-icon btn-sm edit-product-btn" title="Edit"
+                                        <button class="btn btn-ghost btn-icon btn-sm edit-product-btn action-btn" title="Edit"
                                             data-product="{{ json_encode([
                                                 'id' => $product->id,
                                                 'name' => $product->name,
@@ -223,13 +236,13 @@
                                             data-custom-values="{{ json_encode($product->customValues->pluck('value', 'column_id')) }}"
                                             data-variations="{{ json_encode($product->variations ?? []) }}"
                                         >
-                                            <i data-lucide="edit" style="width:16px;height:16px"></i>
+                                            <i data-lucide="edit"></i>
                                         </button>
                                     @endif
                                     @if(can('products.delete'))
-                                        <button type="button" onclick="ajaxDelete('{{ route('admin.products.destroy', $product->id) }}')" class="btn btn-ghost btn-icon btn-sm" style="color:var(--destructive)" title="Delete">
-                                                <i data-lucide="trash-2" style="width:16px;height:16px"></i>
-                                            </button>
+                                        <button type="button" onclick="ajaxDelete('{{ route('admin.products.destroy', $product->id) }}')" class="btn btn-ghost btn-icon btn-sm action-btn" style="color:var(--destructive)" title="Delete">
+                                            <i data-lucide="trash-2"></i>
+                                        </button>
                                     @endif
                                 </div>
                             </td>
