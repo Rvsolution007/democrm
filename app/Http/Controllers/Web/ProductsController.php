@@ -409,4 +409,35 @@ class ProductsController extends Controller
         return redirect()->route('admin.products.index')
             ->with('success', 'Product deleted successfully');
     }
+
+    public function bulkDestroy(Request $request)
+    {
+        if (!can('products.delete')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $ids = $request->input('ids', []);
+        if (empty($ids)) {
+            return response()->json(['success' => false, 'message' => 'No products selected']);
+        }
+
+        $query = Product::whereIn('id', $ids)
+            ->where('company_id', auth()->user()->company_id);
+
+        // Non-global users can only delete their own
+        if (!can('products.global')) {
+            $query->where('created_by_user_id', auth()->id());
+        }
+
+        $count = $query->count();
+        $query->delete();
+
+        // Clear AI cache
+        \App\Services\AIChatbotService::clearProductGroupCache(auth()->user()->company_id);
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$count} product(s) deleted successfully"
+        ]);
+    }
 }

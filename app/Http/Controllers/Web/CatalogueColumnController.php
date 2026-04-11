@@ -299,4 +299,34 @@ class CatalogueColumnController extends Controller
             'message' => 'Column visibility updated successfully',
         ]);
     }
+
+    /**
+     * Bulk delete columns (AJAX) — skips system columns
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $ids = $request->input('ids', []);
+        if (empty($ids)) {
+            return response()->json(['success' => false, 'message' => 'No columns selected']);
+        }
+
+        $companyId = auth()->user()->company_id;
+        $count = CatalogueCustomColumn::where('company_id', $companyId)
+            ->whereIn('id', $ids)
+            ->where('is_system', false)
+            ->count();
+
+        CatalogueCustomColumn::where('company_id', $companyId)
+            ->whereIn('id', $ids)
+            ->where('is_system', false)
+            ->delete();
+
+        \App\Services\AIChatbotService::clearProductGroupCache($companyId);
+
+        $skipped = count($ids) - $count;
+        $msg = "{$count} column(s) deleted successfully";
+        if ($skipped > 0) $msg .= " ({$skipped} system columns skipped)";
+
+        return response()->json(['success' => true, 'message' => $msg]);
+    }
 }

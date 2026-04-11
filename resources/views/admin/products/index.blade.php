@@ -123,10 +123,26 @@
     @endif
 
     <div class="table-container">
+        {{-- Bulk Delete Floating Bar --}}
+        <div id="bulk-action-bar" style="display:none;position:sticky;top:0;z-index:50;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;padding:12px 20px;border-radius:10px;margin-bottom:12px;display:none;align-items:center;justify-content:space-between;box-shadow:0 4px 15px rgba(239,68,68,0.3);animation:slideDown .3s ease">
+            <div style="display:flex;align-items:center;gap:10px">
+                <i data-lucide="check-square" style="width:20px;height:20px"></i>
+                <span id="bulk-count" style="font-weight:600;font-size:14px">0 selected</span>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button onclick="selectAllProducts()" style="padding:6px 14px;border:1px solid rgba(255,255,255,0.4);background:transparent;color:white;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">Select All On Page</button>
+                <button onclick="bulkDeleteProducts()" style="padding:6px 14px;background:white;color:#ef4444;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,0.1)" onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">🗑️ Delete Selected</button>
+            </div>
+        </div>
         <div class="table-wrapper">
             <table class="table" id="products-table">
                 <thead>
                     <tr>
+                        @if(can('products.delete'))
+                            <th style="width:40px;text-align:center">
+                                <input type="checkbox" id="select-all-products" onchange="toggleAllProducts(this)" style="width:16px;height:16px;accent-color:#6366f1;cursor:pointer">
+                            </th>
+                        @endif
                         @foreach($customColumns->where('show_on_list', true) as $col)
                             <th>{{ $col->name }}</th>
                         @endforeach
@@ -137,17 +153,29 @@
                 <tbody>
                     @forelse($products as $product)
                         <tr>
+                            @if(can('products.delete'))
+                                <td style="text-align:center">
+                                    <input type="checkbox" class="product-checkbox" value="{{ $product->id }}" onchange="updateBulkBar()" style="width:16px;height:16px;accent-color:#6366f1;cursor:pointer">
+                                </td>
+                            @endif
                             @foreach($customColumns->where('show_on_list', true) as $col)
                                 <td>
                                     @if($col->is_category && $col->is_title)
-                                        {{-- Column is both Category + Title: show product name (which = category name) --}}
-                                        <span class="font-medium">{{ $product->name }}</span>
+                                        {{-- Column is both Category + Title: show category name --}}
+                                        <span class="font-medium">{{ $product->category->name ?? $product->name }}</span>
                                     @elseif($col->is_category)
                                         {{-- Category-only column: show category name as badge --}}
                                         <span class="badge badge-secondary">{{ $product->category->name ?? 'N/A' }}</span>
                                     @elseif($col->is_title)
-                                        {{-- Title-only column: show product name --}}
-                                        <span class="font-medium">{{ $product->name }}</span>
+                                        {{-- Title-only column: show category name if product name is generic --}}
+                                        @php
+                                            $displayName = $product->name;
+                                            // If product name is generic like "Product 24", show category name instead
+                                            if (preg_match('/^Product\s+\d+$/i', $displayName) && $product->category) {
+                                                $displayName = $product->category->name;
+                                            }
+                                        @endphp
+                                        <span class="font-medium">{{ $displayName }}</span>
                                     @elseif($col->is_system)
                                         @php
                                             $val = $product->{$col->slug};
@@ -1389,6 +1417,67 @@ function escHtml(str) {
     var div = document.createElement('div');
     div.appendChild(document.createTextNode(str));
     return div.innerHTML;
+}
+
+// ═══════════ BULK SELECT & DELETE ═══════════
+function toggleAllProducts(masterCheckbox) {
+    var checkboxes = document.querySelectorAll('.product-checkbox');
+    checkboxes.forEach(function(cb) { cb.checked = masterCheckbox.checked; });
+    updateBulkBar();
+}
+
+function selectAllProducts() {
+    var checkboxes = document.querySelectorAll('.product-checkbox');
+    checkboxes.forEach(function(cb) { cb.checked = true; });
+    var master = document.getElementById('select-all-products');
+    if (master) master.checked = true;
+    updateBulkBar();
+}
+
+function updateBulkBar() {
+    var checked = document.querySelectorAll('.product-checkbox:checked');
+    var bar = document.getElementById('bulk-action-bar');
+    var countEl = document.getElementById('bulk-count');
+    if (checked.length > 0) {
+        bar.style.display = 'flex';
+        countEl.textContent = checked.length + ' product' + (checked.length > 1 ? 's' : '') + ' selected';
+    } else {
+        bar.style.display = 'none';
+    }
+    // Update master checkbox state
+    var all = document.querySelectorAll('.product-checkbox');
+    var master = document.getElementById('select-all-products');
+    if (master) master.checked = all.length > 0 && checked.length === all.length;
+}
+
+function bulkDeleteProducts() {
+    var checked = document.querySelectorAll('.product-checkbox:checked');
+    if (checked.length === 0) return;
+    if (!confirm('Are you sure you want to delete ' + checked.length + ' product(s)? This action cannot be undone.')) return;
+
+    var ids = Array.from(checked).map(function(cb) { return parseInt(cb.value); });
+
+    fetch('{{ route("admin.products.bulk-destroy") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({ ids: ids })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showImportToast(data.message, 'success');
+            setTimeout(function() { location.reload(); }, 800);
+        } else {
+            showImportToast(data.message || 'Delete failed', 'error');
+        }
+    })
+    .catch(function() {
+        showImportToast('Network error. Try again.', 'error');
+    });
 }
 </script>
 @endpush

@@ -19,10 +19,24 @@
     <div id="alert-container"></div>
 
     <div class="card">
+        {{-- Bulk Delete Floating Bar --}}
+        <div id="col-bulk-bar" style="display:none;position:sticky;top:0;z-index:50;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;padding:12px 20px;border-radius:10px;margin:12px 16px 0;align-items:center;justify-content:space-between;box-shadow:0 4px 15px rgba(239,68,68,0.3)">
+            <div style="display:flex;align-items:center;gap:10px">
+                <i data-lucide="check-square" style="width:20px;height:20px"></i>
+                <span id="col-bulk-count" style="font-weight:600;font-size:14px">0 selected</span>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button onclick="selectAllColumns()" style="padding:6px 14px;border:1px solid rgba(255,255,255,0.4);background:transparent;color:white;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">Select All</button>
+                <button onclick="bulkDeleteColumns()" style="padding:6px 14px;background:white;color:#ef4444;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,0.1)" onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">🗑️ Delete Selected</button>
+            </div>
+        </div>
         <div class="card-content" style="padding:0">
             <table class="data-table" style="width:100%;border-collapse:collapse">
                 <thead>
                     <tr>
+                        <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);width:40px">
+                            <input type="checkbox" id="select-all-cols" onchange="toggleAllColumns(this)" style="width:16px;height:16px;accent-color:#6366f1;cursor:pointer">
+                        </th>
                         <th style="padding:12px 16px;text-align:left;border-bottom:2px solid var(--border);width:30px">⠿</th>
                         <th style="padding:12px 16px;text-align:left;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">Name & Slug</th>
                         <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">Type</th>
@@ -35,6 +49,13 @@
                 <tbody id="columns-tbody">
                     @forelse($columns as $column)
                         <tr data-id="{{ $column->id }}" style="border-bottom:1px solid var(--border); opacity: {{ $column->is_active ? '1' : '0.6' }}">
+                            <td style="padding:12px 16px;text-align:center">
+                                @if(!$column->is_system)
+                                    <input type="checkbox" class="col-checkbox" value="{{ $column->id }}" onchange="updateColBulkBar()" style="width:16px;height:16px;accent-color:#6366f1;cursor:pointer">
+                                @else
+                                    <span style="color:#cbd5e1" title="System columns cannot be deleted">🔒</span>
+                                @endif
+                            </td>
                             <td style="padding:12px 16px;cursor:grab;color:var(--text-muted)">⠿</td>
                             <td style="padding:12px 16px;">
                                 <div style="font-weight:600;display:flex;align-items:center;gap:6px">
@@ -109,7 +130,7 @@
                         </tr>
                     @empty
                         <tr id="empty-row">
-                            <td colspan="7" style="text-align:center;padding:40px">
+                            <td colspan="8" style="text-align:center;padding:40px">
                                 <i data-lucide="columns" style="width:48px;height:48px;color:#ccc;margin:0 auto 16px;display:block"></i>
                                 <p class="text-muted">No custom columns defined. Click "Add Custom Field" to create one.</p>
                             </td>
@@ -590,5 +611,65 @@
             });
         }
     })();
+
+    // ═══════════ BULK SELECT & DELETE FOR COLUMNS ═══════════
+    function toggleAllColumns(masterCheckbox) {
+        var checkboxes = document.querySelectorAll('.col-checkbox');
+        checkboxes.forEach(function(cb) { cb.checked = masterCheckbox.checked; });
+        updateColBulkBar();
+    }
+
+    function selectAllColumns() {
+        var checkboxes = document.querySelectorAll('.col-checkbox');
+        checkboxes.forEach(function(cb) { cb.checked = true; });
+        var master = document.getElementById('select-all-cols');
+        if (master) master.checked = true;
+        updateColBulkBar();
+    }
+
+    function updateColBulkBar() {
+        var checked = document.querySelectorAll('.col-checkbox:checked');
+        var bar = document.getElementById('col-bulk-bar');
+        var countEl = document.getElementById('col-bulk-count');
+        if (checked.length > 0) {
+            bar.style.display = 'flex';
+            countEl.textContent = checked.length + ' column' + (checked.length > 1 ? 's' : '') + ' selected';
+        } else {
+            bar.style.display = 'none';
+        }
+        var all = document.querySelectorAll('.col-checkbox');
+        var master = document.getElementById('select-all-cols');
+        if (master) master.checked = all.length > 0 && checked.length === all.length;
+    }
+
+    function bulkDeleteColumns() {
+        var checked = document.querySelectorAll('.col-checkbox:checked');
+        if (checked.length === 0) return;
+        if (!confirm('Delete ' + checked.length + ' column(s)? This will also remove all product values for these columns. System columns will be skipped.')) return;
+
+        var ids = Array.from(checked).map(function(cb) { return parseInt(cb.value); });
+
+        fetch('{{ route("admin.catalogue-columns.bulk-destroy") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ ids: ids })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                showAlert('success', data.message);
+                setTimeout(function() { location.reload(); }, 800);
+            } else {
+                showAlert('error', data.message || 'Delete failed');
+            }
+        })
+        .catch(function() {
+            showAlert('error', 'Network error. Try again.');
+        });
+    }
 </script>
 @endpush

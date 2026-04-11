@@ -489,6 +489,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'subscription'])->gr
     Route::post('/products', [ProductsController::class, 'store'])->name('products.store');
     Route::put('/products/{id}', [ProductsController::class, 'update'])->name('products.update');
     Route::delete('/products/{id}', [ProductsController::class, 'destroy'])->name('products.destroy');
+    Route::post('/products/bulk-delete', [ProductsController::class, 'bulkDestroy'])->name('products.bulk-destroy');
 
     // Categories
     Route::get('/categories', [CategoriesController::class, 'index'])->name('categories.index');
@@ -805,6 +806,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'subscription'])->gr
         Route::delete('/catalogue-columns/{id}', [App\Http\Controllers\Web\CatalogueColumnController::class, 'destroy'])->name('catalogue-columns.destroy');
         Route::post('/catalogue-columns/reorder', [App\Http\Controllers\Web\CatalogueColumnController::class, 'reorder'])->name('catalogue-columns.reorder');
         Route::post('/catalogue-columns/{id}/toggle-active', [App\Http\Controllers\Web\CatalogueColumnController::class, 'toggleActive'])->name('catalogue-columns.toggle-active');
+        Route::post('/catalogue-columns/bulk-delete', [App\Http\Controllers\Web\CatalogueColumnController::class, 'bulkDestroy'])->name('catalogue-columns.bulk-destroy');
     }); // end catalogue feature gate
 
     // ═══ Chatflow Builder — Enterprise only (feature gated) ═══
