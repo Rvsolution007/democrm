@@ -209,12 +209,19 @@ class SetupWizardController extends Controller
                 @unlink($filePath);
 
             } else {
-                // Direct import from AI-cached columns
-                $columnsJson = Setting::getValue('setup_tour', 'ai_columns_json', null, $companyId);
-                if (!$columnsJson) {
-                    return response()->json(['success' => false, 'message' => 'No column analysis cached. Please run Step 1 first.'], 404);
+                // Direct import — prefer user-edited columns from request, fallback to cache
+                $columns = $request->input('columns');
+                if (!empty($columns) && is_array($columns)) {
+                    // User edited columns in the UI — update cache with their edits
+                    Setting::setValue('setup_tour', 'ai_columns_json', json_encode($columns), $companyId);
+                } else {
+                    // Fallback to cached AI analysis
+                    $columnsJson = Setting::getValue('setup_tour', 'ai_columns_json', null, $companyId);
+                    if (!$columnsJson) {
+                        return response()->json(['success' => false, 'message' => 'No column analysis cached. Please run Step 1 first.'], 404);
+                    }
+                    $columns = is_string($columnsJson) ? json_decode($columnsJson, true) : $columnsJson;
                 }
-                $columns = is_string($columnsJson) ? json_decode($columnsJson, true) : $columnsJson;
                 $result = $importService->importFromArray($columns);
             }
 
@@ -297,7 +304,214 @@ class SetupWizardController extends Controller
     }
 
     /**
-     * Step 3b: Download AI-extracted Products Excel
+     * Step 3b: Import AI-extracted products into the database
+     */
+    public function importProducts()
+    {
+        $companyId = auth()->user()->company_id;
+        $userId = auth()->id();
+
+        // Get cached products and columns
+        $productsJson = Setting::getValue('setup_tour', 'ai_products_json', null, $companyId);
+        $columnsJson = Setting::getValue('setup_tour', 'ai_columns_json', null, $companyId);
+
+        if (!$productsJson || !$columnsJson) {
+            return response()->json(['success' => false, 'message' => 'No product data found. Please run Step 3 extraction first.'], 404);
+        }
+
+        $products = is_string($productsJson) ? json_decode($productsJson, true) : $productsJson;
+        $aiColumns = is_string($columnsJson) ? json_decode($columnsJson, true) : $columnsJson;
+
+        if (empty($products)) {
+            return response()->json(['success' => false, 'message' => 'No products to import.'], 422);
+        }
+
+        // Get actual DB columns for this company
+        $dbColumns = CatalogueCustomColumn::where('company_id', $companyId)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get();
+
+        // Build column name → DB column mapping
+        $colMap = [];
+        foreach ($dbColumns as $dbCol) {
+            $colMap[mb_strtolower(trim($dbCol->name))] = $dbCol;
+        }
+
+        // Get existing categories
+        $categories = \App\Models\Category::where('company_id', $companyId)->get();
+        $catMap = [];
+        foreach ($categories as $cat) {
+            $catMap[mb_strtolower(trim($cat->name))] = $cat;
+        }
+
+        $created = 0;
+        $skipped = 0;
+        $errors = [];
+        $createdCategories = [];
+
+        try {
+            foreach ($products as $idx => $product) {
+                $systemData = [
+                    'company_id' => $companyId,
+                    'created_by_user_id' => $userId,
+                    'status' => 'active',
+                ];
+                $customData = [];
+                $comboData = [];
+                $categoryId = null;
+                $productName = 'Product ' . ($idx + 1);
+
+                foreach ($product as $colName => $value) {
+                    $value = is_string($value) ? trim($value) : $value;
+                    if ($value === '' || $value === null) continue;
+
+                    $key = mb_strtolower(trim($colName));
+                    $dbCol = $colMap[$key] ?? null;
+                    if (!$dbCol) continue; // AI returned a column we don't have
+
+                    // Category
+                    if ($dbCol->is_category) {
+                        $catKey = mb_strtolower(trim($value));
+                        if (isset($catMap[$catKey])) {
+                            $categoryId = $catMap[$catKey]->id;
+                        } else {
+                            // Auto-create category
+                            $newCat = \App\Models\Category::create([
+                                'company_id' => $companyId,
+                                'created_by_user_id' => $userId,
+                                'name' => trim($value),
+                                'status' => 'active',
+                            ]);
+                            $catMap[$catKey] = $newCat;
+                            $categoryId = $newCat->id;
+                            $createdCategories[] = trim($value);
+                        }
+                        continue;
+                    }
+
+                    // Title column → use as product name
+                    if ($dbCol->is_title) {
+                        $productName = $value;
+                    }
+
+                    // Combo field
+                    if ($dbCol->is_combo) {
+                        $comboValues = array_filter(array_map('trim', explode('|', $value)));
+                        if (count($comboValues) > 0) {
+                            $comboData[$dbCol->id] = $comboValues;
+                        }
+                        continue;
+                    }
+
+                    // System columns (mapped via slug)
+                    if ($dbCol->is_system) {
+                        $slug = $dbCol->slug;
+                        if (in_array($slug, ['sale_price', 'mrp'])) {
+                            // Convert to paise
+                            $numVal = is_numeric($value) ? (float)$value : 0;
+                            $systemData[$slug] = round($numVal * 100);
+                        } elseif ($slug === 'gst_percent') {
+                            $systemData[$slug] = is_numeric($value) ? (int)$value : 0;
+                        } else {
+                            $systemData[$slug] = $value;
+                        }
+                    } else {
+                        // Custom column
+                        $customData[$dbCol->id] = $value;
+                    }
+                }
+
+                // Set defaults
+                if ($categoryId) $systemData['category_id'] = $categoryId;
+                if (!isset($systemData['name'])) $systemData['name'] = $productName;
+                if (!isset($systemData['sale_price'])) $systemData['sale_price'] = 0;
+                if (!isset($systemData['mrp'])) $systemData['mrp'] = 0;
+                if (!isset($systemData['gst_percent'])) $systemData['gst_percent'] = 0;
+                if (!isset($systemData['sku'])) $systemData['sku'] = 'AUTO-' . strtoupper(uniqid());
+                if (!isset($systemData['description'])) $systemData['description'] = '';
+
+                try {
+                    // Check for duplicate via unique column
+                    $uniqueCol = $dbColumns->where('is_unique', true)->first();
+                    $existingProduct = null;
+
+                    if ($uniqueCol) {
+                        $uniqueValue = $uniqueCol->is_system
+                            ? ($systemData[$uniqueCol->slug] ?? null)
+                            : ($customData[$uniqueCol->id] ?? null);
+
+                        if ($uniqueValue) {
+                            if ($uniqueCol->is_system) {
+                                $existingProduct = \App\Models\Product::where('company_id', $companyId)
+                                    ->where($uniqueCol->slug, $uniqueValue)->first();
+                            } else {
+                                $ev = \App\Models\CatalogueCustomValue::where('column_id', $uniqueCol->id)
+                                    ->where('value', $uniqueValue)
+                                    ->whereHas('product', fn($q) => $q->where('company_id', $companyId))
+                                    ->first();
+                                if ($ev) $existingProduct = $ev->product;
+                            }
+                        }
+                    }
+
+                    if ($existingProduct) {
+                        $existingProduct->update($systemData);
+                        $product = $existingProduct;
+                    } else {
+                        $product = \App\Models\Product::create($systemData);
+                        $created++;
+                    }
+
+                    // Custom values
+                    foreach ($customData as $colId => $val) {
+                        \App\Models\CatalogueCustomValue::updateOrCreate(
+                            ['product_id' => $product->id, 'column_id' => $colId],
+                            ['value' => is_array($val) ? json_encode($val) : $val]
+                        );
+                    }
+
+                    // Combo data
+                    foreach ($comboData as $colId => $vals) {
+                        \App\Models\CatalogueCustomValue::updateOrCreate(
+                            ['product_id' => $product->id, 'column_id' => $colId],
+                            ['value' => json_encode(array_values($vals))]
+                        );
+                        \App\Models\ProductCombo::updateOrCreate(
+                            ['product_id' => $product->id, 'column_id' => $colId],
+                            ['selected_values' => array_values($vals)]
+                        );
+                    }
+                } catch (\Exception $e) {
+                    $errors[] = "Product " . ($idx + 1) . ": " . $e->getMessage();
+                    $skipped++;
+                }
+            }
+
+            // Clear AI bot product cache
+            if (class_exists('\\App\\Services\\AIChatbotService')) {
+                \App\Services\AIChatbotService::clearProductGroupCache($companyId);
+            }
+
+            return response()->json([
+                'success' => true,
+                'created' => $created,
+                'skipped' => $skipped,
+                'errors' => $errors,
+                'categories_created' => array_unique($createdCategories),
+                'message' => "{$created} products imported successfully!" .
+                    ($skipped > 0 ? " ({$skipped} skipped due to errors)" : '') .
+                    (count($createdCategories) > 0 ? " " . count($createdCategories) . " categories auto-created." : ''),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('SetupWizard: Product import failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Step 3c: Download AI-extracted Products Excel
      */
     public function downloadProductsExcel()
     {

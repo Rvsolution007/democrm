@@ -526,6 +526,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'subscription'])->gr
     Route::get('/setup-wizard/download-columns-excel', [App\Http\Controllers\Web\SetupWizardController::class, 'downloadColumnsExcel'])->name('setup-wizard.download-columns');
     Route::post('/setup-wizard/import-columns', [App\Http\Controllers\Web\SetupWizardController::class, 'importColumns'])->name('setup-wizard.import-columns');
     Route::post('/setup-wizard/extract-products', [App\Http\Controllers\Web\SetupWizardController::class, 'extractProducts'])->name('setup-wizard.extract-products');
+    Route::post('/setup-wizard/import-products', [App\Http\Controllers\Web\SetupWizardController::class, 'importProducts'])->name('setup-wizard.import-products');
     Route::get('/setup-wizard/download-products-excel', [App\Http\Controllers\Web\SetupWizardController::class, 'downloadProductsExcel'])->name('setup-wizard.download-products');
     Route::post('/setup-wizard/complete', [App\Http\Controllers\Web\SetupWizardController::class, 'complete'])->name('setup-wizard.complete');
     Route::post('/setup-wizard/reset', [App\Http\Controllers\Web\SetupWizardController::class, 'reset'])->name('setup-wizard.reset');

@@ -287,6 +287,230 @@
         border: 1px solid rgba(59, 130, 246, 0.15);
         color: #2563eb;
     }
+
+    /* ═══════ COUNTDOWN TIMER ═══════ */
+    .countdown-container {
+        display: none;
+        text-align: center;
+        margin-bottom: 20px;
+        animation: wizardFadeIn 0.5s ease;
+    }
+    .countdown-container.active { display: block; }
+    .countdown-ring-wrap {
+        position: relative;
+        width: 100px;
+        height: 100px;
+        margin: 0 auto 16px;
+    }
+    .countdown-ring-wrap svg {
+        transform: rotate(-90deg);
+        width: 100px;
+        height: 100px;
+    }
+    .countdown-ring-bg {
+        fill: none;
+        stroke: #e2e8f0;
+        stroke-width: 6;
+    }
+    .countdown-ring-progress {
+        fill: none;
+        stroke: url(#countdown-gradient);
+        stroke-width: 6;
+        stroke-linecap: round;
+        stroke-dasharray: 264;
+        stroke-dashoffset: 264;
+        transition: stroke-dashoffset 1s linear;
+    }
+    .countdown-time {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 22px;
+        font-weight: 800;
+        color: #8b5cf6;
+        font-variant-numeric: tabular-nums;
+    }
+    .countdown-stage {
+        font-size: 14px;
+        font-weight: 600;
+        color: hsl(var(--foreground));
+        margin-bottom: 4px;
+    }
+    .countdown-substage {
+        font-size: 12px;
+        color: hsl(var(--muted-foreground));
+    }
+    .countdown-steps {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+    }
+    .countdown-step-pill {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        background: #f1f5f9;
+        color: #94a3b8;
+        transition: all 0.3s;
+    }
+    .countdown-step-pill.active {
+        background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+        color: white;
+        box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+    }
+    .countdown-step-pill.done {
+        background: #10b981;
+        color: white;
+    }
+
+    /* ═══════ EDITABLE COLUMN TABLE ═══════ */
+    .col-edit-row {
+        display: grid;
+        grid-template-columns: 30px 1fr 120px auto auto 40px;
+        gap: 8px;
+        align-items: center;
+        padding: 12px 14px;
+        border-bottom: 1px solid #f1f5f9;
+        transition: background 0.2s;
+    }
+    .col-edit-row:hover {
+        background: rgba(139, 92, 246, 0.03);
+    }
+    .col-edit-row .drag-handle {
+        cursor: grab;
+        color: #cbd5e1;
+        font-size: 16px;
+        text-align: center;
+        user-select: none;
+    }
+    .col-edit-row .drag-handle:active { cursor: grabbing; }
+    .col-edit-input {
+        padding: 6px 10px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #1e293b;
+        outline: none;
+        transition: border-color 0.2s;
+        width: 100%;
+        background: white;
+    }
+    .col-edit-input:focus {
+        border-color: #8b5cf6;
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    }
+    .col-edit-select {
+        padding: 6px 10px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 12px;
+        color: #475569;
+        outline: none;
+        background: white;
+        cursor: pointer;
+        width: 100%;
+    }
+    .col-edit-select:focus {
+        border-color: #8b5cf6;
+    }
+    .col-flags {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+    .col-flag-badge {
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 700;
+        cursor: pointer;
+        border: 1.5px solid transparent;
+        transition: all 0.2s;
+        user-select: none;
+        white-space: nowrap;
+    }
+    .col-flag-badge.off {
+        background: #f1f5f9;
+        color: #94a3b8;
+        border-color: #e2e8f0;
+        opacity: 0.6;
+    }
+    .col-flag-badge.on-category { background: #dbeafe; color: #1d4ed8; border-color: #93c5fd; }
+    .col-flag-badge.on-title { background: #ede9fe; color: #5b21b6; border-color: #c4b5fd; }
+    .col-flag-badge.on-unique { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+    .col-flag-badge.on-required { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+    .col-flag-badge.on-combo { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+    .col-delete-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        border: none;
+        background: transparent;
+        color: #cbd5e1;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+    .col-delete-btn:hover {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+    .col-edit-header {
+        display: grid;
+        grid-template-columns: 30px 1fr 120px auto auto 40px;
+        gap: 8px;
+        padding: 10px 14px;
+        background: #f8fafc;
+        border-bottom: 2px solid #e2e8f0;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+    }
+    .col-options-input {
+        margin-top: 6px;
+        padding: 5px 8px;
+        border: 1px dashed #d1d5db;
+        border-radius: 6px;
+        font-size: 11px;
+        color: #64748b;
+        width: 100%;
+        outline: none;
+        background: #fafafa;
+    }
+    .col-options-input:focus {
+        border-color: #8b5cf6;
+        background: white;
+    }
+    .add-column-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        width: 100%;
+        padding: 10px;
+        border: 2px dashed #e2e8f0;
+        border-radius: 10px;
+        background: transparent;
+        color: #8b5cf6;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-top: 4px;
+    }
+    .add-column-btn:hover {
+        border-color: #8b5cf6;
+        background: rgba(139, 92, 246, 0.04);
+    }
 </style>
 @endpush
 
@@ -395,6 +619,31 @@
                     </p>
                 </div>
 
+                {{-- Countdown Timer (shown during analysis) --}}
+                <div class="countdown-container" id="countdown-container">
+                    <div class="countdown-ring-wrap">
+                        <svg viewBox="0 0 90 90">
+                            <defs>
+                                <linearGradient id="countdown-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stop-color="#8b5cf6"/>
+                                    <stop offset="100%" stop-color="#6d28d9"/>
+                                </linearGradient>
+                            </defs>
+                            <circle class="countdown-ring-bg" cx="45" cy="45" r="42"/>
+                            <circle class="countdown-ring-progress" id="countdown-ring" cx="45" cy="45" r="42"/>
+                        </svg>
+                        <div class="countdown-time" id="countdown-time">--</div>
+                    </div>
+                    <div class="countdown-stage" id="countdown-stage">Preparing...</div>
+                    <div class="countdown-substage" id="countdown-substage">Estimated time for 14MB PDF</div>
+                    <div class="countdown-steps">
+                        <span class="countdown-step-pill" id="cs-upload">📤 Uploading</span>
+                        <span class="countdown-step-pill" id="cs-extract">📄 Extracting</span>
+                        <span class="countdown-step-pill" id="cs-analyze">🤖 AI Analyzing</span>
+                        <span class="countdown-step-pill" id="cs-build">🏗️ Building</span>
+                    </div>
+                </div>
+
                 {{-- Analyze Button --}}
                 <div style="margin-top:28px;text-align:center">
                     <button type="button" class="wizard-btn wizard-btn-primary" id="analyze-btn" onclick="analyzeCatalogue()" disabled>
@@ -423,23 +672,28 @@
                     </div>
                 </div>
 
-                {{-- Column Preview Table --}}
-                <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:24px;max-height:400px;overflow-y:auto">
-                    <table class="column-preview-table" id="columns-table">
-                        <thead>
-                            <tr>
-                                <th style="width:30px">#</th>
-                                <th>Name</th>
-                                <th>Type</th>
-                                <th>Flags</th>
-                                <th>Options</th>
-                            </tr>
-                        </thead>
-                        <tbody id="columns-tbody">
-                            {{-- Populated via JS --}}
-                        </tbody>
-                    </table>
+                {{-- Editable Column Editor --}}
+                <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:16px">
+                    <div class="col-edit-header">
+                        <span></span>
+                        <span>COLUMN NAME</span>
+                        <span>TYPE</span>
+                        <span>FLAGS</span>
+                        <span>OPTIONS</span>
+                        <span></span>
+                    </div>
+                    <div id="columns-editor">
+                        {{-- Populated via JS --}}
+                    </div>
+                    <button type="button" class="add-column-btn" onclick="addNewColumn()">
+                        <i data-lucide="plus" style="width:16px;height:16px"></i>
+                        Add Custom Field
+                    </button>
                 </div>
+
+                <p style="font-size:12px;color:hsl(var(--muted-foreground));margin:0 0 20px 0;text-align:center">
+                    💡 Click column names, types, and flags to edit. Changes will be saved when you create columns.
+                </p>
 
                 {{-- Action Buttons --}}
                 <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
@@ -449,7 +703,7 @@
                     </button>
                     <button type="button" class="wizard-btn wizard-btn-primary" id="import-columns-btn" onclick="importColumns()">
                         <i data-lucide="upload" style="width:16px;height:16px"></i>
-                        <span id="import-columns-text">Import Columns to System</span>
+                        <span id="import-columns-text">Create Columns</span>
                     </button>
                 </div>
 
@@ -475,8 +729,33 @@
                     Extract Product Data
                 </h2>
                 <p style="font-size:14px;color:hsl(var(--muted-foreground));margin:0 0 24px 0">
-                    AI will now read your catalogue and extract all product data into the columns you just imported.
+                    AI will now read your catalogue and extract all product data into the columns you just created.
                 </p>
+
+                {{-- Extraction Countdown --}}
+                <div class="countdown-container" id="extract-countdown">
+                    <div class="countdown-ring-wrap">
+                        <svg viewBox="0 0 90 90">
+                            <defs>
+                                <linearGradient id="extract-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stop-color="#10b981"/>
+                                    <stop offset="100%" stop-color="#059669"/>
+                                </linearGradient>
+                            </defs>
+                            <circle class="countdown-ring-bg" cx="45" cy="45" r="42"/>
+                            <circle class="countdown-ring-progress" id="extract-ring" cx="45" cy="45" r="42" style="stroke: url(#extract-gradient)"/>
+                        </svg>
+                        <div class="countdown-time" id="extract-time">--</div>
+                    </div>
+                    <div class="countdown-stage" id="extract-stage">Preparing extraction...</div>
+                    <div class="countdown-substage" id="extract-substage">Processing catalogue pages</div>
+                    <div class="countdown-steps">
+                        <span class="countdown-step-pill" id="es-read">📖 Reading</span>
+                        <span class="countdown-step-pill" id="es-parse">🔍 Parsing</span>
+                        <span class="countdown-step-pill" id="es-map">🗂️ Mapping</span>
+                        <span class="countdown-step-pill" id="es-format">📋 Formatting</span>
+                    </div>
+                </div>
 
                 <div style="text-align:center;margin-bottom:20px">
                     <button type="button" class="wizard-btn wizard-btn-primary" id="extract-btn" onclick="extractProducts()">
@@ -503,19 +782,33 @@
                         </table>
                     </div>
 
-                    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+                    {{-- Import Result --}}
+                    <div id="product-import-result" style="display:none;margin-bottom:16px"></div>
+
+                    {{-- Action Buttons --}}
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center" id="product-action-btns">
                         <button type="button" class="wizard-btn wizard-btn-outline" onclick="downloadProductsExcel()">
                             <i data-lucide="download" style="width:16px;height:16px"></i>
                             Download Products Excel
                         </button>
-                        <a href="{{ route('admin.products.index') }}" class="wizard-btn wizard-btn-outline" target="_blank">
-                            <i data-lucide="external-link" style="width:16px;height:16px"></i>
-                            Go to Product Import
-                        </a>
-                        <button type="button" class="wizard-btn wizard-btn-success" onclick="goToStep(4)">
-                            Complete Setup
-                            <i data-lucide="party-popper" style="width:16px;height:16px"></i>
+                        <button type="button" class="wizard-btn wizard-btn-primary" id="import-products-btn" onclick="importProductsToSystem()">
+                            <i data-lucide="database" style="width:16px;height:16px"></i>
+                            <span id="import-products-text">Import Products to System</span>
                         </button>
+                    </div>
+
+                    {{-- Post-Import Actions --}}
+                    <div id="post-import-actions" style="display:none;margin-top:16px">
+                        <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+                            <a href="{{ route('admin.products.index') }}" class="wizard-btn wizard-btn-primary">
+                                <i data-lucide="package" style="width:16px;height:16px"></i>
+                                Go to Products
+                            </a>
+                            <button type="button" class="wizard-btn wizard-btn-success" onclick="goToStep(4)">
+                                Complete Setup
+                                <i data-lucide="party-popper" style="width:16px;height:16px"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -567,6 +860,7 @@
     let sourceType = 'pdf';
     let selectedFile = null;
     let aiColumns = @json($cachedColumns ?? []);
+    let countdownInterval = null;
 
     // ═══════════ SOURCE TOGGLE ═══════════
     function setSource(type) {
@@ -620,12 +914,94 @@
     }
     document.getElementById('website-url')?.addEventListener('input', updateAnalyzeBtn);
 
+    // ═══════════ COUNTDOWN TIMER ═══════════
+    var countdownStages = [
+        { id: 'cs-upload',  label: '📤 Uploading PDF...', duration: 0.10 },
+        { id: 'cs-extract', label: '📄 Extracting text...', duration: 0.15 },
+        { id: 'cs-analyze', label: '🤖 AI analyzing catalogue...', duration: 0.55 },
+        { id: 'cs-build',   label: '🏗️ Building column structure...', duration: 0.20 },
+    ];
+
+    function startCountdown() {
+        var fileSizeMB = selectedFile ? selectedFile.size / 1024 / 1024 : 5;
+        // Estimate: ~5s per MB for upload+processing, min 30s, max 120s
+        var totalSeconds = Math.max(30, Math.min(120, Math.round(fileSizeMB * 5)));
+        var elapsed = 0;
+        var ring = document.getElementById('countdown-ring');
+        var timeEl = document.getElementById('countdown-time');
+        var stageEl = document.getElementById('countdown-stage');
+        var subEl = document.getElementById('countdown-substage');
+        var circumference = 2 * Math.PI * 42; // 264
+
+        document.getElementById('countdown-container').classList.add('active');
+        subEl.textContent = 'Estimated ~' + totalSeconds + 's for ' + fileSizeMB.toFixed(1) + 'MB PDF';
+
+        // Reset pills
+        countdownStages.forEach(function(s) {
+            var pill = document.getElementById(s.id);
+            pill.classList.remove('active', 'done');
+        });
+
+        countdownInterval = setInterval(function() {
+            elapsed++;
+            var remaining = Math.max(0, totalSeconds - elapsed);
+            var progress = Math.min(elapsed / totalSeconds, 1);
+
+            // Update ring
+            ring.style.strokeDashoffset = circumference * (1 - progress);
+
+            // Update time display
+            if (remaining > 0) {
+                timeEl.textContent = remaining + 's';
+            } else {
+                timeEl.textContent = '⏳';
+            }
+
+            // Update stage
+            var cumulative = 0;
+            for (var i = 0; i < countdownStages.length; i++) {
+                var s = countdownStages[i];
+                cumulative += s.duration;
+                var pill = document.getElementById(s.id);
+                if (progress < cumulative) {
+                    stageEl.textContent = s.label;
+                    pill.classList.add('active');
+                    pill.classList.remove('done');
+                    break;
+                } else {
+                    pill.classList.remove('active');
+                    pill.classList.add('done');
+                }
+            }
+        }, 1000);
+    }
+
+    function stopCountdown(success) {
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+        if (success) {
+            document.getElementById('countdown-time').textContent = '✓';
+            document.getElementById('countdown-stage').textContent = 'Analysis complete!';
+            countdownStages.forEach(function(s) {
+                document.getElementById(s.id).classList.remove('active');
+                document.getElementById(s.id).classList.add('done');
+            });
+        }
+        setTimeout(function() {
+            document.getElementById('countdown-container').classList.remove('active');
+        }, success ? 1500 : 500);
+    }
+
     // ═══════════ STEP 1: ANALYZE ═══════════
     function analyzeCatalogue() {
         var btn = document.getElementById('analyze-btn');
         var textEl = document.getElementById('analyze-btn-text');
         btn.disabled = true;
         textEl.innerHTML = '<span class="wizard-spinner"></span> AI is analyzing your catalogue...';
+
+        startCountdown();
 
         var formData = new FormData();
         formData.append('source_type', sourceType);
@@ -643,13 +1019,15 @@
         .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
         .then(function(res) {
             if (res.ok && res.data.success) {
+                stopCountdown(true);
                 aiColumns = res.data.columns;
                 showAlert('success', res.data.message);
-                renderColumnsTable(aiColumns);
+                renderColumnsEditor(aiColumns);
                 document.getElementById('analysis-summary').textContent = res.data.source_summary;
                 document.getElementById('confidence-badge').textContent = res.data.confidence + '% confidence';
-                setTimeout(function() { goToStep(2); }, 800);
+                setTimeout(function() { goToStep(2); }, 1200);
             } else {
+                stopCountdown(false);
                 showAlert('error', res.data.message || 'Analysis failed.');
                 btn.disabled = false;
                 textEl.innerHTML = '<i data-lucide="sparkles" style="width:18px;height:18px"></i> Retry Analysis';
@@ -657,6 +1035,7 @@
             }
         })
         .catch(function(err) {
+            stopCountdown(false);
             showAlert('error', 'Network error. Please check your connection and try again.');
             btn.disabled = false;
             textEl.innerHTML = '<i data-lucide="sparkles" style="width:18px;height:18px"></i> Retry Analysis';
@@ -664,28 +1043,152 @@
         });
     }
 
-    // ═══════════ COLUMN TABLE RENDERING ═══════════
-    function renderColumnsTable(columns) {
-        var tbody = document.getElementById('columns-tbody');
-        tbody.innerHTML = '';
+    // ═══════════ EDITABLE COLUMN EDITOR ═══════════
+    var colTypes = ['text', 'textarea', 'number', 'select', 'multiselect', 'boolean'];
+    var colFlags = [
+        { key: 'is_category', label: '📂 Category', cls: 'on-category', exclusive: true },
+        { key: 'is_title',    label: '🏷️ Title',    cls: 'on-title',    exclusive: true },
+        { key: 'is_unique',   label: '🔑 Unique',   cls: 'on-unique',   exclusive: true },
+        { key: 'is_required', label: 'Required',     cls: 'on-required', exclusive: false },
+        { key: 'is_combo',    label: '🔀 Combo',    cls: 'on-combo',    exclusive: false },
+    ];
+
+    function renderColumnsEditor(columns) {
+        var container = document.getElementById('columns-editor');
+        container.innerHTML = '';
         columns.forEach(function(col, i) {
-            var flags = [];
-            if (col.is_category) flags.push('<span style="display:inline-block;padding:2px 8px;background:#dbeafe;color:#1d4ed8;border-radius:4px;font-size:11px;font-weight:600">📂 Category</span>');
-            if (col.is_unique) flags.push('<span style="display:inline-block;padding:2px 8px;background:#d1fae5;color:#065f46;border-radius:4px;font-size:11px;font-weight:600">🔑 Unique</span>');
-            if (col.is_title) flags.push('<span style="display:inline-block;padding:2px 8px;background:#ede9fe;color:#5b21b6;border-radius:4px;font-size:11px;font-weight:600">🏷️ Title</span>');
-            if (col.is_combo) flags.push('<span style="display:inline-block;padding:2px 8px;background:#fef3c7;color:#92400e;border-radius:4px;font-size:11px;font-weight:600">🔀 Combo</span>');
-            if (col.is_required) flags.push('<span style="display:inline-block;padding:2px 8px;background:#fee2e2;color:#991b1b;border-radius:4px;font-size:11px;font-weight:600">Required</span>');
-
-            var optStr = (col.options && col.options.length > 0) ? col.options.slice(0, 5).join(', ') + (col.options.length > 5 ? '...' : '') : '—';
-
-            var tr = document.createElement('tr');
-            tr.innerHTML = '<td style="color:#94a3b8;font-weight:600">' + (i + 1) + '</td>' +
-                '<td style="font-weight:600;color:#1e293b">' + col.name + '</td>' +
-                '<td><span style="padding:3px 10px;background:#f1f5f9;border-radius:6px;font-size:12px;font-weight:500">' + col.type + '</span></td>' +
-                '<td style="display:flex;gap:4px;flex-wrap:wrap">' + (flags.length > 0 ? flags.join(' ') : '<span style="color:#cbd5e1">—</span>') + '</td>' +
-                '<td style="font-size:12px;color:#64748b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + optStr + '</td>';
-            tbody.appendChild(tr);
+            container.appendChild(createColumnRow(col, i));
         });
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function createColumnRow(col, index) {
+        var row = document.createElement('div');
+        row.className = 'col-edit-row';
+        row.dataset.index = index;
+
+        // Drag handle
+        var drag = document.createElement('div');
+        drag.className = 'drag-handle';
+        drag.innerHTML = '⠿';
+        drag.title = 'Drag to reorder';
+
+        // Name input
+        var nameWrap = document.createElement('div');
+        var nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.className = 'col-edit-input';
+        nameInput.value = col.name || '';
+        nameInput.placeholder = 'Column name';
+        nameInput.onchange = function() { aiColumns[index].name = this.value; };
+        nameWrap.appendChild(nameInput);
+
+        // Options input (shown for select/multiselect)
+        if (col.type === 'select' || col.type === 'multiselect') {
+            var optInput = document.createElement('input');
+            optInput.type = 'text';
+            optInput.className = 'col-options-input';
+            optInput.value = (col.options || []).join(', ');
+            optInput.placeholder = 'Options (comma separated)';
+            optInput.onchange = function() {
+                aiColumns[index].options = this.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+            };
+            nameWrap.appendChild(optInput);
+        }
+
+        // Type select
+        var typeSelect = document.createElement('select');
+        typeSelect.className = 'col-edit-select';
+        colTypes.forEach(function(t) {
+            var opt = document.createElement('option');
+            opt.value = t;
+            opt.textContent = t;
+            if (t === col.type) opt.selected = true;
+            typeSelect.appendChild(opt);
+        });
+        typeSelect.onchange = function() {
+            aiColumns[index].type = this.value;
+            // Re-render this row to show/hide options input
+            renderColumnsEditor(aiColumns);
+        };
+
+        // Flags
+        var flagsDiv = document.createElement('div');
+        flagsDiv.className = 'col-flags';
+        colFlags.forEach(function(flag) {
+            var badge = document.createElement('span');
+            badge.className = 'col-flag-badge ' + (col[flag.key] ? flag.cls : 'off');
+            badge.textContent = flag.label;
+            badge.title = 'Toggle ' + flag.label;
+            badge.onclick = function() {
+                toggleFlag(index, flag.key, flag.exclusive, flag.cls);
+            };
+            flagsDiv.appendChild(badge);
+        });
+
+        // Options column (display)
+        var optsDisplay = document.createElement('div');
+        optsDisplay.style.cssText = 'font-size:11px;color:#64748b;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+        if (col.options && col.options.length > 0) {
+            optsDisplay.textContent = col.options.length + ' options';
+            optsDisplay.title = col.options.join(', ');
+        } else {
+            optsDisplay.textContent = '—';
+        }
+
+        // Delete button
+        var delBtn = document.createElement('button');
+        delBtn.className = 'col-delete-btn';
+        delBtn.innerHTML = '🗑️';
+        delBtn.title = 'Remove column';
+        delBtn.onclick = function() {
+            if (aiColumns.length <= 2) {
+                showAlert('error', 'You need at least 2 columns.');
+                return;
+            }
+            aiColumns.splice(index, 1);
+            renderColumnsEditor(aiColumns);
+        };
+
+        row.appendChild(drag);
+        row.appendChild(nameWrap);
+        row.appendChild(typeSelect);
+        row.appendChild(flagsDiv);
+        row.appendChild(optsDisplay);
+        row.appendChild(delBtn);
+
+        return row;
+    }
+
+    function toggleFlag(index, flagKey, exclusive, cls) {
+        var current = !!aiColumns[index][flagKey];
+
+        // If turning ON an exclusive flag, turn it OFF for all other columns
+        if (!current && exclusive) {
+            aiColumns.forEach(function(col) { col[flagKey] = false; });
+        }
+
+        aiColumns[index][flagKey] = !current;
+        renderColumnsEditor(aiColumns);
+    }
+
+    function addNewColumn() {
+        aiColumns.push({
+            name: '',
+            type: 'text',
+            is_unique: false,
+            is_required: false,
+            is_category: false,
+            is_title: false,
+            is_combo: false,
+            options: [],
+            show_in_ai: true,
+            sort_order: aiColumns.length + 1
+        });
+        renderColumnsEditor(aiColumns);
+        // Focus the new name input
+        var inputs = document.querySelectorAll('#columns-editor .col-edit-input');
+        if (inputs.length > 0) inputs[inputs.length - 1].focus();
     }
 
     // ═══════════ STEP 2: DOWNLOAD & IMPORT ═══════════
@@ -694,6 +1197,14 @@
     }
 
     function importColumns() {
+        // Validate: filter out empty names
+        var validColumns = aiColumns.filter(function(c) { return c.name && c.name.trim().length > 0; });
+        if (validColumns.length === 0) {
+            showAlert('error', 'Please add at least one column with a name.');
+            return;
+        }
+        aiColumns = validColumns;
+
         var btn = document.getElementById('import-columns-btn');
         var textEl = document.getElementById('import-columns-text');
         btn.disabled = true;
@@ -702,7 +1213,7 @@
         fetch('{{ route("admin.setup-wizard.import-columns") }}', {
             method: 'POST',
             headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify({ import_type: 'direct' })
+            body: JSON.stringify({ import_type: 'direct', columns: aiColumns })
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -731,11 +1242,81 @@
     }
 
     // ═══════════ STEP 3: EXTRACT PRODUCTS ═══════════
+    var extractCountdownInterval = null;
+    var extractStages = [
+        { id: 'es-read',   label: '📖 Reading catalogue pages...', duration: 0.15 },
+        { id: 'es-parse',  label: '🔍 Parsing product entries...', duration: 0.30 },
+        { id: 'es-map',    label: '🗂️ Mapping to columns...', duration: 0.35 },
+        { id: 'es-format', label: '📋 Formatting output...', duration: 0.20 },
+    ];
+
+    function startExtractCountdown() {
+        var totalSeconds = 90; // Extraction typically takes 60-120s
+        var elapsed = 0;
+        var ring = document.getElementById('extract-ring');
+        var timeEl = document.getElementById('extract-time');
+        var stageEl = document.getElementById('extract-stage');
+        var subEl = document.getElementById('extract-substage');
+        var circumference = 2 * Math.PI * 42;
+
+        document.getElementById('extract-countdown').classList.add('active');
+        subEl.textContent = 'Estimated ~' + totalSeconds + 's for product extraction';
+
+        extractStages.forEach(function(s) {
+            document.getElementById(s.id).classList.remove('active', 'done');
+        });
+
+        extractCountdownInterval = setInterval(function() {
+            elapsed++;
+            var remaining = Math.max(0, totalSeconds - elapsed);
+            var progress = Math.min(elapsed / totalSeconds, 1);
+
+            ring.style.strokeDashoffset = circumference * (1 - progress);
+            timeEl.textContent = remaining > 0 ? remaining + 's' : '⏳';
+
+            var cumulative = 0;
+            for (var i = 0; i < extractStages.length; i++) {
+                var s = extractStages[i];
+                cumulative += s.duration;
+                var pill = document.getElementById(s.id);
+                if (progress < cumulative) {
+                    stageEl.textContent = s.label;
+                    pill.classList.add('active');
+                    pill.classList.remove('done');
+                    break;
+                } else {
+                    pill.classList.remove('active');
+                    pill.classList.add('done');
+                }
+            }
+        }, 1000);
+    }
+
+    function stopExtractCountdown(success) {
+        if (extractCountdownInterval) {
+            clearInterval(extractCountdownInterval);
+            extractCountdownInterval = null;
+        }
+        if (success) {
+            document.getElementById('extract-time').textContent = '✓';
+            document.getElementById('extract-stage').textContent = 'Extraction complete!';
+            extractStages.forEach(function(s) {
+                document.getElementById(s.id).classList.remove('active');
+                document.getElementById(s.id).classList.add('done');
+            });
+        }
+        setTimeout(function() {
+            document.getElementById('extract-countdown').classList.remove('active');
+        }, success ? 1500 : 500);
+    }
+
     function extractProducts() {
         var btn = document.getElementById('extract-btn');
         var textEl = document.getElementById('extract-btn-text');
         btn.disabled = true;
         textEl.innerHTML = '<span class="wizard-spinner"></span> AI is extracting product data...';
+
+        startExtractCountdown();
 
         fetch('{{ route("admin.setup-wizard.extract-products") }}', {
             method: 'POST',
@@ -744,12 +1325,14 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
+                stopExtractCountdown(true);
                 showAlert('success', data.message);
                 document.getElementById('products-preview').style.display = 'block';
                 document.getElementById('products-count').textContent = '(' + data.total + ' products found)';
                 btn.style.display = 'none';
-                renderProductsTable(data.products);
+                renderProductsTable(data.products, data.total);
             } else {
+                stopExtractCountdown(false);
                 showAlert('error', data.message || 'Extraction failed.');
                 btn.disabled = false;
                 textEl.innerHTML = '<i data-lucide="sparkles" style="width:18px;height:18px"></i> Retry Extraction';
@@ -757,6 +1340,7 @@
             }
         })
         .catch(function() {
+            stopExtractCountdown(false);
             showAlert('error', 'Request failed. Please try again.');
             btn.disabled = false;
             textEl.innerHTML = '<i data-lucide="sparkles" style="width:18px;height:18px"></i> Retry Extraction';
@@ -764,7 +1348,7 @@
         });
     }
 
-    function renderProductsTable(products) {
+    function renderProductsTable(products, totalCount) {
         if (!products || products.length === 0) return;
 
         var keys = Object.keys(products[0]);
@@ -780,15 +1364,67 @@
             var tr = document.createElement('tr');
             tr.innerHTML = keys.map(function(k) {
                 var val = product[k] || '';
-                if (val.length > 40) val = val.substring(0, 40) + '...';
+                if (typeof val === 'string' && val.length > 40) val = val.substring(0, 40) + '...';
                 return '<td>' + val + '</td>';
             }).join('');
             tbody.appendChild(tr);
         });
+
+        // Show "showing X of Y" note if more than 10
+        if (totalCount && totalCount > 10) {
+            var note = document.createElement('tr');
+            note.innerHTML = '<td colspan="' + keys.length + '" style="text-align:center;color:#8b5cf6;font-weight:600;padding:12px">Showing 10 of ' + totalCount + ' products (all will be imported)</td>';
+            tbody.appendChild(note);
+        }
     }
 
     function downloadProductsExcel() {
         window.location.href = '{{ route("admin.setup-wizard.download-products") }}';
+    }
+
+    // ═══════════ IMPORT PRODUCTS TO SYSTEM ═══════════
+    function importProductsToSystem() {
+        var btn = document.getElementById('import-products-btn');
+        var textEl = document.getElementById('import-products-text');
+        btn.disabled = true;
+        textEl.innerHTML = '<span class="wizard-spinner"></span> Importing products...';
+
+        fetch('{{ route("admin.setup-wizard.import-products") }}', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                showAlert('success', data.message);
+
+                // Show result
+                document.getElementById('product-import-result').style.display = 'block';
+                document.getElementById('product-import-result').innerHTML =
+                    '<div class="wizard-alert wizard-alert-success">' +
+                    '<i data-lucide="check-circle" style="width:18px;height:18px;flex-shrink:0;margin-top:1px"></i>' +
+                    '<div><strong>' + data.created + ' products</strong> imported to your system.' +
+                    (data.categories_created && data.categories_created.length > 0
+                        ? '<br>Categories auto-created: ' + data.categories_created.join(', ')
+                        : '') +
+                    (data.skipped > 0 ? '<br>' + data.skipped + ' skipped due to errors' : '') +
+                    '</div></div>';
+
+                // Hide import buttons, show post-import actions
+                document.getElementById('product-action-btns').style.display = 'none';
+                document.getElementById('post-import-actions').style.display = 'block';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            } else {
+                showAlert('error', data.message || 'Import failed.');
+                btn.disabled = false;
+                textEl.textContent = 'Retry Import';
+            }
+        })
+        .catch(function() {
+            showAlert('error', 'Import request failed.');
+            btn.disabled = false;
+            textEl.textContent = 'Retry Import';
+        });
     }
 
     // ═══════════ STEP NAVIGATION ═══════════
@@ -895,7 +1531,7 @@
 
         // If we have cached columns from a previous analysis, show step 2
         @if($cachedColumns && count($cachedColumns) > 0)
-            renderColumnsTable(aiColumns);
+            renderColumnsEditor(aiColumns);
             document.getElementById('analysis-summary').textContent = 'Previously analyzed columns loaded from cache.';
             document.getElementById('confidence-badge').textContent = 'Cached';
         @endif

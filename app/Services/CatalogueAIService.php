@@ -425,12 +425,27 @@ COLUMN DESIGN RULES:
 • For free-text fields, use "text" (short) or "textarea" (long/multi-line)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DEDUPLICATION RULES (CRITICAL — READ CAREFULLY):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• NEVER create two columns for the same concept or data point.
+• "Model" and "Model Number" are the SAME field — keep only ONE (prefer "Model Number" or whichever term the catalogue actually uses).
+• "Item Code" and "Part Number" and "SKU" are the SAME concept — pick the exact term the catalogue uses and create only ONE column.
+• "Product Name" and "Product Title" are the SAME — keep only ONE.
+• If two potential columns would contain the same data for most products, merge them into one.
+• Before finalizing, review your column list and check: "Would any two columns contain identical or nearly identical data?" If yes, merge them.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 FLAG ASSIGNMENT RULES:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 • is_unique = true → EXACTLY ONE column (the primary identifier like Model Number, Part Code, Item Code)
-• is_category = true → EXACTLY ONE column (the product family/group/category)
-• is_title = true → EXACTLY ONE column (what shows as the product display name — usually the most descriptive unique field)
+• is_category = true → EXACTLY ONE column — the product family/group/category field (type MUST be "select")
+  ⚠ NEVER mark "Product Name" or "Title" as is_category. Category is for GROUPING products (e.g., "Door Handles", "Hinges", "Locks"), NOT for individual product names.
+  ⚠ If a product's name happens to match its category, that does NOT make the Product Name field a category field.
+  ⚠ Only the select-type field with predefined category options gets is_category = true.
+• is_title = true → EXACTLY ONE column (what shows as the product display name)
+  ⚠ The title field must NEVER also be is_category. These are always different columns.
 • is_combo = true → Only for select-type fields that create variation combinations (e.g., Size × Color matrix)
 • is_required = true → Fields that EVERY product must have (category, identifier, name, price)
 • show_in_ai = true → Fields useful for WhatsApp chatbot product matching (specs, features, not internal codes)
@@ -477,6 +492,19 @@ CRITICAL:
 - Keep column count between 5 and 20 for usability
 - Extract ACTUAL option values from the catalogue content, not generic examples
 - confidence: 0-100 representing how confident you are in the analysis accuracy
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FINAL CHECKLIST — COMMON MISTAKES TO AVOID:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Before outputting, verify ALL of these:
+✗ Did you create "Model" AND "Model Number" as separate columns? → MERGE into one.
+✗ Did you mark Product Name as is_category=true? → FIX: only Category select field gets is_category.
+✗ Do you have more than ONE column with is_category=true? → FIX: only ONE is allowed.
+✗ Do you have more than ONE column with is_title=true? → FIX: only ONE is allowed.
+✗ Do you have more than ONE column with is_unique=true? → FIX: only ONE is allowed.
+✗ Did you create two columns that would contain the same data? → MERGE them.
+✗ Is the is_category column type something other than "select"? → FIX: category must be "select" type.
 PROMPT;
     }
 
