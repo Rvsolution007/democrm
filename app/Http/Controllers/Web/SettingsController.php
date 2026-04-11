@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Models\Company;
 use App\Models\Lead;
-use App\Models\Task;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -33,7 +33,7 @@ class SettingsController extends Controller
         $quoteTaxes = Setting::getValue('quotes', 'taxes', []);
         $leadStages = Setting::getValue('leads', 'stages', Lead::STAGES);
         $leadSources = Setting::getValue('leads', 'sources', Lead::SOURCES);
-        $taskStatuses = Setting::getValue('tasks', 'statuses', Task::STATUSES);
+        $taskStatuses = Setting::getValue('tasks', 'statuses', ['todo', 'doing', 'done']);
         $paymentTypes = Setting::getValue('payments', 'types', ['cash', 'online', 'cheque', 'upi', 'bank_transfer']);
         // AI Bot Configuration (only per-business settings remain)
         $aiBotEnabled = Setting::getValue('ai_bot', 'enabled', false);
