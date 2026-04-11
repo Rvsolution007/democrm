@@ -590,7 +590,7 @@
                                 Drag & drop your catalogue PDF here
                             </p>
                             <p style="font-size:13px;color:hsl(var(--muted-foreground));margin:0">
-                                or click to browse • Max 20MB
+                                or click to browse • Max 30MB
                             </p>
                         </div>
                         <div id="upload-file-info" style="display:none;margin-top:12px">
