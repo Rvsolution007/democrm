@@ -47,7 +47,8 @@ class AppServiceProvider extends ServiceProvider
             );
         });
 
-        \Illuminate\Pagination\Paginator::useBootstrapFive();
+        \Illuminate\Pagination\Paginator::defaultView('vendor.pagination.custom');
+        \Illuminate\Pagination\Paginator::defaultSimpleView('vendor.pagination.custom');
 
         // Configure rate limiters
         RateLimiter::for('api', function (Request $request) {

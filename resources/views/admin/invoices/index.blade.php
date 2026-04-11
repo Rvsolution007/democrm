@@ -228,7 +228,6 @@
                 </tbody>
             </table>
             <div class="table-footer">
-                <span>Showing {{ $invoices->count() }} of {{ $invoices->total() }} entries</span>
                 {{ $invoices->links() }}
             </div>
         </div>

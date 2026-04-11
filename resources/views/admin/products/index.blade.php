@@ -215,7 +215,6 @@
             </table>
         </div>
         <div class="table-footer">
-            <span>Showing {{ $products->count() }} of {{ $products->total() }} entries</span>
             {{ $products->links() }}
         </div>
     </div>
