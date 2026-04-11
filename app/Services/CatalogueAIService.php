@@ -152,17 +152,30 @@ class CatalogueAIService
 
         $userMessage = "SOURCE TYPE: pdf\n\nPlease analyze this product catalogue PDF and identify the optimal database column structure. The PDF is attached. ONLY include columns for data that is ACTUALLY VISIBLE in the pages. Look carefully for Size tables, Available Finishes lists, Material labels, Code/Model numbers, and any other specifications shown per product.";
 
-        // For column analysis, first 10 pages are sufficient to identify structure
+        // For column analysis, first few pages are sufficient to identify structure
+        // Use fewer pages for very large PDFs to stay under Gemini 20MB limit
         $analysisPath = $pdfPath;
         $totalPages = $this->vertexAI->getPDFPageCount($pdfPath);
-        if ($totalPages > 10 || filesize($pdfPath) > 15 * 1024 * 1024) {
-            $reduced = $this->vertexAI->extractPDFPageRange($pdfPath, 1, min(10, $totalPages));
+        $pdfSizeMB = filesize($pdfPath) / 1024 / 1024;
+
+        // Determine max pages based on file size
+        $maxAnalysisPages = 10;
+        if ($pdfSizeMB > 15) $maxAnalysisPages = 5;  // Very large → only 5 pages
+        if ($pdfSizeMB > 25) $maxAnalysisPages = 3;  // Huge → only 3 pages
+
+        if ($totalPages > $maxAnalysisPages || $pdfSizeMB > 10) {
+            $pagesToExtract = min($maxAnalysisPages, $totalPages);
+            $reduced = $this->vertexAI->extractPDFPageRange($pdfPath, 1, $pagesToExtract);
             if ($reduced && file_exists($reduced)) {
                 $analysisPath = $reduced;
                 Log::info('CatalogueAI: Reduced PDF for analysis', [
                     'original_pages' => $totalPages,
-                    'analysis_pages' => min(10, $totalPages),
+                    'original_mb' => round($pdfSizeMB, 1),
+                    'analysis_pages' => $pagesToExtract,
+                    'reduced_mb' => round(filesize($reduced) / 1024 / 1024, 1),
                 ]);
+            } else {
+                Log::warning('CatalogueAI: PDF reduction failed — attempting with full PDF');
             }
         }
 

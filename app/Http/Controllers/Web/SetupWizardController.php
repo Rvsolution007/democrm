@@ -84,11 +84,19 @@ class SetupWizardController extends Controller
 
                 // Try text extraction using the saved file
                 $fakeUpload = new \Illuminate\Http\UploadedFile($pdfPath, $originalName, 'application/pdf', null, true);
-                $content = $service->extractTextFromPDF($fakeUpload);
+                $fileSizeMB = round(filesize($pdfPath) / 1024 / 1024, 2);
+                $content = '';
+
+                // For large PDFs (>10MB), ALWAYS use multimodal — text extraction quality is poor for image-heavy catalogues
+                if ($fileSizeMB <= 10) {
+                    $content = $service->extractTextFromPDF($fakeUpload);
+                } else {
+                    Log::info("SetupWizard: Skipping text extraction for large PDF ({$fileSizeMB}MB), using multimodal directly");
+                }
 
                 if (empty(trim($content))) {
-                    // Text extraction failed (image-based PDF) → use Gemini multimodal
-                    Log::info('SetupWizard: Using multimodal PDF analysis (text extraction returned empty)');
+                    // Text extraction failed or skipped → use Gemini multimodal
+                    Log::info('SetupWizard: Using multimodal PDF analysis');
 
                     // Cache the PDF path for product extraction in step 3
                     Setting::setValue('setup_tour', 'last_pdf_path', $pdfPath, $companyId);

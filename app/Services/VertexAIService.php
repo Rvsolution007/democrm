@@ -310,22 +310,31 @@ class VertexAIService
             $fileSizeMB = round($fileSize / 1024 / 1024, 2);
             Log::info('VertexAI PDF: Processing file', ['size_mb' => $fileSizeMB, 'path' => basename($pdfPath)]);
 
-            // Safety: if file is too large for inline, try to reduce pages
+            // Safety: if file is too large for inline, try to reduce pages progressively
             $pdfToSend = $pdfPath;
             if ($fileSize > 15 * 1024 * 1024) {
-                $reduced = $this->reducePDFPages($pdfPath, 10);
-                if ($reduced !== $pdfPath && file_exists($reduced) && filesize($reduced) < $fileSize) {
-                    $pdfToSend = $reduced;
-                    Log::info('VertexAI PDF: Auto-reduced for API', [
-                        'original_mb' => $fileSizeMB,
-                        'reduced_mb' => round(filesize($reduced) / 1024 / 1024, 2),
-                    ]);
+                // Try progressively fewer pages until under 20MB
+                foreach ([10, 5, 3] as $pageLimit) {
+                    $reduced = $this->reducePDFPages($pdfPath, $pageLimit);
+                    if ($reduced !== $pdfPath && file_exists($reduced) && filesize($reduced) < $fileSize) {
+                        $pdfToSend = $reduced;
+                        $reducedSize = filesize($reduced);
+                        Log::info("VertexAI PDF: Reduced to {$pageLimit} pages", [
+                            'original_mb' => $fileSizeMB,
+                            'reduced_mb' => round($reducedSize / 1024 / 1024, 2),
+                        ]);
+                        // If under 20MB, we're good
+                        if ($reducedSize <= 20 * 1024 * 1024) break;
+                        // Still too large, cleanup and try fewer pages
+                        @unlink($reduced);
+                        $pdfToSend = $pdfPath;
+                    }
                 }
             }
 
             if (filesize($pdfToSend) > 20 * 1024 * 1024) {
                 $sizeMB = round(filesize($pdfToSend) / 1024 / 1024, 1);
-                throw new \RuntimeException("PDF file is still {$sizeMB}MB after reduction (max 20MB). Please compress your PDF or use a smaller catalogue file.");
+                throw new \RuntimeException("PDF is {$sizeMB}MB which exceeds the 20MB AI limit. No PDF reduction tools are available on the server. Please compress your PDF to under 20MB, or ask your admin to install Ghostscript (gs) on the server.");
             }
 
             // Read PDF and encode as base64
