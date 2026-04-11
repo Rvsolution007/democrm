@@ -101,33 +101,16 @@ class VertexAIService
             Log::info('VertexAI PDF: Processing file', ['size_mb' => $fileSizeMB, 'path' => basename($pdfPath)]);
 
             if ($fileSize > 20 * 1024 * 1024) {
-                throw new \RuntimeException('PDF file is too large for AI analysis (max 20MB). Please compress the PDF and try again.');
-            }
-
-            // For large PDFs (>5MB), try to reduce to first 5 pages using Ghostscript
-            $pdfToSend = $pdfPath;
-            if ($fileSize > 5 * 1024 * 1024) {
-                $pdfToSend = $this->reducePDFPages($pdfPath, 5);
-                $newSize = filesize($pdfToSend);
-                Log::info('VertexAI PDF: Reduced PDF for API', [
-                    'original_mb' => $fileSizeMB,
-                    'reduced_mb' => round($newSize / 1024 / 1024, 2),
-                    'max_pages' => 5,
-                ]);
+                throw new \RuntimeException('PDF chunk is too large for Gemini (max 20MB per request). Split into smaller chunks.');
             }
 
             // Read PDF and encode as base64
-            $pdfContent = file_get_contents($pdfToSend);
+            $pdfContent = file_get_contents($pdfPath);
             if ($pdfContent === false) {
                 throw new \RuntimeException('Could not read PDF file.');
             }
             $pdfBase64 = base64_encode($pdfContent);
             unset($pdfContent); // Free memory immediately
-
-            // Clean up temp reduced PDF
-            if ($pdfToSend !== $pdfPath && file_exists($pdfToSend)) {
-                @unlink($pdfToSend);
-            }
 
             // Build multimodal request with PDF inline data
             $body = [
@@ -308,6 +291,115 @@ class VertexAIService
             return trim($output[0]);
         }
         return null;
+    }
+
+    /**
+     * Extract a specific page range from a PDF (public — used by CatalogueAIService for chunked processing)
+     *
+     * @return string|null  Path to extracted chunk, or null on failure
+     */
+    public function extractPDFPageRange(string $pdfPath, int $firstPage, int $lastPage): ?string
+    {
+        $tempDir = dirname($pdfPath);
+        $chunkPath = $tempDir . DIRECTORY_SEPARATOR . "chunk_{$firstPage}_{$lastPage}_" . basename($pdfPath);
+
+        // Try Ghostscript
+        $gsPath = $this->findCommand('gs');
+        if ($gsPath) {
+            $cmd = sprintf(
+                '%s -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dFirstPage=%d -dLastPage=%d -sOutputFile=%s %s 2>&1',
+                escapeshellarg($gsPath),
+                $firstPage,
+                $lastPage,
+                escapeshellarg($chunkPath),
+                escapeshellarg($pdfPath)
+            );
+            exec($cmd, $output, $returnCode);
+            if ($returnCode === 0 && file_exists($chunkPath) && filesize($chunkPath) > 0) {
+                return $chunkPath;
+            }
+        }
+
+        // Try pdftk
+        $pdftkPath = $this->findCommand('pdftk');
+        if ($pdftkPath) {
+            $cmd = sprintf(
+                '%s %s cat %d-%d output %s 2>&1',
+                escapeshellarg($pdftkPath),
+                escapeshellarg($pdfPath),
+                $firstPage,
+                $lastPage,
+                escapeshellarg($chunkPath)
+            );
+            exec($cmd, $output, $returnCode);
+            if ($returnCode === 0 && file_exists($chunkPath) && filesize($chunkPath) > 0) {
+                return $chunkPath;
+            }
+        }
+
+        // Try qpdf
+        $qpdfPath = $this->findCommand('qpdf');
+        if ($qpdfPath) {
+            $cmd = sprintf(
+                '%s %s --pages . %d-%d -- %s 2>&1',
+                escapeshellarg($qpdfPath),
+                escapeshellarg($pdfPath),
+                $firstPage,
+                $lastPage,
+                escapeshellarg($chunkPath)
+            );
+            exec($cmd, $output, $returnCode);
+            if ($returnCode === 0 && file_exists($chunkPath) && filesize($chunkPath) > 0) {
+                return $chunkPath;
+            }
+        }
+
+        Log::warning('VertexAI: Could not extract PDF page range', ['first' => $firstPage, 'last' => $lastPage]);
+        return null;
+    }
+
+    /**
+     * Get the total page count of a PDF using system tools
+     */
+    public function getPDFPageCount(string $pdfPath): int
+    {
+        // Try pdfinfo (usually from poppler-utils)
+        $pdfinfoPath = $this->findCommand('pdfinfo');
+        if ($pdfinfoPath) {
+            exec(escapeshellarg($pdfinfoPath) . ' ' . escapeshellarg($pdfPath) . ' 2>/dev/null', $output, $returnCode);
+            if ($returnCode === 0) {
+                foreach ($output as $line) {
+                    if (preg_match('/^Pages:\s+(\d+)/i', $line, $m)) {
+                        return (int)$m[1];
+                    }
+                }
+            }
+        }
+
+        // Try Ghostscript page count
+        $gsPath = $this->findCommand('gs');
+        if ($gsPath) {
+            $cmd = sprintf(
+                '%s -q -dNODISPLAY -dNOSAFER -c "(%s) (r) file runpdfbegin pdfpagecount = quit" 2>/dev/null',
+                escapeshellarg($gsPath),
+                str_replace(['(', ')'], ['\\(', '\\)'], $pdfPath)
+            );
+            exec($cmd, $output2, $returnCode);
+            if ($returnCode === 0 && !empty($output2[0]) && is_numeric(trim($output2[0]))) {
+                return (int)trim($output2[0]);
+            }
+        }
+
+        // Fallback: read PDF and count /Type /Page entries (rough estimate)
+        $content = file_get_contents($pdfPath);
+        if ($content !== false) {
+            $count = preg_match_all('/\/Type\s*\/Page[^s]/i', $content);
+            if ($count > 0) return $count;
+        }
+
+        // Absolute fallback — estimate from file size (roughly 100KB per page for image-heavy PDFs)
+        $sizeMB = filesize($pdfPath) / 1024 / 1024;
+        return max(1, (int)ceil($sizeMB * 10)); // ~10 pages per MB
     }
 
     /**

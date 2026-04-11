@@ -50,7 +50,7 @@ class SetupWizardController extends Controller
     {
         $request->validate([
             'source_type' => 'required|in:pdf,website',
-            'catalogue_pdf' => 'required_if:source_type,pdf|file|mimes:pdf|max:20480',
+            'catalogue_pdf' => 'required_if:source_type,pdf|file|mimes:pdf|max:30720',
             'website_url' => 'required_if:source_type,website|nullable|url',
         ]);
 
@@ -253,6 +253,10 @@ class SetupWizardController extends Controller
     public function extractProducts()
     {
         $companyId = auth()->user()->company_id;
+
+        // Boost resources for potentially long chunked extraction
+        ini_set('memory_limit', '1G');
+        set_time_limit(600); // 10 minutes max for multi-chunk extraction
 
         // Check which mode was used in step 1
         $sourceMode = Setting::getValue('setup_tour', 'source_mode', 'text', $companyId);

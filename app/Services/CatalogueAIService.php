@@ -191,19 +191,127 @@ class CatalogueAIService
         }
 
         $systemPrompt = $this->getProductExtractionPrompt($columns);
-        $userMessage = "Please extract ALL product data from this catalogue PDF. Map each product's attributes to the defined column structure. The PDF is attached as a file. Return ONLY the JSON with the products array.";
 
-        // Use higher maxOutputTokens for product extraction (products can be very large)
+        // Get total page count
+        $totalPages = $this->vertexAI->getPDFPageCount($pdfPath);
+        $fileSizeMB = round(filesize($pdfPath) / 1024 / 1024, 2);
+        $pagesPerChunk = 10; // 10 pages per AI call
+
+        Log::info('CatalogueAI: Starting chunked product extraction', [
+            'total_pages' => $totalPages,
+            'file_size_mb' => $fileSizeMB,
+            'pages_per_chunk' => $pagesPerChunk,
+        ]);
+
+        $allProducts = [];
+        $totalTokens = 0;
+        $chunkCount = 0;
+        $chunkPaths = []; // Track temp files for cleanup
+
+        // If PDF is small enough (<15MB), send the whole thing in one call
+        if (filesize($pdfPath) <= 15 * 1024 * 1024) {
+            Log::info('CatalogueAI: PDF small enough for single-pass extraction');
+            return $this->extractProductsFromSinglePDF($systemPrompt, $pdfPath);
+        }
+
+        // Chunked extraction: split PDF and process each chunk
+        for ($startPage = 1; $startPage <= $totalPages; $startPage += $pagesPerChunk) {
+            $endPage = min($startPage + $pagesPerChunk - 1, $totalPages);
+            $chunkCount++;
+
+            Log::info("CatalogueAI: Processing chunk {$chunkCount}", [
+                'pages' => "{$startPage}-{$endPage}",
+                'total_pages' => $totalPages,
+            ]);
+
+            // Extract page range into a chunk PDF
+            $chunkPath = $this->vertexAI->extractPDFPageRange($pdfPath, $startPage, $endPage);
+
+            if (!$chunkPath || !file_exists($chunkPath)) {
+                Log::warning("CatalogueAI: Could not create chunk for pages {$startPage}-{$endPage}, skipping");
+                continue;
+            }
+
+            $chunkPaths[] = $chunkPath;
+
+            // Check chunk size — skip if too large
+            $chunkSize = filesize($chunkPath);
+            if ($chunkSize > 18 * 1024 * 1024) {
+                Log::warning("CatalogueAI: Chunk too large", ['chunk_mb' => round($chunkSize / 1024 / 1024, 2)]);
+                continue;
+            }
+
+            try {
+                $userMessage = "Extract ALL individual product data from pages {$startPage} to {$endPage} of this catalogue PDF. Each model/SKU = one separate product row. Return ONLY the JSON.";
+
+                $result = $this->vertexAI->generateContentWithPDF(
+                    $systemPrompt,
+                    $chunkPath,
+                    $userMessage,
+                    32768
+                );
+
+                $totalTokens += $result['total_tokens'] ?? 0;
+
+                $json = $this->extractJSONFromResponse($result['text']);
+
+                if ($json && isset($json['products']) && !empty($json['products'])) {
+                    Log::info("CatalogueAI: Chunk {$chunkCount} extracted", ['products' => count($json['products'])]);
+                    $allProducts = array_merge($allProducts, $json['products']);
+                } else {
+                    Log::warning("CatalogueAI: Chunk {$chunkCount} returned no products", [
+                        'response_preview' => substr($result['text'], 0, 300),
+                    ]);
+                }
+
+            } catch (\Exception $e) {
+                Log::error("CatalogueAI: Chunk {$chunkCount} failed", ['error' => $e->getMessage()]);
+                // Continue processing other chunks
+            }
+        }
+
+        // Cleanup temp chunk files
+        foreach ($chunkPaths as $cp) {
+            if (file_exists($cp)) @unlink($cp);
+        }
+
+        // Deduplicate products by model number / unique identifier
+        $allProducts = $this->deduplicateProducts($allProducts, $columns);
+
+        Log::info('CatalogueAI: Chunked extraction complete', [
+            'total_products' => count($allProducts),
+            'chunks_processed' => $chunkCount,
+            'total_tokens' => $totalTokens,
+        ]);
+
+        if (empty($allProducts)) {
+            throw new \RuntimeException('AI could not extract any products from the PDF across all pages. Please try again.');
+        }
+
+        return [
+            'products' => $allProducts,
+            'total' => count($allProducts),
+            'ai_tokens' => $totalTokens,
+        ];
+    }
+
+    /**
+     * Single-pass extraction for smaller PDFs
+     */
+    private function extractProductsFromSinglePDF(string $systemPrompt, string $pdfPath): array
+    {
+        $userMessage = "Extract ALL individual product data from this catalogue PDF. Each model number / SKU = one separate product row. Return ONLY the JSON with the products array.";
+
         $result = $this->vertexAI->generateContentWithPDF(
             $systemPrompt,
             $pdfPath,
             $userMessage,
-            16384
+            32768
         );
 
-        Log::info('CatalogueAI: Product extraction raw response', [
+        Log::info('CatalogueAI: Single-pass extraction raw response', [
             'text_length' => strlen($result['text']),
-            'preview' => substr($result['text'], 0, 800),
+            'preview' => substr($result['text'], 0, 500),
             'tokens' => $result['total_tokens'] ?? 0,
         ]);
 
@@ -217,21 +325,75 @@ class CatalogueAIService
             throw new \RuntimeException('AI could not extract product data from the PDF. Please try again.');
         }
 
-        // Warn if products array is empty — likely truncated response
         if (empty($json['products'])) {
-            Log::warning('CatalogueAI: Products array is empty — response may have been truncated', [
+            Log::warning('CatalogueAI: Products array is empty in single-pass', [
                 'response_length' => strlen($result['text']),
                 'response_tail' => substr($result['text'], -200),
             ]);
         }
 
-        Log::info('CatalogueAI: Products extracted', ['count' => count($json['products'])]);
+        Log::info('CatalogueAI: Single-pass products extracted', ['count' => count($json['products'])]);
 
         return [
             'products' => $json['products'] ?? [],
             'total' => count($json['products'] ?? []),
             'ai_tokens' => $result['total_tokens'] ?? 0,
         ];
+    }
+
+    /**
+     * Deduplicate products by their unique/model column
+     */
+    private function deduplicateProducts(array $products, array $columns): array
+    {
+        if (empty($products)) return $products;
+
+        // Find the unique/model column name
+        $uniqueColName = null;
+        foreach ($columns as $col) {
+            if ($col['is_unique'] ?? false) {
+                $uniqueColName = $col['name'];
+                break;
+            }
+        }
+
+        // Fallback: try to find a "Model Number" or "SKU" column
+        if (!$uniqueColName) {
+            foreach ($columns as $col) {
+                $name = mb_strtolower($col['name']);
+                if (in_array($name, ['model number', 'model', 'sku', 'model_number', 'item code'])) {
+                    $uniqueColName = $col['name'];
+                    break;
+                }
+            }
+        }
+
+        if (!$uniqueColName) {
+            Log::info('CatalogueAI: No unique column for dedup, returning all products');
+            return $products;
+        }
+
+        $seen = [];
+        $unique = [];
+        foreach ($products as $product) {
+            $val = $product[$uniqueColName] ?? '';
+            if (empty($val)) {
+                $unique[] = $product; // Keep products without identifier
+                continue;
+            }
+            $key = mb_strtolower(trim($val));
+            if (!isset($seen[$key])) {
+                $seen[$key] = true;
+                $unique[] = $product;
+            }
+        }
+
+        $removed = count($products) - count($unique);
+        if ($removed > 0) {
+            Log::info("CatalogueAI: Dedup removed {$removed} duplicate products by '{$uniqueColName}'");
+        }
+
+        return $unique;
     }
 
     /**
@@ -806,7 +968,7 @@ PROMPT;
         return <<<PROMPT
 You are a world-class Product Data Extraction Specialist with 20+ years of experience digitizing product catalogues into structured databases.
 
-YOUR MISSION: Extract ALL product data from the provided catalogue content and map each product's attributes to the defined column structure.
+YOUR MISSION: Extract EVERY SINGLE individual product/model from the provided catalogue and map each to the defined column structure.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 DEFINED COLUMNS (extract data for these exact fields):
@@ -815,18 +977,50 @@ DEFINED COLUMNS (extract data for these exact fields):
 {$columnList}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EXTRACTION RULES:
+CRITICAL EXTRACTION RULES:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. Extract EVERY distinct product/item from the catalogue
-2. Map each product's attributes to the column names EXACTLY as defined above
-3. For COMBO fields, separate multiple values with " | " (pipe with spaces)
-4. For CATEGORY, use the product group/family name from the catalogue
-5. For PRICES, use numeric values only (no currency symbols, no commas)
-6. If a field is not available for a product, use empty string ""
+1. ⚠️ EACH MODEL NUMBER / SKU = ONE SEPARATE PRODUCT ROW
+   - Do NOT group multiple models into one row
+   - If a catalogue page shows 10 different models, you must create 10 separate product entries
+   - Each model number, even within the same category, is a SEPARATE product
+
+2. For CATEGORY column: use the product group/family name (e.g. "Conceal Handle", "Door Handle")
+   - Multiple products CAN share the same category
+
+3. For COMBO/VARIATION fields (like Finish, Color, Size):
+   - Separate available options with " | " (pipe with spaces)
+   - Example: "Matte Black | Brushed Gold | Silver"
+   - These represent the options available FOR THAT SPECIFIC MODEL
+
+4. For PRICES: use numeric values only (no currency symbols, no commas)
+
+5. If a field value is not visible/available for a product, use empty string ""
+
+6. Do NOT include image URLs or file paths — text data only
+
 7. For select-type fields, pick the closest matching option from the defined options
-8. Do NOT include image URLs or file paths — text data only
-9. If the same product appears with different variations, create ONE entry with combo values separated by |
+
+8. Extract ALL products from ALL visible pages of the catalogue
+   - Even if products look similar, if they have different model numbers, sizes or specifications — they are separate products
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXAMPLE — CORRECT vs WRONG:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ WRONG (grouping by category):
+{"products": [
+  {"Category": "Conceal Handle", "Product Name": "Conceal Handle", "Model Number": "", ...},
+  {"Category": "Wardrobe Handle", "Product Name": "Wardrobe Handle", "Model Number": "", ...}
+]}
+
+✅ CORRECT (each model = separate row):
+{"products": [
+  {"Category": "Conceal Handle", "Product Name": "Conceal Handle CH-101", "Model Number": "CH-101", "Material": "Aluminium", "Finish": "Black | Gold | Silver", ...},
+  {"Category": "Conceal Handle", "Product Name": "Conceal Handle CH-102", "Model Number": "CH-102", "Material": "Zinc Alloy", "Finish": "Black | Rose Gold", ...},
+  {"Category": "Conceal Handle", "Product Name": "Conceal Handle CH-103", "Model Number": "CH-103", "Material": "Stainless Steel", "Finish": "Silver", ...},
+  {"Category": "Wardrobe Handle", "Product Name": "Wardrobe Handle WH-201", "Model Number": "WH-201", ...}
+]}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT FORMAT (STRICT JSON — NO MARKDOWN):
@@ -842,11 +1036,15 @@ OUTPUT FORMAT (STRICT JSON — NO MARKDOWN):
   ]
 }
 
-CRITICAL:
-- Output ONLY valid JSON. No markdown. No explanation text.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FINAL CHECKLIST:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Output ONLY valid JSON. No markdown code fences. No explanation text.
 - Use the EXACT column names as defined above (case-sensitive)
-- Extract as many products as possible (up to 500)
-- Prices should be numbers only, no ₹ or Rs symbols
+- Extract as many INDIVIDUAL products/models as possible (up to 500)
+- Prices should be numbers only, no ₹ or Rs or $ symbols
+- ⚠️ Did you create one row per MODEL? Not one row per CATEGORY! Double check!
+- ⚠️ Count your product entries — if you have less than 10 products from a multi-page catalogue, you are probably grouping incorrectly!
 PROMPT;
     }
 

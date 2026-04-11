@@ -1244,14 +1244,14 @@
     // ═══════════ STEP 3: EXTRACT PRODUCTS ═══════════
     var extractCountdownInterval = null;
     var extractStages = [
-        { id: 'es-read',   label: '📖 Reading catalogue pages...', duration: 0.15 },
-        { id: 'es-parse',  label: '🔍 Parsing product entries...', duration: 0.30 },
-        { id: 'es-map',    label: '🗂️ Mapping to columns...', duration: 0.35 },
-        { id: 'es-format', label: '📋 Formatting output...', duration: 0.20 },
+        { id: 'es-read',   label: '📖 Splitting PDF into chunks...', duration: 0.10 },
+        { id: 'es-parse',  label: '🔍 Extracting products (chunk by chunk)...', duration: 0.50 },
+        { id: 'es-map',    label: '🗂️ Merging & deduplicating...', duration: 0.25 },
+        { id: 'es-format', label: '📋 Formatting final output...', duration: 0.15 },
     ];
 
     function startExtractCountdown() {
-        var totalSeconds = 90; // Extraction typically takes 60-120s
+        var totalSeconds = 300; // Chunked extraction can take 3-5 minutes
         var elapsed = 0;
         var ring = document.getElementById('extract-ring');
         var timeEl = document.getElementById('extract-time');
@@ -1260,7 +1260,7 @@
         var circumference = 2 * Math.PI * 42;
 
         document.getElementById('extract-countdown').classList.add('active');
-        subEl.textContent = 'Estimated ~' + totalSeconds + 's for product extraction';
+        subEl.textContent = 'Processing all pages — may take 3-5 minutes for large catalogues';
 
         extractStages.forEach(function(s) {
             document.getElementById(s.id).classList.remove('active', 'done');
@@ -1318,12 +1318,18 @@
 
         startExtractCountdown();
 
+        // AbortController for timeout
+        var controller = new AbortController();
+        var timeoutId = setTimeout(function() { controller.abort(); }, 600000); // 10 min timeout
+
         fetch('{{ route("admin.setup-wizard.extract-products") }}', {
             method: 'POST',
             headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            signal: controller.signal,
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
+            clearTimeout(timeoutId);
             if (data.success) {
                 stopExtractCountdown(true);
                 showAlert('success', data.message);
@@ -1339,9 +1345,11 @@
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             }
         })
-        .catch(function() {
+        .catch(function(err) {
+            clearTimeout(timeoutId);
             stopExtractCountdown(false);
-            showAlert('error', 'Request failed. Please try again.');
+            var msg = err && err.name === 'AbortError' ? 'Request timed out. The PDF may be too large.' : 'Request failed. Please try again.';
+            showAlert('error', msg);
             btn.disabled = false;
             textEl.innerHTML = '<i data-lucide="sparkles" style="width:18px;height:18px"></i> Retry Extraction';
             if (typeof lucide !== 'undefined') lucide.createIcons();
