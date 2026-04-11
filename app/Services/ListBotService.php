@@ -373,9 +373,32 @@ class ListBotService
             return $this->sendWelcomeWithCategories($session, $instanceName);
         }
 
+        // Check if this category is part of a grouped set (wrongly created 1:1 categories)
+        // Find all categories that share the same prefix (e.g. "Conceal Handle 0010" → "Conceal Handle")
+        $baseName = preg_replace('/[\s\-_]*[\d]+[\s\-_]*$/', '', trim($category->name));
+        $baseName = trim($baseName);
+        
+        $relatedCatIds = [$categoryId];
+        if (!empty($baseName) && $baseName !== $category->name) {
+            // Find all categories with the same base name
+            $relatedCats = \App\Models\Category::where('company_id', $this->companyId)
+                ->where('status', 'active')
+                ->where('name', 'LIKE', $baseName . '%')
+                ->pluck('id')
+                ->toArray();
+            if (count($relatedCats) > 1) {
+                $relatedCatIds = $relatedCats;
+                Log::info('ListBot: Grouped category selected', [
+                    'base_name' => $baseName,
+                    'related_cat_count' => count($relatedCatIds),
+                ]);
+            }
+        }
+
         // Save to session
         $session->setAnswer('category_id', $categoryId);
-        $session->setAnswer('category_name', $category->name);
+        $session->setAnswer('category_ids', $relatedCatIds);
+        $session->setAnswer('category_name', $baseName ?: $category->name);
         $session->conversation_state = 'awaiting_product';
         $session->catalogue_sent = true;
 
@@ -383,10 +406,10 @@ class ListBotService
         $this->advanceChatflow($session, $steps);
         $session->save();
 
-        Log::info('ListBot: Category selected', ['session' => $session->id, 'category' => $category->name]);
+        Log::info('ListBot: Category selected', ['session' => $session->id, 'category' => $baseName ?: $category->name]);
 
-        // Send product list for this category
-        return $this->sendProductList($session, $instanceName, $categoryId);
+        // Send product list for these categories
+        return $this->sendProductList($session, $instanceName, $relatedCatIds);
     }
 
     // ═══════════════════════════════════════════════════════
@@ -601,13 +624,33 @@ class ListBotService
             ->orderBy('name')
             ->get();
 
+        $totalActive = Product::where('company_id', $this->companyId)->where('status', 'active')->count();
+
         Log::info('ListBot: sendWelcomeWithCategories', [
             'company_id' => $this->companyId,
             'categories_found' => $categories->count(),
             'category_names' => $categories->pluck('name')->toArray(),
-            'total_active_products' => Product::where('company_id', $this->companyId)->where('status', 'active')->count(),
+            'total_active_products' => $totalActive,
             'total_categories' => \App\Models\Category::where('company_id', $this->companyId)->count(),
         ]);
+
+        // Smart category dedup: if most categories have only 1 product,
+        // it means the AI wrongly created individual categories (e.g. "Conceal Handle 0010")
+        // Group them by their text prefix (strip trailing numbers/codes)
+        if ($categories->count() > 5 && $totalActive > 0) {
+            $avgProductsPerCat = $totalActive / max($categories->count(), 1);
+            if ($avgProductsPerCat <= 1.5) {
+                Log::info('ListBot: Detected 1:1 category-product ratio, grouping by prefix');
+                $grouped = $this->groupCategoriesByPrefix($categories);
+                if ($grouped && $grouped->count() < $categories->count()) {
+                    $categories = $grouped;
+                    Log::info('ListBot: Grouped categories', [
+                        'new_count' => $categories->count(),
+                        'names' => $categories->pluck('name')->toArray(),
+                    ]);
+                }
+            }
+        }
 
         if ($categories->isEmpty()) {
             Log::info('ListBot: No categories with products, sending all products directly');
@@ -661,11 +704,15 @@ class ListBotService
     // SEND PRODUCT LIST MENU
     // ═══════════════════════════════════════════════════════
 
-    private function sendProductList(AiChatSession $session, string $instanceName, ?int $categoryId = null): ?string
+    private function sendProductList(AiChatSession $session, string $instanceName, $categoryIds = null): ?string
     {
         $query = Product::where('company_id', $this->companyId)->where('status', 'active');
-        if ($categoryId) {
-            $query->where('category_id', $categoryId);
+        if ($categoryIds) {
+            if (is_array($categoryIds)) {
+                $query->whereIn('category_id', $categoryIds);
+            } else {
+                $query->where('category_id', $categoryIds);
+            }
         }
 
         // Apply any column filters already set
@@ -683,15 +730,15 @@ class ListBotService
 
         Log::info('ListBot: sendProductList', [
             'company_id' => $this->companyId,
-            'category_id' => $categoryId,
+            'category_ids' => $categoryIds,
             'products_found' => $products->count(),
             'product_names' => $products->pluck('name')->toArray(),
             'product_ids' => $products->pluck('id')->toArray(),
         ]);
 
         if ($products->isEmpty()) {
-            Log::warning('ListBot: No products found!', ['company_id' => $this->companyId, 'category_id' => $categoryId]);
-            if ($categoryId) {
+            Log::warning('ListBot: No products found!', ['company_id' => $this->companyId, 'category_ids' => $categoryIds]);
+            if ($categoryIds) {
                 $msg = "Sorry, no products available in this category.";
                 $this->whatsApp->sendText($instanceName, $session->phone_number, $msg);
                 
@@ -1127,6 +1174,60 @@ class ListBotService
                 ->get();
         }
         return $this->aiVisibleColumns;
+    }
+
+    /**
+     * Group wrongly-created categories by their text prefix.
+     * Strips trailing numbers/codes from category names to find the base group name.
+     * E.g., "Conceal Handle 0010", "Conceal Handle 0011" → "Conceal Handle" (N products)
+     *
+     * Returns a collection of virtual category objects with merged product counts.
+     */
+    private function groupCategoriesByPrefix($categories): ?\Illuminate\Support\Collection
+    {
+        $groups = [];
+        $catIdMap = []; // groupName => [cat_ids]
+
+        foreach ($categories as $cat) {
+            // Strip trailing numbers, codes, and common separators
+            // "Conceal Handle 0010" → "Conceal Handle"
+            // "Knob Handle 401" → "Knob Handle"
+            // "Product 105" → "Product" (but this is too generic)
+            $baseName = preg_replace('/[\s\-_]*[\d]+[\s\-_]*$/', '', trim($cat->name));
+            $baseName = trim($baseName);
+
+            if (empty($baseName)) {
+                $baseName = $cat->name; // fallback to original
+            }
+
+            if (!isset($groups[$baseName])) {
+                $groups[$baseName] = 0;
+                $catIdMap[$baseName] = [];
+            }
+            $groups[$baseName] += $cat->products_count ?? 0;
+            $catIdMap[$baseName][] = $cat->id;
+        }
+
+        // If grouping didn't reduce count meaningfully, return null
+        if (count($groups) >= count($categories) * 0.8) {
+            return null;
+        }
+
+        // Build virtual category collection
+        $result = collect();
+        foreach ($groups as $name => $count) {
+            $firstCatId = $catIdMap[$name][0] ?? 0;
+            // Create a virtual object that looks like a Category
+            $virtual = new \stdClass();
+            $virtual->id = $firstCatId; // Use first real cat ID for routing
+            $virtual->name = $name;
+            $virtual->company_id = $this->companyId;
+            $virtual->products_count = $count;
+            $virtual->_grouped_cat_ids = $catIdMap[$name]; // Store all IDs for product query
+            $result->push($virtual);
+        }
+
+        return $result->sortBy('name')->values();
     }
 
     private function getCategoryFieldLabel(): string

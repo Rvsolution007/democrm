@@ -1068,8 +1068,16 @@ CRITICAL EXTRACTION RULES:
    - If a catalogue page shows 10 different models, you must create 10 separate product entries
    - Each model number, even within the same category, is a SEPARATE product
 
-2. For CATEGORY column: use the product group/family name (e.g. "Conceal Handle", "Door Handle")
-   - Multiple products CAN share the same category
+2. ⚠️ CATEGORY COLUMN — VERY IMPORTANT:
+   - The Category value is the PRODUCT GROUP/FAMILY name (e.g. "Conceal Handle", "Door Handle", "Wardrobe Handle")
+   - Multiple products MUST share the same category value
+   - NEVER append model numbers, code numbers, or unique identifiers to the category
+   - ❌ WRONG: Category = "Conceal Handle 0010" (includes model number)
+   - ❌ WRONG: Category = "Knob Handle 401" (includes code number)
+   - ✅ CORRECT: Category = "Conceal Handle" (group name only)
+   - ✅ CORRECT: Category = "Knob Handle" (group name only)
+   - If the Category and Unique Identifier are on the SAME line in the catalogue, SEPARATE them into two different fields
+   - Category should have FAR FEWER unique values than the number of products (e.g. 5 categories for 100 products)
 
 3. For COMBO/VARIATION fields (like Finish, Color, Size):
    - Separate available options with " | " (pipe with spaces)
@@ -1128,6 +1136,8 @@ FINAL CHECKLIST:
 - Prices should be numbers only, no ₹ or Rs or $ symbols
 - ⚠️ Did you create one row per MODEL? Not one row per CATEGORY! Double check!
 - ⚠️ Count your product entries — if you have less than 10 products from a multi-page catalogue, you are probably grouping incorrectly!
+- ⚠️ Count your UNIQUE Category values — if you have as many categories as products, you are putting model numbers IN the category! Fix this!
+- ⚠️ Category must be the GROUP NAME only (e.g. "Conceal Handle"), NEVER "Conceal Handle 0010"
 PROMPT;
     }
 
