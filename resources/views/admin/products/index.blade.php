@@ -143,7 +143,7 @@
                                 <input type="checkbox" id="select-all-products" onchange="toggleAllProducts(this)" style="width:16px;height:16px;accent-color:#6366f1;cursor:pointer">
                             </th>
                         @endif
-                        @foreach($customColumns->where('show_on_list', true) as $col)
+                        @foreach($customColumns->where('show_on_list', true)->where('is_required', true) as $col)
                             <th>{{ $col->name }}</th>
                         @endforeach
                         <th>Status</th>
@@ -158,7 +158,7 @@
                                     <input type="checkbox" class="product-checkbox" value="{{ $product->id }}" onchange="updateBulkBar()" style="width:16px;height:16px;accent-color:#6366f1;cursor:pointer">
                                 </td>
                             @endif
-                            @foreach($customColumns->where('show_on_list', true) as $col)
+                            @foreach($customColumns->where('show_on_list', true)->where('is_required', true) as $col)
                                 <td>
                                     @if($col->is_category && $col->is_title)
                                         {{-- Column is both Category + Title: show category name --}}
