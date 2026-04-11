@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     zip \
     unzip \
+    ghostscript \
     && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip opcache \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -24,7 +25,7 @@ RUN { \
     echo 'opcache.save_comments=1'; \
     echo 'upload_max_filesize=50M'; \
     echo 'post_max_size=50M'; \
-    echo 'memory_limit=256M'; \
+    echo 'memory_limit=1G'; \
     echo 'max_execution_time=120'; \
 } > /usr/local/etc/php/conf.d/production.ini
 
