@@ -116,7 +116,9 @@ class WhatsappAutoReplyController extends Controller
             'name' => 'required|string|max:255',
             'match_type' => 'required|in:exact,contains,any_message,first_message',
             'keywords' => 'nullable|string',
-            'template_id' => 'required|exists:whatsapp_templates,id',
+            'template_id' => 'required_if:template_source,evolution|nullable|exists:whatsapp_templates,id',
+            'meta_template_id' => 'required_if:template_source,meta|nullable|exists:meta_whatsapp_templates,id',
+            'template_source' => 'nullable|in:evolution,meta',
             'reply_delay_seconds' => 'nullable|integer|min:0|max:60',
             'is_one_time' => 'nullable',
             'cooldown_hours' => 'nullable|integer|min:0',
@@ -140,6 +142,8 @@ class WhatsappAutoReplyController extends Controller
             $keywords = array_values($keywords); // Re-index
         }
 
+        $templateSource = $request->template_source ?? 'evolution';
+
         WhatsappAutoReplyRule::create([
             'company_id' => $user->company_id ?? 1,
             'user_id' => $user->id,
@@ -147,7 +151,9 @@ class WhatsappAutoReplyController extends Controller
             'name' => $request->name,
             'match_type' => $request->match_type,
             'keywords' => $keywords,
-            'template_id' => $request->template_id,
+            'template_id' => $templateSource === 'evolution' ? $request->template_id : null,
+            'meta_template_id' => $templateSource === 'meta' ? $request->meta_template_id : null,
+            'template_source' => $templateSource,
             'reply_delay_seconds' => $request->reply_delay_seconds ?? 5,
             'is_one_time' => $request->boolean('is_one_time'),
             'cooldown_hours' => $request->cooldown_hours ?? 24,
@@ -190,7 +196,9 @@ class WhatsappAutoReplyController extends Controller
             'name' => 'required|string|max:255',
             'match_type' => 'required|in:exact,contains,any_message,first_message',
             'keywords' => 'nullable|string',
-            'template_id' => 'required|exists:whatsapp_templates,id',
+            'template_id' => 'required_if:template_source,evolution|nullable|exists:whatsapp_templates,id',
+            'meta_template_id' => 'required_if:template_source,meta|nullable|exists:meta_whatsapp_templates,id',
+            'template_source' => 'nullable|in:evolution,meta',
             'reply_delay_seconds' => 'nullable|integer|min:0|max:60',
             'is_one_time' => 'nullable',
             'cooldown_hours' => 'nullable|integer|min:0',
@@ -211,11 +219,15 @@ class WhatsappAutoReplyController extends Controller
             $keywords = array_values($keywords);
         }
 
+        $templateSource = $request->template_source ?? 'evolution';
+
         $rule->update([
             'name' => $request->name,
             'match_type' => $request->match_type,
             'keywords' => $keywords,
-            'template_id' => $request->template_id,
+            'template_id' => $templateSource === 'evolution' ? $request->template_id : null,
+            'meta_template_id' => $templateSource === 'meta' ? $request->meta_template_id : null,
+            'template_source' => $templateSource,
             'reply_delay_seconds' => $request->reply_delay_seconds ?? 5,
             'is_one_time' => $request->boolean('is_one_time'),
             'cooldown_hours' => $request->cooldown_hours ?? 24,

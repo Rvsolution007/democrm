@@ -415,6 +415,17 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'subscription'])->gr
         Route::get('whatsapp-auto-reply-blacklist', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'blacklist'])->name('whatsapp-auto-reply.blacklist');
         Route::post('whatsapp-auto-reply-blacklist', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'addToBlacklist'])->name('whatsapp-auto-reply.blacklist.store');
         Route::delete('whatsapp-auto-reply-blacklist/{id}', [App\Http\Controllers\Web\WhatsappAutoReplyController::class, 'removeFromBlacklist'])->name('whatsapp-auto-reply.blacklist.destroy');
+
+        // Meta WhatsApp Templates (Official API — only works when official API + WABA ID configured)
+        Route::get('meta-templates', [App\Http\Controllers\Web\MetaTemplateController::class, 'index'])->name('meta-templates.index');
+        Route::get('meta-templates/create', [App\Http\Controllers\Web\MetaTemplateController::class, 'create'])->name('meta-templates.create');
+        Route::post('meta-templates', [App\Http\Controllers\Web\MetaTemplateController::class, 'store'])->name('meta-templates.store');
+        Route::get('meta-templates/{id}', [App\Http\Controllers\Web\MetaTemplateController::class, 'show'])->name('meta-templates.show');
+        Route::delete('meta-templates/{id}', [App\Http\Controllers\Web\MetaTemplateController::class, 'destroy'])->name('meta-templates.destroy');
+        Route::post('meta-templates/sync', [App\Http\Controllers\Web\MetaTemplateController::class, 'syncAll'])->name('meta-templates.sync');
+        Route::post('meta-templates/{id}/sync', [App\Http\Controllers\Web\MetaTemplateController::class, 'syncOne'])->name('meta-templates.sync-one');
+        Route::post('meta-templates/{id}/retry', [App\Http\Controllers\Web\MetaTemplateController::class, 'retry'])->name('meta-templates.retry');
+        Route::get('meta-templates-approved-json', [App\Http\Controllers\Web\MetaTemplateController::class, 'approvedTemplatesJson'])->name('meta-templates.approved-json');
     }); // end WhatsApp feature gate
 
     // Leads

@@ -204,10 +204,34 @@ class AutoReplyService
     }
 
     /**
-     * Send the auto-reply via Evolution API
+     * Send the auto-reply via Evolution API or Meta Template API
      */
     private function sendReply(WhatsappAutoReplyRule $rule, string $instanceName, string $recipientPhone, int $userId): array
     {
+        // ── Meta Template Flow ──
+        // If rule uses a Meta approved template, send via Official API
+        if ($rule->template_source === 'meta' && $rule->meta_template_id) {
+            $metaTemplate = $rule->metaTemplate;
+            if (!$metaTemplate) {
+                return ['success' => false, 'error' => 'meta_template_not_found'];
+            }
+            if (!$metaTemplate->isApproved()) {
+                return ['success' => false, 'error' => 'meta_template_not_approved (status: ' . $metaTemplate->status . ')'];
+            }
+
+            // Wait for delay (human-like feel)
+            if ($rule->reply_delay_seconds > 0) {
+                sleep($rule->reply_delay_seconds);
+            }
+
+            $companyId = $this->getCompanyId($userId);
+            $service = new \App\Services\MetaTemplateService($companyId);
+            $result = $service->sendTemplateMessage($metaTemplate, $recipientPhone);
+
+            return ['success' => $result['success'], 'error' => $result['error'] ?? null];
+        }
+
+        // ── Evolution API Flow (existing) ──
         $template = $rule->template;
         if (!$template) {
             return ['success' => false, 'error' => 'no_template'];

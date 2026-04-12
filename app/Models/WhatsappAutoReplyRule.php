@@ -14,6 +14,8 @@ class WhatsappAutoReplyRule extends Model
         'match_type',
         'keywords',
         'template_id',
+        'meta_template_id',
+        'template_source',
         'reply_delay_seconds',
         'is_one_time',
         'cooldown_hours',
@@ -59,6 +61,11 @@ class WhatsappAutoReplyRule extends Model
     public function template()
     {
         return $this->belongsTo(WhatsappTemplate::class, 'template_id');
+    }
+
+    public function metaTemplate()
+    {
+        return $this->belongsTo(MetaWhatsappTemplate::class, 'meta_template_id');
     }
 
     public function logs()

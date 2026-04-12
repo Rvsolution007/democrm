@@ -146,9 +146,38 @@
             <!-- RESPONSE -->
             <div class="form-section-title">💬 Response</div>
 
+            @php
+                $officialApiOn = (bool) \App\Models\Setting::getValue('whatsapp', 'official_api_enabled', false);
+                $officialCfg = \App\Models\Setting::getValue('whatsapp', 'official_api_config', []);
+                $wabaConfigured = !empty($officialCfg['waba_id'] ?? '');
+                $showMetaOption = $officialApiOn && $wabaConfigured;
+                $currentSource = old('template_source', $rule->template_source ?? 'evolution');
+            @endphp
+
+            @if($showMetaOption)
+            <!-- Template Source Toggle -->
             <div class="form-group">
-                <label>Reply Template</label>
-                <select name="template_id" class="form-select" required onchange="previewTemplate(this)">
+                <label>Template Source</label>
+                <div class="radio-group">
+                    <label class="radio-option {{ $currentSource == 'evolution' ? 'selected' : '' }}">
+                        <input type="radio" name="template_source" value="evolution" {{ $currentSource == 'evolution' ? 'checked' : '' }} onchange="toggleTemplateSource()">
+                        📱 Evolution Template
+                    </label>
+                    <label class="radio-option {{ $currentSource == 'meta' ? 'selected' : '' }}" style="{{ $currentSource == 'meta' ? 'background:#f0fdf4;border-color:#22c55e;color:#166534;' : '' }}">
+                        <input type="radio" name="template_source" value="meta" {{ $currentSource == 'meta' ? 'checked' : '' }} onchange="toggleTemplateSource()">
+                        ✅ Meta Approved Template
+                    </label>
+                </div>
+                <div class="form-hint">Evolution templates are free (QR-based). Meta templates work via Official API (outbound messages).</div>
+            </div>
+            @else
+            <input type="hidden" name="template_source" value="evolution">
+            @endif
+
+            <!-- Evolution Template Dropdown -->
+            <div class="form-group" id="evolution-template-group" style="{{ $currentSource == 'meta' ? 'display:none;' : '' }}">
+                <label>Reply Template (Evolution)</label>
+                <select name="template_id" class="form-select" id="evolution-template-select" onchange="previewTemplate(this)" {{ $currentSource == 'meta' ? '' : 'required' }}>
                     <option value="">— Select Template —</option>
                     @foreach($templates as $template)
                         <option value="{{ $template->id }}"
@@ -160,6 +189,16 @@
                     @endforeach
                 </select>
                 <div class="template-preview" id="template-preview"></div>
+            </div>
+
+            <!-- Meta Template Dropdown -->
+            <div class="form-group" id="meta-template-group" style="{{ $currentSource == 'meta' ? '' : 'display:none;' }}">
+                <label>Reply Template (Meta Approved)</label>
+                <select name="meta_template_id" class="form-select" id="meta-template-select" onchange="previewMetaTemplate(this)" {{ $currentSource == 'meta' ? 'required' : '' }}>
+                    <option value="">— Loading Meta Templates... —</option>
+                </select>
+                <div class="template-preview" id="meta-template-preview" style="display:none;"></div>
+                <div class="form-hint">Only ✅ Approved templates appear here. <a href="{{ route('admin.meta-templates.index') }}" target="_blank" style="color:#2563eb;">Manage Meta Templates →</a></div>
             </div>
 
             <div class="form-group">
@@ -291,10 +330,89 @@
         }
     }
 
-    // Show preview on page load for edit mode
+    function toggleTemplateSource() {
+        const source = document.querySelector('input[name="template_source"]:checked')?.value || 'evolution';
+        const evoGroup = document.getElementById('evolution-template-group');
+        const metaGroup = document.getElementById('meta-template-group');
+        const evoSelect = document.getElementById('evolution-template-select');
+        const metaSelect = document.getElementById('meta-template-select');
+
+        // Update radio styles
+        document.querySelectorAll('input[name="template_source"]').forEach(r => {
+            const label = r.closest('.radio-option');
+            label.classList.toggle('selected', r.checked);
+            if (r.value === 'meta' && r.checked) {
+                label.style.background = '#f0fdf4';
+                label.style.borderColor = '#22c55e';
+                label.style.color = '#166534';
+            } else if (r.value === 'meta') {
+                label.style.background = '';
+                label.style.borderColor = '';
+                label.style.color = '';
+            }
+        });
+
+        if (source === 'meta') {
+            evoGroup.style.display = 'none';
+            metaGroup.style.display = '';
+            if (evoSelect) { evoSelect.removeAttribute('required'); evoSelect.value = ''; }
+            if (metaSelect) metaSelect.setAttribute('required', 'required');
+            loadMetaTemplates();
+        } else {
+            evoGroup.style.display = '';
+            metaGroup.style.display = 'none';
+            if (evoSelect) evoSelect.setAttribute('required', 'required');
+            if (metaSelect) { metaSelect.removeAttribute('required'); metaSelect.value = ''; }
+        }
+    }
+
+    function loadMetaTemplates() {
+        const select = document.getElementById('meta-template-select');
+        if (!select) return;
+        select.innerHTML = '<option value="">— Loading... —</option>';
+
+        fetch('{{ route("admin.meta-templates.approved-json") }}', {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(r => r.json())
+        .then(templates => {
+            let html = '<option value="">— Select Meta Template —</option>';
+            if (templates.length === 0) {
+                html = '<option value="">— No approved templates found —</option>';
+            }
+            templates.forEach(t => {
+                const selected = t.id == {{ old('meta_template_id', $rule->meta_template_id ?? 0) }} ? 'selected' : '';
+                html += `<option value="${t.id}" data-body="${t.body_text}" ${selected}>✅ ${t.name} (${t.category} | ${t.language.toUpperCase()})</option>`;
+            });
+            select.innerHTML = html;
+
+            // Auto-preview if editing
+            if (select.value) previewMetaTemplate(select);
+        })
+        .catch(() => {
+            select.innerHTML = '<option value="">— Error loading templates —</option>';
+        });
+    }
+
+    function previewMetaTemplate(select) {
+        const option = select.options[select.selectedIndex];
+        const preview = document.getElementById('meta-template-preview');
+        if (option.dataset.body) {
+            preview.style.display = 'block';
+            preview.innerHTML = `<strong>✅ Meta Template Preview:</strong><br>${option.dataset.body.substring(0, 300)}${option.dataset.body.length > 300 ? '...' : ''}`;
+        } else {
+            preview.style.display = 'none';
+        }
+    }
+
+    // Init on page load
     document.addEventListener('DOMContentLoaded', function () {
-        const templateSelect = document.querySelector('select[name="template_id"]');
-        if (templateSelect.value) previewTemplate(templateSelect);
+        const templateSelect = document.getElementById('evolution-template-select');
+        if (templateSelect && templateSelect.value) previewTemplate(templateSelect);
+
+        // Load Meta templates if meta source is selected
+        const source = document.querySelector('input[name="template_source"]:checked')?.value || 'evolution';
+        if (source === 'meta') loadMetaTemplates();
     });
 </script>
 @endpush

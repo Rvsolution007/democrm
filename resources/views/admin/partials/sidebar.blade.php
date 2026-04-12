@@ -203,6 +203,19 @@
                         @endif
                     @endif
 
+                    {{-- Meta Templates — only when Official API + WABA ID configured --}}
+                    @php
+                        $officialApiOn = (bool) \App\Models\Setting::getValue('whatsapp', 'official_api_enabled', false);
+                        $officialCfg = \App\Models\Setting::getValue('whatsapp', 'official_api_config', []);
+                        $wabaConfigured = !empty($officialCfg['waba_id'] ?? '');
+                    @endphp
+                    @if($officialApiOn && $wabaConfigured)
+                        <a href="{{ route('admin.meta-templates.index') }}"
+                            class="nav-link {{ request()->routeIs('admin.meta-templates.*') ? 'active' : '' }}">
+                            <i data-lucide="file-check-2" style="color:#22c55e"></i> <span>Meta Templates</span>
+                        </a>
+                    @endif
+
                 </div>
             @endif
         @elseif(can('settings.manage'))
