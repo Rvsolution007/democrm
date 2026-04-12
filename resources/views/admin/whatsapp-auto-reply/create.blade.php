@@ -228,6 +228,22 @@
 
             <hr style="border: none; border-top: 2px solid #f1f5f9; margin: 1.5rem 0;">
 
+            <!-- AUTO-CREATE LEAD -->
+            <div class="form-section-title">📋 Lead Generation</div>
+
+            <div class="checkbox-row" style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border: 1.5px solid #bbf7d0; margin-bottom: 0.5rem;">
+                <input type="hidden" name="create_lead" value="0">
+                <input type="checkbox" name="create_lead" id="create_lead" value="1" {{ old('create_lead', isset($rule) ? $rule->create_lead : false) ? 'checked' : '' }}>
+                <label for="create_lead" style="margin: 0; cursor: pointer; font-weight: 600; color: #166534;">
+                    🚀 Auto-Create Lead — Automatically create a new lead in CRM for every contact who receives this auto-reply
+                </label>
+            </div>
+            <div class="form-hint" style="margin-bottom: 1rem; padding-left: 0.5rem;">
+                When enabled, a new lead will be created with source "WhatsApp" for each new number that receives this auto-reply. Duplicate phone numbers will be skipped automatically.
+            </div>
+
+            <hr style="border: none; border-top: 2px solid #f1f5f9; margin: 1.5rem 0;">
+
             <!-- PRIORITY -->
             <div class="form-section-title">⚙️ Advanced</div>
 

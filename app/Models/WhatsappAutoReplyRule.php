@@ -23,6 +23,7 @@ class WhatsappAutoReplyRule extends Model
         'max_replies_per_day',
         'priority',
         'is_active',
+        'create_lead',
         'total_triggered',
         'total_sent',
         'total_skipped',
@@ -35,6 +36,7 @@ class WhatsappAutoReplyRule extends Model
         'is_one_time' => 'boolean',
         'business_hours_only' => 'boolean',
         'is_active' => 'boolean',
+        'create_lead' => 'boolean',
         'last_error_at' => 'datetime',
     ];
 

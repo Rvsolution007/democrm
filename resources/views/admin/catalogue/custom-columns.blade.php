@@ -4,128 +4,178 @@
 @section('breadcrumb', 'Catalogue Columns')
 
 @section('content')
-    <div class="page-header">
-        <div class="page-header-content">
-            <div>
-                <h1 class="page-title">Dynamic Product Form Manager</h1>
-                <p class="page-description">Control exactly what fields appear when creating or editing a product. System fields are locked to preserve CRM functionality, but can be hidden.</p>
+    <div class="page-header" style="margin-bottom:24px">
+        <div class="page-header-content" style="display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap">
+            <div style="flex:1;min-width:200px">
+                <h1 class="page-title" style="margin:0;font-size:24px;font-weight:700;letter-spacing:-0.025em">Dynamic Product Form Manager</h1>
+                <p class="page-description" style="margin:4px 0 0;font-size:14px;color:#64748b">Control exactly what fields appear when creating or editing a product. System fields are locked to preserve CRM functionality, but can be hidden.</p>
             </div>
-            <div class="page-actions">
-                <button class="btn btn-primary" onclick="openAddModal()"><i data-lucide="plus" style="width:16px;height:16px"></i> Add Custom Field</button>
+            <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end">
+                <div style="min-width:180px;max-width:280px">
+                    <div style="background:linear-gradient(135deg,#ffffff 0%,#f8fafc 100%);padding:10px 16px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;gap:12px">
+                        <div>
+                            <p style="margin:0 0 2px 0;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em">Total Fields</p>
+                            <h3 style="margin:0;font-size:20px;font-weight:700;color:#0f172a;letter-spacing:-0.5px">{{ count($columns) }}</h3>
+                        </div>
+                        <div style="width:36px;height:36px;background:#eef2ff;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#6366f1">
+                            <i data-lucide="columns" style="width:18px;height:18px"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-primary" onclick="openAddModal()"><i data-lucide="plus" style="width:16px;height:16px"></i> Add Custom Field</button>
+                </div>
             </div>
         </div>
     </div>
 
     <div id="alert-container"></div>
 
-    <div class="card">
-        {{-- Bulk Delete Floating Bar --}}
-        <div id="col-bulk-bar" style="display:none;position:sticky;top:0;z-index:50;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;padding:12px 20px;border-radius:10px;margin:12px 16px 0;align-items:center;justify-content:space-between;box-shadow:0 4px 15px rgba(239,68,68,0.3)">
-            <div style="display:flex;align-items:center;gap:10px">
-                <i data-lucide="check-square" style="width:20px;height:20px"></i>
-                <span id="col-bulk-count" style="font-weight:600;font-size:14px">0 selected</span>
-            </div>
-            <div style="display:flex;gap:8px">
-                <button onclick="selectAllColumns()" style="padding:6px 14px;border:1px solid rgba(255,255,255,0.4);background:transparent;color:white;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">Select All</button>
-                <button onclick="bulkDeleteColumns()" style="padding:6px 14px;background:white;color:#ef4444;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,0.1)" onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">🗑️ Delete Selected</button>
+    {{-- Bulk Delete Floating Bar --}}
+    <div id="col-bulk-bar" style="display:none;position:sticky;top:70px;z-index:50;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;padding:12px 20px;border-radius:10px;margin-bottom:12px;align-items:center;justify-content:space-between;box-shadow:0 4px 15px rgba(239,68,68,0.3)">
+        <div style="display:flex;align-items:center;gap:10px">
+            <i data-lucide="check-square" style="width:20px;height:20px"></i>
+            <span id="col-bulk-count" style="font-weight:600;font-size:14px">0 selected</span>
+        </div>
+        <div style="display:flex;gap:8px">
+            <button onclick="selectAllColumns()" style="padding:6px 14px;border:1px solid rgba(255,255,255,0.4);background:transparent;color:white;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;transition:all .2s" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='transparent'">Select All</button>
+            <button onclick="bulkDeleteColumns()" style="padding:6px 14px;background:white;color:#ef4444;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px;transition:all .2s;box-shadow:0 1px 3px rgba(0,0,0,0.1)" onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">🗑️ Delete Selected</button>
+        </div>
+    </div>
+
+    {{-- Filter / Info Bar --}}
+    <div style="background:white;padding:16px 20px;border-radius:8px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.1);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+            <div style="background:linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);border:1px solid #e2e8f0;padding:6px 14px;border-radius:20px;display:flex;align-items:center;gap:8px;box-shadow:inset 0 1px 2px rgba(255,255,255,0.8), 0 1px 2px rgba(0,0,0,0.04)">
+                <div style="width:20px;height:20px;border-radius:50%;background:#e0e7ff;display:flex;align-items:center;justify-content:center">
+                    <i data-lucide="list" style="width:12px;height:12px;color:#4f46e5"></i>
+                </div>
+                <span style="font-size:13px;font-weight:600;color:#334155;letter-spacing:0.3px">
+                    <span style="color:#4f46e5;font-weight:700">{{ count($columns) }}</span>
+                    <span style="color:#64748b;font-weight:500">Fields Configured</span>
+                </span>
             </div>
         </div>
-        <div class="card-content" style="padding:0">
-            <table class="data-table" style="width:100%;border-collapse:collapse">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <span style="font-size:12px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;padding:4px 10px;border-radius:6px;display:flex;align-items:center;gap:4px">
+                <i data-lucide="lock" style="width:11px;height:11px;color:#94a3b8"></i>
+                {{ $columns->where('is_system', true)->count() }} System
+            </span>
+            <span style="font-size:12px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;padding:4px 10px;border-radius:6px;display:flex;align-items:center;gap:4px">
+                <i data-lucide="plus-circle" style="width:11px;height:11px;color:#94a3b8"></i>
+                {{ $columns->where('is_system', false)->count() }} Custom
+            </span>
+        </div>
+    </div>
+
+    {{-- Table --}}
+    <div class="table-container">
+        <div class="table-wrapper">
+            <table class="table" id="columns-table">
                 <thead>
                     <tr>
-                        <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);width:40px">
+                        <th style="width:50px;text-align:center">
                             <input type="checkbox" id="select-all-cols" onchange="toggleAllColumns(this)" style="width:16px;height:16px;accent-color:#6366f1;cursor:pointer">
                         </th>
-                        <th style="padding:12px 16px;text-align:left;border-bottom:2px solid var(--border);width:30px">⠿</th>
-                        <th style="padding:12px 16px;text-align:left;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">Name & Slug</th>
-                        <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">Type</th>
-                        <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">System Links</th>
-                        <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">Flags</th>
-                        <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">Visibility</th>
-                        <th style="padding:12px 16px;text-align:right;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">Actions</th>
+                        <th style="width:40px">⠿</th>
+                        <th data-col="name">Name & Slug</th>
+                        <th data-col="type">Type</th>
+                        <th data-col="links">System Links</th>
+                        <th data-col="flags">Flags</th>
+                        <th data-col="visibility">Visibility</th>
+                        <th data-col="actions" style="width:200px">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="columns-tbody">
                     @forelse($columns as $column)
-                        <tr data-id="{{ $column->id }}" style="border-bottom:1px solid var(--border); opacity: {{ $column->is_active ? '1' : '0.6' }}">
-                            <td style="padding:12px 16px;text-align:center">
+                        <tr data-id="{{ $column->id }}" style="{{ !$column->is_active ? 'opacity:0.55' : '' }}">
+                            <td data-col="checkbox" style="text-align:center">
                                 @if(!$column->is_system)
                                     <input type="checkbox" class="col-checkbox" value="{{ $column->id }}" onchange="updateColBulkBar()" style="width:16px;height:16px;accent-color:#6366f1;cursor:pointer">
                                 @else
-                                    <span style="color:#cbd5e1" title="System columns cannot be deleted">🔒</span>
+                                    <span style="color:#cbd5e1;font-size:14px" title="System columns cannot be deleted">🔒</span>
                                 @endif
                             </td>
-                            <td style="padding:12px 16px;cursor:grab;color:var(--text-muted)">⠿</td>
-                            <td style="padding:12px 16px;">
-                                <div style="font-weight:600;display:flex;align-items:center;gap:6px">
-                                    {{ $column->name }}
-                                    @if($column->is_system)
-                                        <span class="badge badge-primary" style="font-size:10px;padding:2px 6px">System Lock</span>
-                                    @endif
-                                </div>
-                                <div style="color:var(--text-muted);font-family:monospace;font-size:11px;margin-top:2px">
-                                    [slug: {{ $column->slug }}]
+                            <td data-col="drag" style="cursor:grab;color:#94a3b8;font-size:16px">⠿</td>
+                            <td data-col="name">
+                                <div>
+                                    <p class="font-medium" style="font-size:14px;font-weight:600;margin:0 0 2px;display:flex;align-items:center;gap:6px">
+                                        {{ $column->name }}
+                                        @if($column->is_system)
+                                            <span class="badge badge-primary" style="font-size:10px;padding:2px 8px">System</span>
+                                        @endif
+                                    </p>
+                                    <p class="text-xs text-muted" style="margin:0;font-family:'SF Mono', SFMono-Regular, ui-monospace, Menlo, monospace;font-size:11px;color:#94a3b8;letter-spacing:0.02em">
+                                        {{ $column->slug }}
+                                    </p>
                                 </div>
                             </td>
-                            <td style="padding:12px 16px;text-align:center">
-                                <span class="badge badge-outline">{{ $column->type }}</span>
+                            <td data-col="type">
+                                <span class="badge badge-secondary" style="font-size:12px;font-weight:500">{{ $column->type }}</span>
                                 @if(in_array($column->type, ['select', 'multiselect']) && $column->options)
-                                    <div style="font-size:11px;color:var(--text-muted);margin-top:4px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                    <div style="font-size:11px;color:#94a3b8;margin-top:4px;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
                                         {{ implode(', ', $column->options) }}
                                     </div>
                                 @endif
                             </td>
-                            <td style="padding:12px 16px;text-align:center;">
+                            <td data-col="links">
                                 @if($column->connected_modules && count($column->connected_modules) > 0)
-                                    <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center;max-width:140px">
+                                    <div style="display:flex;flex-wrap:wrap;gap:4px;max-width:160px">
                                         @foreach($column->connected_modules as $mod)
-                                            <span style="font-size:10px;background:#f1f5f9;border:1px solid #e2e8f0;padding:2px 6px;border-radius:4px;color:#475569">{{ $mod }}</span>
+                                            <span style="font-size:10px;background:#f1f5f9;border:1px solid #e2e8f0;padding:3px 8px;border-radius:4px;color:#475569;font-weight:500">{{ $mod }}</span>
                                         @endforeach
                                     </div>
                                 @else
-                                    <span style="color:var(--text-muted);font-size:12px">—</span>
+                                    <span style="color:#94a3b8;font-size:12px">—</span>
                                 @endif
                             </td>
-                            <td style="padding:12px 16px;text-align:center">
-                                @if($column->is_combo)
-                                    <span class="badge badge-warning" style="margin:2px">Combo</span>
-                                @endif
-                                @if($column->is_required)
-                                    <span class="badge badge-info" style="margin:2px">Required</span>
-                                @endif
-                                @if($column->is_unique)
-                                    <span class="badge badge-success" style="margin:2px">Unique</span>
-                                @endif
-                                @if($column->is_category)
-                                    <span class="badge badge-info" style="margin:2px;background:#3b82f6;color:white;border-color:#3b82f6">📂 Category</span>
-                                @endif
-                                @if($column->is_title)
-                                    <span class="badge badge-info" style="margin:2px;background:#8b5cf6;color:white;border-color:#8b5cf6">🏷️ Title</span>
-                                @endif
-                                @if($column->is_variation_field)
-                                    <span class="badge badge-destructive" style="margin:2px;font-size:10px">🔄 Per-Variation</span>
-                                @endif
-                                @if($column->show_in_ai)
-                                    <span class="badge badge-primary" style="margin:2px;font-size:10px">🤖 AI</span>
-                                @endif
+                            <td data-col="flags">
+                                <div style="display:flex;flex-wrap:wrap;gap:4px;max-width:240px">
+                                    @if($column->is_combo)
+                                        <span class="badge badge-warning" style="font-size:11px">Combo</span>
+                                    @endif
+                                    @if($column->is_required)
+                                        <span class="badge badge-info" style="font-size:11px">Required</span>
+                                    @endif
+                                    @if($column->is_unique)
+                                        <span class="badge badge-success" style="font-size:11px">Unique</span>
+                                    @endif
+                                    @if($column->is_category)
+                                        <span class="badge" style="font-size:11px;background:#eff6ff;color:#3b82f6;border:1px solid rgba(59,130,246,0.2)">📂 Category</span>
+                                    @endif
+                                    @if($column->is_title)
+                                        <span class="badge" style="font-size:11px;background:#f5f3ff;color:#8b5cf6;border:1px solid rgba(139,92,246,0.2)">🏷️ Title</span>
+                                    @endif
+                                    @if($column->is_variation_field)
+                                        <span class="badge badge-destructive" style="font-size:11px">🔄 Per-Variation</span>
+                                    @endif
+                                    @if($column->show_in_ai)
+                                        <span class="badge badge-primary" style="font-size:11px">🤖 AI</span>
+                                    @endif
+                                </div>
                             </td>
-                            <td style="padding:12px 16px;text-align:center">
-                                <div style="display:flex;align-items:center;gap:12px;justify-content:center">
-                                    <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
-                                        <input type="checkbox" onchange="toggleActive({{ $column->id }}, this.checked)" {{ $column->is_active ? 'checked' : '' }}>
-                                        Active
+                            <td data-col="visibility">
+                                <div style="display:flex;align-items:center;gap:8px;justify-content:center">
+                                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;font-weight:500;color:#334155;white-space:nowrap">
+                                        <input type="checkbox" onchange="toggleActive({{ $column->id }}, this.checked)" {{ $column->is_active ? 'checked' : '' }} style="width:16px;height:16px;accent-color:#22c55e;cursor:pointer">
+                                        {{ $column->is_active ? 'Active' : 'Hidden' }}
                                     </label>
                                 </div>
                             </td>
-                            <td style="padding:12px 16px;text-align:right">
-                                <div style="display:flex;gap:4px;justify-content:flex-end">
-                                    <button class="btn btn-outline btn-sm" onclick='editColumn({{ json_encode($column) }})' style="padding:4px 10px;font-size:12px">
-                                        <i data-lucide="edit" style="width:13px;height:13px"></i>
+                            <td data-col="actions">
+                                <div style="display:flex;gap:6px;align-items:center">
+                                    <button onclick='editColumn({{ json_encode($column) }})'
+                                        style="width:32px;height:32px;border-radius:8px;background:#fffbeb;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#f59e0b;transition:all 0.15s"
+                                        title="Edit" onmouseover="this.style.background='#fef3c7'"
+                                        onmouseout="this.style.background='#fffbeb'">
+                                        <i data-lucide="edit" style="width:16px;height:16px"></i>
                                     </button>
                                     @if(!$column->is_system)
-                                        <button class="btn btn-ghost btn-sm" onclick="deleteColumn({{ $column->id }})" style="color:var(--destructive);padding:4px 10px;font-size:12px">
-                                            <i data-lucide="trash-2" style="width:13px;height:13px"></i>
+                                        <button onclick="deleteColumn({{ $column->id }})"
+                                            style="width:32px;height:32px;border-radius:8px;background:#fef2f2;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#ef4444;transition:all 0.15s"
+                                            title="Delete" onmouseover="this.style.background='#fee2e2'"
+                                            onmouseout="this.style.background='#fef2f2'">
+                                            <i data-lucide="trash-2" style="width:16px;height:16px"></i>
                                         </button>
                                     @endif
                                 </div>
@@ -133,9 +183,11 @@
                         </tr>
                     @empty
                         <tr id="empty-row">
-                            <td colspan="8" style="text-align:center;padding:40px">
-                                <i data-lucide="columns" style="width:48px;height:48px;color:#ccc;margin:0 auto 16px;display:block"></i>
-                                <p class="text-muted">No custom columns defined. Click "Add Custom Field" to create one.</p>
+                            <td colspan="8" class="text-center py-8 text-muted">
+                                <div style="padding:40px 0">
+                                    <i data-lucide="columns" style="width:48px;height:48px;color:#cbd5e1;margin:0 auto 16px;display:block"></i>
+                                    <p style="color:#94a3b8;font-size:14px;margin:0">No custom columns defined. Click "Add Custom Field" to create one.</p>
+                                </div>
                             </td>
                         </tr>
                     @endforelse
@@ -515,7 +567,7 @@
 
         // Make each row draggable via handle
         getRows().forEach(function(row) {
-            var handle = row.querySelector('td:first-child');
+            var handle = row.querySelector('td[data-col="drag"]');
             if (!handle) return;
 
             handle.style.cursor = 'grab';

@@ -230,6 +230,11 @@
                                 @if($satisfaction >= 80) ✅ @elseif($satisfaction >= 50) ⚠️ @else ❌ @endif
                                 {{ $satisfaction }}% Satisfaction
                             </span>
+                            @if($rule->create_lead)
+                                <span style="display: inline-flex; align-items: center; gap: 3px; padding: 0.2rem 0.5rem; border-radius: 6px; font-size: 0.65rem; font-weight: 700; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    📋 Lead
+                                </span>
+                            @endif
                         </div>
                         
                         <div class="rule-meta-row">

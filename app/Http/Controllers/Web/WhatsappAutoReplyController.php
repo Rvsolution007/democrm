@@ -126,6 +126,7 @@ class WhatsappAutoReplyController extends Controller
             'max_replies_per_day' => 'nullable|integer|min:0',
             'priority' => 'nullable|integer|min:1|max:10',
             'is_active' => 'nullable',
+            'create_lead' => 'nullable',
         ]);
 
         $user = auth()->user();
@@ -156,6 +157,7 @@ class WhatsappAutoReplyController extends Controller
             'max_replies_per_day' => $request->max_replies_per_day ?? 3,
             'priority' => $request->priority ?? 5,
             'is_active' => $request->boolean('is_active'),
+            'create_lead' => $request->boolean('create_lead'),
         ]);
 
         // Ensure webhook is registered for this instance
@@ -198,6 +200,7 @@ class WhatsappAutoReplyController extends Controller
             'max_replies_per_day' => 'nullable|integer|min:0',
             'priority' => 'nullable|integer|min:1|max:10',
             'is_active' => 'nullable',
+            'create_lead' => 'nullable',
         ]);
 
         // Parse keywords
@@ -222,6 +225,7 @@ class WhatsappAutoReplyController extends Controller
             'max_replies_per_day' => $request->max_replies_per_day ?? 3,
             'priority' => $request->priority ?? 5,
             'is_active' => $request->boolean('is_active'),
+            'create_lead' => $request->boolean('create_lead'),
         ]);
 
         return redirect()->route('admin.whatsapp-auto-reply.index')

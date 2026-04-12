@@ -79,6 +79,12 @@ class AutoReplyService
                     $rule->update(['last_error' => null, 'last_error_at' => null]);
                     $this->logReply($userId, $instanceName, $rule->id, $cleanPhone, $messageText, $rule->template_id, 'sent', null);
                     Log::info("AutoReply: Sent reply for rule '{$rule->name}' to {$cleanPhone}");
+
+                    // Auto-create lead if enabled on this rule
+                    if ($rule->create_lead) {
+                        $this->createLeadFromAutoReply($userId, $cleanPhone, $messageText, $rule);
+                    }
+
                     return ['status' => 'sent', 'rule' => $rule->name, 'template' => $rule->template->name ?? 'N/A'];
                 } else {
                     $errorMsg = $sendResult['error'] ?? 'send_failed';
@@ -446,5 +452,46 @@ class AutoReplyService
     {
         $user = \App\Models\User::find($userId);
         return $user->company_id ?? 1;
+    }
+
+    /**
+     * Auto-create a lead from an auto-reply interaction
+     * Only creates lead if no existing lead with same phone exists for this company
+     */
+    private function createLeadFromAutoReply(int $userId, string $phone, string $messageText, WhatsappAutoReplyRule $rule): void
+    {
+        try {
+            $companyId = $this->getCompanyId($userId);
+
+            // Check if a lead with this phone already exists for this company (avoid duplicates)
+            $existingLead = Lead::where('company_id', $companyId)
+                ->where('phone', $phone)
+                ->first();
+
+            if ($existingLead) {
+                Log::info("AutoReply: Lead already exists for phone {$phone} (Lead #{$existingLead->id}), skipping creation");
+                return;
+            }
+
+            // Create new lead
+            $lead = Lead::create([
+                'company_id' => $companyId,
+                'created_by_user_id' => $userId,
+                'source' => 'whatsapp',
+                'source_provider' => 'auto-reply',
+                'name' => 'WhatsApp Lead - ' . $phone,
+                'phone' => $phone,
+                'stage' => 'new',
+                'query_message' => $messageText,
+                'notes' => "Auto-created from WhatsApp Auto-Reply rule: {$rule->name}",
+            ]);
+
+            // Assign lead to the user who owns the auto-reply rule
+            $lead->assignedUsers()->attach($userId);
+
+            Log::info("AutoReply: Lead #{$lead->id} created for phone {$phone} via rule '{$rule->name}'");
+        } catch (\Exception $e) {
+            Log::error("AutoReply: Failed to create lead for {$phone}: " . $e->getMessage());
+        }
     }
 }
