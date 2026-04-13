@@ -20,12 +20,10 @@ class BillingController extends Controller
         $company = $user->company;
 
         // Current subscription
-        $subscription = Subscription::with('package')
-            ->where('company_id', $user->company_id)
-            ->whereIn('status', ['active', 'trial'])
-            ->where('expires_at', '>=', now()->toDateString())
-            ->orderBy('expires_at', 'desc')
-            ->first();
+        $subscription = $company->activeSubscription();
+        if ($subscription) {
+            $subscription->load('package');
+        }
 
         // All packages for upgrade comparison
         $packages = SubscriptionPackage::active()->ordered()->get();
@@ -76,10 +74,7 @@ class BillingController extends Controller
         $user = auth()->user();
 
         // Store upgrade request as a note in the current subscription
-        $subscription = Subscription::where('company_id', $user->company_id)
-            ->whereIn('status', ['active', 'trial'])
-            ->orderBy('expires_at', 'desc')
-            ->first();
+        $subscription = $user->company->activeSubscription();
 
         if ($subscription) {
             $note = "UPGRADE REQUEST: {$user->name} requested upgrade to {$package->name} ({$request->billing_cycle}) on " . now()->format('d M Y H:i');
