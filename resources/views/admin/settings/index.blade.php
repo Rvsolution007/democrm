@@ -618,41 +618,60 @@
             <div class="settings-tab" id="tab-integrations" style="display:none">
 
                 {{-- ═══ WhatsApp API Configuration ═══ --}}
+                @php
+                    $isAiBotPkg = auth()->user()->company && auth()->user()->company->hasFeature('ai_bot');
+                    $isBotListPkg = !$isAiBotPkg && hasFeature('whatsapp_connect');
+                @endphp
                 <div class="card" style="margin-bottom:24px">
                     <div class="card-header">
                         <h3 class="card-title" style="display:flex;align-items:center;gap:8px">
                             <i data-lucide="message-circle" style="width:20px;height:20px;color:#25D366"></i>
                             WhatsApp API Configuration
                         </h3>
-                        <p class="text-sm text-muted" style="margin-top:4px">Choose which WhatsApp API to use for sending messages. Bot List mode ka bot jo API ON hoga wahi use karega.</p>
+                        <p class="text-sm text-muted" style="margin-top:4px">
+                            @if($isAiBotPkg)
+                                AI Bot Package — Ek waqt mein sirf ek API active rakh sakte ho.
+                            @else
+                                Bot List Package — Evolution API default hai. Official API bhi add kar sakte ho.
+                            @endif
+                        </p>
                     </div>
                     <div class="card-content">
-                        {{-- Info Note --}}
+                        {{-- Package-specific Info Note --}}
+                        @if($isAiBotPkg)
+                        <div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);border:1px solid #c4b5fd;border-radius:10px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px">
+                            <i data-lucide="zap" style="width:18px;height:18px;color:#7c3aed;flex-shrink:0;margin-top:1px"></i>
+                            <div style="font-size:13px;color:#5b21b6;line-height:1.6">
+                                <strong>AI Bot Package:</strong> Ek waqt mein sirf ek API ON hogi. Dusri toggle karne par pehli automatically OFF ho jayegi.<br>
+                                <strong>Evolution</strong> = QR Scan, FREE, text-based menu &nbsp;|&nbsp; <strong>Official Meta</strong> = Cloud API, paid, native interactive lists + templates
+                            </div>
+                        </div>
+                        @else
                         <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #93c5fd;border-radius:10px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px">
                             <i data-lucide="info" style="width:18px;height:18px;color:#2563eb;flex-shrink:0;margin-top:1px"></i>
                             <div style="font-size:13px;color:#1e40af;line-height:1.6">
-                                <strong>Evolution API</strong> = QR Scan se connect, FREE messaging, text-based menu (chatflow).<br>
-                                <strong>Official Meta API</strong> = Meta Cloud API, paid per-conversation, native interactive lists, templates required for outbound.<br>
-                                Dono ek saath ON rakh sakte ho — sub-features individually configure kar sakte ho.
+                                <strong>Bot List Package:</strong> Evolution API se sab FREE hota hai — Reply, Follow-up, Bulk sab ₹0.<br>
+                                Official Meta API ON karne par follow-up aur bulk campaigns Meta ke charges se jayenge. Reply hamesha FREE rahega.
                             </div>
                         </div>
+                        @endif
 
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
                             {{-- Evolution API Toggle Card --}}
                             <div id="evolution-api-card" style="border:2px solid {{ $evolutionApiEnabled ? '#22c55e' : '#e2e8f0' }};border-radius:14px;padding:20px;background:{{ $evolutionApiEnabled ? 'linear-gradient(135deg,#f0fdf4,#dcfce7)' : '#fafafa' }};transition:all 0.3s">
                                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
                                     <div style="display:flex;align-items:center;gap:10px">
-                                        <div style="width:40px;height:40px;background:{{ $evolutionApiEnabled ? 'linear-gradient(135deg,#22c55e,#16a34a)' : '#e5e7eb' }};border-radius:10px;display:flex;align-items:center;justify-content:center">
+                                        <div style="width:40px;height:40px;background:{{ $evolutionApiEnabled ? 'linear-gradient(135deg,#22c55e,#16a34a)' : '#e5e7eb' }};border-radius:10px;display:flex;align-items:center;justify-content:center" id="evo-icon-box">
                                             <i data-lucide="qr-code" style="width:20px;height:20px;color:{{ $evolutionApiEnabled ? 'white' : '#9ca3af' }}"></i>
                                         </div>
                                         <div>
                                             <h4 style="font-weight:700;margin:0;font-size:15px;color:#111">Evolution API</h4>
-                                            <p style="font-size:12px;color:#888;margin:2px 0 0">QR Scan · Free · Text Menu</p>
+                                            <p style="font-size:12px;color:#888;margin:2px 0 0">QR Scan · FREE · Text Menu</p>
                                         </div>
                                     </div>
                                     <label style="position:relative;display:inline-block;width:46px;height:26px;cursor:pointer">
                                         <input type="checkbox" id="evolution-api-toggle" {{ $evolutionApiEnabled ? 'checked' : '' }}
-                                            onchange="toggleEvolutionApi(this.checked)" style="opacity:0;width:0;height:0;position:absolute">
+                                            onchange="handleApiToggle('evolution', this.checked)" style="opacity:0;width:0;height:0;position:absolute">
                                         <div id="evolution-api-slider" style="position:absolute;inset:0;background:{{ $evolutionApiEnabled ? '#3b82f6' : '#ccc' }};border-radius:26px;transition:0.3s">
                                             <div id="evolution-api-knob" style="position:absolute;top:3px;left:{{ $evolutionApiEnabled ? '23px' : '3px' }};width:20px;height:20px;background:white;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:0.3s"></div>
                                         </div>
@@ -665,7 +684,7 @@
                             <div id="official-api-card" style="border:2px solid {{ $officialApiEnabled ? '#22c55e' : '#e2e8f0' }};border-radius:14px;padding:20px;background:{{ $officialApiEnabled ? 'linear-gradient(135deg,#f0fdf4,#dcfce7)' : '#fafafa' }};transition:all 0.3s">
                                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
                                     <div style="display:flex;align-items:center;gap:10px">
-                                        <div style="width:40px;height:40px;background:{{ $officialApiEnabled ? 'linear-gradient(135deg,#22c55e,#16a34a)' : '#e5e7eb' }};border-radius:10px;display:flex;align-items:center;justify-content:center">
+                                        <div style="width:40px;height:40px;background:{{ $officialApiEnabled ? 'linear-gradient(135deg,#22c55e,#16a34a)' : '#e5e7eb' }};border-radius:10px;display:flex;align-items:center;justify-content:center" id="official-icon-box">
                                             <i data-lucide="cloud" style="width:20px;height:20px;color:{{ $officialApiEnabled ? 'white' : '#9ca3af' }}"></i>
                                         </div>
                                         <div>
@@ -675,7 +694,7 @@
                                     </div>
                                     <label style="position:relative;display:inline-block;width:46px;height:26px;cursor:pointer">
                                         <input type="checkbox" id="official-api-toggle" {{ $officialApiEnabled ? 'checked' : '' }}
-                                            onchange="toggleOfficialApi(this.checked)" style="opacity:0;width:0;height:0;position:absolute">
+                                            onchange="handleApiToggle('official', this.checked)" style="opacity:0;width:0;height:0;position:absolute">
                                         <div id="official-api-slider" style="position:absolute;inset:0;background:{{ $officialApiEnabled ? '#22c55e' : '#ccc' }};border-radius:26px;transition:0.3s">
                                             <div id="official-api-knob" style="position:absolute;top:3px;left:{{ $officialApiEnabled ? '23px' : '3px' }};width:20px;height:20px;background:white;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:0.3s"></div>
                                         </div>
@@ -691,7 +710,7 @@
                                 <i data-lucide="settings-2" style="width:16px;height:16px;color:#3b82f6"></i>
                                 Meta Cloud API Credentials
                             </h4>
-                            <p style="font-size:12px;color:#888;margin:0 0 16px">Meta Business Suite se ye credentials prapt karo. Sidebar mein "Meta Templates" tab automatically dikhega jab ye configure ho.</p>
+                            <p style="font-size:12px;color:#888;margin:0 0 16px">Meta Business Suite se ye credentials le ke yahan dalo. "Meta Templates" sidebar mein tab dikhega jab WABA ID configure ho.</p>
 
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
                                 <div>
@@ -714,26 +733,75 @@
                             </button>
                         </div>
 
-                        {{-- Cost Indicator --}}
-                        <div style="margin-top:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
-                            <h4 style="font-size:12px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 10px">Cost Overview</h4>
-                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:12px">
-                                <div style="padding:8px 10px;background:white;border-radius:8px;border:1px solid #eee">
-                                    <div style="font-weight:600;color:#333;margin-bottom:2px">🤖 Bot Replies</div>
-                                    <div style="color:#16a34a;font-weight:500" id="cost-bot">{{ $officialApiEnabled ? '₹0 (FREE via Cloud API — user-initiated)' : '₹0 (Evolution API)' }}</div>
+                        {{-- Template Requirement Note — only when Official API ON --}}
+                        <div id="template-requirement-note" style="margin-top:16px;background:linear-gradient(135deg,#fefce8,#fef9c3);border:1px solid #fde68a;border-radius:10px;padding:14px 16px;{{ $officialApiEnabled ? '' : 'display:none;' }}">
+                            <h4 style="font-size:13px;font-weight:700;color:#92400e;margin:0 0 8px;display:flex;align-items:center;gap:6px">
+                                <i data-lucide="file-check-2" style="width:16px;height:16px;color:#f59e0b"></i>
+                                Meta Template Approval — Kab Chahiye?
+                            </h4>
+                            <div style="font-size:12px;color:#78350f;line-height:1.7">
+                                <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:start">
+                                    <span style="font-weight:700;color:#16a34a">✅ FREE</span>
+                                    <span><strong>Reply</strong> — Customer pehle message kare → 24hr window mein reply FREE, koi template nahi chahiye</span>
+                                    <span style="font-weight:700;color:#f59e0b">📝 Template</span>
+                                    <span><strong>Follow-up</strong> — 24hr ke baad message bhejne ke liye Utility template chahiye (₹0.35/msg)</span>
+                                    <span style="font-weight:700;color:#f59e0b">📝 Template</span>
+                                    <span><strong>Bulk Campaign</strong> — Outbound messaging ke liye Marketing template chahiye (₹0.78/msg)</span>
+                                    <span style="font-weight:700;color:#16a34a">✅ No Template</span>
+                                    <span><strong>Bot Reply</strong> — Customer initiated conversation mein bot reply FREE, template nahi chahiye</span>
                                 </div>
-                                <div style="padding:8px 10px;background:white;border-radius:8px;border:1px solid #eee">
-                                    <div style="font-weight:600;color:#333;margin-bottom:2px">📨 Bulk Sender</div>
-                                    <div style="color:#16a34a;font-weight:500" id="cost-bulk">{{ $evoBulkEnabled ? '₹0 (FREE via QR)' : '~₹1/msg (Cloud API)' }}</div>
+                                <div style="margin-top:10px;font-size:11px;color:#92400e;background:rgba(245,158,11,0.08);padding:8px 10px;border-radius:6px">
+                                    📋 Templates approve karne ke liye sidebar mein <strong>"Meta Templates"</strong> use karo → Create → Submit → Meta 24-48 hrs mein approve karega.
                                 </div>
-                                <div style="padding:8px 10px;background:white;border-radius:8px;border:1px solid #eee">
-                                    <div style="font-weight:600;color:#333;margin-bottom:2px">🔔 Follow-ups</div>
-                                    <div style="color:#16a34a;font-weight:500" id="cost-followup">{{ $evoFollowupEnabled ? '₹0 (FREE via QR)' : '~₹0.12/msg (Cloud API)' }}</div>
-                                </div>
+                            </div>
+                        </div>
+
+                        {{-- ═══ Dynamic Cost Table ═══ --}}
+                        <div style="margin-top:16px;background:white;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
+                            <div style="padding:14px 16px;background:linear-gradient(135deg,#f8fafc,#f1f5f9);border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+                                <h4 style="font-size:13px;font-weight:700;color:#334155;margin:0;display:flex;align-items:center;gap:6px">
+                                    <i data-lucide="indian-rupee" style="width:16px;height:16px;color:#f59e0b"></i>
+                                    Per-Message Cost (India Pricing)
+                                </h4>
+                                <span style="font-size:11px;color:#94a3b8;font-weight:500" id="cost-api-mode">—</span>
+                            </div>
+                            <table style="width:100%;border-collapse:collapse;font-size:13px">
+                                <thead>
+                                    <tr style="background:#f8fafc">
+                                        <th style="text-align:left;padding:10px 16px;font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0;width:35%">Feature</th>
+                                        <th style="text-align:center;padding:10px 16px;font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0;width:25%">Cost / Message</th>
+                                        <th style="text-align:center;padding:10px 16px;font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0;width:20%">API Used</th>
+                                        <th style="text-align:center;padding:10px 16px;font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0;width:20%">Template?</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:10px 16px;font-weight:600;color:#333">🤖 Bot / Lead Reply</td>
+                                        <td style="padding:10px 16px;text-align:center;font-weight:700" id="cost-reply">—</td>
+                                        <td style="padding:10px 16px;text-align:center;font-weight:500" id="cost-reply-api">—</td>
+                                        <td style="padding:10px 16px;text-align:center" id="cost-reply-tmpl">—</td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:10px 16px;font-weight:600;color:#333">🔔 Follow-up Message</td>
+                                        <td style="padding:10px 16px;text-align:center;font-weight:700" id="cost-followup">—</td>
+                                        <td style="padding:10px 16px;text-align:center;font-weight:500" id="cost-followup-api">—</td>
+                                        <td style="padding:10px 16px;text-align:center" id="cost-followup-tmpl">—</td>
+                                    </tr>
+                                    <tr style="border-bottom:1px solid #f0f0f0">
+                                        <td style="padding:10px 16px;font-weight:600;color:#333">📨 Bulk Sender</td>
+                                        <td style="padding:10px 16px;text-align:center;font-weight:700" id="cost-bulk">—</td>
+                                        <td style="padding:10px 16px;text-align:center;font-weight:500" id="cost-bulk-api">—</td>
+                                        <td style="padding:10px 16px;text-align:center" id="cost-bulk-tmpl">—</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div style="padding:10px 16px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;line-height:1.5">
+                                💡 Meta India pricing (2026): Marketing template = ₹0.78/conv, Utility template = ₹0.35/conv, Service (24hr reply) = FREE.
                             </div>
                         </div>
                     </div>
                 </div>
+
 
                 {{-- ═══ Other Integrations ═══ --}}
                 <div class="card">
@@ -1953,6 +2021,105 @@
         // ═══════════════════════════════════════
         // Dual API Toggle/Save Functions
         // ═══════════════════════════════════════
+
+        var IS_AI_BOT_PKG = {{ $isAiBotPkg ? 'true' : 'false' }};
+
+        function handleApiToggle(apiType, enabled) {
+            if (IS_AI_BOT_PKG && enabled) {
+                // AI Bot Package: mutual exclusion — turn off the other
+                if (apiType === 'evolution') {
+                    document.getElementById('official-api-toggle').checked = false;
+                    toggleOfficialApi(false);
+                } else {
+                    document.getElementById('evolution-api-toggle').checked = false;
+                    toggleEvolutionApi(false);
+                }
+            }
+            // Now toggle the requested API
+            if (apiType === 'evolution') {
+                toggleEvolutionApi(enabled);
+            } else {
+                toggleOfficialApi(enabled);
+            }
+            updateCostTable();
+        }
+
+        function updateCostTable() {
+            var evoOn = document.getElementById('evolution-api-toggle').checked;
+            var offOn = document.getElementById('official-api-toggle').checked;
+            var modeLabel = document.getElementById('cost-api-mode');
+            var tmplNote = document.getElementById('template-requirement-note');
+
+            // Mode label
+            if (evoOn && offOn) {
+                modeLabel.textContent = 'Dono API ON';
+            } else if (offOn) {
+                modeLabel.textContent = 'Official API Only';
+            } else if (evoOn) {
+                modeLabel.textContent = 'Evolution API Only';
+            } else {
+                modeLabel.textContent = 'Koi API ON nahi';
+            }
+
+            // Template note visibility
+            if (tmplNote) tmplNote.style.display = offOn ? 'block' : 'none';
+
+            // Cost table cells
+            var setCell = function(id, text, color) {
+                var el = document.getElementById(id);
+                if (el) { el.textContent = text; el.style.color = color; }
+            };
+
+            if (evoOn && !offOn) {
+                // Evolution Only — all FREE
+                setCell('cost-reply', '₹0 FREE', '#16a34a');
+                setCell('cost-reply-api', 'Evolution', '#16a34a');
+                setCell('cost-reply-tmpl', 'Nahi', '#16a34a');
+                setCell('cost-followup', '₹0 FREE', '#16a34a');
+                setCell('cost-followup-api', 'Evolution', '#16a34a');
+                setCell('cost-followup-tmpl', 'Nahi', '#16a34a');
+                setCell('cost-bulk', '₹0 FREE', '#16a34a');
+                setCell('cost-bulk-api', 'Evolution', '#16a34a');
+                setCell('cost-bulk-tmpl', 'Nahi', '#16a34a');
+            } else if (offOn && !evoOn) {
+                // Official Only — Reply FREE (24hr), Follow-up & Bulk paid
+                setCell('cost-reply', '₹0 FREE', '#16a34a');
+                setCell('cost-reply-api', 'Meta Cloud', '#2563eb');
+                setCell('cost-reply-tmpl', 'Nahi (24hr)', '#16a34a');
+                setCell('cost-followup', '₹0.35/msg', '#dc2626');
+                setCell('cost-followup-api', 'Meta Cloud', '#2563eb');
+                setCell('cost-followup-tmpl', 'Utility', '#f59e0b');
+                setCell('cost-bulk', '₹0.78/msg', '#dc2626');
+                setCell('cost-bulk-api', 'Meta Cloud', '#2563eb');
+                setCell('cost-bulk-tmpl', 'Marketing', '#f59e0b');
+            } else if (evoOn && offOn) {
+                // Both ON — Reply FREE (Evolution), Follow-up & Bulk use Meta
+                setCell('cost-reply', '₹0 FREE', '#16a34a');
+                setCell('cost-reply-api', 'Evolution', '#16a34a');
+                setCell('cost-reply-tmpl', 'Nahi', '#16a34a');
+                setCell('cost-followup', '₹0.35/msg', '#dc2626');
+                setCell('cost-followup-api', 'Meta Cloud', '#2563eb');
+                setCell('cost-followup-tmpl', 'Utility', '#f59e0b');
+                setCell('cost-bulk', '₹0.78/msg', '#dc2626');
+                setCell('cost-bulk-api', 'Meta Cloud', '#2563eb');
+                setCell('cost-bulk-tmpl', 'Marketing', '#f59e0b');
+            } else {
+                // None ON
+                setCell('cost-reply', '—', '#94a3b8');
+                setCell('cost-reply-api', '—', '#94a3b8');
+                setCell('cost-reply-tmpl', '—', '#94a3b8');
+                setCell('cost-followup', '—', '#94a3b8');
+                setCell('cost-followup-api', '—', '#94a3b8');
+                setCell('cost-followup-tmpl', '—', '#94a3b8');
+                setCell('cost-bulk', '—', '#94a3b8');
+                setCell('cost-bulk-api', '—', '#94a3b8');
+                setCell('cost-bulk-tmpl', '—', '#94a3b8');
+            }
+        }
+
+        // Initialize cost table on page load
+        document.addEventListener('DOMContentLoaded', function() { updateCostTable(); });
+
 
         function toggleOfficialApi(enabled) {
             // Update UI immediately
