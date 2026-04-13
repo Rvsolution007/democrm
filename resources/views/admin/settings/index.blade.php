@@ -616,9 +616,129 @@
 
             <!-- Integrations Tab -->
             <div class="settings-tab" id="tab-integrations" style="display:none">
+
+                {{-- ═══ WhatsApp API Configuration ═══ --}}
+                <div class="card" style="margin-bottom:24px">
+                    <div class="card-header">
+                        <h3 class="card-title" style="display:flex;align-items:center;gap:8px">
+                            <i data-lucide="message-circle" style="width:20px;height:20px;color:#25D366"></i>
+                            WhatsApp API Configuration
+                        </h3>
+                        <p class="text-sm text-muted" style="margin-top:4px">Choose which WhatsApp API to use for sending messages. Bot List mode ka bot jo API ON hoga wahi use karega.</p>
+                    </div>
+                    <div class="card-content">
+                        {{-- Info Note --}}
+                        <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #93c5fd;border-radius:10px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:flex-start;gap:10px">
+                            <i data-lucide="info" style="width:18px;height:18px;color:#2563eb;flex-shrink:0;margin-top:1px"></i>
+                            <div style="font-size:13px;color:#1e40af;line-height:1.6">
+                                <strong>Evolution API</strong> = QR Scan se connect, FREE messaging, text-based menu (chatflow).<br>
+                                <strong>Official Meta API</strong> = Meta Cloud API, paid per-conversation, native interactive lists, templates required for outbound.<br>
+                                Dono ek saath ON rakh sakte ho — sub-features individually configure kar sakte ho.
+                            </div>
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+                            {{-- Evolution API Toggle Card --}}
+                            <div id="evolution-api-card" style="border:2px solid {{ $evolutionApiEnabled ? '#22c55e' : '#e2e8f0' }};border-radius:14px;padding:20px;background:{{ $evolutionApiEnabled ? 'linear-gradient(135deg,#f0fdf4,#dcfce7)' : '#fafafa' }};transition:all 0.3s">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                                    <div style="display:flex;align-items:center;gap:10px">
+                                        <div style="width:40px;height:40px;background:{{ $evolutionApiEnabled ? 'linear-gradient(135deg,#22c55e,#16a34a)' : '#e5e7eb' }};border-radius:10px;display:flex;align-items:center;justify-content:center">
+                                            <i data-lucide="qr-code" style="width:20px;height:20px;color:{{ $evolutionApiEnabled ? 'white' : '#9ca3af' }}"></i>
+                                        </div>
+                                        <div>
+                                            <h4 style="font-weight:700;margin:0;font-size:15px;color:#111">Evolution API</h4>
+                                            <p style="font-size:12px;color:#888;margin:2px 0 0">QR Scan · Free · Text Menu</p>
+                                        </div>
+                                    </div>
+                                    <label style="position:relative;display:inline-block;width:46px;height:26px;cursor:pointer">
+                                        <input type="checkbox" id="evolution-api-toggle" {{ $evolutionApiEnabled ? 'checked' : '' }}
+                                            onchange="toggleEvolutionApi(this.checked)" style="opacity:0;width:0;height:0;position:absolute">
+                                        <div id="evolution-api-slider" style="position:absolute;inset:0;background:{{ $evolutionApiEnabled ? '#3b82f6' : '#ccc' }};border-radius:26px;transition:0.3s">
+                                            <div id="evolution-api-knob" style="position:absolute;top:3px;left:{{ $evolutionApiEnabled ? '23px' : '3px' }};width:20px;height:20px;background:white;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:0.3s"></div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div style="font-size:12px;font-weight:600;color:{{ $evolutionApiEnabled ? '#16a34a' : '#dc2626' }}" id="evolution-api-label">{{ $evolutionApiEnabled ? 'ON' : 'OFF' }}</div>
+                            </div>
+
+                            {{-- Official Meta API Toggle Card --}}
+                            <div id="official-api-card" style="border:2px solid {{ $officialApiEnabled ? '#22c55e' : '#e2e8f0' }};border-radius:14px;padding:20px;background:{{ $officialApiEnabled ? 'linear-gradient(135deg,#f0fdf4,#dcfce7)' : '#fafafa' }};transition:all 0.3s">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                                    <div style="display:flex;align-items:center;gap:10px">
+                                        <div style="width:40px;height:40px;background:{{ $officialApiEnabled ? 'linear-gradient(135deg,#22c55e,#16a34a)' : '#e5e7eb' }};border-radius:10px;display:flex;align-items:center;justify-content:center">
+                                            <i data-lucide="cloud" style="width:20px;height:20px;color:{{ $officialApiEnabled ? 'white' : '#9ca3af' }}"></i>
+                                        </div>
+                                        <div>
+                                            <h4 style="font-weight:700;margin:0;font-size:15px;color:#111">Official Meta API</h4>
+                                            <p style="font-size:12px;color:#888;margin:2px 0 0">Cloud API · Paid · Native Lists</p>
+                                        </div>
+                                    </div>
+                                    <label style="position:relative;display:inline-block;width:46px;height:26px;cursor:pointer">
+                                        <input type="checkbox" id="official-api-toggle" {{ $officialApiEnabled ? 'checked' : '' }}
+                                            onchange="toggleOfficialApi(this.checked)" style="opacity:0;width:0;height:0;position:absolute">
+                                        <div id="official-api-slider" style="position:absolute;inset:0;background:{{ $officialApiEnabled ? '#22c55e' : '#ccc' }};border-radius:26px;transition:0.3s">
+                                            <div id="official-api-knob" style="position:absolute;top:3px;left:{{ $officialApiEnabled ? '23px' : '3px' }};width:20px;height:20px;background:white;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:0.3s"></div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div style="font-size:12px;font-weight:600;color:{{ $officialApiEnabled ? '#16a34a' : '#dc2626' }}" id="official-api-label">{{ $officialApiEnabled ? 'ON' : 'OFF' }}</div>
+                            </div>
+                        </div>
+
+                        {{-- Official API Configuration Form --}}
+                        <div id="official-api-config-form" style="border:1px solid #e2e8f0;border-radius:12px;padding:20px;background:#f8fafc;{{ $officialApiEnabled ? '' : 'opacity:0.5;pointer-events:none;' }}">
+                            <h4 style="font-weight:700;font-size:14px;margin:0 0 4px;display:flex;align-items:center;gap:6px">
+                                <i data-lucide="settings-2" style="width:16px;height:16px;color:#3b82f6"></i>
+                                Meta Cloud API Credentials
+                            </h4>
+                            <p style="font-size:12px;color:#888;margin:0 0 16px">Meta Business Suite se ye credentials prapt karo. Sidebar mein "Meta Templates" tab automatically dikhega jab ye configure ho.</p>
+
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+                                <div>
+                                    <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Phone Number ID *</label>
+                                    <input type="text" class="form-input" id="official-phone-number-id" value="{{ $officialApiConfig['phone_number_id'] ?? '' }}" placeholder="e.g. 109876543210123">
+                                </div>
+                                <div>
+                                    <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">WABA ID</label>
+                                    <input type="text" class="form-input" id="official-waba-id" value="{{ $officialApiConfig['waba_id'] ?? '' }}" placeholder="e.g. 104567890123456">
+                                </div>
+                            </div>
+                            <div style="margin-bottom:16px">
+                                <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px">Access Token *</label>
+                                <input type="password" class="form-input" id="official-access-token" value="{{ $officialApiConfig['access_token'] ?? '' }}" placeholder="EAAxxxxxxx...">
+                                <small style="color:#888;font-size:11px;margin-top:4px;display:block">Meta Business Suite → API Setup → Permanent Access Token</small>
+                            </div>
+
+                            <button type="button" class="btn btn-primary" onclick="saveOfficialApiConfig()">
+                                <i data-lucide="save" style="width:16px;height:16px"></i> Save Official API Config
+                            </button>
+                        </div>
+
+                        {{-- Cost Indicator --}}
+                        <div style="margin-top:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">
+                            <h4 style="font-size:12px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 10px">Cost Overview</h4>
+                            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:12px">
+                                <div style="padding:8px 10px;background:white;border-radius:8px;border:1px solid #eee">
+                                    <div style="font-weight:600;color:#333;margin-bottom:2px">🤖 Bot Replies</div>
+                                    <div style="color:#16a34a;font-weight:500" id="cost-bot">{{ $officialApiEnabled ? '₹0 (FREE via Cloud API — user-initiated)' : '₹0 (Evolution API)' }}</div>
+                                </div>
+                                <div style="padding:8px 10px;background:white;border-radius:8px;border:1px solid #eee">
+                                    <div style="font-weight:600;color:#333;margin-bottom:2px">📨 Bulk Sender</div>
+                                    <div style="color:#16a34a;font-weight:500" id="cost-bulk">{{ $evoBulkEnabled ? '₹0 (FREE via QR)' : '~₹1/msg (Cloud API)' }}</div>
+                                </div>
+                                <div style="padding:8px 10px;background:white;border-radius:8px;border:1px solid #eee">
+                                    <div style="font-weight:600;color:#333;margin-bottom:2px">🔔 Follow-ups</div>
+                                    <div style="color:#16a34a;font-weight:500" id="cost-followup">{{ $evoFollowupEnabled ? '₹0 (FREE via QR)' : '~₹0.12/msg (Cloud API)' }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ═══ Other Integrations ═══ --}}
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Integrations</h3>
+                        <h3 class="card-title">Other Integrations</h3>
                     </div>
                     <div class="card-content">
                         <div style="display:flex;flex-direction:column;gap:12px">
