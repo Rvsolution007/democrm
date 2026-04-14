@@ -230,6 +230,32 @@ class ListBotService
             return $this->resendCurrentMenu($session, $instanceName, $steps);
         }
 
+        // ── CASE 2b: Awaiting free-text input for combo step (no options were available) ──
+        if (isset($answers['_awaiting_combo_text'])) {
+            $comboSlug = $answers['_awaiting_combo_text'];
+            $session->setAnswer($comboSlug, trim($messageText));
+            unset($answers['_awaiting_combo_text']);
+            $session->collected_answers = array_diff_key($session->collected_answers, ['_awaiting_combo_text' => 1]);
+            $session->current_step_retries = 0;
+
+            // Update quote description
+            $productId = $session->getAnswer('product_id');
+            if ($productId) {
+                $product = Product::with(['combos.column', 'customValues'])->find($productId);
+                if ($product) {
+                    $this->updateQuoteItemDescription($session, $product);
+                }
+            }
+
+            $this->advanceChatflow($session, $steps);
+            $session->save();
+
+            Log::info('ListBot: Free-text combo answer saved', ['slug' => $comboSlug, 'value' => mb_substr($messageText, 0, 50)]);
+
+            $this->whatsApp->sendText($instanceName, $session->phone_number, "✅ Got it!");
+            return $this->sendNextStepMenu($session, $instanceName, $steps);
+        }
+
         // ── CASE 3: Product selected, in chatflow ──
         if ($currentStep) {
             // For ask_custom/ask_optional steps, accept text as-is
@@ -870,19 +896,40 @@ class ListBotService
     {
         $column = $step->linkedColumn;
         if (!$column) {
+            Log::warning('ListBot: sendComboMenu — no linked column, skipping step', ['step_id' => $step->id]);
             $this->advanceChatflow($session, $steps);
             $session->save();
             return $this->sendNextStepMenu($session, $instanceName, $steps);
         }
 
         $productId = $session->getAnswer('product_id');
-        $product = Product::with('combos.column')->find($productId);
+        $product = $productId ? Product::with(['combos.column', 'customValues'])->find($productId) : null;
+
+        // ── Strategy 1: Get values from ProductCombo.selected_values ──
         $comboValues = $product ? $this->getComboValuesForProduct($product, $column) : [];
 
+        // ── Strategy 2: Fallback — get distinct custom values for this column ──
         if (empty($comboValues)) {
-            $this->advanceChatflow($session, $steps);
+            Log::info('ListBot: No combo values found, trying custom values fallback', [
+                'column' => $column->name,
+                'product_id' => $productId,
+            ]);
+            $comboValues = $this->getDistinctColumnValues($session, $column);
+        }
+
+        // ── Strategy 3: If still empty, treat as free-text question ──
+        if (empty($comboValues)) {
+            Log::info('ListBot: No values found for combo step, treating as free-text', [
+                'step' => $step->name,
+                'column' => $column->name,
+            ]);
+            $question = $step->question_text ?: "Please provide {$column->name}:";
+            $this->whatsApp->sendText($instanceName, $session->phone_number, "📝 {$question}");
+
+            // Temporarily convert this step to behave like ask_custom for text input
+            $session->setAnswer('_awaiting_combo_text', $column->slug);
             $session->save();
-            return $this->sendNextStepMenu($session, $instanceName, $steps);
+            return $question;
         }
 
         // Auto-select if single option
@@ -893,6 +940,13 @@ class ListBotService
         $sections = WhatsAppService::buildOptionSections($comboValues, $column->name, "combo_{$column->slug}_");
         $question = $step->question_text ?: "Select {$column->name}:";
         $buttonText = Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu', $this->companyId);
+
+        Log::info('ListBot: Sending combo menu', [
+            'step' => $step->name,
+            'column' => $column->name,
+            'values_count' => count($comboValues),
+            'values' => array_slice($comboValues, 0, 5),
+        ]);
 
         $sent = $this->whatsApp->sendList(
             $instanceName,
@@ -959,9 +1013,15 @@ class ListBotService
         sort($valuesList);
 
         if (empty($valuesList)) {
-            $this->advanceChatflow($session, $steps);
+            Log::info('ListBot: No column values found, treating as free-text', [
+                'step' => $step->name,
+                'column' => $column->name,
+            ]);
+            $question = $step->question_text ?: "Please provide {$column->name}:";
+            $this->whatsApp->sendText($instanceName, $session->phone_number, "📝 {$question}");
+            $session->setAnswer('_awaiting_combo_text', 'column_filter_' . $colId);
             $session->save();
-            return $this->sendNextStepMenu($session, $instanceName, $steps);
+            return $question;
         }
 
         // Auto-select if single option
@@ -1246,6 +1306,56 @@ class ListBotService
     {
         $combo = $product->combos->firstWhere('column_id', $column->id);
         return $combo ? ($combo->selected_values ?? []) : [];
+    }
+
+    /**
+     * Get distinct values for a column from product_custom_values.
+     * Falls back across category products when product-specific values are empty.
+     */
+    private function getDistinctColumnValues(AiChatSession $session, CatalogueCustomColumn $column): array
+    {
+        $answers = $session->collected_answers ?? [];
+        $colId = $column->id;
+
+        // Build product query scoped to current selection
+        $query = Product::where('company_id', $this->companyId)->where('status', 'active');
+
+        if (isset($answers['product_id'])) {
+            // First try: values from the selected product only
+            $query->where('id', $answers['product_id']);
+        } elseif (isset($answers['category_ids'])) {
+            $query->whereIn('category_id', $answers['category_ids']);
+        } elseif (isset($answers['category_id'])) {
+            $query->where('category_id', $answers['category_id']);
+        }
+
+        $productIds = $query->pluck('id');
+
+        $values = DB::table('catalogue_custom_values')
+            ->whereIn('product_id', $productIds)
+            ->where('column_id', $colId)
+            ->whereNotNull('value')
+            ->where('value', '!=', '')
+            ->distinct()
+            ->pluck('value')
+            ->map(function ($v) {
+                $decoded = json_decode($v, true);
+                return is_array($decoded) ? $decoded : [$v];
+            })
+            ->flatten()
+            ->unique()
+            ->filter()
+            ->sort()
+            ->values()
+            ->toArray();
+
+        Log::info('ListBot: getDistinctColumnValues', [
+            'column' => $column->name,
+            'product_scope' => isset($answers['product_id']) ? 'single' : 'category',
+            'values_found' => count($values),
+        ]);
+
+        return $values;
     }
 
     private function updateQuoteItemDescription(AiChatSession $session, Product $product): void
