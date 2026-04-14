@@ -89,8 +89,8 @@ class ProductsController extends Controller
             ->get();
             
         foreach ($customColumns as $col) {
-            // Skip combo columns — their data is sent via combo_data[], not custom_data[]
-            if ($col->is_combo) continue;
+            // Skip combo columns (sent via combo_data[]) and category columns (sent via category_id)
+            if ($col->is_combo || $col->is_category) continue;
             
             $rule = [];
             if ($col->is_required) $rule[] = 'required';
