@@ -228,31 +228,6 @@ class ListBotService
             return $this->resendCurrentMenu($session, $instanceName, $steps);
         }
 
-        // ── CASE 2b: Awaiting free-text input for combo step (no options were available) ──
-        if (isset($answers['_awaiting_combo_text'])) {
-            $comboSlug = $answers['_awaiting_combo_text'];
-            $session->setAnswer($comboSlug, trim($messageText));
-            unset($answers['_awaiting_combo_text']);
-            $session->collected_answers = array_diff_key($session->collected_answers, ['_awaiting_combo_text' => 1]);
-            $session->current_step_retries = 0;
-
-            // Update quote description
-            $productId = $session->getAnswer('product_id');
-            if ($productId) {
-                $product = Product::with(['combos.column', 'customValues'])->find($productId);
-                if ($product) {
-                    $this->updateQuoteItemDescription($session, $product);
-                }
-            }
-
-            $this->advanceChatflow($session, $steps);
-            $session->save();
-
-            Log::info('ListBot: Free-text combo answer saved', ['slug' => $comboSlug, 'value' => mb_substr($messageText, 0, 50)]);
-
-            $this->whatsApp->sendText($instanceName, $session->phone_number, "✅ Got it!");
-            return $this->sendNextStepMenu($session, $instanceName, $steps);
-        }
 
         // ── CASE 3: Product selected, in chatflow ──
         if ($currentStep) {
@@ -923,19 +898,15 @@ class ListBotService
             $comboValues = $this->getDistinctColumnValues($session, $column);
         }
 
-        // ── Strategy 3: If still empty, treat as free-text question ──
+        // ── No data found → SKIP this step, go to next chatflow question ──
         if (empty($comboValues)) {
-            Log::info('ListBot: No values found for combo step, treating as free-text', [
-                'step' => $step->name,
+            Log::info('ListBot: No values found for combo step, skipping to next', [
+                'step' => $step->name ?? $step->id,
                 'column' => $column->name,
             ]);
-            $question = $step->question_text ?: "Please provide {$column->name}:";
-            $this->whatsApp->sendText($instanceName, $session->phone_number, "📝 {$question}");
-
-            // Temporarily convert this step to behave like ask_custom for text input
-            $session->setAnswer('_awaiting_combo_text', $column->slug);
+            $this->advanceChatflow($session, $steps);
             $session->save();
-            return $question;
+            return $this->sendNextStepMenu($session, $instanceName, $steps);
         }
 
         // Auto-select if single option
@@ -1019,15 +990,13 @@ class ListBotService
         sort($valuesList);
 
         if (empty($valuesList)) {
-            Log::info('ListBot: No column values found, treating as free-text', [
-                'step' => $step->name,
+            Log::info('ListBot: No column values found, skipping to next step', [
+                'step' => $step->name ?? $step->id,
                 'column' => $column->name,
             ]);
-            $question = $step->question_text ?: "Please provide {$column->name}:";
-            $this->whatsApp->sendText($instanceName, $session->phone_number, "📝 {$question}");
-            $session->setAnswer('_awaiting_combo_text', 'column_filter_' . $colId);
+            $this->advanceChatflow($session, $steps);
             $session->save();
-            return $question;
+            return $this->sendNextStepMenu($session, $instanceName, $steps);
         }
 
         // Auto-select if single option
