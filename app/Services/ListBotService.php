@@ -889,13 +889,36 @@ class ListBotService
         // ── Strategy 1: Get values from ProductCombo.selected_values ──
         $comboValues = $product ? $this->getComboValuesForProduct($product, $column) : [];
 
-        // ── Strategy 2: Fallback — get distinct custom values for this column ──
-        if (empty($comboValues)) {
-            Log::info('ListBot: No combo values found, trying custom values fallback', [
+        // ── Strategy 2: Get the specific product's custom value for this column ──
+        if (empty($comboValues) && $product) {
+            $customVal = $product->customValues->firstWhere('column_id', $column->id);
+            if ($customVal && !empty($customVal->value)) {
+                $decoded = json_decode($customVal->value, true);
+                if (is_array($decoded) && count($decoded) > 0) {
+                    $comboValues = $decoded;
+                } elseif (!empty($customVal->value)) {
+                    $comboValues = [$customVal->value];
+                }
+            }
+            Log::info('ListBot: Product custom value lookup', [
                 'column' => $column->name,
                 'product_id' => $productId,
+                'found' => count($comboValues),
             ]);
+        }
+
+        // ── Strategy 3: Get distinct custom values across products in category ──
+        if (empty($comboValues)) {
             $comboValues = $this->getDistinctColumnValues($session, $column);
+        }
+
+        // ── Strategy 4: Use column definition options (for select/multiselect columns) ──
+        if (empty($comboValues) && !empty($column->options)) {
+            $comboValues = array_values(array_filter($column->options));
+            Log::info('ListBot: Using column definition options', [
+                'column' => $column->name,
+                'options_count' => count($comboValues),
+            ]);
         }
 
         // ── No data found → SKIP this step, go to next chatflow question ──
@@ -981,13 +1004,30 @@ class ListBotService
         $productSet = $query->with('customValues')->get();
         $availableValues = [];
         foreach ($productSet as $p) {
-            $val = $p->customValues->firstWhere('column_id', $colId)?->value;
-            if (!empty($val)) {
-                $availableValues[$val] = true;
+            $rawVal = $p->customValues->firstWhere('column_id', $colId)?->value;
+            if (!empty($rawVal)) {
+                // Handle JSON arrays (e.g., ["6MM", "8MM"])
+                $decoded = json_decode($rawVal, true);
+                if (is_array($decoded)) {
+                    foreach ($decoded as $v) {
+                        if (!empty($v)) $availableValues[$v] = true;
+                    }
+                } else {
+                    $availableValues[$rawVal] = true;
+                }
             }
         }
         $valuesList = array_keys($availableValues);
         sort($valuesList);
+
+        // Fallback: use column definition options (for select/multiselect columns)
+        if (empty($valuesList) && !empty($column->options)) {
+            $valuesList = array_values(array_filter($column->options));
+            Log::info('ListBot: sendColumnMenu using column definition options', [
+                'column' => $column->name,
+                'options_count' => count($valuesList),
+            ]);
+        }
 
         if (empty($valuesList)) {
             Log::info('ListBot: No column values found, skipping to next step', [
