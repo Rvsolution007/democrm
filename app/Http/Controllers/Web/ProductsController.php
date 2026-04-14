@@ -227,8 +227,6 @@ class ProductsController extends Controller
         }
 
         $validated = $request->validate($this->getValidationRules((int) $id));
-        
-        $this->injectSystemDefaults($validated);
 
         // Convert rupees to paise
         if (isset($validated['mrp'])) $validated['mrp'] = $validated['mrp'] * 100;
