@@ -257,9 +257,14 @@ class ListBotService
             return $this->sendWelcomeWithCategories($session, $instanceName);
         }
 
-        // ── CASE 2: Category selected but no product → re-send product list ──
+        // ── CASE 2: Category selected but no product → try smart match or re-send menu ──
         if (isset($answers['category_id']) && !isset($answers['product_id'])) {
-            // User typed text instead of tapping menu — re-send product list
+            // Try to fuzzy-match user text against products in this category
+            $matchedProduct = $this->smartMatchProduct($session, $trimmedText);
+            if ($matchedProduct) {
+                Log::info('ListBot: Smart-matched product from text', ['product' => $matchedProduct->id, 'input' => $trimmedText]);
+                return $this->handleProductSelection($session, $instanceName, $matchedProduct->id, $steps);
+            }
             return $this->resendCurrentMenu($session, $instanceName, $steps);
         }
 
@@ -901,6 +906,7 @@ class ListBotService
         $column = $step->linkedColumn;
         if (!$column) {
             Log::warning('ListBot: sendComboMenu — no linked column, skipping step', ['step_id' => $step->id]);
+            $this->markStepSkipped($session, $step);
             $this->advanceChatflow($session, $steps);
             $session->save();
             return $this->sendNextStepMenu($session, $instanceName, $steps);
@@ -938,6 +944,8 @@ class ListBotService
                 'step' => $step->name ?? $step->id,
                 'column' => $column->name,
             ]);
+            // Mark as skipped so advanceChatflow doesn't loop back
+            $this->markStepSkipped($session, $step);
             $this->advanceChatflow($session, $steps);
             $session->save();
             return $this->sendNextStepMenu($session, $instanceName, $steps);
@@ -987,6 +995,7 @@ class ListBotService
         $colId = $step->linked_column_id;
 
         if (!$column || !$colId) {
+            $this->markStepSkipped($session, $step);
             $this->advanceChatflow($session, $steps);
             $session->save();
             return $this->sendNextStepMenu($session, $instanceName, $steps);
@@ -1036,6 +1045,8 @@ class ListBotService
                 'step' => $step->name ?? $step->id,
                 'column' => $column->name,
             ]);
+            // Mark as skipped so advanceChatflow doesn't loop back
+            $this->markStepSkipped($session, $step);
             $this->advanceChatflow($session, $steps);
             $session->save();
             return $this->sendNextStepMenu($session, $instanceName, $steps);
@@ -1178,7 +1189,11 @@ class ListBotService
         foreach ($steps as $step) {
             $isAnswered = false;
 
-            if ($step->step_type === 'ask_combo' && $step->linkedColumn) {
+            // Check if step was explicitly skipped (no data)
+            $skippedIds = $answers['_skipped_step_ids'] ?? [];
+            if (in_array($step->id, $skippedIds)) {
+                $isAnswered = true;
+            } elseif ($step->step_type === 'ask_combo' && $step->linkedColumn) {
                 if (isset($answers[$step->linkedColumn->slug])) {
                     $isAnswered = true;
                 }
@@ -1337,6 +1352,95 @@ class ListBotService
     private function resetFooter(): string
     {
         return "\n\n━━━━━━━━━━━━━━━\n↩️ Type *reset* to start over";
+    }
+
+    /**
+     * Mark a chatflow step as skipped (no data for this product).
+     * This prevents advanceChatflow from looping back to it.
+     */
+    private function markStepSkipped(AiChatSession $session, ChatflowStep $step): void
+    {
+        $answers = $session->collected_answers ?? [];
+        $skipped = $answers['_skipped_step_ids'] ?? [];
+        if (!in_array($step->id, $skipped)) {
+            $skipped[] = $step->id;
+        }
+        $answers['_skipped_step_ids'] = $skipped;
+        $session->collected_answers = $answers;
+        Log::info('ListBot: Step marked as skipped', ['step_id' => $step->id, 'step' => $step->name ?? $step->step_type]);
+    }
+
+    /**
+     * Smart-match user text against products in the current category.
+     * Returns the matched Product or null.
+     */
+    private function smartMatchProduct(AiChatSession $session, string $userText): ?Product
+    {
+        if (empty($userText) || mb_strlen($userText) < 2) return null;
+
+        $answers = $session->collected_answers ?? [];
+        $query = Product::where('company_id', $this->companyId)->where('status', 'active');
+
+        if (isset($answers['category_ids'])) {
+            $query->whereIn('category_id', $answers['category_ids']);
+        } elseif (isset($answers['category_id'])) {
+            $query->where('category_id', $answers['category_id']);
+        }
+
+        $products = $query->with(['customValues', 'category'])->get();
+        if ($products->isEmpty()) return null;
+
+        $input = mb_strtolower(trim($userText));
+        $bestMatch = null;
+        $bestScore = 0;
+
+        foreach ($products as $product) {
+            $displayName = mb_strtolower($this->getProductDisplayName($product));
+            $productName = mb_strtolower($product->name);
+
+            // Also check the unique column value
+            $uniqueVal = '';
+            if ($this->uniqueColumn) {
+                $cv = $product->customValues->firstWhere('column_id', $this->uniqueColumn->id);
+                $uniqueVal = mb_strtolower($cv ? (is_array(json_decode($cv->value, true)) ? implode(' ', json_decode($cv->value, true)) : $cv->value) : '');
+            }
+
+            $score = 0;
+
+            // Exact match on any name variant
+            if ($input === $displayName || $input === $productName || $input === $uniqueVal) {
+                return $product; // 100% match
+            }
+
+            // Substring match
+            if (str_contains($displayName, $input) || str_contains($productName, $input) || str_contains($uniqueVal, $input)) {
+                $score = 85;
+            }
+            if (str_contains($input, $displayName) || str_contains($input, $productName)) {
+                $score = max($score, 85);
+            }
+
+            // similar_text
+            if ($score < 60) {
+                similar_text($input, $displayName, $p1);
+                similar_text($input, $productName, $p2);
+                similar_text($input, $uniqueVal, $p3);
+                $score = max($score, $p1, $p2, $p3);
+            }
+
+            if ($score > $bestScore && $score >= 60) {
+                $bestScore = $score;
+                $bestMatch = $product;
+            }
+        }
+
+        Log::info('ListBot: smartMatchProduct', [
+            'input' => $userText,
+            'matched' => $bestMatch ? $this->getProductDisplayName($bestMatch) : 'none',
+            'score' => $bestScore,
+        ]);
+
+        return $bestMatch;
     }
 
     /**
