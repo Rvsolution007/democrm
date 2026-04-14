@@ -287,16 +287,30 @@ class WhatsAppService
         }
         unset($section);
 
+        // Build a rowMap from sections ALWAYS (so number/text replies work as fallback for native lists)
+        $fallbackRowMap = [];
+        $mapNum = 1;
+        foreach ($originalSections as $sec) {
+            foreach ($sec['rows'] ?? [] as $row) {
+                $fallbackRowMap[(string)$mapNum] = [
+                    'rowId' => $row['rowId'] ?? '',
+                    'title' => $row['fullTitle'] ?? $row['title'] ?? '',
+                ];
+                $mapNum++;
+            }
+        }
+
         // ── Priority 1: Official Cloud API — native interactive list ──
         if ($this->isOfficialApiActive()) {
             $sent = $this->sendListViaOfficialApi($phone, $title, $description, $buttonText, $sections, $footer);
             if ($sent) {
                 Log::info('WhatsAppService: Sent native list via Official API', ['phone' => $phone]);
-                return true;
+                // Return rowMap so text/number replies also work as fallback
+                return ['sent' => true, 'rowMap' => $fallbackRowMap];
             }
         }
 
-        // ── Priority 2: Evolution API — try native list (only if text menu is enabled for evo) ──
+        // ── Priority 2: Evolution API — try native list ──
         if ($this->isEvolutionApiActive()) {
             try {
                 $payload = [
@@ -315,7 +329,8 @@ class WhatsAppService
 
                 if ($response->successful()) {
                     Log::info('WhatsAppService: Sent native list via Evolution API', ['phone' => $phone]);
-                    return true;
+                    // Return rowMap so text/number replies also work as fallback
+                    return ['sent' => true, 'rowMap' => $fallbackRowMap];
                 }
 
                 Log::warning('WhatsAppService: Evolution sendList failed, falling back to text', [
@@ -328,13 +343,12 @@ class WhatsAppService
         }
 
         // ── Priority 3: Text-based menu fallback ──
-        // Only use text fallback if evoTextmenuEnabled is ON (or no Official API available)
         if ($this->shouldUseTextMenuFallback() || !$this->isOfficialApiActive()) {
             return $this->sendListAsText($instanceName, $phone, $title, $description, $originalSections, $footer);
         }
 
-        // Text menu OFF + Official API active = native list is the only option (already tried above)
-        Log::warning('WhatsAppService: Text menu disabled and Official API already tried. Cannot send list.', ['phone' => $phone]);
+        // Text menu OFF + APIs tried = cannot send list
+        Log::warning('WhatsAppService: Cannot send list via any method', ['phone' => $phone]);
         return false;
     }
 

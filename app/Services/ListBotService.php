@@ -453,47 +453,55 @@ class ListBotService
         $session->setAnswer('product_name', $displayName);
         $session->conversation_state = 'product_selected';
 
-        // Attach product to lead
-        if ($session->lead_id) {
-            $lead = Lead::find($session->lead_id);
-            if ($lead) {
-                if (!$lead->products()->where('product_id', $productId)->exists()) {
-                    $lead->products()->attach($productId, ['quantity' => 1, 'price' => $product->sale_price]);
+        // Attach product to lead and create Quote (wrapped in try-catch to prevent flow termination on error)
+        try {
+            if ($session->lead_id) {
+                $lead = Lead::find($session->lead_id);
+                if ($lead) {
+                    if (!$lead->products()->where('product_id', $productId)->exists()) {
+                        $lead->products()->attach($productId, ['quantity' => 1, 'price' => $product->sale_price]);
+                    }
+                    $lead->update(['product_name' => $displayName]);
                 }
-                $lead->update(['product_name' => $displayName]);
             }
-        }
 
-        // Create Quote
-        if (!$session->quote_id) {
-            $company = \App\Models\Company::find($this->companyId);
-            $quote = Quote::create([
-                'company_id' => $this->companyId,
-                'lead_id' => $session->lead_id,
-                'created_by_user_id' => $this->userId,
-                'quote_no' => Quote::generateQuoteNumber($company),
-                'date' => now(),
-                'valid_till' => now()->addDays(30),
-                'subtotal' => $product->sale_price,
-                'discount' => 0,
-                'gst_total' => 0,
-                'grand_total' => $product->sale_price,
-                'status' => 'draft',
+            // Create Quote
+            if (!$session->quote_id) {
+                $company = \App\Models\Company::find($this->companyId);
+                $quote = Quote::create([
+                    'company_id' => $this->companyId,
+                    'lead_id' => $session->lead_id,
+                    'created_by_user_id' => $this->userId,
+                    'quote_no' => Quote::generateQuoteNumber($company),
+                    'date' => now(),
+                    'valid_till' => now()->addDays(30),
+                    'subtotal' => $product->sale_price,
+                    'discount' => 0,
+                    'gst_total' => 0,
+                    'grand_total' => $product->sale_price,
+                    'status' => 'draft',
+                ]);
+                QuoteItem::create([
+                    'quote_id' => $quote->id,
+                    'product_id' => $productId,
+                    'product_name' => $displayName,
+                    'description' => $product->getdynamicDescription($session->collected_answers ?? [], true),
+                    'hsn_code' => $product->hsn_code,
+                    'qty' => 1,
+                    'rate' => $product->sale_price,
+                    'unit' => $product->unit,
+                    'unit_price' => $product->sale_price,
+                    'gst_percent' => $product->gst_percent,
+                    'sort_order' => 1,
+                ]);
+                $session->quote_id = $quote->id;
+            }
+        } catch (\Exception $e) {
+            Log::error('ListBot: Error attaching product to lead or creating quote', [
+                'session_id' => $session->id,
+                'error' => $e->getMessage()
             ]);
-            QuoteItem::create([
-                'quote_id' => $quote->id,
-                'product_id' => $productId,
-                'product_name' => $displayName,
-                'description' => $product->getdynamicDescription($session->collected_answers ?? [], true),
-                'hsn_code' => $product->hsn_code,
-                'qty' => 1,
-                'rate' => $product->sale_price,
-                'unit' => $product->unit,
-                'unit_price' => $product->sale_price,
-                'gst_percent' => $product->gst_percent,
-                'sort_order' => 1,
-            ]);
-            $session->quote_id = $quote->id;
+            // Flow continues even if this fails
         }
 
         // Advance past product step
