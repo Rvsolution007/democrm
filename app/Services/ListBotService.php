@@ -157,7 +157,7 @@ class ListBotService
 
     private function routeMessage(AiChatSession $session, string $instanceName, string $messageText, ?string $listRowId): ?string
     {
-        $steps = ChatflowStep::where('company_id', $this->companyId)->orderBy('sort_order')->get();
+        $steps = ChatflowStep::with('linkedColumn')->where('company_id', $this->companyId)->orderBy('sort_order')->get();
         $currentStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
         $answers = $session->collected_answers ?? [];
 
@@ -759,7 +759,7 @@ class ListBotService
         // Auto-select if only 1 product
         if ($products->count() === 1) {
             Log::info('ListBot: Auto-selecting single product', ['product_id' => $products->first()->id]);
-            $steps = ChatflowStep::where('company_id', $this->companyId)->orderBy('sort_order')->get();
+            $steps = ChatflowStep::with('linkedColumn')->where('company_id', $this->companyId)->orderBy('sort_order')->get();
             return $this->handleProductSelection($session, $instanceName, $products->first()->id, $steps);
         }
 
@@ -785,6 +785,7 @@ class ListBotService
         if (is_array($sent) && !empty($sent['rowMap'])) {
             Log::info('ListBot: Text fallback used for product menu, storing rowMap');
             $session->setAnswer('_text_menu_rowMap', $sent['rowMap']);
+            $session->save();
         }
 
         Log::info('ListBot: Product list sent result', ['success' => $sent !== false]);
@@ -905,6 +906,7 @@ class ListBotService
 
         if (is_array($sent) && !empty($sent['rowMap'])) {
             $session->setAnswer('_text_menu_rowMap', $sent['rowMap']);
+            $session->save();
         }
 
         return null;
@@ -983,6 +985,7 @@ class ListBotService
 
         if (is_array($sent) && !empty($sent['rowMap'])) {
             $session->setAnswer('_text_menu_rowMap', $sent['rowMap']);
+            $session->save();
         }
 
         return null;
