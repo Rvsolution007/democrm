@@ -223,11 +223,18 @@
                                         {{-- Category-only column: show category name as badge --}}
                                         <span class="badge badge-secondary">{{ $product->category->name ?? 'N/A' }}</span>
                                     @elseif($col->is_title)
-                                        {{-- Title-only column: show category name if product name is generic --}}
+                                        {{-- Title-only column: prefer custom value for non-system columns --}}
                                         @php
                                             $displayName = $product->name;
-                                            // If product name is generic like "Product 24", show category name instead
-                                            if (preg_match('/^Product\s+\d+$/i', $displayName) && $product->category) {
+                                            // For non-system title columns, read from custom values
+                                            if (!$col->is_system) {
+                                                $titleCustomVal = $product->customValues->where('column_id', $col->id)->first();
+                                                if ($titleCustomVal && !empty($titleCustomVal->value)) {
+                                                    $displayName = $titleCustomVal->value;
+                                                }
+                                            }
+                                            // Fallback for generic/broken names
+                                            if (preg_match('/^(Product\s+\d+|Unnamed Product)$/i', $displayName) && $product->category) {
                                                 $displayName = $product->category->name;
                                             }
                                         @endphp

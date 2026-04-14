@@ -111,8 +111,8 @@ class ListBotService
                 Log::info('ListBot: Lead created', ['session' => $session->id, 'lead_id' => $lead->id]);
             }
 
-            // Reset session if user types "hi", "hello", or "menu" to start over
-            if (in_array(trim(strtolower($messageText)), ['hi', 'hello', 'menu'])) {
+            // Reset session if user types "hi", "hello", "menu", or "reset" to start over
+            if (in_array(trim(strtolower($messageText)), ['hi', 'hello', 'menu', 'reset'])) {
                 // Mark old session expired and create a new one
                 $session->update(['status' => 'expired', 'is_completed' => true]);
                 
@@ -202,8 +202,6 @@ class ListBotService
                     $session->collected_answers = $answers;
                     $session->save();
                     
-                    // Confirm the match to user
-                    $this->whatsApp->sendText($instanceName, $session->phone_number, "✅ *{$fuzzyMatch['title']}* matched!");
                     return $this->handleListSelection($session, $instanceName, $parsed, $steps);
                 }
             }
@@ -215,6 +213,43 @@ class ListBotService
                 $this->whatsApp->sendText($instanceName, $session->phone_number, "❌ Could not match \"{$trimmedText}\". Please reply with the *number* or type the *exact name*.");
             }
             return null;
+        }
+
+        // ── CASE 0c: Awaiting "add more product?" decision ──
+        if ($session->conversation_state === 'awaiting_add_more') {
+            $choice = trim(strtolower($trimmedText));
+            if (in_array($choice, ['1', 'yes', 'haan', 'ha', 'y'])) {
+                // User wants to add another product — clear product-specific answers, keep lead/quote
+                $keepKeys = ['_text_menu_rowMap']; // internal keys to clear
+                $productKeys = ['product_id', 'product_name', 'category_id', 'category_ids', 'category_name', 'selected_product_group'];
+                $newAnswers = [];
+                foreach ($answers as $k => $v) {
+                    // Keep only custom answers (name, email etc.) — remove product/combo/column answers
+                    if (in_array($k, $productKeys)) continue;
+                    if (str_starts_with($k, 'column_filter_')) continue;
+                    if (str_starts_with($k, '_')) continue;
+                    // Check if key is a combo slug
+                    $isComboSlug = ChatflowStep::where('company_id', $this->companyId)
+                        ->where('step_type', 'ask_combo')
+                        ->whereHas('linkedColumn', fn($q) => $q->where('slug', $k))
+                        ->exists();
+                    if ($isComboSlug) continue;
+                    $newAnswers[$k] = $v;
+                }
+                $session->collected_answers = $newAnswers;
+                $session->current_step_id = null;
+                $session->conversation_state = 'started';
+                $session->save();
+                Log::info('ListBot: User wants to add more products', ['session' => $session->id]);
+                return $this->sendWelcomeWithCategories($session, $instanceName);
+            } else {
+                // User is done — finalize
+                $session->conversation_state = 'completed';
+                $session->update(['status' => 'completed']);
+                $finalMsg = "✅ Order complete! Our team will contact you shortly. 🙏";
+                $this->whatsApp->sendText($instanceName, $session->phone_number, $finalMsg);
+                return $finalMsg;
+            }
         }
 
         // ── CASE 1: No product selected yet → send welcome/categories ──
@@ -485,11 +520,7 @@ class ListBotService
 
         Log::info('ListBot: Product selected', ['session' => $session->id, 'product' => $displayName]);
 
-        // Send confirmation + next step
-        $confirmMsg = "✅ *{$displayName}* selected! 🛍️";
-        $this->whatsApp->sendText($instanceName, $session->phone_number, $confirmMsg);
-
-        // Build and send next step as Interactive List
+        // Send next step (no confirmation message to user)
         return $this->sendNextStepMenu($session, $instanceName, $steps);
     }
 
@@ -515,9 +546,6 @@ class ListBotService
         $session->save();
 
         Log::info('ListBot: Column filter selected', ['session' => $session->id, 'column' => $columnId, 'value' => $value]);
-
-        $confirmMsg = "✅ *{$value}* selected!";
-        $this->whatsApp->sendText($instanceName, $session->phone_number, $confirmMsg);
 
         return $this->sendNextStepMenu($session, $instanceName, $steps);
     }
@@ -545,9 +573,6 @@ class ListBotService
         $session->save();
 
         Log::info('ListBot: Combo selected', ['session' => $session->id, 'slug' => $comboSlug, 'value' => $value]);
-
-        $confirmMsg = "✅ *{$value}* selected!";
-        $this->whatsApp->sendText($instanceName, $session->phone_number, $confirmMsg);
 
         return $this->sendNextStepMenu($session, $instanceName, $steps);
     }
@@ -598,9 +623,6 @@ class ListBotService
 
         Log::info('ListBot: Custom answer saved', ['session' => $session->id, 'field' => $fieldKey, 'value' => mb_substr($rawMessage, 0, 50)]);
 
-        $confirmMsg = "✅ Got it!";
-        $this->whatsApp->sendText($instanceName, $session->phone_number, $confirmMsg);
-
         return $this->sendNextStepMenu($session, $instanceName, $steps);
     }
 
@@ -616,8 +638,8 @@ class ListBotService
             $welcomeMsg = "Welcome! 👋\nPlease select a category from the menu below.";
         }
 
-        // Send welcome text first
-        $this->whatsApp->sendText($instanceName, $session->phone_number, $welcomeMsg);
+        // Send welcome text first (with reset footer)
+        $this->whatsApp->sendText($instanceName, $session->phone_number, $welcomeMsg . $this->resetFooter());
 
         // Get categories
         $categories = \App\Models\Category::where('company_id', $this->companyId)
@@ -855,7 +877,8 @@ class ListBotService
             case 'ask_optional':
                 // For free-text steps, just send the question as text
                 $question = $nextStep->question_text ?: "Please provide your {$nextStep->field_key}:";
-                $this->whatsApp->sendText($instanceName, $session->phone_number, "📝 {$question}");
+                $fullMsg = "📝 {$question}" . $this->resetFooter();
+                $this->whatsApp->sendText($instanceName, $session->phone_number, $fullMsg);
                 return $question;
 
             case 'send_summary':
@@ -1126,13 +1149,19 @@ class ListBotService
             $msg .= "📝 *" . ucfirst(str_replace('_', ' ', $key)) . ":* {$val}\n";
         }
 
-        $msg .= "\n✅ Our team will contact you shortly! 🙏";
-
         $this->whatsApp->sendText($instanceName, $session->phone_number, $msg);
 
-        // Mark session completed
-        $session->conversation_state = 'completed';
-        $session->update(['status' => 'completed']);
+        // Ask if user wants to add another product
+        $addMoreMsg = "━━━━━━━━━━━━━━━\n";
+        $addMoreMsg .= "🛒 *Kya aap aur product add karna chahte hain?*\n\n";
+        $addMoreMsg .= "1️⃣ ✅ Haan, aur product add karo\n";
+        $addMoreMsg .= "2️⃣ ❌ Nahi, order complete karo";
+
+        $this->whatsApp->sendText($instanceName, $session->phone_number, $addMoreMsg);
+
+        // Set state to awaiting add-more decision
+        $session->conversation_state = 'awaiting_add_more';
+        $session->save();
 
         return $msg;
     }
@@ -1300,6 +1329,14 @@ class ListBotService
     {
         $combo = $product->combos->firstWhere('column_id', $column->id);
         return $combo ? ($combo->selected_values ?? []) : [];
+    }
+
+    /**
+     * Append reset footer to bot messages
+     */
+    private function resetFooter(): string
+    {
+        return "\n\n━━━━━━━━━━━━━━━\n↩️ Type *reset* to start over";
     }
 
     /**

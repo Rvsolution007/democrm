@@ -138,9 +138,21 @@ class ProductsController extends Controller
      */
     private function injectSystemDefaults(array &$validated)
     {
+        $companyId = auth()->user()->company_id;
+        
+        // If 'name' is managed as a custom column, pull it from custom_data
+        $nameDefault = 'Unnamed Product';
+        if (!array_key_exists('name', $validated) && isset($validated['custom_data'])) {
+            $titleCol = \App\Models\CatalogueCustomColumn::where('company_id', $companyId)
+                ->where('is_title', true)->where('is_active', true)->where('is_system', false)->first();
+            if ($titleCol && !empty($validated['custom_data'][$titleCol->id])) {
+                $nameDefault = $validated['custom_data'][$titleCol->id];
+            }
+        }
+        
         // These DB columns must ALWAYS have values, regardless of DFM configuration
         $coreDefaults = [
-            'name'        => $validated['name'] ?? 'Unnamed Product',
+            'name'        => $validated['name'] ?? $nameDefault,
             'sku'         => $validated['sku'] ?? 'AUTO-' . strtoupper(uniqid()),
             'description' => $validated['description'] ?? '',
             'sale_price'  => $validated['sale_price'] ?? 0,

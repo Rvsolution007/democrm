@@ -14,7 +14,13 @@
                 @elseif($col->is_title)
                     @php
                         $displayName = $product->name;
-                        if (preg_match('/^Product\s+\d+$/i', $displayName) && $product->category) {
+                        if (!$col->is_system) {
+                            $titleCustomVal = $product->customValues->where('column_id', $col->id)->first();
+                            if ($titleCustomVal && !empty($titleCustomVal->value)) {
+                                $displayName = $titleCustomVal->value;
+                            }
+                        }
+                        if (preg_match('/^(Product\s+\d+|Unnamed Product)$/i', $displayName) && $product->category) {
                             $displayName = $product->category->name;
                         }
                     @endphp
