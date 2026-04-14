@@ -68,81 +68,79 @@ class ListBotService
         }
 
         try {
-            DB::transaction(function () use ($instanceName, $phone, $messageText, $listRowId) {
-                $session = AiChatSession::findOrCreateForPhone($this->companyId, $phone, $instanceName);
-                $session->update(['last_message_at' => now()]);
+            $session = AiChatSession::findOrCreateForPhone($this->companyId, $phone, $instanceName);
+            $session->update(['last_message_at' => now()]);
 
-                // Session expiry check
-                $validDays = (int) Setting::getValue('ai_bot', 'session_valid_days', 10, $this->companyId);
-                if (!$session->wasRecentlyCreated && $session->last_message_at) {
-                    $daysSinceLastMessage = $session->last_message_at->diffInDays(now());
-                    if ($daysSinceLastMessage >= $validDays) {
-                        Log::info('ListBot: Session expired', ['session' => $session->id, 'days' => $daysSinceLastMessage]);
-                        $session->update(['status' => 'expired']);
-                        $session = AiChatSession::create([
-                            'company_id' => $this->companyId,
-                            'phone_number' => $phone,
-                            'instance_name' => $instanceName,
-                            'status' => 'active',
-                            'last_message_at' => now(),
-                        ]);
-                    }
-                }
-
-                // Save user message
-                AiChatMessage::create([
-                    'session_id' => $session->id,
-                    'role' => 'user',
-                    'message' => $messageText,
-                    'message_type' => 'text',
-                ]);
-
-                // Early lead creation on first message
-                if (!$session->lead_id) {
-                    $lead = Lead::create([
-                        'company_id' => $this->companyId,
-                        'created_by_user_id' => $this->userId,
-                        'source' => 'whatsapp',
-                        'name' => $phone,
-                        'phone' => $phone,
-                        'stage' => 'new',
-                    ]);
-                    $session->lead_id = $lead->id;
-                    $session->save();
-                    Log::info('ListBot: Lead created', ['session' => $session->id, 'lead_id' => $lead->id]);
-                }
-
-                // Reset session if user types "hi", "hello", or "menu" to start over
-                if (in_array(trim(strtolower($messageText)), ['hi', 'hello', 'menu'])) {
-                    // Mark old session expired and create a new one
-                    $session->update(['status' => 'expired', 'is_completed' => true]);
-                    
+            // Session expiry check
+            $validDays = (int) Setting::getValue('ai_bot', 'session_valid_days', 10, $this->companyId);
+            if (!$session->wasRecentlyCreated && $session->last_message_at) {
+                $daysSinceLastMessage = $session->last_message_at->diffInDays(now());
+                if ($daysSinceLastMessage >= $validDays) {
+                    Log::info('ListBot: Session expired', ['session' => $session->id, 'days' => $daysSinceLastMessage]);
+                    $session->update(['status' => 'expired']);
                     $session = AiChatSession::create([
                         'company_id' => $this->companyId,
                         'phone_number' => $phone,
                         'instance_name' => $instanceName,
                         'status' => 'active',
-                        'conversation_state' => 'started',
                         'last_message_at' => now(),
                     ]);
-                    
-                    Log::info('ListBot: Session reset by user', ['session' => $session->id]);
                 }
+            }
 
-                // Route the message
-                $response = $this->routeMessage($session, $instanceName, $messageText, $listRowId);
+            // Save user message
+            AiChatMessage::create([
+                'session_id' => $session->id,
+                'role' => 'user',
+                'message' => $messageText,
+                'message_type' => 'text',
+            ]);
 
-                // Save bot response
-                if ($response) {
-                    AiChatMessage::create([
-                        'session_id' => $session->id,
-                        'role' => 'bot',
-                        'message' => $response,
-                        'message_type' => 'text',
-                    ]);
-                    $session->update(['last_bot_message_at' => now()]);
-                }
-            });
+            // Early lead creation on first message
+            if (!$session->lead_id) {
+                $lead = Lead::create([
+                    'company_id' => $this->companyId,
+                    'created_by_user_id' => $this->userId,
+                    'source' => 'whatsapp',
+                    'name' => $phone,
+                    'phone' => $phone,
+                    'stage' => 'new',
+                ]);
+                $session->lead_id = $lead->id;
+                $session->save();
+                Log::info('ListBot: Lead created', ['session' => $session->id, 'lead_id' => $lead->id]);
+            }
+
+            // Reset session if user types "hi", "hello", or "menu" to start over
+            if (in_array(trim(strtolower($messageText)), ['hi', 'hello', 'menu'])) {
+                // Mark old session expired and create a new one
+                $session->update(['status' => 'expired', 'is_completed' => true]);
+                
+                $session = AiChatSession::create([
+                    'company_id' => $this->companyId,
+                    'phone_number' => $phone,
+                    'instance_name' => $instanceName,
+                    'status' => 'active',
+                    'conversation_state' => 'started',
+                    'last_message_at' => now(),
+                ]);
+                
+                Log::info('ListBot: Session reset by user', ['session' => $session->id]);
+            }
+
+            // Route the message
+            $response = $this->routeMessage($session, $instanceName, $messageText, $listRowId);
+
+            // Save bot response
+            if ($response) {
+                AiChatMessage::create([
+                    'session_id' => $session->id,
+                    'role' => 'bot',
+                    'message' => $response,
+                    'message_type' => 'text',
+                ]);
+                $session->update(['last_bot_message_at' => now()]);
+            }
         } catch (\Exception $e) {
             Log::error('ListBot: Processing failed - ' . $e->getMessage(), [
                 'phone' => $phone,

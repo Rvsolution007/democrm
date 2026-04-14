@@ -271,6 +271,8 @@ class WhatsAppService
         }
 
         // Enforce WhatsApp limits on sections/rows before sending
+        // Keep originals for text fallback (which can show full names)
+        $originalSections = $sections;
         $sections = array_slice($sections, 0, 10);
         foreach ($sections as &$section) {
             $section['title'] = mb_substr($section['title'] ?? '', 0, 24);
@@ -328,7 +330,7 @@ class WhatsAppService
         // ── Priority 3: Text-based menu fallback ──
         // Only use text fallback if evoTextmenuEnabled is ON (or no Official API available)
         if ($this->shouldUseTextMenuFallback() || !$this->isOfficialApiActive()) {
-            return $this->sendListAsText($instanceName, $phone, $title, $description, $sections, $footer);
+            return $this->sendListAsText($instanceName, $phone, $title, $description, $originalSections, $footer);
         }
 
         // Text menu OFF + Official API active = native list is the only option (already tried above)
@@ -441,7 +443,8 @@ class WhatsAppService
             }
 
             foreach ($section['rows'] ?? [] as $row) {
-                $text .= "*{$num}.* {$row['title']}";
+                $displayTitle = $row['fullTitle'] ?? $row['title'] ?? '';
+                $text .= "*{$num}.* {$displayTitle}";
                 if (!empty($row['description'])) {
                     $text .= " — _{$row['description']}_";
                 }
@@ -449,7 +452,7 @@ class WhatsAppService
 
                 $rowMap[(string)$num] = [
                     'rowId' => $row['rowId'] ?? '',
-                    'title' => $row['title'] ?? '',
+                    'title' => $row['fullTitle'] ?? $row['title'] ?? '',
                 ];
                 $num++;
             }
@@ -534,6 +537,7 @@ class WhatsAppService
 
             $rows[] = [
                 'title' => mb_substr($name, 0, 24),
+                'fullTitle' => $name,
                 'description' => mb_substr($desc, 0, 72) ?: 'Select this product',
                 'rowId' => 'prod_' . $product->id,
             ];
@@ -568,6 +572,7 @@ class WhatsAppService
         foreach ($values as $val) {
             $rows[] = [
                 'title' => mb_substr($val, 0, 24),
+                'fullTitle' => $val,
                 'description' => 'Select ' . mb_substr($val, 0, 60),
                 'rowId' => $prefix . $val,
             ];
