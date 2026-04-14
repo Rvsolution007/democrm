@@ -889,41 +889,29 @@ class ListBotService
         // ── Strategy 1: Get values from ProductCombo.selected_values ──
         $comboValues = $product ? $this->getComboValuesForProduct($product, $column) : [];
 
-        // ── Strategy 2: Get the specific product's custom value for this column ──
+        // ── Strategy 2: Get THIS product's own custom value for this column ──
         if (empty($comboValues) && $product) {
             $customVal = $product->customValues->firstWhere('column_id', $column->id);
             if ($customVal && !empty($customVal->value)) {
                 $decoded = json_decode($customVal->value, true);
                 if (is_array($decoded) && count($decoded) > 0) {
-                    $comboValues = $decoded;
+                    $comboValues = array_values(array_filter($decoded));
                 } elseif (!empty($customVal->value)) {
                     $comboValues = [$customVal->value];
                 }
             }
-            Log::info('ListBot: Product custom value lookup', [
-                'column' => $column->name,
-                'product_id' => $productId,
-                'found' => count($comboValues),
-            ]);
         }
 
-        // ── Strategy 3: Get distinct custom values across products in category ──
+        Log::info('ListBot: sendComboMenu data lookup', [
+            'column' => $column->name,
+            'product_id' => $productId,
+            'values_found' => count($comboValues),
+            'values' => array_slice($comboValues, 0, 5),
+        ]);
+
+        // ── Product has NO data for this column → SKIP to next chatflow question ──
         if (empty($comboValues)) {
-            $comboValues = $this->getDistinctColumnValues($session, $column);
-        }
-
-        // ── Strategy 4: Use column definition options (for select/multiselect columns) ──
-        if (empty($comboValues) && !empty($column->options)) {
-            $comboValues = array_values(array_filter($column->options));
-            Log::info('ListBot: Using column definition options', [
-                'column' => $column->name,
-                'options_count' => count($comboValues),
-            ]);
-        }
-
-        // ── No data found → SKIP this step, go to next chatflow question ──
-        if (empty($comboValues)) {
-            Log::info('ListBot: No values found for combo step, skipping to next', [
+            Log::info('ListBot: Product has no data for this column, skipping step', [
                 'step' => $step->name ?? $step->id,
                 'column' => $column->name,
             ]);
@@ -1019,15 +1007,6 @@ class ListBotService
         }
         $valuesList = array_keys($availableValues);
         sort($valuesList);
-
-        // Fallback: use column definition options (for select/multiselect columns)
-        if (empty($valuesList) && !empty($column->options)) {
-            $valuesList = array_values(array_filter($column->options));
-            Log::info('ListBot: sendColumnMenu using column definition options', [
-                'column' => $column->name,
-                'options_count' => count($valuesList),
-            ]);
-        }
 
         if (empty($valuesList)) {
             Log::info('ListBot: No column values found, skipping to next step', [
