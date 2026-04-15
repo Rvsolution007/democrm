@@ -14,20 +14,22 @@ use App\Models\QuoteItem;
 use App\Models\Setting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Collection;
 
 /**
- * List Bot Service — Zero AI, Pure Interactive List Menus
+ * List Bot Service — Zero AI, Progressive Chatflow Filter
  *
- * Uses the SAME chatflow steps, session model, lead/quote creation as AIChatbotService
- * but with ZERO Gemini/AI calls. All selections are via WhatsApp Interactive Lists.
+ * Uses chatflow steps to progressively filter products via interactive WhatsApp menus.
+ * NO Gemini/AI calls. All selections are via WhatsApp Interactive Lists.
  *
  * Flow:
- * 1. User sends any message → Welcome + Category Menu
- * 2. User taps Category → Product Menu
- * 3. User taps Product → Create Lead/Quote → Chatflow Step Menu
- * 4. User taps Column/Combo option → Save → Next Step
- * 5. User types free text (ask_custom) → Save as-is → Next Step
- * 6. All steps done → Order Summary
+ * 1. First chatflow question → show distinct values from ALL products for that column
+ * 2. User selects value → filter products → check how many match
+ * 3. Multiple matches → queue products, take first
+ * 4. Next question → get data from CURRENT product (first in queue)
+ * 5. Blank column → skip | Single value → auto-select | Multiple values → ask
+ * 6. All questions done → Summary
+ * 7. Queue has more → next product → repeat from step 4
  */
 class ListBotService
 {
@@ -37,6 +39,7 @@ class ListBotService
     private ?CatalogueCustomColumn $uniqueColumn = null;
     private bool $uniqueColumnLoaded = false;
     private $aiVisibleColumns = null;
+    private int $stepMenuDepth = 0;
 
     public function __construct(int $companyId, int $userId)
     {
@@ -48,7 +51,6 @@ class ListBotService
             'company_id' => $companyId,
             'user_id' => $userId,
             'active_products' => Product::where('company_id', $companyId)->where('status', 'active')->count(),
-            'total_products' => Product::where('company_id', $companyId)->count(),
         ]);
     }
 
@@ -111,11 +113,10 @@ class ListBotService
                 Log::info('ListBot: Lead created', ['session' => $session->id, 'lead_id' => $lead->id]);
             }
 
-            // Reset session if user types "hi", "hello", "menu", or "reset" to start over
-            if (in_array(trim(strtolower($messageText)), ['hi', 'hello', 'menu', 'reset'])) {
-                // Mark old session expired and create a new one
+            // Reset session if user types "reset"
+            $trimmed = trim(strtolower($messageText));
+            if ($trimmed === 'reset') {
                 $session->update(['status' => 'expired', 'is_completed' => true]);
-                
                 $session = AiChatSession::create([
                     'company_id' => $this->companyId,
                     'phone_number' => $phone,
@@ -124,8 +125,8 @@ class ListBotService
                     'conversation_state' => 'started',
                     'last_message_at' => now(),
                 ]);
-                
                 Log::info('ListBot: Session reset by user', ['session' => $session->id]);
+                $this->whatsApp->sendText($instanceName, $session->phone_number, "🔄 Reset successful!" . $this->resetFooter());
             }
 
             // Route the message
@@ -150,29 +151,28 @@ class ListBotService
     }
 
     // ═══════════════════════════════════════════════════════
-    // MESSAGE ROUTING — based on session state + rowId
+    // MESSAGE ROUTING — Simplified State Machine
     // ═══════════════════════════════════════════════════════
 
     private function routeMessage(AiChatSession $session, string $instanceName, string $messageText, ?string $listRowId): ?string
     {
         $steps = ChatflowStep::with('linkedColumn')->where('company_id', $this->companyId)->orderBy('sort_order')->get();
-        $currentStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
         $answers = $session->collected_answers ?? [];
 
-        // Parse rowId if present
+        // Parse rowId if present (user tapped a list option)
         $parsed = $listRowId ? WhatsAppService::parseRowId($listRowId) : null;
 
-        // ── CASE 0a: User tapped a list selection (rowId present) ──
+        // ── Handle list selection (rowId present) ──
         if ($parsed) {
             return $this->handleListSelection($session, $instanceName, $parsed, $steps);
         }
 
-        // ── CASE 0b: Text fallback — user sent a number or typed a name to select ──
+        // ── Handle text fallback (number/text from rowMap) ──
         $trimmedText = trim($messageText);
         if (isset($answers['_text_menu_rowMap'])) {
             $rowMap = $answers['_text_menu_rowMap'];
 
-            // --- 0b-i: Exact number match ---
+            // Exact number match
             if (ctype_digit($trimmedText) && isset($rowMap[$trimmedText])) {
                 $entry = $rowMap[$trimmedText];
                 $rowId = is_array($entry) ? ($entry['rowId'] ?? '') : $entry;
@@ -186,7 +186,7 @@ class ListBotService
                 }
             }
 
-            // --- 0b-ii: Fuzzy text matching on option titles ---
+            // Fuzzy text matching on option titles
             $fuzzyMatch = $this->fuzzyMatchFromRowMap($trimmedText, $rowMap);
             if ($fuzzyMatch) {
                 $rowId = $fuzzyMatch['rowId'];
@@ -196,189 +196,85 @@ class ListBotService
                         'input' => $trimmedText,
                         'matched' => $fuzzyMatch['title'],
                         'score' => $fuzzyMatch['score'],
-                        'rowId' => $rowId,
                     ]);
                     unset($answers['_text_menu_rowMap']);
                     $session->collected_answers = $answers;
                     $session->save();
-                    
                     return $this->handleListSelection($session, $instanceName, $parsed, $steps);
                 }
             }
 
-            // --- 0b-iii: Invalid input — resend with hint ---
+            // Invalid input — hint
             if (ctype_digit($trimmedText)) {
-                $this->whatsApp->sendText($instanceName, $session->phone_number, "❌ Invalid option. Please reply with a valid number from the menu.");
+                $this->whatsApp->sendText($instanceName, $session->phone_number, "❌ Invalid option. Please reply with a valid number from the menu." . $this->resetFooter());
             } else {
-                $this->whatsApp->sendText($instanceName, $session->phone_number, "❌ Could not match \"{$trimmedText}\". Please reply with the *number* or type the *exact name*.");
+                $this->whatsApp->sendText($instanceName, $session->phone_number, "❌ Could not match \"{$trimmedText}\". Please reply with the *number* or type the *exact name*." . $this->resetFooter());
             }
             return null;
         }
 
-        // ── CASE 0c: Awaiting "add more product?" decision ──
+        // ── Handle "awaiting_add_more" state ──
         if ($session->conversation_state === 'awaiting_add_more') {
             $choice = trim(strtolower($trimmedText));
             if (in_array($choice, ['1', 'yes', 'haan', 'ha', 'y'])) {
-                // User wants to add another product — clear product-specific answers, keep lead/quote
-                $keepKeys = ['_text_menu_rowMap']; // internal keys to clear
-                $productKeys = ['product_id', 'product_name', 'category_id', 'category_ids', 'category_name', 'selected_product_group'];
-                $newAnswers = [];
-                foreach ($answers as $k => $v) {
-                    // Keep only custom answers (name, email etc.) — remove product/combo/column answers
-                    if (in_array($k, $productKeys)) continue;
-                    if (str_starts_with($k, 'column_filter_')) continue;
-                    if (str_starts_with($k, '_')) continue;
-                    // Check if key is a combo slug
-                    $isComboSlug = ChatflowStep::where('company_id', $this->companyId)
-                        ->where('step_type', 'ask_combo')
-                        ->whereHas('linkedColumn', fn($q) => $q->where('slug', $k))
-                        ->exists();
-                    if ($isComboSlug) continue;
-                    $newAnswers[$k] = $v;
+                // Check if product queue has more items
+                $queue = $answers['_product_queue'] ?? [];
+                if (!empty($queue)) {
+                    // Take next product from queue
+                    $nextProductId = array_shift($queue);
+                    $session->setAnswer('_product_queue', $queue);
+                    return $this->startProductChatflow($session, $instanceName, $nextProductId, $steps);
                 }
-                $session->collected_answers = $newAnswers;
-                $session->current_step_id = null;
-                $session->conversation_state = 'started';
+                // No queue — restart fresh for new product selection
+                $this->resetForNewProduct($session);
                 $session->save();
-                Log::info('ListBot: User wants to add more products', ['session' => $session->id]);
-                return $this->sendWelcomeWithCategories($session, $instanceName);
+                return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
             } else {
-                // User is done — finalize
+                // User is done
                 $session->conversation_state = 'completed';
                 $session->update(['status' => 'completed']);
-                $finalMsg = "✅ Order complete! Our team will contact you shortly. 🙏";
+                $finalMsg = "✅ Order complete! Our team will contact you shortly. 🙏" . $this->resetFooter();
                 $this->whatsApp->sendText($instanceName, $session->phone_number, $finalMsg);
                 return $finalMsg;
             }
         }
 
-        // ── CASE 1: No product selected yet → send welcome/categories ──
-        if (!isset($answers['product_id']) && !isset($answers['category_id'])) {
-            return $this->sendWelcomeWithCategories($session, $instanceName);
+        // ── Handle custom/optional text steps ──
+        $currentStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
+        if ($currentStep && in_array($currentStep->step_type, ['ask_custom', 'ask_optional'])) {
+            return $this->handleCustomStep($session, $currentStep, $messageText, $steps, $instanceName);
         }
 
-        // ── CASE 2: Category selected but no product → try smart match or re-send menu ──
-        if (isset($answers['category_id']) && !isset($answers['product_id'])) {
-            // Try to fuzzy-match user text against products in this category
-            $matchedProduct = $this->smartMatchProduct($session, $trimmedText);
-            if ($matchedProduct) {
-                Log::info('ListBot: Smart-matched product from text', ['product' => $matchedProduct->id, 'input' => $trimmedText]);
-                return $this->handleProductSelection($session, $instanceName, $matchedProduct->id, $steps);
+        // ── Default: Start or continue chatflow ──
+        if ($trimmedText === 'reset') {
+            // Already handled above, but if we reach here somehow, just send first question
+        }
+
+        // If no step is active (new session or just reset), start chatflow
+        if (!$session->current_step_id || $session->conversation_state === 'started' || !$session->conversation_state) {
+            // Send welcome + first chatflow question
+            $welcomeMsg = Setting::getValue('list_bot', 'welcome_message', '', $this->companyId);
+            if (!empty($welcomeMsg)) {
+                $this->whatsApp->sendText($instanceName, $session->phone_number, $welcomeMsg . $this->resetFooter());
             }
-            return $this->resendCurrentMenu($session, $instanceName, $steps);
+            $session->conversation_state = 'in_chatflow';
+            $session->save();
+            return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
         }
 
-
-        // ── CASE 3: Product selected, in chatflow ──
+        // If user sends random text while in chatflow (not a custom step), resend current menu
         if ($currentStep) {
-            // For ask_custom/ask_optional steps, accept text as-is
-            if (in_array($currentStep->step_type, ['ask_custom', 'ask_optional'])) {
-                return $this->handleCustomStep($session, $currentStep, $messageText, $steps, $instanceName);
-            }
-
-            // For other step types (ask_combo, ask_column), user should use menu
             return $this->resendCurrentMenu($session, $instanceName, $steps);
         }
 
-        // ── CASE 4: Completed or no active step → restart ──
-        return $this->sendWelcomeWithCategories($session, $instanceName);
+        // Fallback: restart chatflow
+        $session->conversation_state = 'in_chatflow';
+        $session->save();
+        return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
     }
-
-    /**
-     * Fuzzy match user text against rowMap option titles.
-     * Uses multiple strategies: exact match, substring, similar_text, levenshtein.
-     * Returns best match if score >= 60%, null otherwise.
-     */
-    private function fuzzyMatchFromRowMap(string $userInput, array $rowMap): ?array
-    {
-        $input = mb_strtolower(trim($userInput));
-        if (empty($input) || mb_strlen($input) < 2) {
-            return null;
-        }
-
-        $bestMatch = null;
-        $bestScore = 0;
-        $threshold = 60; // minimum % match
-
-        foreach ($rowMap as $num => $entry) {
-            // Support both old format (string) and new format (array with rowId+title)
-            if (is_array($entry)) {
-                $rowId = $entry['rowId'] ?? '';
-                $title = $entry['title'] ?? '';
-            } else {
-                $rowId = $entry;
-                $title = '';
-            }
-
-            if (empty($title)) continue;
-
-            $optionLower = mb_strtolower(trim($title));
-            $score = 0;
-
-            // Strategy 1: Exact match (100%)
-            if ($input === $optionLower) {
-                return ['rowId' => $rowId, 'title' => $title, 'score' => 100];
-            }
-
-            // Strategy 2: Input is substring of option or vice versa (85%)
-            if (str_contains($optionLower, $input) || str_contains($input, $optionLower)) {
-                $score = 85;
-            }
-
-            // Strategy 3: similar_text percentage
-            if ($score < $threshold) {
-                similar_text($input, $optionLower, $similarPercent);
-                $score = max($score, $similarPercent);
-            }
-
-            // Strategy 4: Levenshtein distance (for typos) — only for short strings
-            if ($score < $threshold && mb_strlen($input) <= 50 && mb_strlen($optionLower) <= 50) {
-                $distance = levenshtein($input, $optionLower);
-                $maxLen = max(mb_strlen($input), mb_strlen($optionLower));
-                if ($maxLen > 0) {
-                    $levenScore = (1 - ($distance / $maxLen)) * 100;
-                    $score = max($score, $levenScore);
-                }
-            }
-
-            // Strategy 5: Word-level matching (check if key words match)
-            if ($score < $threshold) {
-                $inputWords = preg_split('/[\s_\-]+/', $input);
-                $optionWords = preg_split('/[\s_\-]+/', $optionLower);
-                $matchedWords = 0;
-                foreach ($inputWords as $word) {
-                    if (mb_strlen($word) < 2) continue;
-                    foreach ($optionWords as $optWord) {
-                        if (str_contains($optWord, $word) || str_contains($word, $optWord)) {
-                            $matchedWords++;
-                            break;
-                        }
-                    }
-                }
-                if (count($inputWords) > 0) {
-                    $wordScore = ($matchedWords / count($inputWords)) * 90;
-                    $score = max($score, $wordScore);
-                }
-            }
-
-            if ($score > $bestScore && $score >= $threshold) {
-                $bestScore = $score;
-                $bestMatch = ['rowId' => $rowId, 'title' => $title, 'score' => round($score, 1)];
-            }
-        }
-
-        Log::info('ListBot: Fuzzy match result', [
-            'input' => $userInput,
-            'bestMatch' => $bestMatch ? $bestMatch['title'] : 'none',
-            'bestScore' => $bestScore,
-        ]);
-
-        return $bestMatch;
-    }
-
 
     // ═══════════════════════════════════════════════════════
-    // INTERACTIVE LIST SELECTION HANDLER
+    // LIST SELECTION HANDLER
     // ═══════════════════════════════════════════════════════
 
     private function handleListSelection(AiChatSession $session, string $instanceName, array $parsed, $steps): ?string
@@ -397,29 +293,28 @@ class ListBotService
                 return $this->handleComboSelection($session, $instanceName, $parsed['id'], $parsed['value'], $steps);
 
             default:
-                return $this->sendWelcomeWithCategories($session, $instanceName);
+                return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
         }
     }
 
     // ═══════════════════════════════════════════════════════
-    // CATEGORY SELECTION
+    // CATEGORY SELECTION — Filter products by category
     // ═══════════════════════════════════════════════════════
 
     private function handleCategorySelection(AiChatSession $session, string $instanceName, int $categoryId, $steps): ?string
     {
         $category = \App\Models\Category::find($categoryId);
         if (!$category || $category->company_id !== $this->companyId) {
-            return $this->sendWelcomeWithCategories($session, $instanceName);
+            $this->whatsApp->sendText($instanceName, $session->phone_number, "❌ Invalid category." . $this->resetFooter());
+            return null;
         }
 
-        // Check if this category is part of a grouped set (wrongly created 1:1 categories)
-        // Find all categories that share the same prefix (e.g. "Conceal Handle 0010" → "Conceal Handle")
+        // Group related categories (prefix matching)
         $baseName = preg_replace('/[\s\-_]*[\d]+[\s\-_]*$/', '', trim($category->name));
         $baseName = trim($baseName);
-        
+
         $relatedCatIds = [$categoryId];
         if (!empty($baseName) && $baseName !== $category->name) {
-            // Find all categories with the same base name
             $relatedCats = \App\Models\Category::where('company_id', $this->companyId)
                 ->where('status', 'active')
                 ->where('name', 'LIKE', $baseName . '%')
@@ -427,106 +322,93 @@ class ListBotService
                 ->toArray();
             if (count($relatedCats) > 1) {
                 $relatedCatIds = $relatedCats;
-                Log::info('ListBot: Grouped category selected', [
-                    'base_name' => $baseName,
-                    'related_cat_count' => count($relatedCatIds),
-                ]);
             }
         }
 
-        // Save to session
+        // Save category answer
         $session->setAnswer('category_id', $categoryId);
         $session->setAnswer('category_ids', $relatedCatIds);
         $session->setAnswer('category_name', $baseName ?: $category->name);
-        $session->conversation_state = 'awaiting_product';
-        $session->catalogue_sent = true;
+
+        Log::info('ListBot: Category selected', ['session' => $session->id, 'category' => $baseName ?: $category->name]);
+
+        // Now filter products by category and check for queue
+        $filteredProducts = $this->getFilteredProducts($session);
+
+        Log::info('ListBot: Products after category filter', [
+            'count' => $filteredProducts->count(),
+            'ids' => $filteredProducts->pluck('id')->toArray(),
+        ]);
+
+        if ($filteredProducts->isEmpty()) {
+            $this->whatsApp->sendText($instanceName, $session->phone_number, "Sorry, no products available in this category." . $this->resetFooter());
+            // Reset category selection
+            $answers = $session->collected_answers ?? [];
+            unset($answers['category_id'], $answers['category_ids'], $answers['category_name']);
+            $session->collected_answers = $answers;
+            $session->save();
+            return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
+        }
+
+        if ($filteredProducts->count() === 1) {
+            // Single product — set it directly, no queue
+            $product = $filteredProducts->first();
+            $session->setAnswer('product_id', $product->id);
+            $session->setAnswer('product_name', $this->getProductDisplayName($product));
+            $this->attachProductToLead($session, $product);
+            Log::info('ListBot: Auto-selected single product', ['product_id' => $product->id]);
+        } elseif ($filteredProducts->count() > 1) {
+            // Multiple products — create queue, take first
+            $productIds = $filteredProducts->pluck('id')->toArray();
+            $firstProductId = array_shift($productIds);
+            $session->setAnswer('_product_queue', $productIds);
+
+            $product = $filteredProducts->firstWhere('id', $firstProductId);
+            $session->setAnswer('product_id', $firstProductId);
+            $session->setAnswer('product_name', $this->getProductDisplayName($product));
+            $this->attachProductToLead($session, $product);
+
+            Log::info('ListBot: Multiple products matched, queued', [
+                'current' => $firstProductId,
+                'queue' => $productIds,
+            ]);
+        }
 
         // Advance past category step
         $this->advanceChatflow($session, $steps);
         $session->save();
 
-        Log::info('ListBot: Category selected', ['session' => $session->id, 'category' => $baseName ?: $category->name]);
-
-        // Send product list for these categories
-        return $this->sendProductList($session, $instanceName, $relatedCatIds);
+        return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
     }
 
     // ═══════════════════════════════════════════════════════
-    // PRODUCT SELECTION
+    // PRODUCT SELECTION — When products are shown explicitly
     // ═══════════════════════════════════════════════════════
 
     private function handleProductSelection(AiChatSession $session, string $instanceName, int $productId, $steps): ?string
     {
         $product = Product::with(['combos.column', 'activeVariations', 'customValues'])->find($productId);
         if (!$product || $product->company_id !== $this->companyId) {
-            return $this->sendWelcomeWithCategories($session, $instanceName);
+            $this->whatsApp->sendText($instanceName, $session->phone_number, "❌ Invalid product." . $this->resetFooter());
+            return null;
         }
 
-        // Save to session
-        $displayName = $this->getProductDisplayName($product);
         $session->setAnswer('product_id', $productId);
-        $session->setAnswer('product_name', $displayName);
-        $session->conversation_state = 'product_selected';
+        $session->setAnswer('product_name', $this->getProductDisplayName($product));
+        $this->attachProductToLead($session, $product);
 
-        // Attach product to lead and create Quote (wrapped in try-catch to prevent flow termination on error)
-        try {
-            if ($session->lead_id) {
-                $lead = Lead::find($session->lead_id);
-                if ($lead) {
-                    if (!$lead->products()->where('product_id', $productId)->exists()) {
-                        $lead->products()->attach($productId, ['quantity' => 1, 'price' => $product->sale_price]);
-                    }
-                    $lead->update(['product_name' => $displayName]);
-                }
-            }
+        Log::info('ListBot: Product selected', ['session' => $session->id, 'product' => $this->getProductDisplayName($product)]);
 
-            // Create Quote
-            if (!$session->quote_id) {
-                $company = \App\Models\Company::find($this->companyId);
-                $quote = Quote::create([
-                    'company_id' => $this->companyId,
-                    'lead_id' => $session->lead_id,
-                    'created_by_user_id' => $this->userId,
-                    'quote_no' => Quote::generateQuoteNumber($company),
-                    'date' => now(),
-                    'valid_till' => now()->addDays(30),
-                    'subtotal' => $product->sale_price,
-                    'discount' => 0,
-                    'gst_total' => 0,
-                    'grand_total' => $product->sale_price,
-                    'status' => 'draft',
-                ]);
-                QuoteItem::create([
-                    'quote_id' => $quote->id,
-                    'product_id' => $productId,
-                    'product_name' => $displayName,
-                    'description' => $product->getdynamicDescription($session->collected_answers ?? [], true),
-                    'hsn_code' => $product->hsn_code,
-                    'qty' => 1,
-                    'rate' => $product->sale_price,
-                    'unit' => $product->unit,
-                    'unit_price' => $product->sale_price,
-                    'gst_percent' => $product->gst_percent,
-                    'sort_order' => 1,
-                ]);
-                $session->quote_id = $quote->id;
-            }
-        } catch (\Exception $e) {
-            Log::error('ListBot: Error attaching product to lead or creating quote', [
-                'session_id' => $session->id,
-                'error' => $e->getMessage()
-            ]);
-            // Flow continues even if this fails
-        }
+        // Clear any product queue since user explicitly picked one
+        $answers = $session->collected_answers ?? [];
+        unset($answers['_product_queue']);
+        $session->collected_answers = $answers;
 
         // Advance past product step
         $this->advanceChatflow($session, $steps);
         $session->save();
 
-        Log::info('ListBot: Product selected', ['session' => $session->id, 'product' => $displayName]);
-
-        // Send next step (no confirmation message to user)
-        return $this->sendNextStepMenu($session, $instanceName, $steps);
+        return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
     }
 
     // ═══════════════════════════════════════════════════════
@@ -538,21 +420,18 @@ class ListBotService
         $session->setAnswer("column_filter_{$columnId}", $value);
         $session->current_step_retries = 0;
 
-        // Update quote description
-        $productId = $session->getAnswer('product_id');
-        if ($productId) {
-            $product = Product::with(['combos.column', 'customValues'])->find($productId);
-            if ($product) {
-                $this->updateQuoteItemDescription($session, $product);
-            }
-        }
+        Log::info('ListBot: Column filter selected', ['session' => $session->id, 'column' => $columnId, 'value' => $value]);
+
+        // After saving answer, check filtered product count for queue
+        $this->checkAndQueueProducts($session);
+
+        // Update quote description if product is set
+        $this->updateQuoteIfNeeded($session);
 
         $this->advanceChatflow($session, $steps);
         $session->save();
 
-        Log::info('ListBot: Column filter selected', ['session' => $session->id, 'column' => $columnId, 'value' => $value]);
-
-        return $this->sendNextStepMenu($session, $instanceName, $steps);
+        return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
     }
 
     // ═══════════════════════════════════════════════════════
@@ -564,26 +443,22 @@ class ListBotService
         $session->setAnswer($comboSlug, $value);
         $session->current_step_retries = 0;
 
+        Log::info('ListBot: Combo selected', ['session' => $session->id, 'slug' => $comboSlug, 'value' => $value]);
+
+        // After saving answer, check filtered product count for queue
+        $this->checkAndQueueProducts($session);
+
         // Update quote description + variation
-        $productId = $session->getAnswer('product_id');
-        if ($productId) {
-            $product = Product::with(['combos.column', 'activeVariations', 'customValues'])->find($productId);
-            if ($product) {
-                $this->updateQuoteItemDescription($session, $product);
-                $this->updateQuoteVariation($session, $product);
-            }
-        }
+        $this->updateQuoteIfNeeded($session);
 
         $this->advanceChatflow($session, $steps);
         $session->save();
 
-        Log::info('ListBot: Combo selected', ['session' => $session->id, 'slug' => $comboSlug, 'value' => $value]);
-
-        return $this->sendNextStepMenu($session, $instanceName, $steps);
+        return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
     }
 
     // ═══════════════════════════════════════════════════════
-    // CUSTOM STEP — Accept text as-is (no AI)
+    // CUSTOM STEP — Accept text as-is
     // ═══════════════════════════════════════════════════════
 
     private function handleCustomStep(AiChatSession $session, ChatflowStep $step, string $rawMessage, $steps, string $instanceName): ?string
@@ -592,10 +467,9 @@ class ListBotService
         if (!$fieldKey) {
             $this->advanceChatflow($session, $steps);
             $session->save();
-            return $this->sendNextStepMenu($session, $instanceName, $steps);
+            return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
         }
 
-        // Save as-is — no AI extraction
         $session->setAnswer($fieldKey, trim($rawMessage));
         $session->current_step_retries = 0;
 
@@ -621,242 +495,45 @@ class ListBotService
         }
 
         // Update quote description
-        $this->updateQuoteDescription($session);
+        $this->updateQuoteIfNeeded($session);
 
         $this->advanceChatflow($session, $steps);
         $session->save();
 
         Log::info('ListBot: Custom answer saved', ['session' => $session->id, 'field' => $fieldKey, 'value' => mb_substr($rawMessage, 0, 50)]);
 
-        return $this->sendNextStepMenu($session, $instanceName, $steps);
+        return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
     }
 
     // ═══════════════════════════════════════════════════════
-    // SEND WELCOME + CATEGORY MENU
+    // CORE: SEND NEXT CHATFLOW QUESTION
+    // Progressive filtering logic
     // ═══════════════════════════════════════════════════════
 
-    private function sendWelcomeWithCategories(AiChatSession $session, string $instanceName): ?string
+    private function sendNextChatflowQuestion(AiChatSession $session, string $instanceName, $steps): ?string
     {
-        // Get admin-configured welcome message
-        $welcomeMsg = Setting::getValue('list_bot', 'welcome_message', '', $this->companyId);
-        if (empty($welcomeMsg)) {
-            $welcomeMsg = "Welcome! 👋\nPlease select a category from the menu below.";
-        }
-
-        // Send welcome text first (with reset footer)
-        $this->whatsApp->sendText($instanceName, $session->phone_number, $welcomeMsg . $this->resetFooter());
-
-        // Get categories
-        $categories = \App\Models\Category::where('company_id', $this->companyId)
-            ->where('status', 'active')
-            ->whereHas('products', function ($q) {
-                $q->where('status', 'active');
-            })
-            ->withCount(['products' => function ($q) {
-                $q->where('status', 'active');
-            }])
-            ->orderBy('name')
-            ->get();
-
-        $totalActive = Product::where('company_id', $this->companyId)->where('status', 'active')->count();
-
-        Log::info('ListBot: sendWelcomeWithCategories', [
-            'company_id' => $this->companyId,
-            'categories_found' => $categories->count(),
-            'category_names' => $categories->pluck('name')->toArray(),
-            'total_active_products' => $totalActive,
-            'total_categories' => \App\Models\Category::where('company_id', $this->companyId)->count(),
-        ]);
-
-        // Smart category dedup: if most categories have only 1 product,
-        // it means the AI wrongly created individual categories (e.g. "Conceal Handle 0010")
-        // Group them by their text prefix (strip trailing numbers/codes)
-        if ($categories->count() > 5 && $totalActive > 0) {
-            $avgProductsPerCat = $totalActive / max($categories->count(), 1);
-            if ($avgProductsPerCat <= 1.5) {
-                Log::info('ListBot: Detected 1:1 category-product ratio, grouping by prefix');
-                $grouped = $this->groupCategoriesByPrefix($categories);
-                if ($grouped && $grouped->count() < $categories->count()) {
-                    $categories = $grouped;
-                    Log::info('ListBot: Grouped categories', [
-                        'new_count' => $categories->count(),
-                        'names' => $categories->pluck('name')->toArray(),
-                    ]);
-                }
+        // Safety guard: prevent infinite recursion
+        $this->stepMenuDepth++;
+        if ($this->stepMenuDepth > 20) {
+            Log::warning('ListBot: Max recursion depth reached, forcing summary', ['session' => $session->id]);
+            $this->stepMenuDepth = 0;
+            if ($session->getAnswer('product_id')) {
+                return $this->handleSummaryStep($session, $instanceName);
             }
+            $msg = "✅ All done! Our team will contact you shortly. 🙏" . $this->resetFooter();
+            $this->whatsApp->sendText($instanceName, $session->phone_number, $msg);
+            return $msg;
         }
 
-        if ($categories->isEmpty()) {
-            Log::info('ListBot: No categories with products, sending all products directly');
-            // No categories → send product list directly
-            return $this->sendAllProducts($session, $instanceName);
-        }
-
-        // Build category menu
-        $sections = WhatsAppService::buildCategorySections($categories, $this->getCategoryFieldLabel());
-        $buttonText = Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu', $this->companyId);
-        $menuButtonText = mb_substr($buttonText, 0, 20);
-
-        Log::info('ListBot: Sending category menu', [
-            'sections' => count($sections),
-            'buttonText' => $menuButtonText,
-        ]);
-
-        $sent = $this->whatsApp->sendList(
-            $instanceName,
-            $session->phone_number,
-            'Select Category',
-            'Tap the button below to see our categories',
-            $menuButtonText,
-            $sections,
-            'Tap an item to select'
-        );
-
-        // Store rowMap if text fallback was used
-        if (is_array($sent) && !empty($sent['rowMap'])) {
-            Log::info('ListBot: Text fallback used for category menu, storing rowMap');
-            $session->setAnswer('_text_menu_rowMap', $sent['rowMap']);
-        }
-
-        Log::info('ListBot: Category menu sent result', ['success' => $sent !== false]);
-
-        // Update session state
-        $session->conversation_state = 'awaiting_category';
-        $categoryStep = ChatflowStep::where('company_id', $this->companyId)
-            ->where('step_type', 'ask_category')
-            ->orderBy('sort_order')
-            ->first();
-        if ($categoryStep) {
-            $session->current_step_id = $categoryStep->id;
-        }
-        $session->save();
-
-        return null; // Message already sent via sendList
-    }
-
-    // ═══════════════════════════════════════════════════════
-    // SEND PRODUCT LIST MENU
-    // ═══════════════════════════════════════════════════════
-
-    private function sendProductList(AiChatSession $session, string $instanceName, $categoryIds = null): ?string
-    {
-        $query = Product::where('company_id', $this->companyId)->where('status', 'active');
-        if ($categoryIds) {
-            if (is_array($categoryIds)) {
-                $query->whereIn('category_id', $categoryIds);
-            } else {
-                $query->where('category_id', $categoryIds);
-            }
-        }
-
-        // Apply any column filters already set
-        $answers = $session->collected_answers ?? [];
-        foreach ($answers as $key => $val) {
-            if (str_starts_with($key, 'column_filter_')) {
-                $colId = str_replace('column_filter_', '', $key);
-                $query->whereHas('customValues', function ($q) use ($colId, $val) {
-                    $q->where('column_id', $colId)->where('value', $val);
-                });
-            }
-        }
-
-        $products = $query->with(['customValues', 'category'])->orderBy('name')->get();
-
-        Log::info('ListBot: sendProductList', [
-            'company_id' => $this->companyId,
-            'category_ids' => $categoryIds,
-            'products_found' => $products->count(),
-            'product_names' => $products->pluck('name')->toArray(),
-            'product_ids' => $products->pluck('id')->toArray(),
-        ]);
-
-        if ($products->isEmpty()) {
-            Log::warning('ListBot: No products found!', ['company_id' => $this->companyId, 'category_ids' => $categoryIds]);
-            if ($categoryIds) {
-                $msg = "Sorry, no products available in this category.";
-                $this->whatsApp->sendText($instanceName, $session->phone_number, $msg);
-                
-                // Remove the category_id from answers so it can restart
-                $answers = $session->collected_answers ?? [];
-                unset($answers['category_id']);
-                $session->collected_answers = $answers;
-                $session->save();
-                
-                return $this->sendWelcomeWithCategories($session, $instanceName);
-            } else {
-                $msg = "Sorry, no products are currently available. Please check back later! 🙏";
-                $this->whatsApp->sendText($instanceName, $session->phone_number, $msg);
-                return $msg;
-            }
-        }
-
-        // Auto-select if only 1 product
-        if ($products->count() === 1) {
-            Log::info('ListBot: Auto-selecting single product', ['product_id' => $products->first()->id]);
-            $steps = ChatflowStep::with('linkedColumn')->where('company_id', $this->companyId)->orderBy('sort_order')->get();
-            return $this->handleProductSelection($session, $instanceName, $products->first()->id, $steps);
-        }
-
-        $sections = WhatsAppService::buildProductSections($products, fn($p) => $this->getProductDisplayName($p));
-        $buttonText = Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu', $this->companyId);
-
-        Log::info('ListBot: Sending product list', [
-            'sections' => count($sections),
-            'total_rows' => collect($sections)->sum(fn($s) => count($s['rows'] ?? [])),
-        ]);
-
-        $sent = $this->whatsApp->sendList(
-            $instanceName,
-            $session->phone_number,
-            'Select Product',
-            'Choose a product from our catalogue',
-            mb_substr($buttonText, 0, 20),
-            $sections,
-            'Tap to select'
-        );
-
-        // Store rowMap if text fallback was used
-        if (is_array($sent) && !empty($sent['rowMap'])) {
-            Log::info('ListBot: Text fallback used for product menu, storing rowMap');
-            $session->setAnswer('_text_menu_rowMap', $sent['rowMap']);
-            $session->save();
-        }
-
-        Log::info('ListBot: Product list sent result', ['success' => $sent !== false]);
-
-        // Update session
-        $session->conversation_state = 'awaiting_product';
-        $productStep = ChatflowStep::where('company_id', $this->companyId)
-            ->whereIn('step_type', ['ask_product', 'ask_unique_column'])
-            ->orderBy('sort_order')
-            ->first();
-        if ($productStep) {
-            $session->current_step_id = $productStep->id;
-        }
-        $session->save();
-
-        return null; // Message already sent via sendList
-    }
-
-    private function sendAllProducts(AiChatSession $session, string $instanceName): ?string
-    {
-        return $this->sendProductList($session, $instanceName, null);
-    }
-
-    // ═══════════════════════════════════════════════════════
-    // SEND NEXT STEP MENU — dispatches based on step type
-    // ═══════════════════════════════════════════════════════
-
-    private function sendNextStepMenu(AiChatSession $session, string $instanceName, $steps): ?string
-    {
         $nextStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
 
         if (!$nextStep) {
             // Chatflow complete → send summary
-            if ($session->getAnswer('product_id') && ($session->conversation_state === 'completed' || $session->conversation_state === 'in_chatflow')) {
+            $this->stepMenuDepth = 0;
+            if ($session->getAnswer('product_id')) {
                 return $this->handleSummaryStep($session, $instanceName);
             }
-            $msg = "✅ All done! Our team will contact you shortly. 🙏";
+            $msg = "✅ All done! Our team will contact you shortly. 🙏" . $this->resetFooter();
             $this->whatsApp->sendText($instanceName, $session->phone_number, $msg);
             return $msg;
         }
@@ -872,106 +549,212 @@ class ListBotService
         }
 
         switch ($nextStep->step_type) {
+            case 'ask_category':
+                return $this->sendCategoryQuestion($session, $instanceName, $nextStep, $steps);
+
+            case 'ask_product':
+            case 'ask_unique_column':
+                return $this->sendProductQuestion($session, $instanceName, $nextStep, $steps);
+
             case 'ask_combo':
-                return $this->sendComboMenu($session, $instanceName, $nextStep, $steps);
+                return $this->sendComboQuestion($session, $instanceName, $nextStep, $steps);
 
             case 'ask_column':
-                return $this->sendColumnMenu($session, $instanceName, $nextStep, $steps);
+                return $this->sendColumnQuestion($session, $instanceName, $nextStep, $steps);
 
             case 'ask_custom':
             case 'ask_optional':
-                // For free-text steps, just send the question as text
+                $this->stepMenuDepth = 0;
                 $question = $nextStep->question_text ?: "Please provide your {$nextStep->field_key}:";
                 $fullMsg = "📝 {$question}" . $this->resetFooter();
                 $this->whatsApp->sendText($instanceName, $session->phone_number, $fullMsg);
                 return $question;
 
             case 'send_summary':
+                $this->stepMenuDepth = 0;
                 return $this->handleSummaryStep($session, $instanceName);
 
             default:
-                // Unknown step type — advance
+                // Unknown step type — skip
+                $this->markStepSkipped($session, $nextStep);
                 $this->advanceChatflow($session, $steps);
                 $session->save();
-                return $this->sendNextStepMenu($session, $instanceName, $steps);
+                return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
         }
     }
 
     // ═══════════════════════════════════════════════════════
-    // COMBO MENU (finish, color, etc.)
+    // CATEGORY QUESTION — Show categories as options
     // ═══════════════════════════════════════════════════════
 
-    private function sendComboMenu(AiChatSession $session, string $instanceName, ChatflowStep $step, $steps): ?string
+    private function sendCategoryQuestion(AiChatSession $session, string $instanceName, ChatflowStep $step, $steps): ?string
     {
-        $column = $step->linkedColumn;
-        if (!$column) {
-            Log::warning('ListBot: sendComboMenu — no linked column, skipping step', ['step_id' => $step->id]);
-            $this->markStepSkipped($session, $step);
-            $this->advanceChatflow($session, $steps);
-            $session->save();
-            return $this->sendNextStepMenu($session, $instanceName, $steps);
-        }
+        // Get categories with active products
+        $categories = \App\Models\Category::where('company_id', $this->companyId)
+            ->where('status', 'active')
+            ->whereHas('products', function ($q) {
+                $q->where('status', 'active');
+            })
+            ->withCount(['products' => function ($q) {
+                $q->where('status', 'active');
+            }])
+            ->orderBy('name')
+            ->get();
 
-        $productId = $session->getAnswer('product_id');
-        $product = $productId ? Product::with(['combos.column', 'customValues'])->find($productId) : null;
+        $totalActive = Product::where('company_id', $this->companyId)->where('status', 'active')->count();
 
-        // ── Strategy 1: Get values from ProductCombo.selected_values ──
-        $comboValues = $product ? $this->getComboValuesForProduct($product, $column) : [];
-
-        // ── Strategy 2: Get THIS product's own custom value for this column ──
-        if (empty($comboValues) && $product) {
-            $customVal = $product->customValues->firstWhere('column_id', $column->id);
-            if ($customVal && !empty($customVal->value)) {
-                $decoded = json_decode($customVal->value, true);
-                if (is_array($decoded) && count($decoded) > 0) {
-                    $comboValues = array_values(array_filter($decoded));
-                } elseif (!empty($customVal->value)) {
-                    $comboValues = [$customVal->value];
+        // Smart category dedup (group by prefix if too many 1:1 categories)
+        if ($categories->count() > 5 && $totalActive > 0) {
+            $avgProductsPerCat = $totalActive / max($categories->count(), 1);
+            if ($avgProductsPerCat <= 1.5) {
+                $grouped = $this->groupCategoriesByPrefix($categories);
+                if ($grouped && $grouped->count() < $categories->count()) {
+                    $categories = $grouped;
                 }
             }
         }
 
-        Log::info('ListBot: sendComboMenu data lookup', [
-            'column' => $column->name,
-            'product_id' => $productId,
-            'values_found' => count($comboValues),
-            'values' => array_slice($comboValues, 0, 5),
-        ]);
-
-        // ── Product has NO data for this column → SKIP to next chatflow question ──
-        if (empty($comboValues)) {
-            Log::info('ListBot: Product has no data for this column, skipping step', [
-                'step' => $step->name ?? $step->id,
-                'column' => $column->name,
-            ]);
-            // Mark as skipped so advanceChatflow doesn't loop back
+        if ($categories->isEmpty()) {
+            // No categories → skip this step
+            Log::info('ListBot: No categories found, skipping category step');
             $this->markStepSkipped($session, $step);
             $this->advanceChatflow($session, $steps);
             $session->save();
-            return $this->sendNextStepMenu($session, $instanceName, $steps);
+            return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
         }
 
-        // Auto-select if single option
-        if (count($comboValues) === 1) {
-            return $this->handleComboSelection($session, $instanceName, $column->slug, $comboValues[0], $steps);
+        // Auto-select if single category
+        if ($categories->count() === 1) {
+            $cat = $categories->first();
+            Log::info('ListBot: Auto-selecting single category', ['category' => $cat->name]);
+            return $this->handleCategorySelection($session, $instanceName, $cat->id, $steps);
         }
 
-        $sections = WhatsAppService::buildOptionSections($comboValues, $column->name, "combo_{$column->slug}_");
-        $question = $step->question_text ?: "Select {$column->name}:";
+        // Build category menu
+        $sections = WhatsAppService::buildCategorySections($categories, $this->getCategoryFieldLabel());
+        $question = $step->question_text ?: 'Select Category:';
         $buttonText = Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu', $this->companyId);
-
-        Log::info('ListBot: Sending combo menu', [
-            'step' => $step->name,
-            'column' => $column->name,
-            'values_count' => count($comboValues),
-            'values' => array_slice($comboValues, 0, 5),
-        ]);
 
         $sent = $this->whatsApp->sendList(
             $instanceName,
             $session->phone_number,
             mb_substr($question, 0, 60),
-            $question,
+            $question . $this->resetFooter(),
+            mb_substr($buttonText, 0, 20),
+            $sections,
+            'Tap an item to select'
+        );
+
+        // Store rowMap for text fallback
+        if (is_array($sent) && !empty($sent['rowMap'])) {
+            $session->setAnswer('_text_menu_rowMap', $sent['rowMap']);
+        }
+
+        $session->current_step_id = $step->id;
+        $session->save();
+
+        Log::info('ListBot: Sent category question', ['categories' => $categories->count()]);
+        return null;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // PRODUCT QUESTION — Show products as options (from filtered pool)
+    // ═══════════════════════════════════════════════════════
+
+    private function sendProductQuestion(AiChatSession $session, string $instanceName, ChatflowStep $step, $steps): ?string
+    {
+        $products = $this->getFilteredProducts($session);
+
+        if ($products->isEmpty()) {
+            Log::info('ListBot: No products after filter, skipping product step');
+            $this->markStepSkipped($session, $step);
+            $this->advanceChatflow($session, $steps);
+            $session->save();
+            return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
+        }
+
+        // Auto-select if single product
+        if ($products->count() === 1) {
+            $product = $products->first();
+            Log::info('ListBot: Auto-selecting single product', ['product_id' => $product->id]);
+            return $this->handleProductSelection($session, $instanceName, $product->id, $steps);
+        }
+
+        // Build product list menu
+        $sections = WhatsAppService::buildProductSections($products, fn($p) => $this->getProductDisplayName($p));
+        $question = $step->question_text ?: 'Select Product:';
+        $buttonText = Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu', $this->companyId);
+
+        $sent = $this->whatsApp->sendList(
+            $instanceName,
+            $session->phone_number,
+            mb_substr($question, 0, 60),
+            $question . $this->resetFooter(),
+            mb_substr($buttonText, 0, 20),
+            $sections,
+            'Tap to select'
+        );
+
+        if (is_array($sent) && !empty($sent['rowMap'])) {
+            $session->setAnswer('_text_menu_rowMap', $sent['rowMap']);
+        }
+
+        $session->current_step_id = $step->id;
+        $session->save();
+
+        Log::info('ListBot: Sent product question', ['products' => $products->count()]);
+        return null;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // COMBO QUESTION — Show combo values from current product
+    // ═══════════════════════════════════════════════════════
+
+    private function sendComboQuestion(AiChatSession $session, string $instanceName, ChatflowStep $step, $steps): ?string
+    {
+        $column = $step->linkedColumn;
+        if (!$column) {
+            Log::warning('ListBot: Combo step has no linked column, skipping', ['step_id' => $step->id]);
+            $this->markStepSkipped($session, $step);
+            $this->advanceChatflow($session, $steps);
+            $session->save();
+            return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
+        }
+
+        // Get values from filtered products (or current product if set)
+        $comboValues = $this->getValuesForColumn($session, $column, 'combo');
+
+        Log::info('ListBot: Combo question data', [
+            'column' => $column->name,
+            'values_count' => count($comboValues),
+            'values' => array_slice($comboValues, 0, 5),
+        ]);
+
+        // No data → skip
+        if (empty($comboValues)) {
+            Log::info('ListBot: No combo data, skipping', ['column' => $column->name]);
+            $this->markStepSkipped($session, $step);
+            $this->advanceChatflow($session, $steps);
+            $session->save();
+            return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
+        }
+
+        // Single value → auto-select (show confirmation but don't ask)
+        if (count($comboValues) === 1) {
+            Log::info('ListBot: Auto-selecting single combo value', ['column' => $column->name, 'value' => $comboValues[0]]);
+            return $this->handleComboSelection($session, $instanceName, $column->slug, $comboValues[0], $steps);
+        }
+
+        // Multiple values → send menu
+        $sections = WhatsAppService::buildOptionSections($comboValues, $column->name, "combo_{$column->slug}_");
+        $question = $step->question_text ?: "Select {$column->name}:";
+        $buttonText = Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu', $this->companyId);
+
+        $sent = $this->whatsApp->sendList(
+            $instanceName,
+            $session->phone_number,
+            mb_substr($question, 0, 60),
+            $question . $this->resetFooter(),
             mb_substr($buttonText, 0, 20),
             $sections,
             'Tap your choice'
@@ -986,10 +769,10 @@ class ListBotService
     }
 
     // ═══════════════════════════════════════════════════════
-    // COLUMN FILTER MENU (size, material, etc.)
+    // COLUMN QUESTION — Show column filter values from filtered pool
     // ═══════════════════════════════════════════════════════
 
-    private function sendColumnMenu(AiChatSession $session, string $instanceName, ChatflowStep $step, $steps): ?string
+    private function sendColumnQuestion(AiChatSession $session, string $instanceName, ChatflowStep $step, $steps): ?string
     {
         $column = $step->linkedColumn;
         $colId = $step->linked_column_id;
@@ -998,35 +781,189 @@ class ListBotService
             $this->markStepSkipped($session, $step);
             $this->advanceChatflow($session, $steps);
             $session->save();
-            return $this->sendNextStepMenu($session, $instanceName, $steps);
+            return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
         }
 
-        // Get distinct values for this column from available products
+        // Get values from filtered products
+        $valuesList = $this->getValuesForColumn($session, $column, 'column');
+
+        Log::info('ListBot: Column question data', [
+            'column' => $column->name,
+            'values_count' => count($valuesList),
+            'values' => array_slice($valuesList, 0, 5),
+        ]);
+
+        // No data → skip
+        if (empty($valuesList)) {
+            Log::info('ListBot: No column data, skipping', ['column' => $column->name]);
+            $this->markStepSkipped($session, $step);
+            $this->advanceChatflow($session, $steps);
+            $session->save();
+            return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
+        }
+
+        // Single value → auto-select
+        if (count($valuesList) === 1) {
+            Log::info('ListBot: Auto-selecting single column value', ['column' => $column->name, 'value' => $valuesList[0]]);
+            return $this->handleColumnSelection($session, $instanceName, $colId, $valuesList[0], $steps);
+        }
+
+        // Multiple values → send menu
+        $sections = WhatsAppService::buildOptionSections($valuesList, $column->name, "col_{$colId}_");
+        $question = $step->question_text ?: "Select {$column->name}:";
+        $buttonText = Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu', $this->companyId);
+
+        $sent = $this->whatsApp->sendList(
+            $instanceName,
+            $session->phone_number,
+            mb_substr($question, 0, 60),
+            $question . $this->resetFooter(),
+            mb_substr($buttonText, 0, 20),
+            $sections,
+            'Tap your choice'
+        );
+
+        if (is_array($sent) && !empty($sent['rowMap'])) {
+            $session->setAnswer('_text_menu_rowMap', $sent['rowMap']);
+            $session->save();
+        }
+
+        return null;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // CORE: GET FILTERED PRODUCTS — Progressive filter engine
+    // ═══════════════════════════════════════════════════════
+
+    private function getFilteredProducts(AiChatSession $session): Collection
+    {
         $answers = $session->collected_answers ?? [];
         $query = Product::where('company_id', $this->companyId)->where('status', 'active');
 
-        if (isset($answers['product_id'])) {
-            $query->where('id', $answers['product_id']);
+        // Filter by category if set
+        if (isset($answers['category_ids'])) {
+            $query->whereIn('category_id', $answers['category_ids']);
         } elseif (isset($answers['category_id'])) {
             $query->where('category_id', $answers['category_id']);
         }
 
-        // Apply existing column filters
+        // Apply column filters
         foreach ($answers as $key => $val) {
-            if (str_starts_with($key, 'column_filter_') && $key !== "column_filter_{$colId}") {
-                $extColId = str_replace('column_filter_', '', $key);
-                $query->whereHas('customValues', function ($q) use ($extColId, $val) {
-                    $q->where('column_id', $extColId)->where('value', $val);
+            if (str_starts_with($key, 'column_filter_')) {
+                $colId = str_replace('column_filter_', '', $key);
+                $query->where(function ($q) use ($colId, $val) {
+                    $q->whereHas('customValues', function ($subQ) use ($colId, $val) {
+                        $subQ->where('column_id', $colId)
+                            ->where(function ($innerQ) use ($val) {
+                                // Match exact value
+                                $innerQ->where('value', $val)
+                                    // Also match JSON arrays containing the value
+                                    ->orWhere('value', 'LIKE', '%"' . $val . '"%');
+                            });
+                    });
                 });
             }
         }
 
-        $productSet = $query->with('customValues')->get();
+        // Apply combo filters (slug-based answers)
+        $steps = ChatflowStep::with('linkedColumn')
+            ->where('company_id', $this->companyId)
+            ->where('step_type', 'ask_combo')
+            ->get();
+
+        foreach ($steps as $step) {
+            if ($step->linkedColumn && isset($answers[$step->linkedColumn->slug])) {
+                $slug = $step->linkedColumn->slug;
+                $colId = $step->linked_column_id;
+                $val = $answers[$slug];
+
+                $query->where(function ($q) use ($colId, $val) {
+                    // Check product_combos.selected_values contains this value
+                    $q->whereHas('combos', function ($subQ) use ($colId, $val) {
+                        $subQ->where('column_id', $colId)
+                            ->where('selected_values', 'LIKE', '%"' . $val . '"%');
+                    })
+                    // Also check custom_values
+                    ->orWhereHas('customValues', function ($subQ) use ($colId, $val) {
+                        $subQ->where('column_id', $colId)
+                            ->where(function ($innerQ) use ($val) {
+                                $innerQ->where('value', $val)
+                                    ->orWhere('value', 'LIKE', '%"' . $val . '"%');
+                            });
+                    });
+                });
+            }
+        }
+
+        return $query->with(['customValues', 'category', 'combos.column'])->orderBy('name')->get();
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // GET VALUES FOR COLUMN — From filtered products or current product
+    // ═══════════════════════════════════════════════════════
+
+    private function getValuesForColumn(AiChatSession $session, CatalogueCustomColumn $column, string $type): array
+    {
+        $answers = $session->collected_answers ?? [];
+        $productId = $answers['product_id'] ?? null;
+        $colId = $column->id;
+
+        // If we have a specific product, get values from THAT product only
+        if ($productId) {
+            $product = Product::with(['combos.column', 'customValues'])->find($productId);
+            if (!$product) return [];
+
+            if ($type === 'combo') {
+                // Strategy 1: ProductCombo.selected_values
+                $combo = $product->combos->firstWhere('column_id', $colId);
+                $values = $combo ? ($combo->selected_values ?? []) : [];
+
+                // Strategy 2: Product custom value
+                if (empty($values)) {
+                    $customVal = $product->customValues->firstWhere('column_id', $colId);
+                    if ($customVal && !empty($customVal->value)) {
+                        $decoded = json_decode($customVal->value, true);
+                        if (is_array($decoded) && count($decoded) > 0) {
+                            $values = array_values(array_filter($decoded));
+                        } elseif (!empty($customVal->value)) {
+                            $values = [$customVal->value];
+                        }
+                    }
+                }
+
+                return $values;
+            } else {
+                // Column type — get from custom values
+                $customVal = $product->customValues->firstWhere('column_id', $colId);
+                if (!$customVal || empty($customVal->value)) return [];
+
+                $decoded = json_decode($customVal->value, true);
+                if (is_array($decoded)) {
+                    return array_values(array_filter($decoded));
+                }
+                return [$customVal->value];
+            }
+        }
+
+        // No specific product yet — get distinct values from FILTERED product pool
+        $filteredProducts = $this->getFilteredProducts($session);
+        if ($filteredProducts->isEmpty()) return [];
+
         $availableValues = [];
-        foreach ($productSet as $p) {
+        foreach ($filteredProducts as $p) {
+            if ($type === 'combo') {
+                // Check combos first
+                $combo = $p->combos->firstWhere('column_id', $colId);
+                if ($combo && !empty($combo->selected_values)) {
+                    foreach ($combo->selected_values as $v) {
+                        if (!empty($v)) $availableValues[$v] = true;
+                    }
+                }
+            }
+
+            // Always check custom values
             $rawVal = $p->customValues->firstWhere('column_id', $colId)?->value;
             if (!empty($rawVal)) {
-                // Handle JSON arrays (e.g., ["6MM", "8MM"])
                 $decoded = json_decode($rawVal, true);
                 if (is_array($decoded)) {
                     foreach ($decoded as $v) {
@@ -1037,73 +974,101 @@ class ListBotService
                 }
             }
         }
+
         $valuesList = array_keys($availableValues);
         sort($valuesList);
-
-        if (empty($valuesList)) {
-            Log::info('ListBot: No column values found, skipping to next step', [
-                'step' => $step->name ?? $step->id,
-                'column' => $column->name,
-            ]);
-            // Mark as skipped so advanceChatflow doesn't loop back
-            $this->markStepSkipped($session, $step);
-            $this->advanceChatflow($session, $steps);
-            $session->save();
-            return $this->sendNextStepMenu($session, $instanceName, $steps);
-        }
-
-        // Auto-select if single option
-        if (count($valuesList) === 1) {
-            return $this->handleColumnSelection($session, $instanceName, $colId, $valuesList[0], $steps);
-        }
-
-        $sections = WhatsAppService::buildOptionSections($valuesList, $column->name, "col_{$colId}_");
-        $question = $step->question_text ?: "Select {$column->name}:";
-        $buttonText = Setting::getValue('list_bot', 'menu_button_text', '🛍 Menu', $this->companyId);
-
-        $sent = $this->whatsApp->sendList(
-            $instanceName,
-            $session->phone_number,
-            mb_substr($question, 0, 60),
-            $question,
-            mb_substr($buttonText, 0, 20),
-            $sections,
-            'Tap your choice'
-        );
-
-        if (is_array($sent) && !empty($sent['rowMap'])) {
-            $session->setAnswer('_text_menu_rowMap', $sent['rowMap']);
-            $session->save();
-        }
-
-        return null;
+        return $valuesList;
     }
 
     // ═══════════════════════════════════════════════════════
-    // RE-SEND CURRENT MENU (when user types text instead of tapping)
+    // CHECK AND QUEUE PRODUCTS — After each answer
     // ═══════════════════════════════════════════════════════
 
-    private function resendCurrentMenu(AiChatSession $session, string $instanceName, $steps): ?string
+    private function checkAndQueueProducts(AiChatSession $session): void
     {
-        $msg = "Please select from the menu below 👇";
-        $this->whatsApp->sendText($instanceName, $session->phone_number, $msg);
-
-        $currentStep = $session->current_step_id ? $steps->firstWhere('id', $session->current_step_id) : null;
         $answers = $session->collected_answers ?? [];
 
-        if (!$currentStep && !isset($answers['product_id'])) {
-            return $this->sendWelcomeWithCategories($session, $instanceName);
+        // Only check if no product is set yet
+        if (isset($answers['product_id'])) return;
+
+        $filtered = $this->getFilteredProducts($session);
+
+        if ($filtered->count() === 1) {
+            // Single product found — set it directly
+            $product = $filtered->first();
+            $session->setAnswer('product_id', $product->id);
+            $session->setAnswer('product_name', $this->getProductDisplayName($product));
+            $this->attachProductToLead($session, $product);
+            Log::info('ListBot: Filter narrowed to single product', ['product_id' => $product->id]);
+        } elseif ($filtered->count() > 1) {
+            // Multiple products — queue them, take first
+            $productIds = $filtered->pluck('id')->toArray();
+            $firstProductId = array_shift($productIds);
+            $session->setAnswer('_product_queue', $productIds);
+
+            $product = $filtered->firstWhere('id', $firstProductId);
+            $session->setAnswer('product_id', $firstProductId);
+            $session->setAnswer('product_name', $this->getProductDisplayName($product));
+            $this->attachProductToLead($session, $product);
+
+            Log::info('ListBot: Filter matched multiple products, queued', [
+                'current' => $firstProductId,
+                'queue_count' => count($productIds),
+            ]);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // START PRODUCT CHATFLOW — For queued products
+    // ═══════════════════════════════════════════════════════
+
+    private function startProductChatflow(AiChatSession $session, string $instanceName, int $productId, $steps): ?string
+    {
+        $product = Product::with(['combos.column', 'customValues', 'category'])->find($productId);
+        if (!$product) {
+            Log::warning('ListBot: Queued product not found', ['product_id' => $productId]);
+            return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
         }
 
-        if (isset($answers['category_id']) && !isset($answers['product_id'])) {
-            return $this->sendProductList($session, $instanceName, $answers['category_id']);
+        // Keep category + personal info answers, clear product-specific ones
+        $answers = $session->collected_answers ?? [];
+        $keepPrefixes = ['category_', '_product_queue', '_completed_products'];
+        $personalKeys = ['name', 'email', 'city', 'state', 'phone', 'address'];
+        $newAnswers = [];
+
+        foreach ($answers as $k => $v) {
+            // Keep personal fields
+            if (in_array($k, $personalKeys)) { $newAnswers[$k] = $v; continue; }
+            // Keep category
+            if (str_starts_with($k, 'category_')) { $newAnswers[$k] = $v; continue; }
+            // Keep internal queue/completed keys
+            if ($k === '_product_queue' || $k === '_completed_products') { $newAnswers[$k] = $v; continue; }
+            // Keep skipped step ids
+            if ($k === '_skipped_step_ids') { continue; } // Clear skipped — they apply to previous product
+            // Drop everything else (column filters, combo answers, product_id, etc.)
         }
 
-        if ($currentStep) {
-            return $this->sendNextStepMenu($session, $instanceName, $steps);
-        }
+        // Set new product
+        $newAnswers['product_id'] = $productId;
+        $newAnswers['product_name'] = $this->getProductDisplayName($product);
 
-        return null;
+        $session->collected_answers = $newAnswers;
+        $session->conversation_state = 'in_chatflow';
+        $session->current_step_id = null;
+
+        // Advance to first unanswered step (skipping category + product steps that are already done)
+        $this->advanceChatflow($session, $steps);
+        $session->save();
+
+        $this->attachProductToLead($session, $product);
+
+        Log::info('ListBot: Starting chatflow for queued product', [
+            'session' => $session->id,
+            'product_id' => $productId,
+            'product_name' => $this->getProductDisplayName($product),
+        ]);
+
+        return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
     }
 
     // ═══════════════════════════════════════════════════════
@@ -1125,24 +1090,39 @@ class ListBotService
                 $msg .= "📂 *Category:* {$product->category->name}\n";
             }
 
-            // Show combo values
-            foreach ($product->combos as $combo) {
-                $slug = $combo->column->slug;
-                $val = $answers[$slug] ?? null;
-                if ($val) {
-                    $msg .= "📌 *{$combo->column->name}:* {$val}\n";
-                }
-            }
-
-            // Show column filters
+            // Show ALL product data — every column value (selected + auto + from product)
             $visibleColumns = $this->getAiVisibleColumns();
-            foreach ($answers as $key => $val) {
-                if (str_starts_with($key, 'column_filter_')) {
-                    $colId = str_replace('column_filter_', '', $key);
-                    $col = $visibleColumns->firstWhere('id', (int)$colId);
-                    if ($col) {
-                        $msg .= "📌 *{$col->name}:* {$val}\n";
+            foreach ($visibleColumns as $col) {
+                if ($col->is_category || $col->is_title) continue;
+
+                $value = null;
+
+                // Check session answers first
+                if (isset($answers["column_filter_{$col->id}"])) {
+                    $value = $answers["column_filter_{$col->id}"];
+                } elseif (isset($answers[$col->slug])) {
+                    $value = $answers[$col->slug];
+                }
+
+                // If not in answers, get from product data
+                if (!$value) {
+                    $customVal = $product->customValues->firstWhere('column_id', $col->id);
+                    if ($customVal && !empty($customVal->value)) {
+                        $decoded = json_decode($customVal->value, true);
+                        $value = is_array($decoded) ? implode(', ', $decoded) : $customVal->value;
                     }
+                }
+
+                // Check combo values
+                if (!$value && $col->is_combo) {
+                    $combo = $product->combos->firstWhere('column_id', $col->id);
+                    if ($combo && !empty($combo->selected_values)) {
+                        $value = implode(', ', $combo->selected_values);
+                    }
+                }
+
+                if ($value) {
+                    $msg .= "📌 *{$col->name}:* {$value}\n";
                 }
             }
 
@@ -1153,20 +1133,42 @@ class ListBotService
         }
 
         // Show custom answers (name, phone, address, etc.)
-        $internalKeys = ['product_id', 'product_name', 'category_id', 'category_name', 'selected_product_group', 'product_price'];
+        $internalKeys = ['product_id', 'product_name', 'category_id', 'category_ids', 'category_name', 'selected_product_group', 'product_price'];
         foreach ($answers as $key => $val) {
-            if (in_array($key, $internalKeys) || str_starts_with($key, 'column_filter_')) continue;
+            if (in_array($key, $internalKeys)) continue;
+            if (str_starts_with($key, 'column_filter_')) continue;
+            if (str_starts_with($key, '_')) continue;
             if ($product && $product->combos->pluck('column.slug')->contains($key)) continue;
+            if (is_array($val)) continue;
             $msg .= "📝 *" . ucfirst(str_replace('_', ' ', $key)) . ":* {$val}\n";
         }
 
         $this->whatsApp->sendText($instanceName, $session->phone_number, $msg);
 
-        // Ask if user wants to add another product
-        $addMoreMsg = "━━━━━━━━━━━━━━━\n";
-        $addMoreMsg .= "🛒 *Kya aap aur product add karna chahte hain?*\n\n";
-        $addMoreMsg .= "1️⃣ ✅ Haan, aur product add karo\n";
-        $addMoreMsg .= "2️⃣ ❌ Nahi, order complete karo";
+        // Save this product to completed list
+        $completed = $answers['_completed_products'] ?? [];
+        $completed[] = [
+            'product_id' => $productId,
+            'product_name' => $answers['product_name'] ?? 'Unknown',
+        ];
+        $session->setAnswer('_completed_products', $completed);
+
+        // Check if product queue has more
+        $queue = $answers['_product_queue'] ?? [];
+
+        if (!empty($queue)) {
+            $addMoreMsg = "━━━━━━━━━━━━━━━\n";
+            $addMoreMsg .= "📦 *" . count($queue) . " aur product(s) hai queue me.*\n\n";
+            $addMoreMsg .= "1️⃣ ✅ Next product dekhein\n";
+            $addMoreMsg .= "2️⃣ ❌ Nahi, order complete karo";
+            $addMoreMsg .= $this->resetFooter();
+        } else {
+            $addMoreMsg = "━━━━━━━━━━━━━━━\n";
+            $addMoreMsg .= "🛒 *Kya aap aur product add karna chahte hain?*\n\n";
+            $addMoreMsg .= "1️⃣ ✅ Haan, aur product add karo\n";
+            $addMoreMsg .= "2️⃣ ❌ Nahi, order complete karo";
+            $addMoreMsg .= $this->resetFooter();
+        }
 
         $this->whatsApp->sendText($instanceName, $session->phone_number, $addMoreMsg);
 
@@ -1178,9 +1180,23 @@ class ListBotService
     }
 
     // ═══════════════════════════════════════════════════════
-    // SHARED HELPERS (simplified from AIChatbotService)
+    // RESEND CURRENT MENU
     // ═══════════════════════════════════════════════════════
 
+    private function resendCurrentMenu(AiChatSession $session, string $instanceName, $steps): ?string
+    {
+        $msg = "Please select from the menu below 👇" . $this->resetFooter();
+        $this->whatsApp->sendText($instanceName, $session->phone_number, $msg);
+        return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SHARED HELPERS
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Advance to the next unanswered chatflow step.
+     */
     private function advanceChatflow(AiChatSession $session, $steps): void
     {
         $answers = $session->collected_answers ?? [];
@@ -1238,6 +1254,169 @@ class ListBotService
         }
     }
 
+    /**
+     * Reset session for a new product selection (keep personal info + category).
+     */
+    private function resetForNewProduct(AiChatSession $session): void
+    {
+        $answers = $session->collected_answers ?? [];
+        $personalKeys = ['name', 'email', 'city', 'state', 'phone', 'address'];
+        $newAnswers = [];
+
+        foreach ($answers as $k => $v) {
+            if (in_array($k, $personalKeys)) $newAnswers[$k] = $v;
+            if ($k === '_completed_products') $newAnswers[$k] = $v;
+        }
+
+        $session->collected_answers = $newAnswers;
+        $session->current_step_id = null;
+        $session->conversation_state = 'in_chatflow';
+    }
+
+    /**
+     * Attach product to lead and create/update quote.
+     */
+    private function attachProductToLead(AiChatSession $session, Product $product): void
+    {
+        try {
+            if ($session->lead_id) {
+                $lead = Lead::find($session->lead_id);
+                if ($lead) {
+                    if (!$lead->products()->where('product_id', $product->id)->exists()) {
+                        $lead->products()->attach($product->id, ['quantity' => 1, 'price' => $product->sale_price]);
+                    }
+                    $lead->update(['product_name' => $this->getProductDisplayName($product)]);
+                }
+            }
+
+            // Create Quote if not exists
+            if (!$session->quote_id) {
+                $company = \App\Models\Company::find($this->companyId);
+                $quote = Quote::create([
+                    'company_id' => $this->companyId,
+                    'lead_id' => $session->lead_id,
+                    'created_by_user_id' => $this->userId,
+                    'quote_no' => Quote::generateQuoteNumber($company),
+                    'date' => now(),
+                    'valid_till' => now()->addDays(30),
+                    'subtotal' => $product->sale_price,
+                    'discount' => 0,
+                    'gst_total' => 0,
+                    'grand_total' => $product->sale_price,
+                    'status' => 'draft',
+                ]);
+                QuoteItem::create([
+                    'quote_id' => $quote->id,
+                    'product_id' => $product->id,
+                    'product_name' => $this->getProductDisplayName($product),
+                    'description' => $product->getDynamicDescription($session->collected_answers ?? [], true),
+                    'hsn_code' => $product->hsn_code,
+                    'qty' => 1,
+                    'rate' => $product->sale_price,
+                    'unit' => $product->unit,
+                    'unit_price' => $product->sale_price,
+                    'gst_percent' => $product->gst_percent,
+                    'sort_order' => 1,
+                ]);
+                $session->quote_id = $quote->id;
+                $session->save();
+            } else {
+                // Add to existing quote
+                $existingItem = QuoteItem::where('quote_id', $session->quote_id)
+                    ->where('product_id', $product->id)
+                    ->first();
+                if (!$existingItem) {
+                    $maxSort = QuoteItem::where('quote_id', $session->quote_id)->max('sort_order') ?? 0;
+                    QuoteItem::create([
+                        'quote_id' => $session->quote_id,
+                        'product_id' => $product->id,
+                        'product_name' => $this->getProductDisplayName($product),
+                        'description' => $product->getDynamicDescription($session->collected_answers ?? [], true),
+                        'hsn_code' => $product->hsn_code,
+                        'qty' => 1,
+                        'rate' => $product->sale_price,
+                        'unit' => $product->unit,
+                        'unit_price' => $product->sale_price,
+                        'gst_percent' => $product->gst_percent,
+                        'sort_order' => $maxSort + 1,
+                    ]);
+                    $quote = Quote::find($session->quote_id);
+                    $quote?->recalculateTotals();
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('ListBot: Error attaching product', [
+                'session_id' => $session->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Update quote description and variation after an answer.
+     */
+    private function updateQuoteIfNeeded(AiChatSession $session): void
+    {
+        $productId = $session->getAnswer('product_id');
+        if (!$productId || !$session->quote_id) return;
+
+        $product = Product::with(['combos.column', 'activeVariations', 'customValues'])->find($productId);
+        if (!$product) return;
+
+        // Update description
+        $sessionAnswers = $session->collected_answers ?? [];
+        $fullDesc = $product->getDynamicDescription($sessionAnswers);
+        if (!empty($fullDesc)) {
+            $quoteItem = QuoteItem::where('quote_id', $session->quote_id)
+                ->where('product_id', $product->id)
+                ->first();
+            if ($quoteItem) {
+                $quoteItem->update(['description' => $fullDesc]);
+            }
+
+            if ($session->lead_id) {
+                $lead = Lead::find($session->lead_id);
+                if ($lead && $lead->products()->where('product_id', $product->id)->exists()) {
+                    $lead->products()->updateExistingPivot($product->id, ['description' => $fullDesc]);
+                }
+            }
+        }
+
+        // Update variation if all combo values are set
+        $allSelected = true;
+        $combination = [];
+        foreach ($product->combos as $combo) {
+            $slug = $combo->column->slug;
+            $val = $session->getAnswer($slug);
+            if (!$val) { $allSelected = false; break; }
+            $combination[$slug] = $val;
+        }
+
+        if ($allSelected && !empty($combination)) {
+            $key = ProductVariation::generateKey($combination);
+            $variation = ProductVariation::where('product_id', $product->id)
+                ->where('combination_key', $key)
+                ->where('status', 'active')
+                ->first();
+
+            if ($variation) {
+                $quoteItem = QuoteItem::where('quote_id', $session->quote_id)
+                    ->where('product_id', $product->id)
+                    ->first();
+                if ($quoteItem) {
+                    $quoteItem->update([
+                        'variation_id' => $variation->id,
+                        'selected_combination' => $combination,
+                        'rate' => $variation->price,
+                        'unit_price' => $variation->price,
+                    ]);
+                    $quote = Quote::find($session->quote_id);
+                    $quote?->recalculateTotals();
+                }
+            }
+        }
+    }
+
     private function getProductDisplayName(Product $product): string
     {
         if (!$this->uniqueColumnLoaded) {
@@ -1272,6 +1451,7 @@ class ListBotService
             $this->aiVisibleColumns = CatalogueCustomColumn::where('company_id', $this->companyId)
                 ->where('show_in_ai', true)
                 ->where('is_active', true)
+                ->orderBy('sort_order')
                 ->get();
         }
         return $this->aiVisibleColumns;
@@ -1279,26 +1459,18 @@ class ListBotService
 
     /**
      * Group wrongly-created categories by their text prefix.
-     * Strips trailing numbers/codes from category names to find the base group name.
-     * E.g., "Conceal Handle 0010", "Conceal Handle 0011" → "Conceal Handle" (N products)
-     *
-     * Returns a collection of virtual category objects with merged product counts.
      */
     private function groupCategoriesByPrefix($categories): ?\Illuminate\Support\Collection
     {
         $groups = [];
-        $catIdMap = []; // groupName => [cat_ids]
+        $catIdMap = [];
 
         foreach ($categories as $cat) {
-            // Strip trailing numbers, codes, and common separators
-            // "Conceal Handle 0010" → "Conceal Handle"
-            // "Knob Handle 401" → "Knob Handle"
-            // "Product 105" → "Product" (but this is too generic)
             $baseName = preg_replace('/[\s\-_]*[\d]+[\s\-_]*$/', '', trim($cat->name));
             $baseName = trim($baseName);
 
             if (empty($baseName)) {
-                $baseName = $cat->name; // fallback to original
+                $baseName = $cat->name;
             }
 
             if (!isset($groups[$baseName])) {
@@ -1309,22 +1481,19 @@ class ListBotService
             $catIdMap[$baseName][] = $cat->id;
         }
 
-        // If grouping didn't reduce count meaningfully, return null
         if (count($groups) >= count($categories) * 0.8) {
             return null;
         }
 
-        // Build virtual category collection
         $result = collect();
         foreach ($groups as $name => $count) {
             $firstCatId = $catIdMap[$name][0] ?? 0;
-            // Create a virtual object that looks like a Category
             $virtual = new \stdClass();
-            $virtual->id = $firstCatId; // Use first real cat ID for routing
+            $virtual->id = $firstCatId;
             $virtual->name = $name;
             $virtual->company_id = $this->companyId;
             $virtual->products_count = $count;
-            $virtual->_grouped_cat_ids = $catIdMap[$name]; // Store all IDs for product query
+            $virtual->_grouped_cat_ids = $catIdMap[$name];
             $result->push($virtual);
         }
 
@@ -1340,14 +1509,8 @@ class ListBotService
         return $catCol ? $catCol->name : 'Category';
     }
 
-    private function getComboValuesForProduct(Product $product, CatalogueCustomColumn $column): array
-    {
-        $combo = $product->combos->firstWhere('column_id', $column->id);
-        return $combo ? ($combo->selected_values ?? []) : [];
-    }
-
     /**
-     * Append reset footer to bot messages
+     * Append reset footer to bot messages.
      */
     private function resetFooter(): string
     {
@@ -1356,7 +1519,6 @@ class ListBotService
 
     /**
      * Mark a chatflow step as skipped (no data for this product).
-     * This prevents advanceChatflow from looping back to it.
      */
     private function markStepSkipped(AiChatSession $session, ChatflowStep $step): void
     {
@@ -1371,222 +1533,86 @@ class ListBotService
     }
 
     /**
-     * Smart-match user text against products in the current category.
-     * Returns the matched Product or null.
+     * Fuzzy match user text against rowMap option titles.
      */
-    private function smartMatchProduct(AiChatSession $session, string $userText): ?Product
+    private function fuzzyMatchFromRowMap(string $userInput, array $rowMap): ?array
     {
-        if (empty($userText) || mb_strlen($userText) < 2) return null;
-
-        $answers = $session->collected_answers ?? [];
-        $query = Product::where('company_id', $this->companyId)->where('status', 'active');
-
-        if (isset($answers['category_ids'])) {
-            $query->whereIn('category_id', $answers['category_ids']);
-        } elseif (isset($answers['category_id'])) {
-            $query->where('category_id', $answers['category_id']);
+        $input = mb_strtolower(trim($userInput));
+        if (empty($input) || mb_strlen($input) < 2) {
+            return null;
         }
 
-        $products = $query->with(['customValues', 'category'])->get();
-        if ($products->isEmpty()) return null;
-
-        $input = mb_strtolower(trim($userText));
         $bestMatch = null;
         $bestScore = 0;
+        $threshold = 60;
 
-        foreach ($products as $product) {
-            $displayName = mb_strtolower($this->getProductDisplayName($product));
-            $productName = mb_strtolower($product->name);
-
-            // Also check the unique column value
-            $uniqueVal = '';
-            if ($this->uniqueColumn) {
-                $cv = $product->customValues->firstWhere('column_id', $this->uniqueColumn->id);
-                $uniqueVal = mb_strtolower($cv ? (is_array(json_decode($cv->value, true)) ? implode(' ', json_decode($cv->value, true)) : $cv->value) : '');
+        foreach ($rowMap as $num => $entry) {
+            if (is_array($entry)) {
+                $rowId = $entry['rowId'] ?? '';
+                $title = $entry['title'] ?? '';
+            } else {
+                $rowId = $entry;
+                $title = '';
             }
 
+            if (empty($title)) continue;
+
+            $optionLower = mb_strtolower(trim($title));
             $score = 0;
 
-            // Exact match on any name variant
-            if ($input === $displayName || $input === $productName || $input === $uniqueVal) {
-                return $product; // 100% match
+            // Exact match
+            if ($input === $optionLower) {
+                return ['rowId' => $rowId, 'title' => $title, 'score' => 100];
             }
 
             // Substring match
-            if (str_contains($displayName, $input) || str_contains($productName, $input) || str_contains($uniqueVal, $input)) {
+            if (str_contains($optionLower, $input) || str_contains($input, $optionLower)) {
                 $score = 85;
-            }
-            if (str_contains($input, $displayName) || str_contains($input, $productName)) {
-                $score = max($score, 85);
             }
 
             // similar_text
-            if ($score < 60) {
-                similar_text($input, $displayName, $p1);
-                similar_text($input, $productName, $p2);
-                similar_text($input, $uniqueVal, $p3);
-                $score = max($score, $p1, $p2, $p3);
+            if ($score < $threshold) {
+                similar_text($input, $optionLower, $similarPercent);
+                $score = max($score, $similarPercent);
             }
 
-            if ($score > $bestScore && $score >= 60) {
-                $bestScore = $score;
-                $bestMatch = $product;
-            }
-        }
-
-        Log::info('ListBot: smartMatchProduct', [
-            'input' => $userText,
-            'matched' => $bestMatch ? $this->getProductDisplayName($bestMatch) : 'none',
-            'score' => $bestScore,
-        ]);
-
-        return $bestMatch;
-    }
-
-    /**
-     * Get distinct values for a column from product_custom_values.
-     * Falls back across category products when product-specific values are empty.
-     */
-    private function getDistinctColumnValues(AiChatSession $session, CatalogueCustomColumn $column): array
-    {
-        $answers = $session->collected_answers ?? [];
-        $colId = $column->id;
-
-        // Build product query scoped to current selection
-        $query = Product::where('company_id', $this->companyId)->where('status', 'active');
-
-        if (isset($answers['product_id'])) {
-            // First try: values from the selected product only
-            $query->where('id', $answers['product_id']);
-        } elseif (isset($answers['category_ids'])) {
-            $query->whereIn('category_id', $answers['category_ids']);
-        } elseif (isset($answers['category_id'])) {
-            $query->where('category_id', $answers['category_id']);
-        }
-
-        $productIds = $query->pluck('id');
-
-        $values = DB::table('catalogue_custom_values')
-            ->whereIn('product_id', $productIds)
-            ->where('column_id', $colId)
-            ->whereNotNull('value')
-            ->where('value', '!=', '')
-            ->distinct()
-            ->pluck('value')
-            ->map(function ($v) {
-                $decoded = json_decode($v, true);
-                return is_array($decoded) ? $decoded : [$v];
-            })
-            ->flatten()
-            ->unique()
-            ->filter()
-            ->sort()
-            ->values()
-            ->toArray();
-
-        Log::info('ListBot: getDistinctColumnValues', [
-            'column' => $column->name,
-            'product_scope' => isset($answers['product_id']) ? 'single' : 'category',
-            'values_found' => count($values),
-        ]);
-
-        return $values;
-    }
-
-    private function updateQuoteItemDescription(AiChatSession $session, Product $product): void
-    {
-        $sessionAnswers = $session->collected_answers ?? [];
-        $fullDesc = $product->getDynamicDescription($sessionAnswers);
-        if (empty($fullDesc)) return;
-
-        if ($session->quote_id) {
-            $quoteItem = QuoteItem::where('quote_id', $session->quote_id)
-                ->where('product_id', $product->id)
-                ->first();
-            if ($quoteItem) {
-                $quoteItem->update(['description' => $fullDesc]);
-            }
-        }
-
-        if ($session->lead_id) {
-            $lead = Lead::find($session->lead_id);
-            if ($lead && $lead->products->contains('id', $product->id)) {
-                $lead->products()->updateExistingPivot($product->id, ['description' => $fullDesc]);
-            }
-        }
-    }
-
-    private function updateQuoteVariation(AiChatSession $session, Product $product): void
-    {
-        $allSelected = true;
-        $combination = [];
-        foreach ($product->combos as $combo) {
-            $slug = $combo->column->slug;
-            $val = $session->getAnswer($slug);
-            if (!$val) { $allSelected = false; break; }
-            $combination[$slug] = $val;
-        }
-
-        if ($allSelected && !empty($combination) && $session->quote_id) {
-            $key = ProductVariation::generateKey($combination);
-            $variation = ProductVariation::where('product_id', $product->id)
-                ->where('combination_key', $key)
-                ->where('status', 'active')
-                ->first();
-
-            if ($variation) {
-                $quoteItem = QuoteItem::where('quote_id', $session->quote_id)
-                    ->where('product_id', $product->id)
-                    ->first();
-                if ($quoteItem) {
-                    $quoteItem->update([
-                        'variation_id' => $variation->id,
-                        'selected_combination' => $combination,
-                        'rate' => $variation->price,
-                        'unit_price' => $variation->price,
-                    ]);
-                    $quote = Quote::find($session->quote_id);
-                    $quote?->recalculateTotals();
+            // Levenshtein distance
+            if ($score < $threshold && mb_strlen($input) <= 50 && mb_strlen($optionLower) <= 50) {
+                $distance = levenshtein($input, $optionLower);
+                $maxLen = max(mb_strlen($input), mb_strlen($optionLower));
+                if ($maxLen > 0) {
+                    $levenScore = (1 - ($distance / $maxLen)) * 100;
+                    $score = max($score, $levenScore);
                 }
             }
-        }
-    }
 
-    private function updateQuoteDescription(AiChatSession $session): void
-    {
-        $productId = $session->getAnswer('product_id');
-        if (!$session->quote_id || !$productId) return;
+            // Word-level matching
+            if ($score < $threshold) {
+                $inputWords = preg_split('/[\s_\-]+/', $input);
+                $optionWords = preg_split('/[\s_\-]+/', $optionLower);
+                $matchedWords = 0;
+                foreach ($inputWords as $word) {
+                    if (mb_strlen($word) < 2) continue;
+                    foreach ($optionWords as $optWord) {
+                        if (str_contains($optWord, $word) || str_contains($word, $optWord)) {
+                            $matchedWords++;
+                            break;
+                        }
+                    }
+                }
+                if (count($inputWords) > 0) {
+                    $wordScore = ($matchedWords / count($inputWords)) * 90;
+                    $score = max($score, $wordScore);
+                }
+            }
 
-        $product = Product::with('combos.column')->find($productId);
-        if (!$product) return;
-
-        $newDesc = $product->getDynamicDescription($session->collected_answers ?? [], true);
-        $descLines = [];
-        if ($newDesc) $descLines[] = $newDesc;
-
-        foreach ($session->collected_answers as $key => $val) {
-            if (str_starts_with($key, 'column_filter_')) continue;
-            if (!in_array($key, ['product_id', 'product_name', 'category_id', 'category_name', 'selected_product_group'])
-                && !$product->combos->pluck('column.slug')->contains($key)) {
-                $descLines[] = ucfirst(str_replace('_', ' ', $key)) . ": {$val}";
+            if ($score > $bestScore && $score >= $threshold) {
+                $bestScore = $score;
+                $bestMatch = ['rowId' => $rowId, 'title' => $title, 'score' => round($score, 1)];
             }
         }
 
-        $fullDesc = implode("\n", $descLines);
-
-        $quoteItem = QuoteItem::where('quote_id', $session->quote_id)
-            ->where('product_id', $productId)
-            ->first();
-        if ($quoteItem) {
-            $quoteItem->update(['description' => $fullDesc]);
-        }
-
-        if ($session->lead_id) {
-            $lead = Lead::find($session->lead_id);
-            if ($lead && $lead->products()->where('product_id', $productId)->exists()) {
-                $lead->products()->updateExistingPivot($productId, ['description' => $fullDesc]);
-            }
-        }
+        return $bestMatch;
     }
 
     private function sendMediaToWhatsApp(AiChatSession $session, string $mediaPath, string $instanceName): void
