@@ -497,6 +497,71 @@
         </div>
     </div>
 </div>
+
+{{-- ═══ Bot Trace Viewer ═══ --}}
+<div class="card" style="margin-top:24px;">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid hsl(var(--border));">
+        <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,hsl(var(--primary)/0.15),hsl(var(--accent)/0.15));display:flex;align-items:center;justify-content:center;">
+                <i data-lucide="activity" style="width:18px;height:18px;color:hsl(var(--primary));"></i>
+            </div>
+            <div>
+                <h3 style="margin:0;font-size:16px;font-weight:600;">Bot Node Traces</h3>
+                <p style="margin:0;font-size:12px;color:hsl(var(--muted-foreground));">Diagnostic trace viewer for bot execution flows</p>
+            </div>
+        </div>
+        {{-- Tab Switcher --}}
+        <div style="display:flex;gap:4px;padding:3px;border-radius:8px;background:hsl(var(--muted));">
+            <button type="button" class="btn btn-sm trace-tab active" data-bot-type="ai_bot" onclick="switchTraceTab(this, 'ai_bot')" style="border-radius:6px;font-size:12px;padding:6px 14px;transition:all .2s;">
+                🤖 AI Bot
+            </button>
+            <button type="button" class="btn btn-sm trace-tab" data-bot-type="list_bot" onclick="switchTraceTab(this, 'list_bot')" style="border-radius:6px;font-size:12px;padding:6px 14px;transition:all .2s;">
+                📋 Bot List
+            </button>
+        </div>
+    </div>
+    <div class="card-body" style="padding:0;">
+        <div id="traceSessionsContainer" style="min-height:200px;">
+            <div style="text-align:center;padding:40px;color:hsl(var(--muted-foreground));">
+                <i data-lucide="loader-2" class="spin" style="width:24px;height:24px;margin-bottom:8px;"></i>
+                <p style="font-size:13px;">Loading sessions...</p>
+            </div>
+        </div>
+        {{-- Pagination --}}
+        <div id="tracePagination" style="display:none;padding:12px 20px;border-top:1px solid hsl(var(--border));display:flex;align-items:center;justify-content:space-between;">
+        </div>
+    </div>
+</div>
+
+{{-- Trace Flow Modal (inline expand) --}}
+<style>
+    .trace-tab { background:transparent; border:none; color:hsl(var(--muted-foreground)); cursor:pointer; }
+    .trace-tab.active { background:hsl(var(--background)); color:hsl(var(--foreground)); box-shadow:0 1px 3px rgba(0,0,0,0.1); font-weight:600; }
+    .trace-session-row { padding:14px 20px; border-bottom:1px solid hsl(var(--border)/0.5); display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:background .15s; }
+    .trace-session-row:hover { background:hsl(var(--muted)/0.5); }
+    .trace-session-row:last-child { border-bottom:none; }
+    .trace-flow-container { display:none; background:hsl(var(--muted)/0.3); border-bottom:1px solid hsl(var(--border)); padding:16px 20px; }
+    .trace-flow-container.open { display:block; }
+    .trace-msg-group { margin-bottom:12px; }
+    .trace-msg-header { font-size:12px; font-weight:600; color:hsl(var(--primary)); padding:6px 10px; background:hsl(var(--primary)/0.08); border-radius:6px; margin-bottom:6px; display:inline-block; }
+    .trace-node { display:flex; align-items:flex-start; gap:12px; padding:8px 0; margin-left:20px; position:relative; }
+    .trace-node::before { content:''; position:absolute; left:14px; top:28px; bottom:-8px; width:2px; background:hsl(var(--border)); }
+    .trace-node:last-child::before { display:none; }
+    .trace-node-dot { width:28px; height:28px; min-width:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid; z-index:1; background:hsl(var(--background)); }
+    .trace-node-body { flex:1; min-width:0; }
+    .trace-node-title { font-size:13px; font-weight:600; display:flex; align-items:center; gap:6px; }
+    .trace-node-meta { font-size:11px; color:hsl(var(--muted-foreground)); margin-top:2px; }
+    .trace-node-data { font-size:11px; padding:6px 8px; background:hsl(var(--muted)); border-radius:4px; margin-top:4px; overflow-x:auto; max-height:120px; overflow-y:auto; font-family:'SF Mono',Monaco,monospace; }
+    .trace-node-data summary { cursor:pointer; font-weight:600; color:hsl(var(--foreground)); }
+    .trace-badge { font-size:10px; padding:2px 6px; border-radius:4px; font-weight:600; }
+    .trace-badge-success { background:hsl(142 71% 45% / 0.15); color:hsl(142 71% 45%); }
+    .trace-badge-error { background:hsl(0 84% 60% / 0.15); color:hsl(0 84% 60%); }
+    .trace-badge-warning { background:hsl(38 92% 50% / 0.15); color:hsl(38 92% 50%); }
+    .trace-empty { text-align:center; padding:40px 20px; color:hsl(var(--muted-foreground)); }
+    .trace-empty i { margin-bottom:8px; opacity:0.5; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 1s linear infinite; }
+</style>
 @endsection
 
 @push('scripts')
@@ -522,11 +587,7 @@ function togglePaymentInfo() {
     box.style.display = (method === 'manual' || method === 'razorpay') ? 'block' : 'none';
 }
 
-// Init on load
-document.addEventListener('DOMContentLoaded', function() {
-    updatePrice();
-    togglePaymentInfo();
-});
+
 
 // ─── Match Playground ───
 function saveMatchConfidence() {
@@ -549,5 +610,207 @@ function clearMatchCache() {
         alert(data.message || 'Cache cleared');
     }).catch(() => alert('Request failed'));
 }
+
+// ═══════════════════════════════════════════════════════
+// BOT TRACE VIEWER
+// ═══════════════════════════════════════════════════════
+
+let currentTraceTab = 'ai_bot';
+let currentTracePage = 1;
+const traceBaseUrl = '{{ route("superadmin.businesses.bot-traces", $company->id) }}';
+
+function switchTraceTab(btn, botType) {
+    document.querySelectorAll('.trace-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    currentTraceTab = botType;
+    currentTracePage = 1;
+    loadTraceSessions();
+}
+
+function loadTraceSessions() {
+    const container = document.getElementById('traceSessionsContainer');
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:hsl(var(--muted-foreground));"><div class="spin" style="display:inline-block;width:24px;height:24px;border:2px solid hsl(var(--border));border-top-color:hsl(var(--primary));border-radius:50%;"></div><p style="font-size:13px;margin-top:8px;">Loading sessions...</p></div>';
+
+    fetch(`${traceBaseUrl}?bot_type=${currentTraceTab}&page=${currentTracePage}`, {
+        headers: { 'Accept': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.sessions || data.sessions.length === 0) {
+            const label = currentTraceTab === 'ai_bot' ? 'AI Bot' : 'Bot List';
+            container.innerHTML = `<div class="trace-empty"><i data-lucide="inbox" style="width:32px;height:32px;display:block;margin:0 auto 8px;"></i><p style="font-size:13px;">No ${label} sessions found for this business.</p></div>`;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            document.getElementById('tracePagination').style.display = 'none';
+            return;
+        }
+        renderTraceSessions(data.sessions, container);
+        renderTracePagination(data);
+    })
+    .catch(err => {
+        container.innerHTML = `<div class="trace-empty"><i data-lucide="alert-circle" style="width:32px;height:32px;display:block;margin:0 auto 8px;color:hsl(var(--destructive));"></i><p style="font-size:13px;color:hsl(var(--destructive));">Failed to load sessions.</p></div>`;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    });
+}
+
+function renderTraceSessions(sessions, container) {
+    let html = '';
+    sessions.forEach(s => {
+        const statusBadge = s.status === 'active' ? '<span class="trace-badge trace-badge-success">Active</span>' : '<span class="trace-badge" style="background:hsl(var(--muted));color:hsl(var(--muted-foreground));">' + (s.status || 'done') + '</span>';
+        const errorBadge = s.error_traces_count > 0 ? `<span class="trace-badge trace-badge-error">${s.error_traces_count} error${s.error_traces_count > 1 ? 's' : ''}</span>` : '<span class="trace-badge trace-badge-success">Healthy</span>';
+        const leadsInfo = s.lead_id ? `<span style="font-size:11px;color:hsl(var(--muted-foreground));">L#${s.lead_id}</span>` : '';
+        const quoteInfo = s.quote_id ? `<span style="font-size:11px;color:hsl(var(--muted-foreground));">Q#${s.quote_id}</span>` : '';
+
+        html += `
+        <div>
+            <div class="trace-session-row" onclick="toggleTraceFlow(${s.id}, this)">
+                <div style="display:flex;align-items:center;gap:12px;flex:1;">
+                    <div style="width:32px;height:32px;border-radius:50%;background:hsl(var(--primary)/0.1);display:flex;align-items:center;justify-content:center;">
+                        <i data-lucide="smartphone" style="width:14px;height:14px;color:hsl(var(--primary));"></i>
+                    </div>
+                    <div>
+                        <div style="font-size:13px;font-weight:600;">${s.phone_number}</div>
+                        <div style="font-size:11px;color:hsl(var(--muted-foreground));display:flex;gap:8px;align-items:center;">
+                            ${statusBadge}
+                            <span>${s.conversation_state || '—'}</span>
+                            ${leadsInfo} ${quoteInfo}
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:16px;">
+                    <div style="text-align:right;">
+                        <div style="font-size:11px;color:hsl(var(--muted-foreground));">
+                            <span title="Messages">💬 ${s.messages_count}</span> ·
+                            <span title="Traces">📊 ${s.traces_count}</span>
+                        </div>
+                        <div style="display:flex;gap:4px;align-items:center;justify-content:flex-end;margin-top:2px;">
+                            ${errorBadge}
+                        </div>
+                    </div>
+                    <div style="font-size:11px;color:hsl(var(--muted-foreground));min-width:80px;text-align:right;" title="${s.last_message_at_full || ''}">
+                        ${s.last_message_at || '—'}
+                    </div>
+                    <i data-lucide="chevron-down" style="width:16px;height:16px;color:hsl(var(--muted-foreground));transition:transform .2s;" class="trace-chevron"></i>
+                </div>
+            </div>
+            <div class="trace-flow-container" id="traceFlow_${s.id}"></div>
+        </div>`;
+    });
+    container.innerHTML = html;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function renderTracePagination(data) {
+    const pag = document.getElementById('tracePagination');
+    if (data.pages <= 1) { pag.style.display = 'none'; return; }
+    pag.style.display = 'flex';
+    let btns = '';
+    for (let i = 1; i <= data.pages; i++) {
+        const active = i === data.current_page ? 'background:hsl(var(--primary));color:white;' : '';
+        btns += `<button class="btn btn-sm" style="min-width:32px;${active}" onclick="currentTracePage=${i};loadTraceSessions()">${i}</button>`;
+    }
+    pag.innerHTML = `<span style="font-size:12px;color:hsl(var(--muted-foreground));">${data.total} sessions</span><div style="display:flex;gap:4px;">${btns}</div>`;
+}
+
+function toggleTraceFlow(sessionId, rowEl) {
+    const container = document.getElementById('traceFlow_' + sessionId);
+    const chevron = rowEl.querySelector('.trace-chevron');
+
+    if (container.classList.contains('open')) {
+        container.classList.remove('open');
+        if (chevron) chevron.style.transform = 'rotate(0deg)';
+        return;
+    }
+
+    // Close all others
+    document.querySelectorAll('.trace-flow-container.open').forEach(c => {
+        c.classList.remove('open');
+        const prevChevron = c.previousElementSibling?.querySelector('.trace-chevron');
+        if (prevChevron) prevChevron.style.transform = 'rotate(0deg)';
+    });
+
+    if (chevron) chevron.style.transform = 'rotate(180deg)';
+    container.innerHTML = '<div style="text-align:center;padding:20px;"><div class="spin" style="display:inline-block;width:20px;height:20px;border:2px solid hsl(var(--border));border-top-color:hsl(var(--primary));border-radius:50%;"></div></div>';
+    container.classList.add('open');
+
+    fetch(`${traceBaseUrl}/${sessionId}`, {
+        headers: { 'Accept': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        renderTraceFlow(container, data);
+    })
+    .catch(() => {
+        container.innerHTML = '<div style="padding:16px;color:hsl(var(--destructive));font-size:13px;">Failed to load traces.</div>';
+    });
+}
+
+function renderTraceFlow(container, data) {
+    if (!data.messages || data.messages.length === 0) {
+        container.innerHTML = '<div style="padding:20px;text-align:center;font-size:13px;color:hsl(var(--muted-foreground));">No traces recorded for this session.</div>';
+        return;
+    }
+
+    let html = `<div style="padding:8px 0 4px;font-size:11px;color:hsl(var(--muted-foreground));display:flex;gap:12px;align-items:center;">
+        <span>📊 ${data.total_traces} total nodes</span>
+        <span>📱 ${data.session.phone_number}</span>
+        ${data.session.lead_id ? '<span>🎯 Lead #' + data.session.lead_id + '</span>' : ''}
+        ${data.session.quote_id ? '<span>📄 Quote #' + data.session.quote_id + '</span>' : ''}
+    </div>`;
+
+    data.messages.forEach(msg => {
+        const msgLabel = msg.message_id ? ('💬 ' + (msg.user_message || '').substring(0, 80)) : '⚙️ System';
+        html += `<div class="trace-msg-group">`;
+        html += `<div class="trace-msg-header">${escHtml(msgLabel)}</div>`;
+
+        msg.traces.forEach(trace => {
+            const dotColor = trace.status_color || '#6b7280';
+            const groupIcons = { 'git-branch': '🔀', 'brain': '🧠', 'database': '🗄️', 'send': '📤', 'image': '🖼️', 'bell': '🔔', 'circle': '⚪' };
+            const icon = groupIcons[trace.group_icon] || '⚪';
+            const statusCls = 'trace-badge-' + trace.status;
+            const timeStr = trace.execution_time_ms > 0 ? `${trace.execution_time_ms}ms` : '';
+
+            html += `<div class="trace-node">
+                <div class="trace-node-dot" style="border-color:${dotColor};color:${dotColor};font-size:12px;">${icon}</div>
+                <div class="trace-node-body">
+                    <div class="trace-node-title">
+                        ${escHtml(trace.node_name)}
+                        <span class="trace-badge ${statusCls}">${trace.status}</span>
+                        ${timeStr ? '<span style="font-size:10px;color:hsl(var(--muted-foreground));">' + timeStr + '</span>' : ''}
+                    </div>
+                    <div class="trace-node-meta">${trace.node_group} · ${trace.created_at}</div>`;
+
+            if (trace.error_message) {
+                html += `<div class="trace-node-data" style="border-left:3px solid hsl(0 84% 60%);">❌ ${escHtml(trace.error_message)}</div>`;
+            }
+            if (trace.input_data && Object.keys(trace.input_data).length) {
+                html += `<div class="trace-node-data"><details><summary>📥 Input</summary><pre style="margin:4px 0 0;white-space:pre-wrap;word-break:break-all;">${escHtml(JSON.stringify(trace.input_data, null, 2))}</pre></details></div>`;
+            }
+            if (trace.output_data && Object.keys(trace.output_data).length) {
+                html += `<div class="trace-node-data"><details><summary>📤 Output</summary><pre style="margin:4px 0 0;white-space:pre-wrap;word-break:break-all;">${escHtml(JSON.stringify(trace.output_data, null, 2))}</pre></details></div>`;
+            }
+
+            html += `</div></div>`;
+        });
+
+        html += `</div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function escHtml(s) {
+    if (!s) return '';
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+// Load traces on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updatePrice();
+    togglePaymentInfo();
+    // Load trace sessions after a small delay
+    setTimeout(loadTraceSessions, 500);
+});
 </script>
 @endpush

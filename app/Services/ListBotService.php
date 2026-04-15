@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AiChatSession;
 use App\Models\AiChatMessage;
+use App\Models\AiChatTrace;
 use App\Models\ChatflowStep;
 use App\Models\CatalogueCustomColumn;
 use App\Models\Product;
@@ -39,6 +40,8 @@ class ListBotService
     private ?CatalogueCustomColumn $uniqueColumn = null;
     private bool $uniqueColumnLoaded = false;
     private $aiVisibleColumns = null;
+    private array $pendingTraces = [];
+    private ?int $currentMessageId = null;
     private int $stepMenuDepth = 0;
 
     public function __construct(int $companyId, int $userId)
@@ -54,6 +57,39 @@ class ListBotService
         ]);
     }
 
+    /**
+     * Buffer a node trace for n8n-style diagnostic UI.
+     */
+    private function traceNode(int $sessionId, string $nodeName, string $group, string $status, ?array $input = null, ?array $output = null, ?string $error = null, int $timeMs = 0): void
+    {
+        $this->pendingTraces[] = [
+            'session_id'        => $sessionId,
+            'message_id'        => $this->currentMessageId,
+            'node_name'         => $nodeName,
+            'node_group'        => $group,
+            'status'            => $status,
+            'input_data'        => $input,
+            'output_data'       => $output,
+            'error_message'     => $error,
+            'execution_time_ms' => $timeMs,
+        ];
+    }
+
+    /**
+     * Flush all buffered traces to the database.
+     */
+    private function flushTraces(): void
+    {
+        foreach ($this->pendingTraces as $trace) {
+            try {
+                AiChatTrace::create($trace);
+            } catch (\Exception $e) {
+                Log::warning('ListBot: Failed to save trace - ' . $e->getMessage());
+            }
+        }
+        $this->pendingTraces = [];
+    }
+
     // ═══════════════════════════════════════════════════════
     // MAIN ENTRY POINT
     // ═══════════════════════════════════════════════════════
@@ -64,6 +100,8 @@ class ListBotService
         string $messageText,
         ?string $listRowId = null
     ): void {
+        $this->pendingTraces = [];
+
         if (!$this->whatsApp->isConfigured()) {
             Log::error('ListBot: WhatsApp API not configured');
             return;
@@ -71,19 +109,28 @@ class ListBotService
 
         try {
             $session = AiChatSession::findOrCreateForPhone($this->companyId, $phone, $instanceName);
-            $session->update(['last_message_at' => now()]);
+            // Set bot_type for new sessions
+            if ($session->wasRecentlyCreated) {
+                $session->update(['bot_type' => 'list_bot', 'last_message_at' => now()]);
+            } else {
+                $session->update(['last_message_at' => now()]);
+            }
 
             // Session expiry check
             $validDays = (int) Setting::getValue('ai_bot', 'session_valid_days', 10, $this->companyId);
             if (!$session->wasRecentlyCreated && $session->last_message_at) {
                 $daysSinceLastMessage = $session->last_message_at->diffInDays(now());
                 if ($daysSinceLastMessage >= $validDays) {
+                    $this->traceNode($session->id, 'SessionExpired', 'routing', 'warning',
+                        ['days_elapsed' => $daysSinceLastMessage, 'limit_days' => $validDays],
+                        ['action' => 'expired_old_session', 'started_new_session' => true]);
                     Log::info('ListBot: Session expired', ['session' => $session->id, 'days' => $daysSinceLastMessage]);
                     $session->update(['status' => 'expired']);
                     $session = AiChatSession::create([
                         'company_id' => $this->companyId,
                         'phone_number' => $phone,
                         'instance_name' => $instanceName,
+                        'bot_type' => 'list_bot',
                         'status' => 'active',
                         'last_message_at' => now(),
                     ]);
@@ -91,12 +138,18 @@ class ListBotService
             }
 
             // Save user message
-            AiChatMessage::create([
+            $userMsg = AiChatMessage::create([
                 'session_id' => $session->id,
                 'role' => 'user',
                 'message' => $messageText,
                 'message_type' => 'text',
             ]);
+            $this->currentMessageId = $userMsg->id;
+
+            // Trace: receive message
+            $this->traceNode($session->id, 'ReceiveMessage', 'routing', 'success',
+                ['phone' => $phone, 'message' => mb_substr($messageText, 0, 200), 'has_list_row_id' => (bool)$listRowId],
+                ['session_id' => $session->id, 'message_id' => $userMsg->id, 'is_new_session' => $session->wasRecentlyCreated]);
 
             // Early lead creation on first message
             if (!$session->lead_id) {
@@ -110,17 +163,24 @@ class ListBotService
                 ]);
                 $session->lead_id = $lead->id;
                 $session->save();
+                $this->traceNode($session->id, 'LeadCreated', 'database', 'success',
+                    ['phone' => $phone, 'trigger' => 'first_message'],
+                    ['lead_id' => $lead->id, 'lead_source' => 'whatsapp']);
                 Log::info('ListBot: Lead created', ['session' => $session->id, 'lead_id' => $lead->id]);
             }
 
             // Reset session if user types "reset"
             $trimmed = trim(strtolower($messageText));
             if ($trimmed === 'reset') {
+                $this->traceNode($session->id, 'SessionReset', 'routing', 'success',
+                    ['trigger' => 'user_typed_reset'],
+                    ['action' => 'expired_old_session', 'started_new_session' => true]);
                 $session->update(['status' => 'expired', 'is_completed' => true]);
                 $session = AiChatSession::create([
                     'company_id' => $this->companyId,
                     'phone_number' => $phone,
                     'instance_name' => $instanceName,
+                    'bot_type' => 'list_bot',
                     'status' => 'active',
                     'conversation_state' => 'started',
                     'last_message_at' => now(),
@@ -147,6 +207,15 @@ class ListBotService
                 'phone' => $phone,
                 'trace' => $e->getTraceAsString(),
             ]);
+            // Trace the error
+            if (isset($session)) {
+                $this->traceNode($session->id, 'ProcessingError', 'routing', 'error',
+                    ['phone' => $phone, 'message' => mb_substr($messageText, 0, 200)],
+                    null, $e->getMessage());
+            }
+        } finally {
+            // Always flush traces — even on exception
+            $this->flushTraces();
         }
     }
 
@@ -164,6 +233,9 @@ class ListBotService
 
         // ── Handle list selection (rowId present) ──
         if ($parsed) {
+            $this->traceNode($session->id, 'ListSelection', 'routing', 'success',
+                ['rowId' => $listRowId, 'type' => $parsed['type'], 'id' => $parsed['id'] ?? null],
+                ['route' => 'handleListSelection']);
             return $this->handleListSelection($session, $instanceName, $parsed, $steps);
         }
 
@@ -178,6 +250,9 @@ class ListBotService
                 $rowId = is_array($entry) ? ($entry['rowId'] ?? '') : $entry;
                 $parsed = WhatsAppService::parseRowId($rowId);
                 if ($parsed) {
+                    $this->traceNode($session->id, 'TextFallbackMatch', 'routing', 'success',
+                        ['input' => $trimmedText, 'matched_number' => $trimmedText, 'rowId' => $rowId],
+                        ['type' => $parsed['type'], 'id' => $parsed['id'] ?? null]);
                     Log::info('ListBot: Number mapped to rowId', ['number' => $trimmedText, 'rowId' => $rowId]);
                     unset($answers['_text_menu_rowMap']);
                     $session->collected_answers = $answers;
@@ -192,6 +267,9 @@ class ListBotService
                 $rowId = $fuzzyMatch['rowId'];
                 $parsed = WhatsAppService::parseRowId($rowId);
                 if ($parsed) {
+                    $this->traceNode($session->id, 'FuzzyTextMatch', 'routing', 'success',
+                        ['input' => $trimmedText, 'matched_title' => $fuzzyMatch['title'], 'score' => $fuzzyMatch['score']],
+                        ['type' => $parsed['type'], 'id' => $parsed['id'] ?? null]);
                     Log::info('ListBot: Fuzzy text matched', [
                         'input' => $trimmedText,
                         'matched' => $fuzzyMatch['title'],
@@ -223,6 +301,9 @@ class ListBotService
                     // Take next product from queue
                     $nextProductId = array_shift($queue);
                     $session->setAnswer('_product_queue', $queue);
+                    $this->traceNode($session->id, 'QueueNextProduct', 'routing', 'success',
+                        ['user_choice' => 'yes', 'next_product_id' => $nextProductId],
+                        ['remaining_queue' => count($queue)]);
                     return $this->startProductChatflow($session, $instanceName, $nextProductId, $steps);
                 }
                 // No queue — restart fresh for new product selection
@@ -231,6 +312,9 @@ class ListBotService
                 return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
             } else {
                 // User is done
+                $this->traceNode($session->id, 'OrderCompleted', 'routing', 'success',
+                    ['user_choice' => 'no', 'completed_products' => count($answers['_completed_products'] ?? [])],
+                    ['lead_id' => $session->lead_id, 'quote_id' => $session->quote_id]);
                 $session->conversation_state = 'completed';
                 $session->update(['status' => 'completed']);
                 $finalMsg = "✅ Order complete! Our team will contact you shortly. 🙏" . $this->resetFooter();
@@ -257,6 +341,9 @@ class ListBotService
             if (!empty($welcomeMsg)) {
                 $this->whatsApp->sendText($instanceName, $session->phone_number, $welcomeMsg . $this->resetFooter());
             }
+            $this->traceNode($session->id, 'ChatflowStarted', 'routing', 'success',
+                ['has_welcome' => !empty($welcomeMsg)],
+                ['action' => 'starting_chatflow']);
             $session->conversation_state = 'in_chatflow';
             $session->save();
             return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
@@ -335,6 +422,10 @@ class ListBotService
         // Now filter products by category and check for queue
         $filteredProducts = $this->getFilteredProducts($session);
 
+        $this->traceNode($session->id, 'CategorySelected', 'routing', 'success',
+            ['category_id' => $categoryId, 'category_name' => $baseName ?: $category->name, 'related_cat_ids' => $relatedCatIds],
+            ['filtered_product_count' => $filteredProducts->count(), 'product_ids' => $filteredProducts->pluck('id')->toArray()]);
+
         Log::info('ListBot: Products after category filter', [
             'count' => $filteredProducts->count(),
             'ids' => $filteredProducts->pluck('id')->toArray(),
@@ -356,6 +447,9 @@ class ListBotService
             $session->setAnswer('product_id', $product->id);
             $session->setAnswer('product_name', $this->getProductDisplayName($product));
             $this->attachProductToLead($session, $product);
+            $this->traceNode($session->id, 'AutoSelectProduct', 'routing', 'success',
+                ['reason' => 'single_match_after_category', 'product_id' => $product->id],
+                ['product_name' => $this->getProductDisplayName($product)]);
             Log::info('ListBot: Auto-selected single product', ['product_id' => $product->id]);
         } elseif ($filteredProducts->count() > 1) {
             // Multiple products — create queue, take first
@@ -367,6 +461,10 @@ class ListBotService
             $session->setAnswer('product_id', $firstProductId);
             $session->setAnswer('product_name', $this->getProductDisplayName($product));
             $this->attachProductToLead($session, $product);
+
+            $this->traceNode($session->id, 'ProductQueued', 'routing', 'success',
+                ['total_matched' => count($productIds) + 1, 'first_product_id' => $firstProductId],
+                ['queue_size' => count($productIds), 'current_product' => $this->getProductDisplayName($product)]);
 
             Log::info('ListBot: Multiple products matched, queued', [
                 'current' => $firstProductId,
@@ -397,6 +495,10 @@ class ListBotService
         $session->setAnswer('product_name', $this->getProductDisplayName($product));
         $this->attachProductToLead($session, $product);
 
+        $this->traceNode($session->id, 'ProductSelected', 'routing', 'success',
+            ['product_id' => $productId, 'product_name' => $this->getProductDisplayName($product)],
+            ['has_combos' => $product->combos->count() > 0, 'has_variations' => $product->activeVariations->count() > 0]);
+
         Log::info('ListBot: Product selected', ['session' => $session->id, 'product' => $this->getProductDisplayName($product)]);
 
         // Clear any product queue since user explicitly picked one
@@ -420,6 +522,10 @@ class ListBotService
         $session->setAnswer("column_filter_{$columnId}", $value);
         $session->current_step_retries = 0;
 
+        $this->traceNode($session->id, 'ColumnFilterSelected', 'routing', 'success',
+            ['column_id' => $columnId, 'value' => $value],
+            ['answer_key' => "column_filter_{$columnId}"]);
+
         Log::info('ListBot: Column filter selected', ['session' => $session->id, 'column' => $columnId, 'value' => $value]);
 
         // After saving answer, check filtered product count for queue
@@ -442,6 +548,10 @@ class ListBotService
     {
         $session->setAnswer($comboSlug, $value);
         $session->current_step_retries = 0;
+
+        $this->traceNode($session->id, 'ComboSelected', 'routing', 'success',
+            ['combo_slug' => $comboSlug, 'value' => $value],
+            ['answer_key' => $comboSlug]);
 
         Log::info('ListBot: Combo selected', ['session' => $session->id, 'slug' => $comboSlug, 'value' => $value]);
 
@@ -486,10 +596,16 @@ class ListBotService
                 $directFields = ['name', 'email', 'city', 'state'];
                 if (in_array($fieldKey, $directFields)) {
                     $lead->update([$fieldKey => trim($rawMessage)]);
+                    $this->traceNode($session->id, 'LeadUpdated', 'database', 'success',
+                        ['field' => $fieldKey, 'value' => mb_substr($rawMessage, 0, 100)],
+                        ['lead_id' => $lead->id, 'update_type' => 'direct_field']);
                 } else {
                     $customData = $lead->ai_custom_data ?? [];
                     $customData[$fieldKey] = trim($rawMessage);
                     $lead->update(['ai_custom_data' => $customData]);
+                    $this->traceNode($session->id, 'LeadUpdated', 'database', 'success',
+                        ['field' => $fieldKey, 'value' => mb_substr($rawMessage, 0, 100)],
+                        ['lead_id' => $lead->id, 'update_type' => 'ai_custom_data']);
                 }
             }
         }
@@ -499,6 +615,10 @@ class ListBotService
 
         $this->advanceChatflow($session, $steps);
         $session->save();
+
+        $this->traceNode($session->id, 'CustomAnswerSaved', 'database', 'success',
+            ['field_key' => $fieldKey, 'step_type' => $step->step_type, 'value' => mb_substr($rawMessage, 0, 100)],
+            ['is_optional' => $step->isOptionalStep()]);
 
         Log::info('ListBot: Custom answer saved', ['session' => $session->id, 'field' => $fieldKey, 'value' => mb_substr($rawMessage, 0, 50)]);
 
@@ -1062,6 +1182,10 @@ class ListBotService
 
         $this->attachProductToLead($session, $product);
 
+        $this->traceNode($session->id, 'QueueNextProduct', 'routing', 'success',
+            ['product_id' => $productId, 'product_name' => $this->getProductDisplayName($product)],
+            ['remaining_in_queue' => count($session->getAnswer('_product_queue') ?? [])]);
+
         Log::info('ListBot: Starting chatflow for queued product', [
             'session' => $session->id,
             'product_id' => $productId,
@@ -1144,6 +1268,10 @@ class ListBotService
         }
 
         $this->whatsApp->sendText($instanceName, $session->phone_number, $msg);
+
+        $this->traceNode($session->id, 'SummaryGenerated', 'delivery', 'success',
+            ['product_id' => $productId, 'product_name' => $answers['product_name'] ?? 'Unknown'],
+            ['lead_id' => $session->lead_id, 'quote_id' => $session->quote_id, 'completed_count' => count($answers['_completed_products'] ?? []) + 1]);
 
         // Save this product to completed list
         $completed = $answers['_completed_products'] ?? [];
@@ -1320,6 +1448,10 @@ class ListBotService
                 ]);
                 $session->quote_id = $quote->id;
                 $session->save();
+
+                $this->traceNode($session->id, 'QuoteCreated', 'database', 'success',
+                    ['product_id' => $product->id, 'product_name' => $this->getProductDisplayName($product)],
+                    ['quote_id' => $quote->id, 'quote_no' => $quote->quote_no, 'grand_total' => $product->sale_price]);
             } else {
                 // Add to existing quote
                 $existingItem = QuoteItem::where('quote_id', $session->quote_id)
@@ -1342,6 +1474,10 @@ class ListBotService
                     ]);
                     $quote = Quote::find($session->quote_id);
                     $quote?->recalculateTotals();
+
+                    $this->traceNode($session->id, 'QuoteItemAdded', 'database', 'success',
+                        ['product_id' => $product->id, 'product_name' => $this->getProductDisplayName($product), 'quote_id' => $session->quote_id],
+                        ['sort_order' => $maxSort + 1, 'new_total' => $quote?->grand_total]);
                 }
             }
         } catch (\Exception $e) {
@@ -1412,6 +1548,10 @@ class ListBotService
                     ]);
                     $quote = Quote::find($session->quote_id);
                     $quote?->recalculateTotals();
+
+                    $this->traceNode($session->id, 'VariationMatched', 'database', 'success',
+                        ['combination_key' => $key, 'combination' => $combination],
+                        ['variation_id' => $variation->id, 'price' => $variation->price, 'new_total' => $quote?->grand_total]);
                 }
             }
         }

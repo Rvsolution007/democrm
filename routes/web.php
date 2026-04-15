@@ -59,6 +59,10 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmi
     Route::post('/businesses/{company}/dismiss-upgrade', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'dismissUpgrade'])->name('businesses.dismiss-upgrade');
     Route::delete('/businesses/{company}', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'destroy'])->name('businesses.destroy');
 
+    // Bot Traces (per-business, AJAX)
+    Route::get('/businesses/{company}/bot-traces', [App\Http\Controllers\SuperAdmin\BusinessTraceController::class, 'sessions'])->name('businesses.bot-traces');
+    Route::get('/businesses/{company}/bot-traces/{sessionId}', [App\Http\Controllers\SuperAdmin\BusinessTraceController::class, 'traces'])->name('businesses.bot-traces.show');
+
     // Packages
     Route::get('/packages', [App\Http\Controllers\SuperAdmin\PackageController::class, 'index'])->name('packages.index');
     Route::get('/packages/create', [App\Http\Controllers\SuperAdmin\PackageController::class, 'create'])->name('packages.create');

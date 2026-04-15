@@ -16,6 +16,7 @@ class AiChatSession extends Model
         'company_id',
         'phone_number',
         'instance_name',
+        'bot_type',
         'lead_id',
         'quote_id',
         'current_step_id',
