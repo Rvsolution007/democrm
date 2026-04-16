@@ -658,53 +658,43 @@ async function runDiagnostics(type) {
     const progressPercent = document.getElementById('progressPercent' + capitalize(type));
     const resultsDiv = document.getElementById('results' + capitalize(type));
 
-    // Reset & Init Animation
+    // Disable button safely
+    if (btn.classList.contains('diag-btn-running')) return;
     btn.classList.add('diag-btn-running');
-    btn.innerHTML = `<i data-lucide="loader-2" class="spin" style="width:14px;height:14px;margin-right:6px;display:inline-block;"></i> Running Check...`;
+    btn.innerHTML = `<i data-lucide="loader-2" class="spin" style="width:14px;height:14px;margin-right:6px;display:inline-block;"></i> Scanning...`;
     if (typeof lucide !== 'undefined') lucide.createIcons();
     
     resultsDiv.innerHTML = '';
     progressDiv.style.display = 'block';
     
-    // Simulate initial loading percentage
-    let currentPercent = 5;
-    progressBar.style.width = currentPercent + '%';
-    progressPercent.textContent = currentPercent + '%';
-    progressText.textContent = 'Fetching diagnostics data...';
-
-    const interval = setInterval(() => {
-        if(currentPercent < 85) {
-            currentPercent += Math.floor(Math.random() * 10);
-            if(currentPercent > 85) currentPercent = 85;
-            progressBar.style.width = currentPercent + '%';
-            progressPercent.textContent = currentPercent + '%';
-            
-            if(currentPercent > 30 && currentPercent < 60) progressText.textContent = 'Analyzing rules...';
-            if(currentPercent > 60) progressText.textContent = 'Matching active configurations...';
-        }
-    }, 300);
+    progressBar.style.width = '5%';
+    progressPercent.textContent = '5%';
+    progressText.textContent = 'Fetching configuration data...';
 
     try {
+        // Fetch data immediately
         const response = await fetch(diagRoutes[type], {
             headers: { 'Accept': 'application/json' }
         });
         const data = await response.json();
         
-        clearInterval(interval);
-        progressBar.style.width = '100%';
-        progressPercent.textContent = '100%';
-        progressText.textContent = 'Complete!';
+        progressBar.style.width = '20%';
+        progressPercent.textContent = '20%';
+        progressText.textContent = 'Preparing scan queue...';
 
-        setTimeout(() => {
-            renderDiagnostics(type, data, resultsDiv);
-            btn.classList.remove('diag-btn-running');
-            btn.innerHTML = `<i data-lucide="check" style="width:14px;height:14px;margin-right:6px;display:inline-block;"></i> Run Again`;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-            progressDiv.style.display = 'none';
-        }, 600);
+        // 1. Initial Render: Render all items in "PENDING" mode
+        renderPendingDiagnostics(type, data, resultsDiv);
+        
+        // 2. Animate and "Scan" sequentially
+        await animateScan(type, data, progressBar, progressPercent, progressText);
+
+        // Done
+        btn.classList.remove('diag-btn-running');
+        btn.innerHTML = `<i data-lucide="check" style="width:14px;height:14px;margin-right:6px;display:inline-block;"></i> Run Again`;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        progressDiv.style.display = 'none';
 
     } catch (err) {
-        clearInterval(interval);
         console.error(err);
         btn.classList.remove('diag-btn-running');
         btn.innerHTML = btnOriginalHTML;
@@ -713,12 +703,10 @@ async function runDiagnostics(type) {
     }
 }
 
-function renderDiagnostics(type, data, container) {
+// Renders the table layout and empty/pending rows
+function renderPendingDiagnostics(type, data, container) {
     let html = '';
-    let staggerDelay = 0;
     
-    let totalPass = 0, totalWarn = 0, totalFail = 0, total = 0;
-
     // Header based on type
     if (type === 'customized') {
         html += `<div style="display:grid;grid-template-columns:30% 25% 45%;background:hsl(var(--muted)/0.5);border-radius:8px;margin-bottom:12px;border:1px solid hsl(var(--border));font-size:12px;font-weight:600;color:hsl(var(--muted-foreground));">
@@ -742,66 +730,157 @@ function renderDiagnostics(type, data, container) {
         const catName = category.replace('_', ' ').toUpperCase();
         html += `<div class="diag-col-header" style="margin-top:16px;">📂 ${catName}</div>`;
 
-        rows.forEach(r => {
-            total++;
-            if(r.severity === 'success') totalPass++;
-            else if(r.severity === 'warning') totalWarn++;
-            else totalFail++;
-
-            let iconCls = r.severity === 'success' ? 'diag-icon-pass' : (r.severity === 'warning' ? 'diag-icon-warn' : 'diag-icon-fail');
-            let iconName = r.severity === 'success' ? 'check-circle-2' : (r.severity === 'warning' ? 'alert-triangle' : 'x-circle');
-
+        rows.forEach((r, idx) => {
+            const rowId = `diag-${type}-${category}-${idx}`;
+            
+            // Render pending state
             if (type === 'customized') {
-                html += `<div class="diag-row" style="animation-delay:${staggerDelay}s;display:grid;grid-template-columns:30% 25% 45%;">
-                    <div class="diag-col" style="font-weight:600;">${escHtml(r.name)}</div>
-                    <div class="diag-col">
-                        <span style="display:flex;align-items:center;gap:6px;">
-                           ${r.admin_set ? '<span>✅</span>' : '<span>❌</span>'} ${escHtml(r.admin_detail)}
-                        </span>
+                html += `<div id="${rowId}" class="diag-row" style="display:grid;grid-template-columns:30% 25% 45%;opacity:0.6;background:#f8fafc;">
+                    <div class="diag-col" style="font-weight:600;color:#64748b;">
+                        <i data-lucide="loader-2" class="spin pending-spin" style="width:14px;height:14px;margin-right:6px;"></i> 
+                        ${escHtml(r.name)}
                     </div>
-                    <div class="diag-col">
-                        <span style="display:flex;align-items:center;gap:6px;width:100%;">
-                           <i data-lucide="${iconName}" class="${iconCls}" style="width:16px;min-width:16px;"></i> <span style="flex:1;">${escHtml(r.connected_detail)}</span>
-                        </span>
-                    </div>
+                    <div class="diag-col diag-target-col1" style="color:#94a3b8;">Waiting...</div>
+                    <div class="diag-col diag-target-col2" style="color:#94a3b8;">Waiting...</div>
                 </div>`;
             } else {
-                html += `<div class="diag-row" style="animation-delay:${staggerDelay}s;display:grid;grid-template-columns:35% 20% 45%;">
-                    <div class="diag-col" style="font-weight:600;">${escHtml(r.rule_name)}</div>
-                    <div class="diag-col">
-                        <span style="display:flex;align-items:center;gap:6px;">
-                           <i data-lucide="${iconName}" class="${iconCls}" style="width:16px;min-width:16px;"></i> ${r.working ? 'Working' : 'Not Working'}
-                        </span>
+                html += `<div id="${rowId}" class="diag-row" style="display:grid;grid-template-columns:35% 20% 45%;opacity:0.6;background:#f8fafc;">
+                    <div class="diag-col" style="font-weight:600;color:#64748b;">
+                        <i data-lucide="loader-2" class="spin pending-spin" style="width:14px;height:14px;margin-right:6px;"></i> 
+                        ${escHtml(r.rule_name)}
                     </div>
-                    <div class="diag-col" style="display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:10px 16px;">
-                        <span style="font-weight:600;font-size:11px;color:hsl(var(--primary));background:hsl(var(--primary)/0.1);padding:2px 6px;border-radius:4px;margin-bottom:4px;">${escHtml(r.connected_to)}</span>
-                        <span style="font-size:12px;color:hsl(var(--muted-foreground));line-height:1.4;">💬 ${escHtml(r.bot_flow)}</span>
-                        ${r.detail !== 'N/A' && r.detail !== '' ? `<span style="font-size:11px;margin-top:4px;">${r.detail}</span>` : ''}
+                    <div class="diag-col diag-target-col1" style="color:#94a3b8;">Waiting...</div>
+                    <div class="diag-col diag-target-col2" style="display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:10px 16px;color:#94a3b8;">
+                       Waiting...
                     </div>
                 </div>`;
             }
-            staggerDelay += 0.05;
         });
     });
 
-    // Summary Bar
-    let passBadge = `<span class="diag-badge" style="background:hsl(142 71% 45% / 0.15);color:hsl(142 71% 45%);"><i data-lucide="check-circle-2" style="width:14px;height:14px;"></i> ${totalPass} PASS</span>`;
-    let warnBadge = totalWarn > 0 ? `<span class="diag-badge" style="background:hsl(38 92% 50% / 0.15);color:hsl(38 92% 50%);"><i data-lucide="alert-triangle" style="width:14px;height:14px;"></i> ${totalWarn} WARNING</span>` : '';
-    let failBadge = totalFail > 0 ? `<span class="diag-badge" style="background:hsl(0 84% 60% / 0.15);color:hsl(0 84% 60%);"><i data-lucide="x-circle" style="width:14px;height:14px;"></i> ${totalFail} FAIL</span>` : '';
-    
-    let summaryBg = totalFail > 0 ? 'rgba(239,68,68,0.05)' : (totalWarn > 0 ? 'rgba(245,158,11,0.05)' : 'rgba(34,197,94,0.05)');
-
-    html += `<div class="diag-summary" style="animation-delay:${staggerDelay + 0.2}s; background:${summaryBg};">
-        <div style="display:flex;gap:8px;align-items:center;">
-            ${passBadge} ${warnBadge} ${failBadge}
-        </div>
-        <div style="color:hsl(var(--muted-foreground));font-size:13px;">
-            Total Rules Checked: <span style="font-weight:bold;color:hsl(var(--foreground));">${total}</span>
-        </div>
-    </div>`;
+    // Summary Placeholder
+    html += `<div id="diag-summary-${type}" class="diag-summary" style="display:none;"></div>`;
 
     container.innerHTML = html;
     if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// Sequentially animate the resolution of each scan row
+function animateScan(type, data, progressBar, progressPercent, progressText) {
+    return new Promise(resolve => {
+        let totalRows = 0;
+        const flatRows = [];
+        
+        // Flatten rows
+        Object.keys(data).forEach(cat => {
+            if(data[cat]) {
+                data[cat].forEach((r, idx) => {
+                    totalRows++;
+                    flatRows.push({ category: cat, index: idx, data: r });
+                });
+            }
+        });
+        
+        if (totalRows === 0) {
+            resolve();
+            return;
+        }
+
+        let totalPass = 0, totalWarn = 0, totalFail = 0;
+        let currentIndex = 0;
+
+        function processNext() {
+            if (currentIndex >= flatRows.length) {
+                // Done
+                progressBar.style.width = '100%';
+                progressPercent.textContent = '100%';
+                progressText.textContent = 'Complete!';
+
+                // Render Final Summary
+                const summaryContainer = document.getElementById(`diag-summary-${type}`);
+                summaryContainer.style.display = 'flex';
+                
+                let passBadge = `<span class="diag-badge" style="background:hsl(142 71% 45% / 0.15);color:hsl(142 71% 45%);"><i data-lucide="check-circle-2" style="width:14px;height:14px;"></i> ${totalPass} PASS</span>`;
+                let warnBadge = totalWarn > 0 ? `<span class="diag-badge" style="background:hsl(38 92% 50% / 0.15);color:hsl(38 92% 50%);"><i data-lucide="alert-triangle" style="width:14px;height:14px;"></i> ${totalWarn} WARNING</span>` : '';
+                let failBadge = totalFail > 0 ? `<span class="diag-badge" style="background:hsl(0 84% 60% / 0.15);color:hsl(0 84% 60%);"><i data-lucide="x-circle" style="width:14px;height:14px;"></i> ${totalFail} FAIL</span>` : '';
+                let summaryBg = totalFail > 0 ? 'rgba(239,68,68,0.05)' : (totalWarn > 0 ? 'rgba(245,158,11,0.05)' : 'rgba(34,197,94,0.05)');
+
+                summaryContainer.style.background = summaryBg;
+                summaryContainer.innerHTML = `
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        ${passBadge} ${warnBadge} ${failBadge}
+                    </div>
+                    <div style="color:hsl(var(--muted-foreground));font-size:13px;">
+                        Total Rules Checked: <span style="font-weight:bold;color:hsl(var(--foreground));">${totalRows}</span>
+                    </div>
+                `;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                resolve();
+                return;
+            }
+
+            const item = flatRows[currentIndex];
+            const r = item.data;
+            const rowEl = document.getElementById(`diag-${type}-${item.category}-${item.index}`);
+
+            if (rowEl) {
+                // Update stats
+                if(r.severity === 'success') totalPass++;
+                else if(r.severity === 'warning') totalWarn++;
+                else totalFail++;
+
+                let iconCls = r.severity === 'success' ? 'diag-icon-pass' : (r.severity === 'warning' ? 'diag-icon-warn' : 'diag-icon-fail');
+                let iconName = r.severity === 'success' ? 'check-circle-2' : (r.severity === 'warning' ? 'alert-triangle' : 'x-circle');
+
+                // Animate row resolution
+                rowEl.style.opacity = '1';
+                rowEl.style.background = 'white';
+                
+                // Remove pending icon from name
+                const nameCol = rowEl.querySelector('.diag-col');
+                nameCol.style.color = '#111';
+                const spinIcon = nameCol.querySelector('.pending-spin');
+                if (spinIcon) spinIcon.remove();
+
+                const col1 = rowEl.querySelector('.diag-target-col1');
+                const col2 = rowEl.querySelector('.diag-target-col2');
+
+                col1.style.color = '#333';
+                col2.style.color = '#333';
+
+                if (type === 'customized') {
+                    col1.innerHTML = `<span style="display:flex;align-items:center;gap:6px;">
+                            ${r.admin_set ? '<span>✅</span>' : '<span>❌</span>'} ${escHtml(r.admin_detail)}
+                        </span>`;
+                    col2.innerHTML = `<span style="display:flex;align-items:center;gap:6px;width:100%;">
+                            <i data-lucide="${iconName}" class="${iconCls}" style="width:16px;min-width:16px;"></i> <span style="flex:1;">${escHtml(r.connected_detail)}</span>
+                        </span>`;
+                } else {
+                    col1.innerHTML = `<span style="display:flex;align-items:center;gap:6px;">
+                            <i data-lucide="${iconName}" class="${iconCls}" style="width:16px;min-width:16px;"></i> ${r.working ? 'Working' : 'Not Working'}
+                        </span>`;
+                    col2.innerHTML = `<span style="font-weight:600;font-size:11px;color:hsl(var(--primary));background:hsl(var(--primary)/0.1);padding:2px 6px;border-radius:4px;margin-bottom:4px;">${escHtml(r.connected_to)}</span>
+                        <span style="font-size:12px;color:hsl(var(--muted-foreground));line-height:1.4;">💬 ${escHtml(r.bot_flow)}</span>
+                        ${r.detail !== 'N/A' && r.detail !== '' ? `<span style="font-size:11px;margin-top:4px;">${escHtml(r.detail)}</span>` : ''}`;
+                }
+
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+
+            // Update Progress
+            let pct = 20 + Math.floor(((currentIndex + 1) / totalRows) * 80);
+            progressBar.style.width = pct + '%';
+            progressPercent.textContent = pct + '%';
+            progressText.textContent = `Analyzing ${escHtml(r.name || r.rule_name)}...`;
+
+            currentIndex++;
+            setTimeout(processNext, 250); // Scan next row after 250ms delay
+        }
+
+        // Start scanning cycle
+        setTimeout(processNext, 200);
+    });
 }
 
 function capitalize(s) {
