@@ -677,6 +677,10 @@ async function runDiagnostics(type) {
             headers: { 'Accept': 'application/json' }
         });
         const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || `HTTP ${response.status}`);
+        }
         
         progressBar.style.width = '20%';
         progressPercent.textContent = '20%';
@@ -695,10 +699,10 @@ async function runDiagnostics(type) {
         progressDiv.style.display = 'none';
 
     } catch (err) {
-        console.error(err);
+        console.error("DIAGNOSTIC ERROR:", err);
         btn.classList.remove('diag-btn-running');
         btn.innerHTML = btnOriginalHTML;
-        progressText.textContent = 'Error fetching data.';
+        progressText.textContent = 'Error: ' + err.message;
         progressText.style.color = 'red';
     }
 }

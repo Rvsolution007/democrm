@@ -27,7 +27,9 @@ class HardcodedDiagnosticService
 
         // Check Combo Rule
         $comboCols = CatalogueCustomColumn::where('company_id', $companyId)->where('is_combo', true)->count();
-        $hasCombos = ProductCombo::where('company_id', $companyId)->count() > 0;
+        $hasCombos = ProductCombo::whereHas('product', function ($q) use ($companyId) {
+            $q->where('company_id', $companyId);
+        })->count() > 0;
         $rows[] = [
             'rule_name' => 'Combo Flag → Variation Matrix',
             'module' => 'Catalogue Rules',
