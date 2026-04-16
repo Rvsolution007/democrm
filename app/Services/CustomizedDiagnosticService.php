@@ -202,7 +202,7 @@ class CustomizedDiagnosticService
     {
         $rows = [];
         $totalProducts = Product::where('company_id', $companyId)->count();
-        $activeProducts = Product::where('company_id', $companyId)->where('is_active', true)->count();
+        $activeProducts = Product::where('company_id', $companyId)->where('status', 'active')->count();
 
         if ($totalProducts === 0) {
             return [[
