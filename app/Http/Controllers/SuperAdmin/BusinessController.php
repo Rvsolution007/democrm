@@ -11,7 +11,10 @@ use App\Models\SubscriptionPackage;
 use App\Models\SubscriptionPayment;
 use App\Models\AiCreditWallet;
 use App\Models\AiCreditTransaction;
+use App\Services\CustomizedDiagnosticService;
+use App\Services\HardcodedDiagnosticService;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
@@ -502,5 +505,21 @@ class BusinessController extends Controller
             DB::rollBack();
             return back()->with('error', 'Failed to delete business: ' . $e->getMessage());
         }
+    }
+
+    // ─── Diagnostics ───────────────────────────────────────────────────
+
+    public function diagnosticsCustomized(Company $company): JsonResponse
+    {
+        $service = new CustomizedDiagnosticService();
+        $results = $service->run($company->id);
+        return response()->json($results);
+    }
+
+    public function diagnosticsHardcoded(Company $company): JsonResponse
+    {
+        $service = new HardcodedDiagnosticService();
+        $results = $service->run($company->id);
+        return response()->json($results);
     }
 }

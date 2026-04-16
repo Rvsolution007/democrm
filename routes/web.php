@@ -62,6 +62,10 @@ Route::prefix('superadmin')->name('superadmin.')->middleware(['auth', 'superadmi
     // Bot Traces (per-business, AJAX)
     Route::get('/businesses/{company}/bot-traces', [App\Http\Controllers\SuperAdmin\BusinessTraceController::class, 'sessions'])->name('businesses.bot-traces');
     Route::get('/businesses/{company}/bot-traces/{sessionId}', [App\Http\Controllers\SuperAdmin\BusinessTraceController::class, 'traces'])->name('businesses.bot-traces.show');
+    
+    // Diagnostics (per-business, AJAX)
+    Route::get('/businesses/{company}/diagnostics/customized', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'diagnosticsCustomized'])->name('businesses.diagnostics-customized');
+    Route::get('/businesses/{company}/diagnostics/hardcoded', [App\Http\Controllers\SuperAdmin\BusinessController::class, 'diagnosticsHardcoded'])->name('businesses.diagnostics-hardcoded');
 
     // Packages
     Route::get('/packages', [App\Http\Controllers\SuperAdmin\PackageController::class, 'index'])->name('packages.index');

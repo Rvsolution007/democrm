@@ -41,10 +41,13 @@ class AiAnalyticsController extends Controller
 
         $tier1Logs = $logs->where('tier', 1);
         $tier2Logs = $logs->where('tier', 2);
+        $tier3Logs = $logs->where('tier', 3);
         $tier1Calls = $tier1Logs->count();
         $tier2Calls = $tier2Logs->count();
+        $tier3Calls = $tier3Logs->count();
         $tier1Avg = $tier1Calls > 0 ? round($tier1Logs->avg('total_tokens')) : 0;
         $tier2Avg = $tier2Calls > 0 ? round($tier2Logs->avg('total_tokens')) : 0;
+        $tier3Avg = $tier3Calls > 0 ? round($tier3Logs->avg('total_tokens')) : 0;
 
         // Client-wise breakdown
         $clientStats = $logs->groupBy('phone_number')->map(function ($group, $phone) {
@@ -53,6 +56,7 @@ class AiAnalyticsController extends Controller
                 'total_calls' => $group->count(),
                 'tier1_calls' => $group->where('tier', 1)->count(),
                 'tier2_calls' => $group->where('tier', 2)->count(),
+                'tier3_calls' => $group->where('tier', 3)->count(),
                 'total_tokens' => $group->sum('total_tokens'),
                 'last_active' => $group->max('created_at'),
             ];
@@ -60,7 +64,7 @@ class AiAnalyticsController extends Controller
 
         return view('admin.ai-analytics.index', compact(
             'totalTokens', 'totalCalls', 'avgPerMessage',
-            'tier1Calls', 'tier2Calls', 'tier1Avg', 'tier2Avg',
+            'tier1Calls', 'tier2Calls', 'tier3Calls', 'tier1Avg', 'tier2Avg', 'tier3Avg',
             'clientStats', 'range'
         ));
     }

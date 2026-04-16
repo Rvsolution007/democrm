@@ -381,66 +381,76 @@
     {{-- AI Prompts --}}
     <form method="POST" action="{{ route('superadmin.settings.save-ai-prompts') }}">
         @csrf
-        <div class="settings-card">
-            <div class="settings-card-header">
-                <i data-lucide="file-text" style="width:16px;height:16px;color:#0ea5e9;"></i>
-                <h3>AI System Prompts (Global)</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3 style="margin:0;font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;">
+                <i data-lucide="file-text" style="width:20px;height:20px;color:#0ea5e9;"></i>
+                AI Tier Prompt Configuration
+            </h3>
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save" style="width:16px;height:16px;"></i> Save All Prompts
+            </button>
+        </div>
+
+        {{-- TIER 1 --}}
+        <div class="settings-card" style="margin-bottom:20px;">
+            <div class="settings-card-header" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+                <h3 style="color:#1e293b;"><span style="color:#22c55e;">⚡ TIER 1</span> — Contextual Product Matching engine</h3>
             </div>
             <div class="settings-card-body">
-                {{-- Tier 1 Locked --}}
-                <div class="form-row">
+                <div class="form-row" style="margin-bottom:0;">
                     <label class="field-label" style="color:#b91c1c;display:flex;align-items:center;gap:6px;">
-                        <i data-lucide="lock" style="width:14px;height:14px;"></i> Tier 1 Contextual AI (Locked)
+                        <i data-lucide="lock" style="width:14px;height:14px;"></i> Locked Dynamic Pipeline
                     </label>
                     <textarea class="form-control" rows="8" readonly style="background-color:#fee2e2;border-color:#fca5a5;cursor:not-allowed;font-family:monospace;font-size:12px;color:#991b1b;">[LOCKED — Dynamic Prompt Engine]
 AVAILABLE OPTIONS: [Auto-Injected from Product Database]
 USER MESSAGE: [Customer ka WhatsApp message]
 
 ═══ RULES (follow in order, stop at first match) ═══
-
 RULE 1 — SINGLE MATCH → MATCH_ID: <ID>
 RULE 2 — MULTIPLE MATCHES → QUEUE_MATCHES: <ID1>,<ID2>
-   (Examples dynamically generated from actual product names)
-   STRICT: Only include IDs user EXPLICITLY named.
 RULE 3 — AMBIGUOUS → Ask clarifying question in Hindi/Hinglish
 RULE 4 — NO MATCH → NONE</textarea>
-                    <div class="hint" style="color:#ef4444;">Backend system ka core algorithm. Security ke liye locked hai.</div>
+                    <div class="hint" style="color:#ef4444;">Backend system core algorithm. Security ke liye locked hai.</div>
                 </div>
+            </div>
+        </div>
 
-                <hr style="margin:20px 0;border-top:1px dashed hsl(var(--border));">
-
+        {{-- TIER 2 --}}
+        <div class="settings-card" style="margin-bottom:20px;">
+            <div class="settings-card-header" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+                <h3 style="color:#1e293b;"><span style="color:#f59e0b;">🧠 TIER 2</span> — General Conversation & Logic AI</h3>
+            </div>
+            <div class="settings-card-body">
                 <div class="form-row">
-                    <label class="field-label">Primary System Prompt (Tier 2)</label>
+                    <label class="field-label">Primary System Prompt</label>
                     <textarea name="system_prompt" class="form-control" rows="5" placeholder="Tum ek helpful WhatsApp AI assistant ho...">{{ $aiPrompts['system_prompt'] }}</textarea>
                     <div class="hint">General bot persona and rules define karo.</div>
                 </div>
-
-                <div class="form-row">
-                    <label class="field-label">Greeting Prompt (Optional)</label>
-                    <textarea name="greeting_prompt" class="form-control" rows="3" placeholder="User just said hi or hello...">{{ $aiPrompts['greeting_prompt'] }}</textarea>
-                    <div class="hint">Bot greet kaise kare jab user "Hi", "Hello", "Namaste" bole.</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                    <div class="form-row">
+                        <label class="field-label">Greeting Prompt (Optional)</label>
+                        <textarea name="greeting_prompt" class="form-control" rows="3" placeholder="User just said hi or hello...">{{ $aiPrompts['greeting_prompt'] }}</textarea>
+                        <div class="hint">Bot greet kaise kare jab user "Hi", "Hello" bole.</div>
+                    </div>
+                    <div class="form-row">
+                        <label class="field-label">Spell Correction Prompt (Optional)</label>
+                        <textarea name="spell_prompt" class="form-control" rows="3" placeholder="Fix spelling: {text}. Items: [{items}]. Reply corrected text only.">{{ $aiPrompts['spell_prompt'] }}</textarea>
+                        <div class="hint">User typos fix karne ka micro-prompt.</div>
+                    </div>
                 </div>
+            </div>
+        </div>
 
-                <!-- Business Query Prompt moved to per-business admin settings -->
-
-                <div class="form-row">
-                    <label class="field-label">Spell Correction Prompt (Optional)</label>
-                    <textarea name="spell_prompt" class="form-control" rows="3" placeholder="Fix spelling: {text}. Items: [{items}]. Reply corrected text only.">{{ $aiPrompts['spell_prompt'] }}</textarea>
-                    <div class="hint">User typos fix karne ka micro-prompt. {text} aur {items} placeholders use karo.</div>
-                </div>
-
-                <hr style="margin:20px 0;border-top:1px dashed hsl(var(--border));">
-
-                <div class="form-row">
-                    <label class="field-label">🧠 Tier 3 — Column Analytics AI Prompt</label>
+        {{-- TIER 3 --}}
+        <div class="settings-card">
+            <div class="settings-card-header" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+                <h3 style="color:#1e293b;"><span style="color:#3b82f6;">📊 TIER 3</span> — Advanced Column Analytics AI</h3>
+            </div>
+            <div class="settings-card-body">
+                <div class="form-row" style="margin-bottom:0;">
+                    <label class="field-label">Analytics System Prompt</label>
                     <textarea name="tier3_prompt" class="form-control" rows="5" placeholder="You are a senior sales executive...">{{ $aiPrompts['tier3_prompt'] }}</textarea>
                     <div class="hint">Product column queries ke liye AI's sales persona define karo. Khali chhodne pe default prompt use hoga.</div>
-                </div>
-
-                <div class="save-row">
-                    <button type="submit" class="btn btn-primary">
-                        <i data-lucide="save" style="width:16px;height:16px;"></i> Save All Prompts
-                    </button>
                 </div>
             </div>
         </div>

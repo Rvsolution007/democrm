@@ -137,6 +137,39 @@ class ListBotService
                 }
             }
 
+            // Auto-reset completed sessions — user messaging again means they want a fresh start
+            if (in_array($session->conversation_state, ['completed', 'awaiting_add_more']) 
+                || $session->status === 'completed') {
+                $this->traceNode($session->id, 'AutoResetCompleted', 'routing', 'success',
+                    ['old_state' => $session->conversation_state, 'old_status' => $session->status],
+                    ['action' => 'completed_session_reset']);
+                $session->update(['status' => 'completed']);
+                $session = AiChatSession::create([
+                    'company_id' => $this->companyId,
+                    'phone_number' => $phone,
+                    'instance_name' => $instanceName,
+                    'bot_type' => 'list_bot',
+                    'status' => 'active',
+                    'last_message_at' => now(),
+                ]);
+            }
+
+            // Detect orphaned session — lead was deleted externally
+            if ($session->lead_id && !Lead::where('id', $session->lead_id)->exists()) {
+                $this->traceNode($session->id, 'OrphanedLeadReset', 'routing', 'warning',
+                    ['deleted_lead_id' => $session->lead_id, 'deleted_quote_id' => $session->quote_id],
+                    ['action' => 'reset_due_to_deleted_lead']);
+                $session->update(['status' => 'expired']);
+                $session = AiChatSession::create([
+                    'company_id' => $this->companyId,
+                    'phone_number' => $phone,
+                    'instance_name' => $instanceName,
+                    'bot_type' => 'list_bot',
+                    'status' => 'active',
+                    'last_message_at' => now(),
+                ]);
+            }
+
             // Save user message
             $userMsg = AiChatMessage::create([
                 'session_id' => $session->id,

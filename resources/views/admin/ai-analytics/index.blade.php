@@ -44,7 +44,7 @@
                 <div style="font-size:13px;opacity:0.85;font-weight:500">Avg Tokens / Message</div>
                 <div style="font-size:32px;font-weight:800;margin:8px 0">{{ number_format($avgPerMessage) }}</div>
                 <div style="font-size:12px;opacity:0.75">
-                    Tier 1: ~{{ $tier1Avg }} avg | Tier 2: ~{{ $tier2Avg }} avg
+                    Tier 1: ~{{ $tier1Avg }} avg | Tier 2: ~{{ $tier2Avg }} avg | Tier 3: ~{{ $tier3Avg }} avg
                 </div>
             </div>
         </div>
@@ -55,7 +55,7 @@
                 <div style="font-size:13px;opacity:0.85;font-weight:500">Total AI Calls</div>
                 <div style="font-size:32px;font-weight:800;margin:8px 0">{{ number_format($totalCalls) }}</div>
                 <div style="font-size:12px;opacity:0.75">
-                    ⚡ Tier 1: {{ $tier1Calls }} | 🧠 Tier 2: {{ $tier2Calls }}
+                    ⚡ T1: {{ $tier1Calls }} | 🧠 T2: {{ $tier2Calls }} | 📊 T3: {{ $tier3Calls }}
                 </div>
             </div>
         </div>
@@ -67,17 +67,31 @@
         <div class="card-content" style="padding:20px">
             <div style="font-weight:600;margin-bottom:12px;font-size:14px">Tier Distribution</div>
             <div style="display:flex;height:28px;border-radius:14px;overflow:hidden;background:#f1f5f9">
-                @php $tier1Pct = round(($tier1Calls / $totalCalls) * 100); @endphp
+                @php 
+                    $tier1Pct = round(($tier1Calls / $totalCalls) * 100); 
+                    $tier3Pct = round(($tier3Calls / $totalCalls) * 100);
+                    $tier2Pct = 100 - $tier1Pct - $tier3Pct;
+                @endphp
+                @if($tier1Pct > 0)
                 <div style="width:{{ $tier1Pct }}%;background:linear-gradient(90deg,#22c55e,#16a34a);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;min-width:40px">
                     ⚡ {{ $tier1Pct }}%
                 </div>
-                <div style="width:{{ 100 - $tier1Pct }}%;background:linear-gradient(90deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;min-width:40px">
-                    🧠 {{ 100 - $tier1Pct }}%
+                @endif
+                @if($tier2Pct > 0)
+                <div style="width:{{ $tier2Pct }}%;background:linear-gradient(90deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;min-width:40px">
+                    🧠 {{ $tier2Pct }}%
                 </div>
+                @endif
+                @if($tier3Pct > 0)
+                <div style="width:{{ $tier3Pct }}%;background:linear-gradient(90deg,#3b82f6,#2563eb);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:700;min-width:40px">
+                    📊 {{ $tier3Pct }}%
+                </div>
+                @endif
             </div>
             <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:var(--text-muted)">
-                <span>⚡ Tier 1 (Lightweight) = Low cost</span>
-                <span>🧠 Tier 2 (Full AI) = Higher cost</span>
+                <span>⚡ T1 (Product Match)</span>
+                <span>🧠 T2 (General Query)</span>
+                <span>📊 T3 (Analytics)</span>
             </div>
         </div>
     </div>
@@ -94,8 +108,9 @@
                     <tr>
                         <th style="padding:12px 16px;text-align:left;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">Phone</th>
                         <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">Total Calls</th>
-                        <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">⚡ Tier 1</th>
-                        <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">🧠 Tier 2</th>
+                        <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">⚡ T1</th>
+                        <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">🧠 T2</th>
+                        <th style="padding:12px 16px;text-align:center;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">📊 T3</th>
                         <th style="padding:12px 16px;text-align:right;border-bottom:2px solid var(--border);font-weight:600;font-size:12px;text-transform:uppercase">Total Tokens</th>
                     </tr>
                 </thead>
@@ -109,6 +124,9 @@
                             </td>
                             <td style="padding:12px 16px;text-align:center">
                                 <span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600">{{ $client['tier2_calls'] }}</span>
+                            </td>
+                            <td style="padding:12px 16px;text-align:center">
+                                <span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600">{{ $client['tier3_calls'] }}</span>
                             </td>
                             <td style="padding:12px 16px;text-align:right;font-weight:600">{{ number_format($client['total_tokens']) }}</td>
                         </tr>

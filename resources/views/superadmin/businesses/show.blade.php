@@ -498,69 +498,98 @@
     </div>
 </div>
 
-{{-- ═══ Bot Trace Viewer ═══ --}}
+{{-- ═══ Diagnostics System ═══ --}}
 <div class="card" style="margin-top:24px;">
-    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid hsl(var(--border));">
-        <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,hsl(var(--primary)/0.15),hsl(var(--accent)/0.15));display:flex;align-items:center;justify-content:center;">
-                <i data-lucide="activity" style="width:18px;height:18px;color:hsl(var(--primary));"></i>
-            </div>
-            <div>
-                <h3 style="margin:0;font-size:16px;font-weight:600;">Bot Node Traces</h3>
-                <p style="margin:0;font-size:12px;color:hsl(var(--muted-foreground));">Diagnostic trace viewer for bot execution flows</p>
-            </div>
+    <div class="card-header" style="display:flex;align-items:center;border-bottom:1px solid hsl(var(--border));">
+        <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,hsl(var(--primary)/0.15),hsl(var(--accent)/0.15));display:flex;align-items:center;justify-content:center;margin-right:10px;">
+            <i data-lucide="wrench" style="width:18px;height:18px;color:hsl(var(--primary));"></i>
         </div>
-        {{-- Tab Switcher --}}
-        <div style="display:flex;gap:4px;padding:3px;border-radius:8px;background:hsl(var(--muted));">
-            <button type="button" class="btn btn-sm trace-tab active" data-bot-type="ai_bot" onclick="switchTraceTab(this, 'ai_bot')" style="border-radius:6px;font-size:12px;padding:6px 14px;transition:all .2s;">
-                🤖 AI Bot
-            </button>
-            <button type="button" class="btn btn-sm trace-tab" data-bot-type="list_bot" onclick="switchTraceTab(this, 'list_bot')" style="border-radius:6px;font-size:12px;padding:6px 14px;transition:all .2s;">
-                📋 Bot List
-            </button>
+        <div>
+            <h3 style="margin:0;font-size:16px;font-weight:600;">Customized Diagnostics</h3>
+            <p style="margin:0;font-size:12px;color:hsl(var(--muted-foreground));">"Admin ne apne panel me kya-kya settings configure kiye hain"</p>
         </div>
     </div>
-    <div class="card-body" style="padding:0;">
-        <div id="traceSessionsContainer" style="min-height:200px;">
-            <div style="text-align:center;padding:40px;color:hsl(var(--muted-foreground));">
-                <i data-lucide="loader-2" class="spin" style="width:24px;height:24px;margin-bottom:8px;"></i>
-                <p style="font-size:13px;">Loading sessions...</p>
+    <div class="card-body" style="padding:20px;">
+        <button type="button" class="btn btn-primary" id="btnRunCustomized" onclick="runDiagnostics('customized')" style="transition:all 0.3s;">
+            <i data-lucide="play" style="width:14px;height:14px;"></i> Run Customized Check
+        </button>
+
+        <div id="progressCustomized" style="display:none;margin-top:16px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+                <span id="progressTextCustomized" style="font-weight:600;color:hsl(var(--primary));">Initializing...</span>
+                <span id="progressPercentCustomized">0%</span>
+            </div>
+            <div style="width:100%;height:8px;background:hsl(var(--muted));border-radius:4px;overflow:hidden;">
+                <div id="progressBarCustomized" class="diag-progress-bar" style="width:0%;height:100%;"></div>
             </div>
         </div>
-        {{-- Pagination --}}
-        <div id="tracePagination" style="display:none;padding:12px 20px;border-top:1px solid hsl(var(--border));display:flex;align-items:center;justify-content:space-between;">
-        </div>
+
+        <div id="resultsCustomized" style="margin-top:20px;"></div>
     </div>
 </div>
 
-{{-- Trace Flow Modal (inline expand) --}}
+<div class="card" style="margin-top:24px;">
+    <div class="card-header" style="display:flex;align-items:center;border-bottom:1px solid hsl(var(--border));">
+        <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,hsl(var(--primary)/0.15),hsl(var(--accent)/0.15));display:flex;align-items:center;justify-content:center;margin-right:10px;">
+            <i data-lucide="activity" style="width:18px;height:18px;color:hsl(var(--primary));"></i>
+        </div>
+        <div>
+            <h3 style="margin:0;font-size:16px;font-weight:600;">Hardcoded Diagnostics</h3>
+            <p style="margin:0;font-size:12px;color:hsl(var(--muted-foreground));">"System ke internal rules is business pe kaam kar rahe hain?"</p>
+        </div>
+    </div>
+    <div class="card-body" style="padding:20px;">
+        <button type="button" class="btn btn-primary" id="btnRunHardcoded" onclick="runDiagnostics('hardcoded')" style="transition:all 0.3s;">
+            <i data-lucide="play" style="width:14px;height:14px;"></i> Run Hardcoded Check
+        </button>
+
+        <div id="progressHardcoded" style="display:none;margin-top:16px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+                <span id="progressTextHardcoded" style="font-weight:600;color:hsl(var(--primary));">Initializing...</span>
+                <span id="progressPercentHardcoded">0%</span>
+            </div>
+            <div style="width:100%;height:8px;background:hsl(var(--muted));border-radius:4px;overflow:hidden;">
+                <div id="progressBarHardcoded" class="diag-progress-bar" style="width:0%;height:100%;"></div>
+            </div>
+        </div>
+
+        <div id="resultsHardcoded" style="margin-top:20px;"></div>
+    </div>
+</div>
+
 <style>
-    .trace-tab { background:transparent; border:none; color:hsl(var(--muted-foreground)); cursor:pointer; }
-    .trace-tab.active { background:hsl(var(--background)); color:hsl(var(--foreground)); box-shadow:0 1px 3px rgba(0,0,0,0.1); font-weight:600; }
-    .trace-session-row { padding:14px 20px; border-bottom:1px solid hsl(var(--border)/0.5); display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:background .15s; }
-    .trace-session-row:hover { background:hsl(var(--muted)/0.5); }
-    .trace-session-row:last-child { border-bottom:none; }
-    .trace-flow-container { display:none; background:hsl(var(--muted)/0.3); border-bottom:1px solid hsl(var(--border)); padding:16px 20px; }
-    .trace-flow-container.open { display:block; }
-    .trace-msg-group { margin-bottom:12px; }
-    .trace-msg-header { font-size:12px; font-weight:600; color:hsl(var(--primary)); padding:6px 10px; background:hsl(var(--primary)/0.08); border-radius:6px; margin-bottom:6px; display:inline-block; }
-    .trace-node { display:flex; align-items:flex-start; gap:12px; padding:8px 0; margin-left:20px; position:relative; }
-    .trace-node::before { content:''; position:absolute; left:14px; top:28px; bottom:-8px; width:2px; background:hsl(var(--border)); }
-    .trace-node:last-child::before { display:none; }
-    .trace-node-dot { width:28px; height:28px; min-width:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid; z-index:1; background:hsl(var(--background)); }
-    .trace-node-body { flex:1; min-width:0; }
-    .trace-node-title { font-size:13px; font-weight:600; display:flex; align-items:center; gap:6px; }
-    .trace-node-meta { font-size:11px; color:hsl(var(--muted-foreground)); margin-top:2px; }
-    .trace-node-data { font-size:11px; padding:6px 8px; background:hsl(var(--muted)); border-radius:4px; margin-top:4px; overflow-x:auto; max-height:120px; overflow-y:auto; font-family:'SF Mono',Monaco,monospace; }
-    .trace-node-data summary { cursor:pointer; font-weight:600; color:hsl(var(--foreground)); }
-    .trace-badge { font-size:10px; padding:2px 6px; border-radius:4px; font-weight:600; }
-    .trace-badge-success { background:hsl(142 71% 45% / 0.15); color:hsl(142 71% 45%); }
-    .trace-badge-error { background:hsl(0 84% 60% / 0.15); color:hsl(0 84% 60%); }
-    .trace-badge-warning { background:hsl(38 92% 50% / 0.15); color:hsl(38 92% 50%); }
-    .trace-empty { text-align:center; padding:40px 20px; color:hsl(var(--muted-foreground)); }
-    .trace-empty i { margin-bottom:8px; opacity:0.5; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .spin { animation: spin 1s linear infinite; }
+    @keyframes diagFadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes diagPopIn {
+        0% { transform: scale(0); opacity: 0; }
+        70% { transform: scale(1.3); }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes diagPulseGlow {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+        50% { box-shadow: 0 0 12px 4px rgba(239,68,68,0.2); }
+    }
+    @keyframes diagShimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+    .diag-row { animation: diagFadeIn 0.4s ease forwards; opacity: 0; background:hsl(var(--card)); box-shadow:0 1px 3px rgba(0,0,0,0.05); border-radius:8px; margin-bottom:8px; display:flex; border:1px solid hsl(var(--border)); overflow:hidden; }
+    .diag-icon-pass { animation: diagPopIn 0.4s ease forwards; color:hsl(142, 71%, 45%); }
+    .diag-icon-fail { animation: diagPopIn 0.4s ease forwards, diagPulseGlow 2s infinite; color:hsl(0, 84%, 60%); border-radius:50%; }
+    .diag-icon-warn { animation: diagPopIn 0.4s ease forwards; color:hsl(38, 92%, 50%); }
+    .diag-progress-bar {
+        background: linear-gradient(90deg, #8b5cf6, #3b82f6, #10b981);
+        background-size: 200% 100%;
+        animation: diagShimmer 2s linear infinite;
+        transition: width 0.3s ease;
+    }
+    .diag-btn-running { opacity:0.7; pointer-events:none; }
+    .diag-col { padding:12px 16px; font-size:13px; display:flex; align-items:center; }
+    .diag-col-header { padding:12px 16px; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); background:hsl(var(--muted)/0.5); text-transform:uppercase; letter-spacing:0.5px; }
+    .diag-summary { display:flex; justify-content:space-between; align-items:center; background:hsl(var(--card)); padding:16px; border-radius:8px; border:1px solid hsl(var(--border)); margin-top:20px; animation: diagFadeIn 0.5s ease forwards; font-weight:600; }
+    .diag-badge { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:30px; font-size:12px; font-weight:600; }
 </style>
 @endsection
 
@@ -612,190 +641,172 @@ function clearMatchCache() {
 }
 
 // ═══════════════════════════════════════════════════════
-// BOT TRACE VIEWER
+// DIAGNOSTICS SYSTEM
 // ═══════════════════════════════════════════════════════
 
-let currentTraceTab = 'ai_bot';
-let currentTracePage = 1;
-const traceBaseUrl = '{{ route("superadmin.businesses.bot-traces", $company->id) }}';
+const diagRoutes = {
+    customized: '{{ route("superadmin.businesses.diagnostics-customized", $company->id) }}',
+    hardcoded: '{{ route("superadmin.businesses.diagnostics-hardcoded", $company->id) }}'
+};
 
-function switchTraceTab(btn, botType) {
-    document.querySelectorAll('.trace-tab').forEach(t => t.classList.remove('active'));
-    btn.classList.add('active');
-    currentTraceTab = botType;
-    currentTracePage = 1;
-    loadTraceSessions();
-}
+async function runDiagnostics(type) {
+    const btn = document.getElementById('btnRun' + capitalize(type));
+    const btnOriginalHTML = btn.innerHTML;
+    const progressDiv = document.getElementById('progress' + capitalize(type));
+    const progressBar = document.getElementById('progressBar' + capitalize(type));
+    const progressText = document.getElementById('progressText' + capitalize(type));
+    const progressPercent = document.getElementById('progressPercent' + capitalize(type));
+    const resultsDiv = document.getElementById('results' + capitalize(type));
 
-function loadTraceSessions() {
-    const container = document.getElementById('traceSessionsContainer');
-    container.innerHTML = '<div style="text-align:center;padding:40px;color:hsl(var(--muted-foreground));"><div class="spin" style="display:inline-block;width:24px;height:24px;border:2px solid hsl(var(--border));border-top-color:hsl(var(--primary));border-radius:50%;"></div><p style="font-size:13px;margin-top:8px;">Loading sessions...</p></div>';
+    // Reset & Init Animation
+    btn.classList.add('diag-btn-running');
+    btn.innerHTML = `<i data-lucide="loader-2" class="spin" style="width:14px;height:14px;margin-right:6px;display:inline-block;"></i> Running Check...`;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    
+    resultsDiv.innerHTML = '';
+    progressDiv.style.display = 'block';
+    
+    // Simulate initial loading percentage
+    let currentPercent = 5;
+    progressBar.style.width = currentPercent + '%';
+    progressPercent.textContent = currentPercent + '%';
+    progressText.textContent = 'Fetching diagnostics data...';
 
-    fetch(`${traceBaseUrl}?bot_type=${currentTraceTab}&page=${currentTracePage}`, {
-        headers: { 'Accept': 'application/json' }
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (!data.sessions || data.sessions.length === 0) {
-            const label = currentTraceTab === 'ai_bot' ? 'AI Bot' : 'Bot List';
-            container.innerHTML = `<div class="trace-empty"><i data-lucide="inbox" style="width:32px;height:32px;display:block;margin:0 auto 8px;"></i><p style="font-size:13px;">No ${label} sessions found for this business.</p></div>`;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-            document.getElementById('tracePagination').style.display = 'none';
-            return;
+    const interval = setInterval(() => {
+        if(currentPercent < 85) {
+            currentPercent += Math.floor(Math.random() * 10);
+            if(currentPercent > 85) currentPercent = 85;
+            progressBar.style.width = currentPercent + '%';
+            progressPercent.textContent = currentPercent + '%';
+            
+            if(currentPercent > 30 && currentPercent < 60) progressText.textContent = 'Analyzing rules...';
+            if(currentPercent > 60) progressText.textContent = 'Matching active configurations...';
         }
-        renderTraceSessions(data.sessions, container);
-        renderTracePagination(data);
-    })
-    .catch(err => {
-        container.innerHTML = `<div class="trace-empty"><i data-lucide="alert-circle" style="width:32px;height:32px;display:block;margin:0 auto 8px;color:hsl(var(--destructive));"></i><p style="font-size:13px;color:hsl(var(--destructive));">Failed to load sessions.</p></div>`;
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    });
+    }, 300);
+
+    try {
+        const response = await fetch(diagRoutes[type], {
+            headers: { 'Accept': 'application/json' }
+        });
+        const data = await response.json();
+        
+        clearInterval(interval);
+        progressBar.style.width = '100%';
+        progressPercent.textContent = '100%';
+        progressText.textContent = 'Complete!';
+
+        setTimeout(() => {
+            renderDiagnostics(type, data, resultsDiv);
+            btn.classList.remove('diag-btn-running');
+            btn.innerHTML = `<i data-lucide="check" style="width:14px;height:14px;margin-right:6px;display:inline-block;"></i> Run Again`;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            progressDiv.style.display = 'none';
+        }, 600);
+
+    } catch (err) {
+        clearInterval(interval);
+        console.error(err);
+        btn.classList.remove('diag-btn-running');
+        btn.innerHTML = btnOriginalHTML;
+        progressText.textContent = 'Error fetching data.';
+        progressText.style.color = 'red';
+    }
 }
 
-function renderTraceSessions(sessions, container) {
+function renderDiagnostics(type, data, container) {
     let html = '';
-    sessions.forEach(s => {
-        const statusBadge = s.status === 'active' ? '<span class="trace-badge trace-badge-success">Active</span>' : '<span class="trace-badge" style="background:hsl(var(--muted));color:hsl(var(--muted-foreground));">' + (s.status || 'done') + '</span>';
-        const errorBadge = s.error_traces_count > 0 ? `<span class="trace-badge trace-badge-error">${s.error_traces_count} error${s.error_traces_count > 1 ? 's' : ''}</span>` : '<span class="trace-badge trace-badge-success">Healthy</span>';
-        const leadsInfo = s.lead_id ? `<span style="font-size:11px;color:hsl(var(--muted-foreground));">L#${s.lead_id}</span>` : '';
-        const quoteInfo = s.quote_id ? `<span style="font-size:11px;color:hsl(var(--muted-foreground));">Q#${s.quote_id}</span>` : '';
+    let staggerDelay = 0;
+    
+    let totalPass = 0, totalWarn = 0, totalFail = 0, total = 0;
 
-        html += `
-        <div>
-            <div class="trace-session-row" onclick="toggleTraceFlow(${s.id}, this)">
-                <div style="display:flex;align-items:center;gap:12px;flex:1;">
-                    <div style="width:32px;height:32px;border-radius:50%;background:hsl(var(--primary)/0.1);display:flex;align-items:center;justify-content:center;">
-                        <i data-lucide="smartphone" style="width:14px;height:14px;color:hsl(var(--primary));"></i>
-                    </div>
-                    <div>
-                        <div style="font-size:13px;font-weight:600;">${s.phone_number}</div>
-                        <div style="font-size:11px;color:hsl(var(--muted-foreground));display:flex;gap:8px;align-items:center;">
-                            ${statusBadge}
-                            <span>${s.conversation_state || '—'}</span>
-                            ${leadsInfo} ${quoteInfo}
-                        </div>
-                    </div>
-                </div>
-                <div style="display:flex;align-items:center;gap:16px;">
-                    <div style="text-align:right;">
-                        <div style="font-size:11px;color:hsl(var(--muted-foreground));">
-                            <span title="Messages">💬 ${s.messages_count}</span> ·
-                            <span title="Traces">📊 ${s.traces_count}</span>
-                        </div>
-                        <div style="display:flex;gap:4px;align-items:center;justify-content:flex-end;margin-top:2px;">
-                            ${errorBadge}
-                        </div>
-                    </div>
-                    <div style="font-size:11px;color:hsl(var(--muted-foreground));min-width:80px;text-align:right;" title="${s.last_message_at_full || ''}">
-                        ${s.last_message_at || '—'}
-                    </div>
-                    <i data-lucide="chevron-down" style="width:16px;height:16px;color:hsl(var(--muted-foreground));transition:transform .2s;" class="trace-chevron"></i>
-                </div>
-            </div>
-            <div class="trace-flow-container" id="traceFlow_${s.id}"></div>
+    // Header based on type
+    if (type === 'customized') {
+        html += `<div style="display:grid;grid-template-columns:30% 25% 45%;background:hsl(var(--muted)/0.5);border-radius:8px;margin-bottom:12px;border:1px solid hsl(var(--border));font-size:12px;font-weight:600;color:hsl(var(--muted-foreground));">
+            <div style="padding:10px 16px;">Setting Name</div>
+            <div style="padding:10px 16px;">Admin Set?</div>
+            <div style="padding:10px 16px;">System Connected?</div>
         </div>`;
+    } else {
+        html += `<div style="display:grid;grid-template-columns:35% 20% 45%;background:hsl(var(--muted)/0.5);border-radius:8px;margin-bottom:12px;border:1px solid hsl(var(--border));font-size:12px;font-weight:600;color:hsl(var(--muted-foreground));">
+            <div style="padding:10px 16px;">Rule Name</div>
+            <div style="padding:10px 16px;">Working?</div>
+            <div style="padding:10px 16px;">Connected To & Bot Flow</div>
+        </div>`;
+    }
+
+    const categories = Object.keys(data);
+    categories.forEach(category => {
+        const rows = data[category];
+        if(!rows || rows.length === 0) return;
+
+        const catName = category.replace('_', ' ').toUpperCase();
+        html += `<div class="diag-col-header" style="margin-top:16px;">📂 ${catName}</div>`;
+
+        rows.forEach(r => {
+            total++;
+            if(r.severity === 'success') totalPass++;
+            else if(r.severity === 'warning') totalWarn++;
+            else totalFail++;
+
+            let iconCls = r.severity === 'success' ? 'diag-icon-pass' : (r.severity === 'warning' ? 'diag-icon-warn' : 'diag-icon-fail');
+            let iconName = r.severity === 'success' ? 'check-circle-2' : (r.severity === 'warning' ? 'alert-triangle' : 'x-circle');
+
+            if (type === 'customized') {
+                html += `<div class="diag-row" style="animation-delay:${staggerDelay}s;display:grid;grid-template-columns:30% 25% 45%;">
+                    <div class="diag-col" style="font-weight:600;">${escHtml(r.name)}</div>
+                    <div class="diag-col">
+                        <span style="display:flex;align-items:center;gap:6px;">
+                           ${r.admin_set ? '<span>✅</span>' : '<span>❌</span>'} ${escHtml(r.admin_detail)}
+                        </span>
+                    </div>
+                    <div class="diag-col">
+                        <span style="display:flex;align-items:center;gap:6px;width:100%;">
+                           <i data-lucide="${iconName}" class="${iconCls}" style="width:16px;min-width:16px;"></i> <span style="flex:1;">${escHtml(r.connected_detail)}</span>
+                        </span>
+                    </div>
+                </div>`;
+            } else {
+                html += `<div class="diag-row" style="animation-delay:${staggerDelay}s;display:grid;grid-template-columns:35% 20% 45%;">
+                    <div class="diag-col" style="font-weight:600;">${escHtml(r.rule_name)}</div>
+                    <div class="diag-col">
+                        <span style="display:flex;align-items:center;gap:6px;">
+                           <i data-lucide="${iconName}" class="${iconCls}" style="width:16px;min-width:16px;"></i> ${r.working ? 'Working' : 'Not Working'}
+                        </span>
+                    </div>
+                    <div class="diag-col" style="display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:10px 16px;">
+                        <span style="font-weight:600;font-size:11px;color:hsl(var(--primary));background:hsl(var(--primary)/0.1);padding:2px 6px;border-radius:4px;margin-bottom:4px;">${escHtml(r.connected_to)}</span>
+                        <span style="font-size:12px;color:hsl(var(--muted-foreground));line-height:1.4;">💬 ${escHtml(r.bot_flow)}</span>
+                        ${r.detail !== 'N/A' && r.detail !== '' ? `<span style="font-size:11px;margin-top:4px;">${r.detail}</span>` : ''}
+                    </div>
+                </div>`;
+            }
+            staggerDelay += 0.05;
+        });
     });
+
+    // Summary Bar
+    let passBadge = `<span class="diag-badge" style="background:hsl(142 71% 45% / 0.15);color:hsl(142 71% 45%);"><i data-lucide="check-circle-2" style="width:14px;height:14px;"></i> ${totalPass} PASS</span>`;
+    let warnBadge = totalWarn > 0 ? `<span class="diag-badge" style="background:hsl(38 92% 50% / 0.15);color:hsl(38 92% 50%);"><i data-lucide="alert-triangle" style="width:14px;height:14px;"></i> ${totalWarn} WARNING</span>` : '';
+    let failBadge = totalFail > 0 ? `<span class="diag-badge" style="background:hsl(0 84% 60% / 0.15);color:hsl(0 84% 60%);"><i data-lucide="x-circle" style="width:14px;height:14px;"></i> ${totalFail} FAIL</span>` : '';
+    
+    let summaryBg = totalFail > 0 ? 'rgba(239,68,68,0.05)' : (totalWarn > 0 ? 'rgba(245,158,11,0.05)' : 'rgba(34,197,94,0.05)');
+
+    html += `<div class="diag-summary" style="animation-delay:${staggerDelay + 0.2}s; background:${summaryBg};">
+        <div style="display:flex;gap:8px;align-items:center;">
+            ${passBadge} ${warnBadge} ${failBadge}
+        </div>
+        <div style="color:hsl(var(--muted-foreground));font-size:13px;">
+            Total Rules Checked: <span style="font-weight:bold;color:hsl(var(--foreground));">${total}</span>
+        </div>
+    </div>`;
+
     container.innerHTML = html;
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-function renderTracePagination(data) {
-    const pag = document.getElementById('tracePagination');
-    if (data.pages <= 1) { pag.style.display = 'none'; return; }
-    pag.style.display = 'flex';
-    let btns = '';
-    for (let i = 1; i <= data.pages; i++) {
-        const active = i === data.current_page ? 'background:hsl(var(--primary));color:white;' : '';
-        btns += `<button class="btn btn-sm" style="min-width:32px;${active}" onclick="currentTracePage=${i};loadTraceSessions()">${i}</button>`;
-    }
-    pag.innerHTML = `<span style="font-size:12px;color:hsl(var(--muted-foreground));">${data.total} sessions</span><div style="display:flex;gap:4px;">${btns}</div>`;
-}
-
-function toggleTraceFlow(sessionId, rowEl) {
-    const container = document.getElementById('traceFlow_' + sessionId);
-    const chevron = rowEl.querySelector('.trace-chevron');
-
-    if (container.classList.contains('open')) {
-        container.classList.remove('open');
-        if (chevron) chevron.style.transform = 'rotate(0deg)';
-        return;
-    }
-
-    // Close all others
-    document.querySelectorAll('.trace-flow-container.open').forEach(c => {
-        c.classList.remove('open');
-        const prevChevron = c.previousElementSibling?.querySelector('.trace-chevron');
-        if (prevChevron) prevChevron.style.transform = 'rotate(0deg)';
-    });
-
-    if (chevron) chevron.style.transform = 'rotate(180deg)';
-    container.innerHTML = '<div style="text-align:center;padding:20px;"><div class="spin" style="display:inline-block;width:20px;height:20px;border:2px solid hsl(var(--border));border-top-color:hsl(var(--primary));border-radius:50%;"></div></div>';
-    container.classList.add('open');
-
-    fetch(`${traceBaseUrl}/${sessionId}`, {
-        headers: { 'Accept': 'application/json' }
-    })
-    .then(r => r.json())
-    .then(data => {
-        renderTraceFlow(container, data);
-    })
-    .catch(() => {
-        container.innerHTML = '<div style="padding:16px;color:hsl(var(--destructive));font-size:13px;">Failed to load traces.</div>';
-    });
-}
-
-function renderTraceFlow(container, data) {
-    if (!data.messages || data.messages.length === 0) {
-        container.innerHTML = '<div style="padding:20px;text-align:center;font-size:13px;color:hsl(var(--muted-foreground));">No traces recorded for this session.</div>';
-        return;
-    }
-
-    let html = `<div style="padding:8px 0 4px;font-size:11px;color:hsl(var(--muted-foreground));display:flex;gap:12px;align-items:center;">
-        <span>📊 ${data.total_traces} total nodes</span>
-        <span>📱 ${data.session.phone_number}</span>
-        ${data.session.lead_id ? '<span>🎯 Lead #' + data.session.lead_id + '</span>' : ''}
-        ${data.session.quote_id ? '<span>📄 Quote #' + data.session.quote_id + '</span>' : ''}
-    </div>`;
-
-    data.messages.forEach(msg => {
-        const msgLabel = msg.message_id ? ('💬 ' + (msg.user_message || '').substring(0, 80)) : '⚙️ System';
-        html += `<div class="trace-msg-group">`;
-        html += `<div class="trace-msg-header">${escHtml(msgLabel)}</div>`;
-
-        msg.traces.forEach(trace => {
-            const dotColor = trace.status_color || '#6b7280';
-            const groupIcons = { 'git-branch': '🔀', 'brain': '🧠', 'database': '🗄️', 'send': '📤', 'image': '🖼️', 'bell': '🔔', 'circle': '⚪' };
-            const icon = groupIcons[trace.group_icon] || '⚪';
-            const statusCls = 'trace-badge-' + trace.status;
-            const timeStr = trace.execution_time_ms > 0 ? `${trace.execution_time_ms}ms` : '';
-
-            html += `<div class="trace-node">
-                <div class="trace-node-dot" style="border-color:${dotColor};color:${dotColor};font-size:12px;">${icon}</div>
-                <div class="trace-node-body">
-                    <div class="trace-node-title">
-                        ${escHtml(trace.node_name)}
-                        <span class="trace-badge ${statusCls}">${trace.status}</span>
-                        ${timeStr ? '<span style="font-size:10px;color:hsl(var(--muted-foreground));">' + timeStr + '</span>' : ''}
-                    </div>
-                    <div class="trace-node-meta">${trace.node_group} · ${trace.created_at}</div>`;
-
-            if (trace.error_message) {
-                html += `<div class="trace-node-data" style="border-left:3px solid hsl(0 84% 60%);">❌ ${escHtml(trace.error_message)}</div>`;
-            }
-            if (trace.input_data && Object.keys(trace.input_data).length) {
-                html += `<div class="trace-node-data"><details><summary>📥 Input</summary><pre style="margin:4px 0 0;white-space:pre-wrap;word-break:break-all;">${escHtml(JSON.stringify(trace.input_data, null, 2))}</pre></details></div>`;
-            }
-            if (trace.output_data && Object.keys(trace.output_data).length) {
-                html += `<div class="trace-node-data"><details><summary>📤 Output</summary><pre style="margin:4px 0 0;white-space:pre-wrap;word-break:break-all;">${escHtml(JSON.stringify(trace.output_data, null, 2))}</pre></details></div>`;
-            }
-
-            html += `</div></div>`;
-        });
-
-        html += `</div>`;
-    });
-
-    container.innerHTML = html;
+function capitalize(s) {
+    if (typeof s !== 'string') return '';
+    return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function escHtml(s) {
@@ -805,12 +816,11 @@ function escHtml(s) {
     return d.innerHTML;
 }
 
-// Load traces on page load
+// Load configurations on page load
 document.addEventListener('DOMContentLoaded', function() {
     updatePrice();
     togglePaymentInfo();
-    // Load trace sessions after a small delay
-    setTimeout(loadTraceSessions, 500);
+
 });
 </script>
 @endpush

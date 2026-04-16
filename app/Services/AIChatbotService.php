@@ -3896,72 +3896,85 @@ PROMPT;
      */
     private function advancedMatch(string $userMsg, string $dbValue): array
     {
+        $userMsg = mb_strtolower(trim($userMsg));
+        $dbValue = mb_strtolower(trim($dbValue));
+
         // ═══ LEVEL 1: Exact Match (100% confidence) ═══
         if ($userMsg === $dbValue) {
             return ['matched' => true, 'type' => 'exact', 'confidence' => 100];
         }
 
-        // ═══ LEVEL 2: Contains Match (90-95% confidence) ═══
-        if (mb_strlen($dbValue) >= 3 && str_contains($userMsg, $dbValue)) {
-            return ['matched' => true, 'type' => 'contains_in_msg', 'confidence' => 95];
-        }
-        if (mb_strlen($userMsg) >= 3 && str_contains($dbValue, $userMsg)) {
-            return ['matched' => true, 'type' => 'msg_in_value', 'confidence' => 90];
+        // ═══ LEVEL 2: Exact Contains Match (95% confidence) ═══
+        // Entire target phrase must be explicitly found as a distinct phrase
+        if (preg_match('/\b' . preg_quote($dbValue, '/') . '\b/iu', $userMsg)) {
+            return ['matched' => true, 'type' => 'exact_contains', 'confidence' => 95];
         }
 
         // ═══ LEVEL 2.5: Space-stripped match (92% confidence) ═══
         $msgNoSpace = str_replace(' ', '', $userMsg);
         $valNoSpace = str_replace(' ', '', $dbValue);
-        if (mb_strlen($valNoSpace) >= 4 && (str_contains($msgNoSpace, $valNoSpace) || str_contains($valNoSpace, $msgNoSpace))) {
+        if (mb_strlen($valNoSpace) >= 4 && (str_contains($msgNoSpace, $valNoSpace))) {
             return ['matched' => true, 'type' => 'space_stripped', 'confidence' => 92];
         }
 
-        // ═══ LEVEL 3: Word-by-Word Match (85% confidence) ═══
+        // ═══ TOKENIZATION FOR DEEPER MATCHES ═══
         $userWords = $this->pgmTokenize($userMsg);
         $dbWords = $this->pgmTokenize($dbValue);
-
-        foreach ($userWords as $uw) {
-            if (mb_strlen($uw) < 3) continue;
-            foreach ($dbWords as $dw) {
-                if (mb_strlen($dw) < 3) continue;
-                if ($uw === $dw) {
-                    return ['matched' => true, 'type' => 'word_exact', 'confidence' => 85];
-                }
-            }
+        
+        if (empty($dbWords) || empty($userWords)) {
+            return ['matched' => false, 'type' => 'none', 'confidence' => 0];
         }
 
-        // ═══ LEVEL 4: Fuzzy/Levenshtein Match (75% confidence) ═══
-        foreach ($userWords as $uw) {
-            if (mb_strlen($uw) < 3) continue;
-            foreach ($dbWords as $dw) {
-                if (mb_strlen($dw) < 3) continue;
-                $maxDist = mb_strlen($uw) <= 4 ? 1 : 2;
-                if (levenshtein($uw, $dw) <= $maxDist) {
-                    return ['matched' => true, 'type' => 'fuzzy_levenshtein', 'confidence' => 75];
+        $dbWordCount = count($dbWords);
+        $matchedScores = [];
+
+        foreach ($dbWords as $dw) {
+            $bestMatchForThisDbWord = 0;
+
+            foreach ($userWords as $uw) {
+                if ($dw === $uw) {
+                    // Exact word match
+                    $bestMatchForThisDbWord = max($bestMatchForThisDbWord, 1.0);
+                } elseif (mb_strlen($uw) >= 4 && str_contains($uw, $dw)) {
+                    // User word contains DB word (e.g. handle vs handles)
+                    $bestMatchForThisDbWord = max($bestMatchForThisDbWord, 0.9);
+                } elseif (mb_strlen($dw) >= 4 && str_contains($dw, $uw)) {
+                    // DB word contains User word
+                    $bestMatchForThisDbWord = max($bestMatchForThisDbWord, 0.85);
+                } else {
+                    // Fuzzy/Levenshtein
+                    $maxDist = mb_strlen($dw) <= 4 ? 1 : 2;
+                    if (levenshtein($uw, $dw) <= $maxDist) {
+                        $bestMatchForThisDbWord = max($bestMatchForThisDbWord, 0.8);
+                    } else {
+                        // Phonetic & N-gram fallback
+                        if (soundex($uw) === soundex($dw) || metaphone($uw) === metaphone($dw)) {
+                            $bestMatchForThisDbWord = max($bestMatchForThisDbWord, 0.7);
+                        } else {
+                            $overlap = $this->bigramSimilarity($uw, $dw);
+                            if ($overlap >= 0.6) {
+                                $bestMatchForThisDbWord = max($bestMatchForThisDbWord, 0.6 + ($overlap * 0.1));
+                            }
+                        }
+                    }
                 }
             }
+            $matchedScores[] = $bestMatchForThisDbWord;
         }
 
-        // ═══ LEVEL 5: Phonetic + N-Gram Match (60-65% confidence) ═══
-        foreach ($userWords as $uw) {
-            if (mb_strlen($uw) < 3) continue;
-            foreach ($dbWords as $dw) {
-                if (mb_strlen($dw) < 3) continue;
+        // Calculate coverage ratio: sum of best matches / total db words
+        $totalScore = array_sum($matchedScores);
+        $coverageRatio = $totalScore / max($dbWordCount, 1);
+        $confidence = (int)($coverageRatio * 100);
 
-                // Soundex/Metaphone matching
-                if (soundex($uw) === soundex($dw) || metaphone($uw) === metaphone($dw)) {
-                    return ['matched' => true, 'type' => 'phonetic', 'confidence' => 65];
-                }
-
-                // N-gram (bigram overlap ratio)
-                $overlap = $this->bigramSimilarity($uw, $dw);
-                if ($overlap >= 0.6) {
-                    return ['matched' => true, 'type' => 'ngram', 'confidence' => (int) (60 + ($overlap * 10))];
-                }
-            }
+        // We require AT LEAST 70% coverage. 
+        if ($confidence >= 70) {
+            $type = 'fuzzy_coverage';
+            if ($confidence >= 95) $type = 'word_exact_coverage';
+            return ['matched' => true, 'type' => $type, 'confidence' => $confidence];
         }
 
-        return ['matched' => false, 'type' => 'none', 'confidence' => 0];
+        return ['matched' => false, 'type' => 'none', 'confidence' => $confidence];
     }
 
     /**
@@ -3969,10 +3982,20 @@ PROMPT;
      */
     private function pgmTokenize(string $text): array
     {
-        return array_filter(
-            preg_split('/[\s,;|\/\-_]+/u', $text),
-            fn($w) => mb_strlen($w) > 0
-        );
+        // Clean stop words common in desi/eng chat
+        $stopWords = [
+            ' bhai ', ' sir ', ' madam ', ' show ', ' me ', ' chahiye ', ' dikhao ', ' please ', 
+            ' price ', ' rate ', ' of ', ' the ', ' a ', ' an ', ' for ', ' want ', ' i ', ' need ',
+            ' kya ', ' hai ', ' he ', ' batao ', ' do ', ' mujhe ', ' give ', ' ka ', ' ki ', ' ke ', ' aur '
+        ];
+        
+        $paddedText = ' ' . $text . ' ';
+        $cleanText = str_ireplace($stopWords, ' ', $paddedText);
+
+        return array_values(array_filter(
+            preg_split('/[\s,;|\/\-_]+/u', mb_strtolower($cleanText)),
+            fn($w) => mb_strlen(trim($w)) > 0
+        ));
     }
 
     /**
