@@ -363,7 +363,7 @@
                     <div style="grid-column:span 2">
                         <h4 style="margin:8px 0;padding-bottom:8px;border-bottom:1px solid #eee;font-size:14px;color:#334155">Product Details</h4>
                     </div>
-                    @foreach($customColumns->where('is_combo', false) as $col)
+                    @foreach($customColumns->where('is_combo', false)->where('is_variation_field', false) as $col)
                         @php
                             $inputName = $col->is_category ? 'category_id' : ($col->is_system ? $col->slug : "custom_data[{$col->id}]");
                             $inputId = $col->is_category ? 'prod-category_id' : ($col->is_system ? "prod-{$col->slug}" : "custom-{$col->id}");

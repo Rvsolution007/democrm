@@ -335,18 +335,7 @@ class ListBotService
         if ($session->conversation_state === 'awaiting_add_more') {
             $choice = trim(strtolower($trimmedText));
             if (in_array($choice, ['1', 'yes', 'haan', 'ha', 'y'])) {
-                // Check if product queue has more items
-                $queue = $answers['_product_queue'] ?? [];
-                if (!empty($queue)) {
-                    // Take next product from queue
-                    $nextProductId = array_shift($queue);
-                    $session->setAnswer('_product_queue', $queue);
-                    $this->traceNode($session->id, 'QueueNextProduct', 'routing', 'success',
-                        ['user_choice' => 'yes', 'next_product_id' => $nextProductId],
-                        ['remaining_queue' => count($queue)]);
-                    return $this->startProductChatflow($session, $instanceName, $nextProductId, $steps);
-                }
-                // No queue — restart fresh for new product selection
+                // Restart fresh for new product selection
                 $this->resetForNewProduct($session);
                 $session->save();
                 return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
@@ -483,7 +472,7 @@ class ListBotService
         }
 
         if ($filteredProducts->count() === 1) {
-            // Single product — set it directly, no queue
+            // Single product — set it directly
             $product = $filteredProducts->first();
             $session->setAnswer('product_id', $product->id);
             $session->setAnswer('product_name', $this->getProductDisplayName($product));
@@ -492,25 +481,6 @@ class ListBotService
                 ['reason' => 'single_match_after_category', 'product_id' => $product->id],
                 ['product_name' => $this->getProductDisplayName($product)]);
             Log::info('ListBot: Auto-selected single product', ['product_id' => $product->id]);
-        } elseif ($filteredProducts->count() > 1) {
-            // Multiple products — create queue, take first
-            $productIds = $filteredProducts->pluck('id')->toArray();
-            $firstProductId = array_shift($productIds);
-            $session->setAnswer('_product_queue', $productIds);
-
-            $product = $filteredProducts->firstWhere('id', $firstProductId);
-            $session->setAnswer('product_id', $firstProductId);
-            $session->setAnswer('product_name', $this->getProductDisplayName($product));
-            $this->attachProductToLead($session, $product);
-
-            $this->traceNode($session->id, 'ProductQueued', 'routing', 'success',
-                ['total_matched' => count($productIds) + 1, 'first_product_id' => $firstProductId],
-                ['queue_size' => count($productIds), 'current_product' => $this->getProductDisplayName($product)]);
-
-            Log::info('ListBot: Multiple products matched, queued', [
-                'current' => $firstProductId,
-                'queue' => $productIds,
-            ]);
         }
 
         // Advance past category step
@@ -1161,21 +1131,6 @@ class ListBotService
             $session->setAnswer('product_name', $this->getProductDisplayName($product));
             $this->attachProductToLead($session, $product);
             Log::info('ListBot: Filter narrowed to single product', ['product_id' => $product->id]);
-        } elseif ($filtered->count() > 1) {
-            // Multiple products — queue them, take first
-            $productIds = $filtered->pluck('id')->toArray();
-            $firstProductId = array_shift($productIds);
-            $session->setAnswer('_product_queue', $productIds);
-
-            $product = $filtered->firstWhere('id', $firstProductId);
-            $session->setAnswer('product_id', $firstProductId);
-            $session->setAnswer('product_name', $this->getProductDisplayName($product));
-            $this->attachProductToLead($session, $product);
-
-            Log::info('ListBot: Filter matched multiple products, queued', [
-                'current' => $firstProductId,
-                'queue_count' => count($productIds),
-            ]);
         }
     }
 
@@ -1322,22 +1277,11 @@ class ListBotService
         ];
         $session->setAnswer('_completed_products', $completed);
 
-        // Check if product queue has more
-        $queue = $answers['_product_queue'] ?? [];
-
-        if (!empty($queue)) {
-            $addMoreMsg = "━━━━━━━━━━━━━━━\n";
-            $addMoreMsg .= "📦 *" . count($queue) . " aur product(s) hai queue me.*\n\n";
-            $addMoreMsg .= "1️⃣ ✅ Next product dekhein\n";
-            $addMoreMsg .= "2️⃣ ❌ Nahi, order complete karo";
-            $addMoreMsg .= $this->resetFooter();
-        } else {
-            $addMoreMsg = "━━━━━━━━━━━━━━━\n";
-            $addMoreMsg .= "🛒 *Kya aap aur product add karna chahte hain?*\n\n";
-            $addMoreMsg .= "1️⃣ ✅ Haan, aur product add karo\n";
-            $addMoreMsg .= "2️⃣ ❌ Nahi, order complete karo";
-            $addMoreMsg .= $this->resetFooter();
-        }
+        $addMoreMsg = "━━━━━━━━━━━━━━━\n";
+        $addMoreMsg .= "🛒 *Kya aap aur product add karna chahte hain?*\n\n";
+        $addMoreMsg .= "1️⃣ ✅ Haan, aur product add karo\n";
+        $addMoreMsg .= "2️⃣ ❌ Nahi, order complete karo";
+        $addMoreMsg .= $this->resetFooter();
 
         $this->whatsApp->sendText($instanceName, $session->phone_number, $addMoreMsg);
 
@@ -1468,10 +1412,10 @@ class ListBotService
                     'quote_no' => Quote::generateQuoteNumber($company),
                     'date' => now(),
                     'valid_till' => now()->addDays(30),
-                    'subtotal' => $product->sale_price,
+                    'subtotal' => $product->sale_price ?? 0,
                     'discount' => 0,
                     'gst_total' => 0,
-                    'grand_total' => $product->sale_price,
+                    'grand_total' => $product->sale_price ?? 0,
                     'status' => 'draft',
                 ]);
                 QuoteItem::create([
@@ -1481,10 +1425,10 @@ class ListBotService
                     'description' => $product->getDynamicDescription($session->collected_answers ?? [], true),
                     'hsn_code' => $product->hsn_code,
                     'qty' => 1,
-                    'rate' => $product->sale_price,
-                    'unit' => $product->unit,
-                    'unit_price' => $product->sale_price,
-                    'gst_percent' => $product->gst_percent,
+                    'rate' => $product->sale_price ?? 0,
+                    'unit' => $product->unit ?? 'nos',
+                    'unit_price' => $product->sale_price ?? 0,
+                    'gst_percent' => $product->gst_percent ?? 0,
                     'sort_order' => 1,
                 ]);
                 $session->quote_id = $quote->id;
@@ -1507,10 +1451,10 @@ class ListBotService
                         'description' => $product->getDynamicDescription($session->collected_answers ?? [], true),
                         'hsn_code' => $product->hsn_code,
                         'qty' => 1,
-                        'rate' => $product->sale_price,
-                        'unit' => $product->unit,
-                        'unit_price' => $product->sale_price,
-                        'gst_percent' => $product->gst_percent,
+                        'rate' => $product->sale_price ?? 0,
+                        'unit' => $product->unit ?? 'nos',
+                        'unit_price' => $product->sale_price ?? 0,
+                        'gst_percent' => $product->gst_percent ?? 0,
                         'sort_order' => $maxSort + 1,
                     ]);
                     $quote = Quote::find($session->quote_id);

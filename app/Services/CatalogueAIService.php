@@ -725,12 +725,12 @@ COLUMN TYPE RULES:
 FLAG ASSIGNMENT RULES:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-• is_category=true → EXACTLY ONE column (the broadest group)
-• is_title=true → EXACTLY ONE column (display name — the product line name)
-• is_unique=true → EXACTLY ONE column (primary identifier — usually same as title for named products, or Code No. for code-based catalogues)
-• is_combo=true → Only for multiselect fields creating variation matrices
-• is_variation_field=true → Fields whose VALUE changes per variant (e.g., different price per size). NEVER on combo columns.
-• is_required=true → Fields every product MUST have
+• is_category=true → EXACTLY ONE column (the broadest group — Category Linked)
+• is_title=true → EXACTLY ONE column (Quote/Lead Title — the product line name)
+• is_unique=true → EXACTLY ONE column (Unique Identifier — usually same as title for named products)
+• is_combo=true → Only for multiselect fields creating the Variation Matrix
+• is_variation_field=true → Per-Variation Field. Fields whose VALUE changes per variant (e.g., different price per size). NEVER on combo columns.
+• is_required=true → Required Field. Fields every product MUST have
 • show_in_ai=true → Fields useful for WhatsApp chatbot matching
 
 ⚠️ is_title and is_unique CAN be on the same column

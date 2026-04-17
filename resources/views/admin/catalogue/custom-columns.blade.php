@@ -338,7 +338,7 @@
                             </label>
 
                             <label class="premium-checkbox-card badge-anim" id="variation-field-card">
-                                <input type="checkbox" id="col-variation-field" style="margin-top:2px;width:18px;height:18px;accent-color:#ef4444;cursor:pointer">
+                                <input type="checkbox" id="col-variation-field" onchange="toggleComboField()" style="margin-top:2px;width:18px;height:18px;accent-color:#ef4444;cursor:pointer">
                                 <div>
                                     <div style="font-weight:600;color:#1e293b;font-size:14px;margin-bottom:2px">🔄 Per-Variation Field</div>
                                     <div style="font-size:12px;color:#64748b">Value changes per variant (e.g., different price per size)</div>
@@ -403,7 +403,15 @@
         document.getElementById('col-title').checked = false;
         document.getElementById('col-show-list').checked = false;
         document.getElementById('col-show-ai').checked = true;
+        
+        // Reset states first before applying toggles
+        document.getElementById('variation-field-card').style.opacity = '1';
+        document.getElementById('variation-field-card').style.pointerEvents = 'auto';
+        document.getElementById('col-combo').closest('.premium-checkbox-card').style.opacity = '1';
+        document.getElementById('col-combo').closest('.premium-checkbox-card').style.pointerEvents = 'auto';
+        
         toggleVariationField();
+        toggleComboField();
         
         document.getElementById('system-warning').style.display = 'none';
         document.querySelectorAll('.system-locked-group input:not([type="checkbox"]), .system-locked-group select').forEach(el => el.disabled = false);
@@ -433,7 +441,15 @@
         document.getElementById('col-title').checked = col.is_title || false;
         document.getElementById('col-show-list').checked = col.show_on_list || false;
         document.getElementById('col-show-ai').checked = col.show_in_ai !== undefined ? col.show_in_ai : true;
+        
+        // Reset styles first
+        document.getElementById('variation-field-card').style.opacity = '1';
+        document.getElementById('variation-field-card').style.pointerEvents = 'auto';
+        document.getElementById('col-combo').closest('.premium-checkbox-card').style.opacity = '1';
+        document.getElementById('col-combo').closest('.premium-checkbox-card').style.pointerEvents = 'auto';
+        
         toggleVariationField();
+        toggleComboField();
         
         if (col.is_system) {
             document.getElementById('system-warning').style.display = 'block';
@@ -740,7 +756,7 @@
         });
     }
 
-    // ═══════════ TOGGLE VARIATION FIELD ═══════════
+    // ═══════════ TOGGLE VARIATION FIELD & COMBO FIELD ═══════════
     function toggleVariationField() {
         var comboChecked = document.getElementById('col-combo').checked;
         var card = document.getElementById('variation-field-card');
@@ -750,9 +766,25 @@
             input.checked = false;
             card.style.opacity = '0.4';
             card.style.pointerEvents = 'none';
-        } else {
+        } else if (!document.getElementById('col-combo').disabled) {
             card.style.opacity = '1';
             card.style.pointerEvents = 'auto';
+        }
+    }
+
+    function toggleComboField() {
+        var variationChecked = document.getElementById('col-variation-field').checked;
+        var comboInput = document.getElementById('col-combo');
+        var comboCard = comboInput.closest('.premium-checkbox-card');
+        if (variationChecked) {
+            // A per-variation field can't also be a combo matrix
+            comboInput.checked = false;
+            comboCard.style.opacity = '0.4';
+            comboCard.style.pointerEvents = 'none';
+            toggleOptions();
+        } else if (!document.getElementById('col-variation-field').disabled) {
+            comboCard.style.opacity = '1';
+            comboCard.style.pointerEvents = 'auto';
         }
     }
 </script>

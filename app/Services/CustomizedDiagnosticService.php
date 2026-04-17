@@ -179,25 +179,25 @@ class CustomizedDiagnosticService
             if (in_array($step->step_type, ['ask_category', 'ask_unique_column', 'ask_combo', 'ask_column'])) {
                 $bgProcess = $step->step_type === 'ask_unique_column' ? 'Background identifies the MATCH_ID' : 'Background progressive filter logic activates';
                 
-                $inputText = "User selects a {$currentColumn} or one or more {$currentColumn}.";
-                $processText = "{$bgProcess} and filtering {$nextColumn} for next steps.";
-                $outputText = "Adds the {$currentColumn} to Quote and lead & send filtering {$nextColumn} with question... (agar filtering {$nextColumn} me data nahi hai / null hai to next question skip, aur uske baad wale question ka data filter karke question ke sath bhejna).";
+                $inputText = "{$currentColumn}";
+                $processText = "{$bgProcess} and filtering {$nextColumn} for next step";
+                $outputText = "Adds {$currentColumn} to Quote/Lead and sends next related question (skips if data is null, auto-selects if 1 option).";
             } else if ($step->step_type === 'ask_text') {
-                $inputText = 'User types a custom message.';
-                $processText = 'Background saves this text directly to the quote payload metadata.';
-                $outputText = 'Advances to next step.';
+                $inputText = 'User Text';
+                $processText = 'Background saves this text directly to the quote payload metadata';
+                $outputText = 'Advances to next step';
             } else if ($step->step_type === 'ask_phone') {
-                $inputText = 'User enters contact number.';
-                $processText = 'Background validates format, formats to E.164, and updates Lead profile.';
-                $outputText = 'Advances to next step.';
+                $inputText = 'Contact Number';
+                $processText = 'Background validates format, formats to E.164, and updates Lead profile';
+                $outputText = 'Advances to next step';
             } else if ($step->step_type === 'ask_email') {
-                $inputText = 'User enters email.';
-                $processText = 'Background validates format and updates Lead profile.';
-                $outputText = 'Advances to next step.';
+                $inputText = 'Email Address';
+                $processText = 'Background validates format and updates Lead profile';
+                $outputText = 'Advances to next step';
             } else if ($step->step_type === 'send_summary') {
-                $inputText = 'User confirms order.';
-                $processText = 'Displays single product block.';
-                $outputText = 'Requests continuation.';
+                $inputText = 'Final confirmation';
+                $processText = 'Displays single product block';
+                $outputText = 'Requests continuation';
             }
 
             $rows[] = [

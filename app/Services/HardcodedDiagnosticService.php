@@ -14,6 +14,7 @@ class HardcodedDiagnosticService
     public function run(int $companyId): array
     {
         return [
+            'catalogue_rules_history' => $this->testCatalogueRulesHistory(),
             'catalogue_rules' => $this->testCatalogueRules($companyId),
             'botlist_flow'    => $this->testBotListFlow($companyId),
             'aibot_flow'      => $this->testAiBotFlow($companyId),
@@ -68,6 +69,36 @@ class HardcodedDiagnosticService
         ];
 
         return $rows;
+    }
+
+    private function testCatalogueRulesHistory(): array
+    {
+        return [
+            [
+                'date' => '2026-04-11',
+                'action' => 'add',
+                'description' => 'Added core rules: Unique Identifier, Category Linked, Default Title, Required Field.'
+            ],
+            [
+                'date' => '2026-04-12',
+                'action' => 'add',
+                'description' => 'Added new architectural rules: Variation Matrix & Per-Variation Field.'
+            ],
+            [
+                'date' => '2026-04-15',
+                'action' => 'update',
+                'rule' => 'Quote/Lead Title',
+                'old_logic' => 'Overrides name silently during attachment',
+                'new_logic' => 'Agar ye catalogue column me enable hai to quote and lead me main column me aayega dynamically'
+            ],
+            [
+                'date' => '2026-04-17',
+                'action' => 'update',
+                'rule' => 'Category Linked (ListBot Flow)',
+                'old_logic' => 'Required user to confirm even if only 1 product remains',
+                'new_logic' => 'Filter activates, auto-selects if only 1 option available to prevent redundant questioning'
+            ],
+        ];
     }
 
     private function testBotListFlow(int $companyId): array

@@ -682,6 +682,11 @@ async function runDiagnostics(type) {
             throw new Error(data.message || `HTTP ${response.status}`);
         }
         
+        if (type === 'hardcoded' && data.catalogue_rules_history) {
+            window.catalogueHistoryData = data.catalogue_rules_history;
+            delete data.catalogue_rules_history; // remove so it doesn't get rendered as a category
+        }
+        
         progressBar.style.width = '20%';
         progressPercent.textContent = '20%';
         progressText.textContent = 'Preparing scan queue...';
@@ -732,7 +737,16 @@ function renderPendingDiagnostics(type, data, container) {
         if(!rows || rows.length === 0) return;
 
         const catName = category.replace('_', ' ').toUpperCase();
-        html += `<div class="diag-col-header" style="margin-top:16px;">📂 ${catName}</div>`;
+        let headerHtml = `📂 ${catName}`;
+        if (type === 'hardcoded' && category === 'catalogue_rules') {
+            headerHtml = `<div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+                <span>📂 ${catName}</span>
+                <button type="button" class="btn btn-ghost btn-xs" onclick="showCatalogueHistory()" style="height:24px;padding:0 8px;font-size:11px;background:#e2e8f0;color:#475569;border:1px solid #cbd5e1;border-radius:4px;display:flex;align-items:center;">
+                    <i data-lucide="history" style="width:12px;height:12px;margin-right:4px;"></i> View History
+                </button>
+            </div>`;
+        }
+        html += `<div class="diag-col-header" style="margin-top:16px;">${headerHtml}</div>`;
 
         if (type === 'hardcoded' && category === 'catalogue_rules') {
             html += `<div style="display:grid;grid-template-columns:25% 25% 25% 25%;background:#f1f5f9;border-bottom:1px solid #e2e8f0;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.05em;border-radius:6px 6px 0 0;margin-top:10px;">
@@ -941,7 +955,71 @@ function escHtml(s) {
 document.addEventListener('DOMContentLoaded', function() {
     updatePrice();
     togglePaymentInfo();
-
 });
+
+function showCatalogueHistory() {
+    if (!window.catalogueHistoryData) return;
+    
+    let modal = document.getElementById('catalogueHistoryModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'catalogueHistoryModal';
+        modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s';
+        document.body.appendChild(modal);
+    }
+    
+    let rowsHtml = window.catalogueHistoryData.map(h => {
+        if (h.action === 'add' || h.action === 'delete') {
+            let color = h.action === 'add' ? '#10b981' : '#ef4444';
+            return `<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px dashed #e2e8f0;">
+                <div style="font-size:11px;color:#94a3b8;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+                    <i data-lucide="calendar" style="width:12px;height:12px;"></i> ${h.date} 
+                    <span style="color:${color};text-transform:uppercase;font-weight:700;font-size:10px;padding:2px 6px;border-radius:4px;background:${color}20;">${h.action}</span>
+                </div>
+                <div style="font-size:13px;color:#334155;font-weight:600;">${h.description || ''}</div>
+            </div>`;
+        } else {
+            return `<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px dashed #e2e8f0;">
+                <div style="font-size:11px;color:#94a3b8;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+                    <i data-lucide="calendar" style="width:12px;height:12px;"></i> ${h.date} 
+                    <span style="color:#3b82f6;text-transform:uppercase;font-weight:700;font-size:10px;padding:2px 6px;border-radius:4px;background:#3b82f620;">UPDATE</span>
+                    <span style="color:#475569;font-weight:700;">${h.rule}</span>
+                </div>
+                <div style="background:#f8fafc;padding:10px;border-radius:6px;border:1px solid #e2e8f0;font-size:12px;">
+                    <div style="color:#ef4444;margin-bottom:6px;display:flex;gap:6px;">
+                        <i data-lucide="minus-circle" style="width:14px;height:14px;flex-shrink:0;margin-top:2px;"></i>
+                        <span style="text-decoration:line-through;opacity:0.8;">${h.old_logic}</span>
+                    </div>
+                    <div style="color:#10b981;font-weight:500;display:flex;gap:6px;">
+                        <i data-lucide="check-circle-2" style="width:14px;height:14px;flex-shrink:0;margin-top:2px;"></i>
+                        <span>${h.new_logic}</span>
+                    </div>
+                </div>
+            </div>`;
+        }
+    }).join('');
+
+    modal.innerHTML = `
+        <div style="background:#fff;border-radius:12px;width:95%;max-width:500px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 10px 25px rgba(0,0,0,0.1);transform:scale(0.95);transition:transform 0.2s;">
+            <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px;">
+                    <i data-lucide="history" style="width:16px;height:16px;color:#8b5cf6;"></i> Catalogue Rules Logic History
+                </h3>
+                <button onclick="document.getElementById('catalogueHistoryModal').style.opacity=0;setTimeout(()=>document.getElementById('catalogueHistoryModal').style.display='none',200);" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:18px;line-height:1;">&times;</button>
+            </div>
+            <div style="padding:20px;overflow-y:auto;flex:1;">
+                ${rowsHtml || '<div style="color:#94a3b8;text-align:center;">No history found</div>'}
+            </div>
+        </div>
+    `;
+    
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    
+    modal.style.display = 'flex';
+    // trigger reflow
+    void modal.offsetWidth;
+    modal.style.opacity = 1;
+    modal.firstElementChild.style.transform = 'scale(1)';
+}
 </script>
 @endpush
