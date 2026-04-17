@@ -883,10 +883,12 @@ function animateScan(type, data, progressBar, progressPercent, progressText) {
                             <i data-lucide="${iconName}" class="${iconCls}" style="width:16px;min-width:16px;"></i> <span style="flex:1;">${escHtml(r.connected_detail)}</span>
                         </span>`;
 
-                    if (r.input_text || r.process_text) {
-                        let extraHtml = `<div style="grid-column: 1 / -1; margin-top:10px; font-size:12px; background:hsl(var(--muted)/0.3); padding:12px 16px; border-radius:6px; border:1px dashed hsl(var(--border)); display:flex; flex-direction:column; gap:8px;">
-                            ${r.input_text ? `<div style="color:hsl(var(--primary));line-height:1.4;"><strong>🤖 Bot Asks / Input:</strong> ${escHtml(r.input_text)}</div>` : ''}
-                            ${r.process_text ? `<div style="color:hsl(var(--muted-foreground));line-height:1.4;"><strong>⚙️ Background Process:</strong> ${escHtml(r.process_text)}</div>` : ''}
+                    if (r.bot_ask || r.input_text || r.process_text || r.output_text) {
+                        let extraHtml = `<div style="grid-column: 1 / -1; margin-top:10px; font-size:12px; background:hsl(var(--muted)/0.3); padding:14px 16px; border-radius:6px; border:1px dashed hsl(var(--border)); display:flex; flex-direction:column; gap:8px;">
+                            ${r.bot_ask ? `<div style="color:#d97706; font-weight:600; line-height:1.4; margin-bottom:4px;">🤖 Bot Asks / Input: <span style="font-weight:400; color:hsl(var(--foreground));">${escHtml(r.bot_ask)}</span></div>` : ''}
+                            ${r.input_text ? `<div style="color:hsl(var(--foreground));line-height:1.4;"><strong style="color:hsl(var(--muted-foreground));">📥 Input:</strong> ${escHtml(r.input_text)}</div>` : ''}
+                            ${r.process_text ? `<div style="color:hsl(var(--foreground));line-height:1.4;"><strong style="color:hsl(var(--muted-foreground));">⚙️ Process:</strong> ${escHtml(r.process_text)}</div>` : ''}
+                            ${r.output_text ? `<div style="color:hsl(var(--foreground));line-height:1.4;"><strong style="color:hsl(var(--muted-foreground));">📤 Output:</strong> ${escHtml(r.output_text)}</div>` : ''}
                         </div>`;
                         rowEl.insertAdjacentHTML('beforeend', extraHtml);
                         rowEl.style.paddingBottom = '16px';
