@@ -734,6 +734,15 @@ function renderPendingDiagnostics(type, data, container) {
         const catName = category.replace('_', ' ').toUpperCase();
         html += `<div class="diag-col-header" style="margin-top:16px;">📂 ${catName}</div>`;
 
+        if (type === 'hardcoded' && category === 'catalogue_rules') {
+            html += `<div style="display:grid;grid-template-columns:25% 25% 25% 25%;background:#f1f5f9;border-bottom:1px solid #e2e8f0;font-size:12px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.05em;border-radius:6px 6px 0 0;margin-top:10px;">
+                <div style="padding:10px 16px;">Rule Name</div>
+                <div style="padding:10px 16px;">Product Page</div>
+                <div style="padding:10px 16px;">Chartflow</div>
+                <div style="padding:10px 16px;">Lead/Quote</div>
+            </div>`;
+        }
+
         rows.forEach((r, idx) => {
             const rowId = `diag-${type}-${category}-${idx}`;
             
@@ -746,6 +755,16 @@ function renderPendingDiagnostics(type, data, container) {
                     </div>
                     <div class="diag-col diag-target-col1" style="color:#94a3b8;">Waiting...</div>
                     <div class="diag-col diag-target-col2" style="color:#94a3b8;">Waiting...</div>
+                </div>`;
+            } else if (type === 'hardcoded' && category === 'catalogue_rules') {
+                html += `<div id="${rowId}" class="diag-row" style="display:grid;grid-template-columns:25% 25% 25% 25%;opacity:0.6;background:#f8fafc;">
+                    <div class="diag-col" style="font-weight:600;color:#64748b;">
+                        <i data-lucide="loader-2" class="spin pending-spin" style="width:14px;height:14px;margin-right:6px;"></i> 
+                        ${escHtml(r.rule_name)}
+                    </div>
+                    <div class="diag-col diag-target-col1" style="color:#94a3b8;display:flex;align-items:center;">Waiting...</div>
+                    <div class="diag-col diag-target-col2" style="color:#94a3b8;display:flex;align-items:center;">Waiting...</div>
+                    <div class="diag-col diag-target-col3" style="color:#94a3b8;display:flex;align-items:center;">Waiting...</div>
                 </div>`;
             } else {
                 html += `<div id="${rowId}" class="diag-row" style="display:grid;grid-template-columns:35% 20% 45%;opacity:0.6;background:#f8fafc;">
@@ -849,9 +868,11 @@ function animateScan(type, data, progressBar, progressPercent, progressText) {
 
                 const col1 = rowEl.querySelector('.diag-target-col1');
                 const col2 = rowEl.querySelector('.diag-target-col2');
+                const col3 = rowEl.querySelector('.diag-target-col3');
 
-                col1.style.color = '#333';
-                col2.style.color = '#333';
+                if (col1) col1.style.color = '#333';
+                if (col2) col2.style.color = '#333';
+                if (col3) col3.style.color = '#333';
 
                 if (type === 'customized') {
                     col1.innerHTML = `<span style="display:flex;align-items:center;gap:6px;">
@@ -869,6 +890,11 @@ function animateScan(type, data, progressBar, progressPercent, progressText) {
                     col2.innerHTML = `<span style="display:flex;align-items:center;gap:6px;width:100%;">
                             <i data-lucide="${iconName}" class="${iconCls}" style="width:16px;min-width:16px;"></i> <span style="flex:1;">${escHtml(r.connected_detail)}</span>
                         </span>${extraHtml}`;
+                } else if (type === 'hardcoded' && item.category === 'catalogue_rules') {
+                    // Do not escape HTML here because it comes formatted from our backend safely
+                    col1.innerHTML = `<span style="font-size:12px;color:hsl(var(--muted-foreground));line-height:1.4;">${r.product_page}</span>`;
+                    col2.innerHTML = `<span style="font-size:12px;color:hsl(var(--muted-foreground));line-height:1.4;">${r.chatflow}</span>`;
+                    col3.innerHTML = `<span style="font-size:12px;color:hsl(var(--muted-foreground));line-height:1.4;">${r.lead_quote}</span>`;
                 } else {
                     col1.innerHTML = `<span style="display:flex;align-items:center;gap:6px;">
                             <i data-lucide="${iconName}" class="${iconCls}" style="width:16px;min-width:16px;"></i> ${r.working ? 'Working' : 'Not Working'}

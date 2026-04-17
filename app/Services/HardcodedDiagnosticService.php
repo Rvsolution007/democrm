@@ -26,63 +26,45 @@ class HardcodedDiagnosticService
         $rows = [];
 
         $rows[] = [
-            'rule_name' => 'Unique Identifier (is_unique)',
-            'module' => 'Catalogue Rules',
-            'working' => true,
-            'detail' => 'Hardcoded System Rule',
-            'connected_to' => 'System Engine',
-            'bot_flow' => "📦 Product Page: show and connect\n💬 Chatflow: show and connect (rule: user ne ae data ek se jyada confirm kiya to quote me hoga selection)\n📋 Lead/Quote: show and connect (rule: ae data user confirm krta he to lead/quote me save hoga)",
-            'severity' => 'success'
+            'rule_name' => 'Unique Identifier',
+            'product_page' => 'show and connect',
+            'chatflow' => 'show and connect<br><span style="font-size:11px;color:#888;">Rule: user ne ae data ek se jyada confirm kiya to quote me hoga selection</span>',
+            'lead_quote' => 'show and connect<br><span style="font-size:11px;color:#888;">Rule: ae data user confirm krta he to lead/quote me save hoga</span>',
         ];
 
         $rows[] = [
-            'rule_name' => 'Category Linked (is_category)',
-            'module' => 'Catalogue Rules',
-            'working' => true,
-            'detail' => 'Hardcoded System Rule',
-            'connected_to' => 'System Engine',
-            'bot_flow' => "📦 Product Page: show and connect\n💬 Chatflow: show and connect (rule: user ne ae data ek se jyada confirm kiya to quote me hoga selection)\n📋 Lead/Quote: show and connect (rule: ae data user confirm krta he to lead/quote me save hoga)",
-            'severity' => 'success'
+            'rule_name' => 'Category Linked',
+            'product_page' => 'show and connect',
+            'chatflow' => 'show and connect<br><span style="font-size:11px;color:#888;">Rule: user ne ae data ek se jyada confirm kiya to quote me hoga selection</span>',
+            'lead_quote' => 'show and connect<br><span style="font-size:11px;color:#888;">Rule: ae data user confirm krta he to lead/quote me save hoga</span>',
         ];
 
         $rows[] = [
-            'rule_name' => 'Quote/Lead Title (is_title)',
-            'module' => 'Catalogue Rules',
-            'working' => true,
-            'detail' => 'Hardcoded System Rule',
-            'connected_to' => 'System Engine',
-            'bot_flow' => "📦 Product Page: null\n💬 Chatflow: null\n📋 Lead/Quote: show and connect (rule: agar ae catalogue column me enable he to quote and lead me main column me ayega)",
-            'severity' => 'success'
+            'rule_name' => 'Quote/Lead Title',
+            'product_page' => '<span style="color:#cbd5e1;">null</span>',
+            'chatflow' => '<span style="color:#cbd5e1;">null</span>',
+            'lead_quote' => 'show and connect<br><span style="font-size:11px;color:#888;">Rule: agar ae catalogue column me enable he to quote and lead me main column me ayega</span>',
         ];
 
         $rows[] = [
-            'rule_name' => 'Required Field (is_required)',
-            'module' => 'Catalogue Rules',
-            'working' => true,
-            'detail' => 'Hardcoded System Rule',
-            'connected_to' => 'System Engine',
-            'bot_flow' => "📦 Product Page: Must be filled to save\n💬 Chatflow: Automatically triggers prompt if missing\n📋 Lead/Quote: Enforces presence of data",
-            'severity' => 'success'
+            'rule_name' => 'Required Field',
+            'product_page' => 'show and connect<br><span style="font-size:11px;color:#888;">Rule: Mut be filled to save</span>',
+            'chatflow' => 'show and connect<br><span style="font-size:11px;color:#888;">Rule: User cannot skip this question</span>',
+            'lead_quote' => 'show and connect<br><span style="font-size:11px;color:#888;">Rule: Guaranteed to be present in data</span>',
         ];
 
         $rows[] = [
-            'rule_name' => 'Variation Matrix (is_combo)',
-            'module' => 'Catalogue Rules',
-            'working' => true,
-            'detail' => 'Hardcoded System Rule',
-            'connected_to' => 'System Engine',
-            'bot_flow' => "📦 Product Page: Creates product variants\n💬 Chatflow: Enables variation selection matrix\n📋 Lead/Quote: Links particular variation to quote item",
-            'severity' => 'success'
+            'rule_name' => 'Variation Matrix',
+            'product_page' => 'show and connect<br><span style="font-size:11px;color:#888;">Rule: Creates product variants</span>',
+            'chatflow' => 'show and connect<br><span style="font-size:11px;color:#888;">Rule: Enables variation selection matrix</span>',
+            'lead_quote' => 'show and connect<br><span style="font-size:11px;color:#888;">Rule: Links particular variation to quote item</span>',
         ];
 
         $rows[] = [
-            'rule_name' => 'Per-Variation Field (is_variation_field)',
-            'module' => 'Catalogue Rules',
-            'working' => true,
-            'detail' => 'Hardcoded System Rule',
-            'connected_to' => 'System Engine',
-            'bot_flow' => "📦 Product Page: Value changes per variant\n💬 Chatflow: Uses specific variation logic\n📋 Lead/Quote: Connects variation properties to lead",
-            'severity' => 'success'
+            'rule_name' => 'Per-Variation Field',
+            'product_page' => 'show and connect<br><span style="font-size:11px;color:#888;">Rule: Value changes per variant</span>',
+            'chatflow' => 'show and connect<br><span style="font-size:11px;color:#888;">Rule: Uses specific variation logic</span>',
+            'lead_quote' => 'show and connect<br><span style="font-size:11px;color:#888;">Rule: Connects variation properties to lead</span>',
         ];
 
         return $rows;
