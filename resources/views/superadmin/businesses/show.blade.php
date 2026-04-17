@@ -879,17 +879,18 @@ function animateScan(type, data, progressBar, progressPercent, progressText) {
                             ${r.admin_set ? '<span>✅</span>' : '<span>❌</span>'} ${escHtml(r.admin_detail)}
                         </span>`;
                     
-                    let extraHtml = '';
+                    col2.innerHTML = `<span style="display:flex;align-items:center;gap:6px;width:100%;">
+                            <i data-lucide="${iconName}" class="${iconCls}" style="width:16px;min-width:16px;"></i> <span style="flex:1;">${escHtml(r.connected_detail)}</span>
+                        </span>`;
+
                     if (r.input_text || r.process_text) {
-                        extraHtml = `<div style="margin-top:8px;font-size:11px;background:hsl(var(--muted)/0.3);padding:8px 10px;border-radius:6px;border:1px dashed hsl(var(--border));display:flex;flex-direction:column;gap:6px;">
+                        let extraHtml = `<div style="grid-column: 1 / -1; margin-top:10px; font-size:12px; background:hsl(var(--muted)/0.3); padding:12px 16px; border-radius:6px; border:1px dashed hsl(var(--border)); display:flex; flex-direction:column; gap:8px;">
                             ${r.input_text ? `<div style="color:hsl(var(--primary));line-height:1.4;"><strong>🤖 Bot Asks / Input:</strong> ${escHtml(r.input_text)}</div>` : ''}
                             ${r.process_text ? `<div style="color:hsl(var(--muted-foreground));line-height:1.4;"><strong>⚙️ Background Process:</strong> ${escHtml(r.process_text)}</div>` : ''}
                         </div>`;
+                        rowEl.insertAdjacentHTML('beforeend', extraHtml);
+                        rowEl.style.paddingBottom = '16px';
                     }
-
-                    col2.innerHTML = `<span style="display:flex;align-items:center;gap:6px;width:100%;">
-                            <i data-lucide="${iconName}" class="${iconCls}" style="width:16px;min-width:16px;"></i> <span style="flex:1;">${escHtml(r.connected_detail)}</span>
-                        </span>${extraHtml}`;
                 } else if (type === 'hardcoded' && item.category === 'catalogue_rules') {
                     // Do not escape HTML here because it comes formatted from our backend safely
                     col1.innerHTML = `<span style="font-size:12px;color:hsl(var(--muted-foreground));line-height:1.4;">${r.product_page}</span>`;
