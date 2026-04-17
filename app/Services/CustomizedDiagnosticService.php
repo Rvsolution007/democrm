@@ -12,12 +12,27 @@ class CustomizedDiagnosticService
 {
     public function run(int $companyId): array
     {
-        return [
-            'catalogue_columns' => $this->checkCatalogueColumns($companyId),
-            'chatflow_steps'    => $this->checkChatflowSteps($companyId),
-            'ai_config'         => $this->checkAiConfig($companyId),
-            'product_data'      => $this->checkProductData($companyId),
-        ];
+        $company = Company::find($companyId);
+        $hasAiBot = $company->hasFeature('ai_bot');
+        $hasChatflow = $company->hasFeature('chatflow');
+
+        $results = [];
+
+        // Modules for Botlist features
+        if ($hasChatflow && !$hasAiBot) {
+            $results['catalogue_columns'] = $this->checkCatalogueColumns($companyId);
+            $results['chatflow_steps']    = $this->checkChatflowSteps($companyId);
+        }
+        
+        // Modules for AI Bot
+        if ($hasAiBot) {
+            $results['ai_config'] = $this->checkAiConfig($companyId);
+        }
+
+        // Common
+        $results['product_data'] = $this->checkProductData($companyId);
+
+        return $results;
     }
 
     private function checkCatalogueColumns(int $companyId): array
@@ -118,6 +133,8 @@ class CustomizedDiagnosticService
             $isConnected = true;
             $detail = '✅ Ready';
             $severity = 'success';
+            $inputText = '';
+            $processText = '';
 
             if ($step->step_type === 'ask_column' || $step->step_type === 'ask_combo') {
                 if (!$step->linked_column_id) {
@@ -139,6 +156,33 @@ class CustomizedDiagnosticService
                 $severity = 'error';
             }
 
+            // Define Flow Input / Outut
+            if ($step->step_type === 'ask_category') {
+                $inputText = $step->question_text ?? 'Please select a Category';
+                $processText = 'User selects a category. Background progressive filter logic activates, filtering products for the next steps.';
+            } else if ($step->step_type === 'ask_unique_column') {
+                $inputText = $step->question_text ?? 'Please select a product';
+                $processText = 'User selects a specific product. Background identifies the MATCH_ID, adds the product to Quote, and skips remaining search steps.';
+            } else if ($step->step_type === 'ask_combo') {
+                $inputText = $step->question_text ?? 'Please select details';
+                $processText = 'User selects variation options. Background searches ProductCombo variations, calculates dynamic pricing, and links to Quote item.';
+            } else if ($step->step_type === 'ask_column') {
+                $inputText = $step->question_text ?? 'Please choose an option';
+                $processText = 'User selects an option for ' . ($step->linkedColumn->name ?? 'column') . '. Background narrows down filtered products.';
+            } else if ($step->step_type === 'ask_text') {
+                $inputText = $step->question_text ?? 'Enter details';
+                $processText = 'User types a custom message. Background saves this text directly to the quote payload metadata.';
+            } else if ($step->step_type === 'ask_phone') {
+                $inputText = $step->question_text ?? 'Enter your phone';
+                $processText = 'User enters contact number. Background validates format, formats to E.164, and updates Lead profile.';
+            } else if ($step->step_type === 'ask_email') {
+                $inputText = $step->question_text ?? 'Enter your email';
+                $processText = 'User enters email. Background validates format and updates Lead profile.';
+            } else if ($step->step_type === 'send_summary') {
+                $inputText = 'Order Summary & PDF Generated';
+                $processText = 'Bot compiles all selected items, calculations, total amount, generates a PDF (if configured), and requests final confirmation.';
+            }
+
             $rows[] = [
                 'name' => 'Step ' . ($index + 1) . ': ' . ($step->name ?? ucfirst(str_replace('_', ' ', $step->step_type))),
                 'module' => 'Chatflow',
@@ -147,6 +191,8 @@ class CustomizedDiagnosticService
                 'connected' => $isConnected,
                 'connected_detail' => $detail,
                 'severity' => $severity,
+                'input_text' => $inputText,
+                'process_text' => $processText,
             ];
         }
 
