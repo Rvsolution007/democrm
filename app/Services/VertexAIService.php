@@ -20,7 +20,10 @@ class VertexAIService
 
         $this->projectId = $config['project_id'] ?? '';
         $this->location = $config['location'] ?? 'us-central1';
-        $this->model = $config['model'] ?? 'gemini-2.0-flash';
+        $this->model = $config['model'] ?? 'gemini-1.5-flash';
+        if ($this->model === 'gemini-2.0-flash') {
+            $this->model = 'gemini-1.5-flash'; // Fallback to stable version to prevent 404s
+        }
 
         // Service account JSON (stored as parsed array)
         $this->serviceAccount = $config['service_account'] ?? [];

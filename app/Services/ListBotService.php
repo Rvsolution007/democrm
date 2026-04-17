@@ -1422,7 +1422,7 @@ class ListBotService
                     'quote_id' => $quote->id,
                     'product_id' => $product->id,
                     'product_name' => $this->getProductDisplayName($product),
-                    'description' => $product->getDynamicDescription($session->collected_answers ?? [], true),
+                    'description' => \Illuminate\Support\Str::limit($product->getDynamicDescription($session->collected_answers ?? [], true), 250),
                     'hsn_code' => $product->hsn_code,
                     'qty' => 1,
                     'rate' => $product->sale_price ?? 0,
@@ -1448,7 +1448,7 @@ class ListBotService
                         'quote_id' => $session->quote_id,
                         'product_id' => $product->id,
                         'product_name' => $this->getProductDisplayName($product),
-                        'description' => $product->getDynamicDescription($session->collected_answers ?? [], true),
+                        'description' => \Illuminate\Support\Str::limit($product->getDynamicDescription($session->collected_answers ?? [], true), 250),
                         'hsn_code' => $product->hsn_code,
                         'qty' => 1,
                         'rate' => $product->sale_price ?? 0,
@@ -1492,7 +1492,7 @@ class ListBotService
                 ->where('product_id', $product->id)
                 ->first();
             if ($quoteItem) {
-                $quoteItem->update(['description' => $fullDesc]);
+                $quoteItem->update(['description' => \Illuminate\Support\Str::limit($fullDesc, 250)]);
             }
 
             if ($session->lead_id) {

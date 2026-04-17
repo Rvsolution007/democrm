@@ -888,6 +888,7 @@ PROMPT;
             }
         }
 
+        @file_put_contents(storage_path('logs/ai_json_fail_' . time() . '.log'), $text);
         Log::warning('CatalogueAI: Could not extract JSON from response', ['text_preview' => substr($text, 0, 500)]);
         return null;
     }
@@ -989,7 +990,7 @@ PROMPT;
         $sheet->setTitle('Catalogue Columns');
 
         // Headers
-        $headers = ['Name', 'Type', 'Options (comma-separated)', 'Is Required', 'Is Unique', 'Is Category', 'Is Title', 'Is Combo', 'Show In AI', 'Sort Order'];
+        $headers = ['Name', 'Type', 'Options (comma-separated)', 'Is Required', 'Is Unique', 'Is Category', 'Is Title', 'Is Combo', 'Is Variation Field', 'Show In AI', 'Sort Order'];
         foreach ($headers as $i => $header) {
             $letter = Coordinate::stringFromColumnIndex($i + 1);
             $sheet->setCellValue($letter . '1', $header);
@@ -1017,8 +1018,9 @@ PROMPT;
             $sheet->setCellValue("F{$row}", ($col['is_category'] ?? false) ? 'Yes' : 'No');
             $sheet->setCellValue("G{$row}", ($col['is_title'] ?? false) ? 'Yes' : 'No');
             $sheet->setCellValue("H{$row}", ($col['is_combo'] ?? false) ? 'Yes' : 'No');
-            $sheet->setCellValue("I{$row}", ($col['show_in_ai'] ?? true) ? 'Yes' : 'No');
-            $sheet->setCellValue("J{$row}", $col['sort_order'] ?? ($index + 1));
+            $sheet->setCellValue("I{$row}", ($col['is_variation_field'] ?? false) ? 'Yes' : 'No');
+            $sheet->setCellValue("J{$row}", ($col['show_in_ai'] ?? true) ? 'Yes' : 'No');
+            $sheet->setCellValue("K{$row}", $col['sort_order'] ?? ($index + 1));
 
             // Alternate row coloring
             if ($index % 2 === 0) {
@@ -1046,6 +1048,7 @@ PROMPT;
             ['Is Category — Yes/No — Exactly ONE column should be the product category'],
             ['Is Title — Yes/No — Exactly ONE column should be the display title'],
             ['Is Combo — Yes/No — Creates product variation matrix (size, color, finish)'],
+            ['Is Variation Field — Yes/No — Value changes per variation (like Price/Code for combo models)'],
             ['Show In AI — Yes/No — Visible to WhatsApp AI Bot for product matching'],
             ['Sort Order — Numeric order in which fields appear (1 = first)'],
             [''],

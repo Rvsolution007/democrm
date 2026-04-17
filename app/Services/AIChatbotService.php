@@ -485,21 +485,20 @@ class AIChatbotService
                 if ($needsReset) {
                     Log::warning("AIChatbot: Resetting session for {$phone}. Reason: {$resetReason}");
 
-                    $session->update([
-                        'lead_id' => null,
-                        'quote_id' => null,
-                        'current_step_id' => null,
-                        'collected_answers' => [],
-                        'optional_asked' => [],
-                        'current_step_retries' => 0,
-                        'catalogue_sent' => false,
-                        'conversation_state' => 'reset_due_to_closure',
-                    ]);
-
                     $this->traceNode($session->id, 'SessionReset', 'routing', 'warning', 
                         ['reason' => $resetReason], 
-                        ['action' => 'cleared_session_data', 'restarted_as_new' => true]
+                        ['action' => 'expired_old_session', 'restarted_as_new' => true]
                     );
+
+                    $session->update(['status' => 'expired']);
+
+                    $session = AiChatSession::create([
+                        'company_id' => $this->companyId,
+                        'phone_number' => $phone,
+                        'instance_name' => $instanceName,
+                        'status' => 'active',
+                        'last_message_at' => now(),
+                    ]);
                 }
 
                 // ── TRACE: Receive Message
