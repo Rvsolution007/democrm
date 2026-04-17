@@ -35,6 +35,74 @@ Route::prefix(env('SA_LOGIN_SLUG', 'sa-portal'))->group(function () {
     Route::post('/login', [AuthController::class, 'saLogin'])->name('sa.login.post');
 });
 
+// Debug: Column value checker (temporary)
+Route::get('/debug/column-check', function () {
+    $companyId = auth()->user()->company_id ?? \App\Models\Company::first()->id ?? 1;
+    
+    $productLineCol = \App\Models\CatalogueCustomColumn::where('company_id', $companyId)
+        ->where('slug', 'product_line')
+        ->first();
+    
+    if (!$productLineCol) {
+        $cols = \App\Models\CatalogueCustomColumn::where('company_id', $companyId)->get();
+        $html = "<h2>❌ Product Line column not found</h2><h3>Available:</h3><ul>";
+        foreach ($cols as $c) {
+            $html .= "<li><b>{$c->name}</b> (slug: {$c->slug}, id: {$c->id}, is_category: " . ($c->is_category ? 'YES' : 'no') . ")</li>";
+        }
+        return $html . "</ul>";
+    }
+
+    $products = \App\Models\Product::where('company_id', $companyId)
+        ->where('status', 'active')
+        ->with(['customValues', 'category'])
+        ->orderBy('name')
+        ->get();
+
+    $html = "<h2>🔍 Column Debug — Product Line (ID: {$productLineCol->id})</h2>";
+    $html .= "<p>is_category: " . ($productLineCol->is_category ? '<b style=\"color:red\">YES</b>' : 'no') . " | Total Products: {$products->count()}</p>";
+    $html .= "<table border='1' cellpadding='6' style='border-collapse:collapse;font-family:sans-serif;font-size:13px'>";
+    $html .= "<tr style='background:#f1f5f9'><th>#</th><th>Product Name</th><th>Category</th><th>Custom Value (raw)</th><th>Bot Sees</th></tr>";
+
+    $botValues = [];
+    $invisible = 0;
+    foreach ($products as $i => $p) {
+        $cv = $p->customValues->firstWhere('column_id', $productLineCol->id);
+        $raw = $cv ? $cv->value : null;
+        $bg = $raw ? '#fff' : '#fff0f0';
+        
+        $botSee = '-';
+        if ($raw) {
+            $dec = json_decode($raw, true);
+            $vals = is_array($dec) ? $dec : [$raw];
+            foreach ($vals as $v) {
+                if (!empty(trim($v))) {
+                    $n = mb_strtolower(trim(preg_replace('/\s+/', ' ', $v)));
+                    $botValues[$n] = trim($v);
+                    $botSee = trim($v);
+                }
+            }
+        } else {
+            $botSee = '<span style="color:red">❌ INVISIBLE</span>';
+            $invisible++;
+        }
+        
+        $html .= "<tr style='background:{$bg}'><td>" . ($i+1) . "</td><td>{$p->name}</td><td>" . ($p->category->name ?? '-') . "</td><td>" . htmlspecialchars($raw ?? 'NULL') . "</td><td>{$botSee}</td></tr>";
+    }
+    $html .= "</table>";
+
+    $sorted = array_values($botValues);
+    sort($sorted);
+    $html .= "<h3>🤖 Bot shows " . count($sorted) . " values:</h3><ol>";
+    foreach ($sorted as $v) $html .= "<li><b>{$v}</b></li>";
+    $html .= "</ol>";
+    
+    if ($invisible > 0) {
+        $html .= "<p style='color:red;font-size:16px;font-weight:bold'>⚠️ {$invisible} products INVISIBLE to bot (no custom value)</p>";
+    }
+    
+    return $html;
+})->middleware('auth');
+
 // Subscription Expired Page (accessible when logged in but expired)
 Route::get('/subscription/expired', [AuthController::class, 'subscriptionExpired'])
     ->name('subscription.expired')
