@@ -156,18 +156,16 @@
         </div>
         @endif
 
-        {{-- Unique ID Search --}}
-        @if($uniqueCol)
+        {{-- Global Search (Category, Title, Unique) --}}
         <div style="flex:1;min-width:180px;max-width:280px;position:relative">
             <i data-lucide="search" style="width:16px;height:16px;position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none"></i>
-            <input type="text" id="search-unique" placeholder="Search by {{ $uniqueCol->name ?? 'Code' }}..."
+            <input type="text" id="search-unique" placeholder="Search product data..."
                 value="{{ request('unique_search') }}"
                 oninput="debounceSearch()"
                 style="width:100%;padding:9px 12px 9px 36px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;background:#fff;color:#1e293b;outline:none;transition:border-color .2s"
                 onfocus="this.style.borderColor='#6366f1';this.style.boxShadow='0 0 0 3px rgba(99,102,241,.1)'"
                 onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
         </div>
-        @endif
 
         {{-- Reset Button --}}
         <button onclick="resetSearch()" title="Reset"

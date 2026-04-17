@@ -33,25 +33,39 @@ class ProductsController extends Controller
             $query->where('category_id', $catSearch);
         }
 
-        // Search by Unique Identifier (Code No. / Model No. etc.)
+        // Dynamic General Search (Category Match, Unique Identifier, Title)
         if ($request->filled('unique_search')) {
-            $uniqueSearch = trim($request->unique_search);
-            // Find the unique-flagged custom column
-            $uniqueCol = \App\Models\CatalogueCustomColumn::where('company_id', $companyId)
+            $search = trim($request->unique_search);
+            
+            $searchableCols = \App\Models\CatalogueCustomColumn::where('company_id', $companyId)
                 ->where('is_active', true)
-                ->where('is_unique', true)
-                ->first();
-            if ($uniqueCol) {
-                if ($uniqueCol->is_system) {
-                    // System column (like sku) — search directly
-                    $query->where($uniqueCol->slug, 'LIKE', "%{$uniqueSearch}%");
-                } else {
-                    // Custom column — search in custom values
-                    $query->whereHas('customValues', function ($q) use ($uniqueCol, $uniqueSearch) {
-                        $q->where('column_id', $uniqueCol->id)
-                          ->where('value', 'LIKE', "%{$uniqueSearch}%");
-                    });
-                }
+                ->where(function($q) {
+                    $q->where('is_unique', true)
+                      ->orWhere('is_category', true)
+                      ->orWhere('is_title', true);
+                })
+                ->get();
+
+            if ($searchableCols->isNotEmpty()) {
+                $query->where(function($q) use ($search, $searchableCols) {
+                    foreach ($searchableCols as $col) {
+                        if ($col->is_category) {
+                            // Search in Categories table
+                            $q->orWhereHas('category', function($catQ) use ($search) {
+                                $catQ->where('name', 'LIKE', "%{$search}%");
+                            });
+                        } elseif ($col->is_system) {
+                            // Search direct system column
+                            $q->orWhere($col->slug, 'LIKE', "%{$search}%");
+                        } else {
+                            // Search custom values
+                            $q->orWhereHas('customValues', function ($cvQ) use ($col, $search) {
+                                $cvQ->where('column_id', $col->id)
+                                    ->where('value', 'LIKE', "%{$search}%");
+                            });
+                        }
+                    }
+                });
             }
         }
 

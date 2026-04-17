@@ -837,7 +837,7 @@
                         <i data-lucide="package" style="width:16px;height:16px"></i>
                         Go to Products
                     </a>
-                    <a href="{{ url('admin/catalogue-custom-columns') }}" class="wizard-btn wizard-btn-outline">
+                    <a href="{{ url('admin/catalogue-columns') }}" class="wizard-btn wizard-btn-outline">
                         <i data-lucide="columns" style="width:16px;height:16px"></i>
                         View Catalogue Columns
                     </a>

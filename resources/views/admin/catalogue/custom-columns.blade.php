@@ -501,7 +501,7 @@
     document.getElementById('col-combo').addEventListener('change', toggleOptions);
 
     function toggleActive(id, isActive) {
-        fetch('{{ url("admin/catalogue-custom-columns") }}/' + id + '/toggle-active', {
+        fetch('{{ url("admin/catalogue-columns") }}/' + id + '/toggle-active', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
             body: JSON.stringify({ is_active: isActive })

@@ -138,17 +138,23 @@ class ListBotService
             }
 
             // Auto-reset completed sessions — user messaging again means they want a fresh start
-            if (in_array($session->conversation_state, ['completed', 'awaiting_add_more']) 
+            if (in_array($session->conversation_state, ['completed']) 
                 || $session->status === 'completed') {
                 $this->traceNode($session->id, 'AutoResetCompleted', 'routing', 'success',
                     ['old_state' => $session->conversation_state, 'old_status' => $session->status],
-                    ['action' => 'completed_session_reset']);
+                    ['action' => 'completed_session_reset', 'lead_id_retained' => $session->lead_id]);
+                
+                $oldLeadId = $session->lead_id;
+                $oldQuoteId = $session->quote_id;
+
                 $session->update(['status' => 'completed']);
                 $session = AiChatSession::create([
                     'company_id' => $this->companyId,
                     'phone_number' => $phone,
                     'instance_name' => $instanceName,
                     'bot_type' => 'list_bot',
+                    'lead_id' => $oldLeadId,
+                    'quote_id' => $oldQuoteId,
                     'status' => 'active',
                     'last_message_at' => now(),
                 ]);
@@ -963,6 +969,23 @@ class ListBotService
     }
 
     // ═══════════════════════════════════════════════════════
+    // NORMALIZE COLUMN VALUE — Case + spacing normalization
+    // ═══════════════════════════════════════════════════════
+
+    /**
+     * Normalize a column value for comparison.
+     * "Door Handle" = "door handle" = "Door  Handle" = " Door Handle "
+     * But "Door" ≠ "Door Handle" (different words = different entry)
+     */
+    private function normalizeColumnValue(string $val): string
+    {
+        $val = trim($val);
+        $val = mb_strtolower($val);
+        $val = preg_replace('/\s+/', ' ', $val); // collapse multiple spaces
+        return $val;
+    }
+
+    // ═══════════════════════════════════════════════════════
     // CORE: GET FILTERED PRODUCTS — Progressive filter engine
     // ═══════════════════════════════════════════════════════
 
@@ -978,18 +1001,19 @@ class ListBotService
             $query->where('category_id', $answers['category_id']);
         }
 
-        // Apply column filters
+        // Apply column filters (case-insensitive + whitespace-normalized)
         foreach ($answers as $key => $val) {
             if (str_starts_with($key, 'column_filter_')) {
                 $colId = str_replace('column_filter_', '', $key);
-                $query->where(function ($q) use ($colId, $val) {
-                    $q->whereHas('customValues', function ($subQ) use ($colId, $val) {
+                $normalizedVal = $this->normalizeColumnValue($val);
+                $query->where(function ($q) use ($colId, $val, $normalizedVal) {
+                    $q->whereHas('customValues', function ($subQ) use ($colId, $val, $normalizedVal) {
                         $subQ->where('column_id', $colId)
-                            ->where(function ($innerQ) use ($val) {
-                                // Match exact value
-                                $innerQ->where('value', $val)
-                                    // Also match JSON arrays containing the value
-                                    ->orWhere('value', 'LIKE', '%"' . $val . '"%');
+                            ->where(function ($innerQ) use ($val, $normalizedVal) {
+                                // Case-insensitive match (LOWER + TRIM + collapse spaces)
+                                $innerQ->whereRaw("LOWER(TRIM(REPLACE(value, '  ', ' '))) = ?", [$normalizedVal])
+                                    // Also match JSON arrays containing the value (case-insensitive)
+                                    ->orWhereRaw("LOWER(value) LIKE ?", ['%"' . $normalizedVal . '"%']);
                             });
                     });
                 });
@@ -1080,14 +1104,19 @@ class ListBotService
         $filteredProducts = $this->getFilteredProducts($session);
         if ($filteredProducts->isEmpty()) return [];
 
-        $availableValues = [];
+        $availableValues = []; // normalized_key => display_value (first-seen, properly cased)
         foreach ($filteredProducts as $p) {
             if ($type === 'combo') {
                 // Check combos first
                 $combo = $p->combos->firstWhere('column_id', $colId);
                 if ($combo && !empty($combo->selected_values)) {
                     foreach ($combo->selected_values as $v) {
-                        if (!empty($v)) $availableValues[$v] = true;
+                        if (!empty(trim($v))) {
+                            $normalized = $this->normalizeColumnValue($v);
+                            if (!isset($availableValues[$normalized])) {
+                                $availableValues[$normalized] = trim($v);
+                            }
+                        }
                     }
                 }
             }
@@ -1096,17 +1125,18 @@ class ListBotService
             $rawVal = $p->customValues->firstWhere('column_id', $colId)?->value;
             if (!empty($rawVal)) {
                 $decoded = json_decode($rawVal, true);
-                if (is_array($decoded)) {
-                    foreach ($decoded as $v) {
-                        if (!empty($v)) $availableValues[$v] = true;
+                $values = is_array($decoded) ? $decoded : [$rawVal];
+                foreach ($values as $v) {
+                    if (empty(trim((string)$v))) continue;
+                    $normalized = $this->normalizeColumnValue($v);
+                    if (!isset($availableValues[$normalized])) {
+                        $availableValues[$normalized] = trim($v); // Keep first-seen display version
                     }
-                } else {
-                    $availableValues[$rawVal] = true;
                 }
             }
         }
 
-        $valuesList = array_keys($availableValues);
+        $valuesList = array_values($availableValues);
         sort($valuesList);
         return $valuesList;
     }
@@ -1396,7 +1426,11 @@ class ListBotService
                 $lead = Lead::find($session->lead_id);
                 if ($lead) {
                     if (!$lead->products()->where('product_id', $product->id)->exists()) {
-                        $lead->products()->attach($product->id, ['quantity' => 1, 'price' => $product->sale_price]);
+                        $lead->products()->attach($product->id, [
+                            'quantity' => 1, 
+                            'price' => $product->sale_price,
+                            'description' => \Illuminate\Support\Str::limit($product->getDynamicDescription($session->collected_answers ?? [], true), 250)
+                        ]);
                     }
                     $lead->update(['product_name' => $this->getProductDisplayName($product)]);
                 }

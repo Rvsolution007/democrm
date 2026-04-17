@@ -1501,29 +1501,39 @@ class AIChatbotService
             $query->where('id', $answers['product_id']);
         }
         
-        // Apply existing filters before this one
+        // Apply existing filters before this one (case-insensitive)
         foreach ($answers as $key => $val) {
             if (str_starts_with($key, 'column_filter_') && $key !== "column_filter_{$colId}") {
                 $extColId = str_replace('column_filter_', '', $key);
-                $query->whereHas('customValues', function($q) use ($extColId, $val) {
-                    $q->where('column_id', $extColId)->where('value', $val);
+                $normalizedVal = mb_strtolower(trim(preg_replace('/\s+/', ' ', $val)));
+                $query->whereHas('customValues', function($q) use ($extColId, $normalizedVal) {
+                    $q->where('column_id', $extColId)
+                      ->whereRaw("LOWER(TRIM(REPLACE(value, '  ', ' '))) = ?", [$normalizedVal]);
                 });
             }
         }
         
         $productSet = $query->with('customValues')->get();
 
-        // 2. Extract distinct values for this column from the active product set
-        $availableValues = [];
+        // 2. Extract distinct values for this column (normalized uniqueness)
+        $availableValues = []; // normalized_key => display_value
         foreach ($productSet as $p) {
-            $val = $p->customValues->firstWhere('column_id', $colId)?->value;
-            if (!empty($val)) {
-                $availableValues[$val] = true; // Use array keys for uniqueness
+            $rawVal = $p->customValues->firstWhere('column_id', $colId)?->value;
+            if (!empty($rawVal)) {
+                $decoded = json_decode($rawVal, true);
+                $values = is_array($decoded) ? $decoded : [$rawVal];
+                foreach ($values as $v) {
+                    if (empty(trim((string)$v))) continue;
+                    $normalized = mb_strtolower(trim(preg_replace('/\s+/', ' ', $v)));
+                    if (!isset($availableValues[$normalized])) {
+                        $availableValues[$normalized] = trim($v);
+                    }
+                }
             }
         }
         
-        $valuesList = array_keys($availableValues);
-        sort($valuesList); // Alphabetical sort for now
+        $valuesList = array_values($availableValues);
+        sort($valuesList); // Alphabetical sort
 
         if (empty($valuesList)) {
             // Nothing to choose, advance flow

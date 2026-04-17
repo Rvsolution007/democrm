@@ -165,7 +165,7 @@
     </div>
 
     {{-- Add/Edit Step Modal — uses standard CRM modal system --}}
-    <div id="cf-step-modal" class="modal" style="max-width:560px">
+    <div id="cf-step-modal" class="modal" style="max-width:640px">
         <div class="modal-header">
             <h3 class="modal-title" id="cf-modal-title">Add Step</h3>
             <button class="modal-close" onclick="closeModal('cf-step-modal')"><i data-lucide="x"></i></button>
@@ -181,14 +181,56 @@
 
                 <div class="form-group">
                     <label class="form-label required">Step Type</label>
-                    <select id="cf-step-type" class="form-select" onchange="cfToggleFields()">
-                        <option value="ask_category">📂 Ask Category — Show category list first</option>
-                        <option value="ask_unique_column">🏷️ Ask Unique Column — {{ $uniqueColumn ? $uniqueColumn->name : 'Model' }} list</option>
-                        <option value="ask_combo">🎨 Ask Combo — Ask a combo/variation dimension</option>
-                        <option value="ask_column">📊 Ask Column — Filter by catalogue column</option>
-                        <option value="ask_optional">📝 Ask Optional — Custom optional question</option>
-                        <option value="send_summary">📋 Send Summary — Order summary</option>
-                    </select>
+                    <input type="hidden" id="cf-step-type" value="ask_category">
+                    <div id="cf-step-type-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">
+                        <div class="cf-type-card" data-type="ask_category" onclick="cfSelectType('ask_category')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:14px;transition:all 0.2s;position:relative;background:var(--card)">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                                <span style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#f97316,#ea580c);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📂</span>
+                                <span style="font-weight:700;font-size:13px;color:var(--foreground)">Category</span>
+                            </div>
+                            <p style="margin:0;font-size:11px;color:var(--muted-foreground);line-height:1.4">Category list dikhayega pehle. User category select karega, phir products filter honge.</p>
+                        </div>
+
+                        <div class="cf-type-card" data-type="ask_unique_column" onclick="cfSelectType('ask_unique_column')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:14px;transition:all 0.2s;position:relative;background:var(--card)">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                                <span style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#0ea5e9,#0284c7);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🏷️</span>
+                                <span style="font-weight:700;font-size:13px;color:var(--foreground)">Product Select</span>
+                            </div>
+                            <p style="margin:0;font-size:11px;color:var(--muted-foreground);line-height:1.4">Individual products dikhayega ({{ $uniqueColumn ? $uniqueColumn->name : 'Model' }} list). User ek product choose karega.</p>
+                        </div>
+
+                        <div class="cf-type-card" data-type="ask_column" onclick="cfSelectType('ask_column')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:14px;transition:all 0.2s;position:relative;background:var(--card)">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                                <span style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#14b8a6,#0d9488);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📊</span>
+                                <span style="font-weight:700;font-size:13px;color:var(--foreground)">Column Filter</span>
+                            </div>
+                            <p style="margin:0;font-size:11px;color:var(--muted-foreground);line-height:1.4">Column ke unique values dikhayega. User value select karega → products filter honge progressively.</p>
+                        </div>
+
+                        <div class="cf-type-card" data-type="ask_combo" onclick="cfSelectType('ask_combo')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:14px;transition:all 0.2s;position:relative;background:var(--card)">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                                <span style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🎨</span>
+                                <span style="font-weight:700;font-size:13px;color:var(--foreground)">Combo / Variation</span>
+                            </div>
+                            <p style="margin:0;font-size:11px;color:var(--muted-foreground);line-height:1.4">Product ki variation options dikhayega (Size, Color, etc). Quote me specific variant link hoga.</p>
+                        </div>
+
+                        <div class="cf-type-card" data-type="ask_optional" onclick="cfSelectType('ask_optional')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:14px;transition:all 0.2s;position:relative;background:var(--card)">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                                <span style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#a855f7,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📝</span>
+                                <span style="font-weight:700;font-size:13px;color:var(--foreground)">Custom Question</span>
+                            </div>
+                            <p style="margin:0;font-size:11px;color:var(--muted-foreground);line-height:1.4">User se koi bhi custom info puchega (Name, City, etc). Answer Lead me save hoga.</p>
+                        </div>
+
+                        <div class="cf-type-card" data-type="send_summary" onclick="cfSelectType('send_summary')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:14px;transition:all 0.2s;position:relative;background:var(--card)">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                                <span style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#22c55e,#16a34a);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">📋</span>
+                                <span style="font-weight:700;font-size:13px;color:var(--foreground)">Order Summary</span>
+                            </div>
+                            <p style="margin:0;font-size:11px;color:var(--muted-foreground);line-height:1.4">Final confirmation message bhejega sabhi selected options ka summary ke saath.</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="cf-combo-group" class="form-group" style="display:none">
@@ -248,6 +290,10 @@
 
     <style>
         @keyframes cfPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .cf-type-card { position:relative;overflow:hidden }
+        .cf-type-card:hover { border-color:var(--primary) !important;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.08) }
+        .cf-type-card.cf-type-active { border-color:var(--primary) !important;background:rgba(var(--primary-rgb,79,70,229),0.04) !important;box-shadow:0 0 0 1px var(--primary),0 4px 12px rgba(79,70,229,0.1) }
+        .cf-type-card.cf-type-active::after { content:'✓';position:absolute;top:8px;right:10px;width:20px;height:20px;border-radius:50%;background:var(--primary);color:white;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700 }
     </style>
 @endsection
 
@@ -255,6 +301,14 @@
 <script>
     // Store all steps data for edit lookups
     var cfStepsData = @json($steps->keyBy('id'));
+
+    function cfSelectType(type) {
+        document.getElementById('cf-step-type').value = type;
+        document.querySelectorAll('.cf-type-card').forEach(function(c) {
+            c.classList.toggle('cf-type-active', c.dataset.type === type);
+        });
+        cfToggleFields();
+    }
 
     function openAddStep() {
         document.getElementById('cf-modal-title').textContent = 'Add Step';
@@ -266,7 +320,7 @@
         document.getElementById('cf-step-question').value = '';
         document.getElementById('cf-step-fieldkey').value = '';
         document.getElementById('cf-step-retries').value = 2;
-        cfToggleFields();
+        cfSelectType('ask_category');
         openModal('cf-step-modal');
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
@@ -298,7 +352,7 @@
         document.getElementById('cf-step-question').value = step.question_text || '';
         document.getElementById('cf-step-fieldkey').value = step.field_key || '';
         document.getElementById('cf-step-retries').value = step.max_retries || 2;
-        cfToggleFields();
+        cfSelectType(stepType);
         openModal('cf-step-modal');
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }

@@ -98,6 +98,13 @@ class HardcodedDiagnosticService
                 'old_logic' => 'Required user to confirm even if only 1 product remains',
                 'new_logic' => 'Filter activates, auto-selects if only 1 option available to prevent redundant questioning'
             ],
+            [
+                'date' => '2026-04-17',
+                'action' => 'add',
+                'rule' => 'Smart Normalize Column Filter',
+                'old_logic' => 'Exact string match for column uniqueness (case-sensitive, space-sensitive)',
+                'new_logic' => 'Normalized uniqueness: lowercase + trim + collapse spaces. "Door Handle" = "door handle". Filter matching also case-insensitive. No product invisible due to casing/spacing.'
+            ],
         ];
     }
 
@@ -133,6 +140,16 @@ class HardcodedDiagnosticService
             'detail' => '✅ Auto-select logic active',
             'connected_to' => 'ListBotService (count check)',
             'bot_flow' => 'only 1 option exists for step → auto-selected silently → no redundant question sent',
+            'severity' => 'success'
+        ];
+
+        $rows[] = [
+            'rule_name' => 'Smart Normalize Column Filter',
+            'module' => 'Bot List Flow',
+            'working' => true,
+            'detail' => '✅ Case + spacing normalize active',
+            'connected_to' => 'ListBotService::normalizeColumnValue()',
+            'bot_flow' => 'ask_column step → collect values → normalize (lowercase + trim + collapse spaces) → "Door Handle" = "door handle" = "Door  Handle" → show unique entries only. Filter matching is also case-insensitive.',
             'severity' => 'success'
         ];
 
@@ -200,14 +217,35 @@ class HardcodedDiagnosticService
     {
         $rows = [];
 
-        $validDays = Setting::getValue('whatsapp', 'session_valid_days', 7, $companyId);
+        $validDays = Setting::getValue('ai_bot', 'session_valid_days', 10, $companyId);
+        
         $rows[] = [
-            'rule_name' => 'Session valid_days Check',
+            'rule_name' => 'Session Expiry (Valid Days limit)',
             'module' => 'Session Rules',
             'working' => true,
-            'detail' => "✅ {$validDays} days configured",
+            'detail' => "✅ limit: {$validDays} days",
             'connected_to' => 'AiChatSession',
-            'bot_flow' => "If session > {$validDays} days old → expired → new session created to start fresh",
+            'bot_flow' => "If session last message > {$validDays} days old → expired → creates fresh session with NEW lead and NEW quote.",
+            'severity' => 'success'
+        ];
+
+        $rows[] = [
+            'rule_name' => 'Completed Session Retention',
+            'module' => 'Session Rules',
+            'working' => true,
+            'detail' => "✅ Retains old data if < {$validDays} days",
+            'connected_to' => 'Listbot/AiBot Services',
+            'bot_flow' => "If old session is 'completed' but within {$validDays} days limit → Creates new session but APPENDS to old lead_id and quote_id.",
+            'severity' => 'success'
+        ];
+
+        $rows[] = [
+            'rule_name' => 'Active Add-More Hold',
+            'module' => 'Session Rules',
+            'working' => true,
+            'detail' => '✅ Prevents auto-reset',
+            'connected_to' => 'ListBotService',
+            'bot_flow' => "If session is 'awaiting_add_more' (user asked to add more) → Bot waits for reply instead of auto-resetting context.",
             'severity' => 'success'
         ];
 
@@ -215,7 +253,7 @@ class HardcodedDiagnosticService
             'rule_name' => 'Lead Auto-Creation',
             'module' => 'Session Rules',
             'working' => true,
-            'detail' => '✅ Lead creation linked',
+            'detail' => '✅ Automatic on first msg',
             'connected_to' => 'Lead Model',
             'bot_flow' => 'First message received → Lead created automatically if not exists',
             'severity' => 'success'
@@ -226,8 +264,8 @@ class HardcodedDiagnosticService
             'module' => 'Session Rules',
             'working' => true,
             'detail' => '✅ Foreign key check active',
-            'connected_to' => 'ListBotService context check',
-            'bot_flow' => 'Admin deletes Lead or Quote → associated session invalidated/reset automatically to prevent errors',
+            'connected_to' => 'Bot Context Handler',
+            'bot_flow' => 'Admin deletes Lead or Quote → associated session explicitly invalidated/reset automatically to prevent hallucination/errors',
             'severity' => 'success'
         ];
 
