@@ -158,23 +158,30 @@ class CustomizedDiagnosticService
 
             $outputText = '';
 
+            $currentColumn = '';
+            if ($step->step_type === 'ask_category') $currentColumn = 'Category';
+            elseif ($step->step_type === 'ask_unique_column') $currentColumn = 'Product';
+            elseif (in_array($step->step_type, ['ask_combo', 'ask_column'])) $currentColumn = $step->linkedColumn->name ?? 'Column';
+            else $currentColumn = ucfirst(str_replace('ask_', '', $step->step_type));
+
+            $nextStep = $steps[$index + 1] ?? null;
+            $nextColumn = '';
+            if ($nextStep) {
+                if ($nextStep->step_type === 'ask_category') $nextColumn = 'Category';
+                elseif ($nextStep->step_type === 'ask_unique_column') $nextColumn = 'Product';
+                elseif (in_array($nextStep->step_type, ['ask_combo', 'ask_column'])) $nextColumn = $nextStep->linkedColumn->name ?? 'Column';
+                else $nextColumn = ucfirst(str_replace('ask_', '', $nextStep->step_type));
+            } else {
+                $nextColumn = 'Final Order Summary';
+            }
+
             // Define Flow Input / Outut
-            if ($step->step_type === 'ask_category') {
-                $inputText = 'User selects a category (or multiple categories).';
-                $processText = 'Background progressive filter logic activates, filtering products (to next catalogue question) for the next steps.';
-                $outputText = 'Sends currently filtered products or next question.';
-            } else if ($step->step_type === 'ask_unique_column') {
-                $inputText = 'User selects a specific product (or multiple).';
-                $processText = 'Background identifies MATCH_ID and filters capacity/combos for next steps.';
-                $outputText = 'Adds product to Quote/Lead and sends next related question (skips if data is null).';
-            } else if ($step->step_type === 'ask_combo') {
-                $inputText = 'User selects variation options.';
-                $processText = 'Background searches ProductCombo variations and calculates dynamic pricing.';
-                $outputText = 'Sends next related question and links options to Quote item.';
-            } else if ($step->step_type === 'ask_column') {
-                $inputText = 'User selects an option for ' . ($step->linkedColumn->name ?? 'column') . '.';
-                $processText = 'Background narrows down filtered products based on option.';
-                $outputText = 'Sends next related question.';
+            if (in_array($step->step_type, ['ask_category', 'ask_unique_column', 'ask_combo', 'ask_column'])) {
+                $bgProcess = $step->step_type === 'ask_unique_column' ? 'Background identifies the MATCH_ID' : 'Background progressive filter logic activates';
+                
+                $inputText = "User selects a {$currentColumn} or one or more {$currentColumn}.";
+                $processText = "{$bgProcess} and filtering {$nextColumn} for next steps.";
+                $outputText = "Adds the {$currentColumn} to Quote and lead & send filtering {$nextColumn} with question... (agar filtering {$nextColumn} me data nahi hai / null hai to next question skip, aur uske baad wale question ka data filter karke question ke sath bhejna).";
             } else if ($step->step_type === 'ask_text') {
                 $inputText = 'User types a custom message.';
                 $processText = 'Background saves this text directly to the quote payload metadata.';

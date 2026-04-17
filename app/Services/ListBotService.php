@@ -154,11 +154,18 @@ class ListBotService
                 ]);
             }
 
-            // Detect orphaned session — lead was deleted externally
+            // Detect orphaned session — lead or quote was deleted externally
+            $isOrphaned = false;
             if ($session->lead_id && !Lead::where('id', $session->lead_id)->exists()) {
-                $this->traceNode($session->id, 'OrphanedLeadReset', 'routing', 'warning',
+                $isOrphaned = true;
+            } elseif ($session->quote_id && !Quote::where('id', $session->quote_id)->exists()) {
+                $isOrphaned = true;
+            }
+
+            if ($isOrphaned) {
+                $this->traceNode($session->id, 'OrphanedDataReset', 'routing', 'warning',
                     ['deleted_lead_id' => $session->lead_id, 'deleted_quote_id' => $session->quote_id],
-                    ['action' => 'reset_due_to_deleted_lead']);
+                    ['action' => 'reset_due_to_deleted_data']);
                 $session->update(['status' => 'expired']);
                 $session = AiChatSession::create([
                     'company_id' => $this->companyId,
@@ -378,6 +385,7 @@ class ListBotService
                 ['has_welcome' => !empty($welcomeMsg)],
                 ['action' => 'starting_chatflow']);
             $session->conversation_state = 'in_chatflow';
+            $this->advanceChatflow($session, $steps);
             $session->save();
             return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
         }
