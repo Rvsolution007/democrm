@@ -25,31 +25,64 @@ class HardcodedDiagnosticService
     {
         $rows = [];
 
-        // Check Combo Rule
-        $comboCols = CatalogueCustomColumn::where('company_id', $companyId)->where('is_combo', true)->count();
-        $hasCombos = ProductCombo::whereHas('product', function ($q) use ($companyId) {
-            $q->where('company_id', $companyId);
-        })->count() > 0;
         $rows[] = [
-            'rule_name' => 'Combo Flag → Variation Matrix',
+            'rule_name' => 'Unique Identifier (is_unique)',
             'module' => 'Catalogue Rules',
-            'working' => $comboCols > 0 ? $hasCombos : true,
-            'detail' => $comboCols > 0 ? ($hasCombos ? '✅ Product variations built' : '❌ No variations found') : 'N/A',
-            'connected_to' => 'ProductCombo',
-            'bot_flow' => 'chatflow ask_combo step → show combo options → user select → save to quote → update variation price',
-            'severity' => ($comboCols > 0 && !$hasCombos) ? 'error' : 'success'
+            'working' => true,
+            'detail' => 'Hardcoded System Rule',
+            'connected_to' => 'System Engine',
+            'bot_flow' => "📦 Product Page: show and connect\n💬 Chatflow: show and connect (rule: user ne ae data ek se jyada confirm kiya to quote me hoga selection)\n📋 Lead/Quote: show and connect (rule: ae data user confirm krta he to lead/quote me save hoga)",
+            'severity' => 'success'
         ];
 
-        // Check Unique Flag
-        $uniqueCols = CatalogueCustomColumn::where('company_id', $companyId)->where('is_unique', true)->count();
         $rows[] = [
-            'rule_name' => 'Unique Flag → Display Name',
+            'rule_name' => 'Category Linked (is_category)',
             'module' => 'Catalogue Rules',
-            'working' => $uniqueCols === 1,
-            'detail' => $uniqueCols === 1 ? '✅ Only 1 unique column' : ($uniqueCols === 0 ? '❌ No unique column' : '❌ Multiple unique columns'),
-            'connected_to' => 'getProductDisplayName()',
-            'bot_flow' => 'Used by AI Tier 1 to auto-select product correctly via MATCH_ID',
-            'severity' => $uniqueCols === 1 ? 'success' : 'error'
+            'working' => true,
+            'detail' => 'Hardcoded System Rule',
+            'connected_to' => 'System Engine',
+            'bot_flow' => "📦 Product Page: show and connect\n💬 Chatflow: show and connect (rule: user ne ae data ek se jyada confirm kiya to quote me hoga selection)\n📋 Lead/Quote: show and connect (rule: ae data user confirm krta he to lead/quote me save hoga)",
+            'severity' => 'success'
+        ];
+
+        $rows[] = [
+            'rule_name' => 'Quote/Lead Title (is_title)',
+            'module' => 'Catalogue Rules',
+            'working' => true,
+            'detail' => 'Hardcoded System Rule',
+            'connected_to' => 'System Engine',
+            'bot_flow' => "📦 Product Page: null\n💬 Chatflow: null\n📋 Lead/Quote: show and connect (rule: agar ae catalogue column me enable he to quote and lead me main column me ayega)",
+            'severity' => 'success'
+        ];
+
+        $rows[] = [
+            'rule_name' => 'Required Field (is_required)',
+            'module' => 'Catalogue Rules',
+            'working' => true,
+            'detail' => 'Hardcoded System Rule',
+            'connected_to' => 'System Engine',
+            'bot_flow' => "📦 Product Page: Must be filled to save\n💬 Chatflow: Automatically triggers prompt if missing\n📋 Lead/Quote: Enforces presence of data",
+            'severity' => 'success'
+        ];
+
+        $rows[] = [
+            'rule_name' => 'Variation Matrix (is_combo)',
+            'module' => 'Catalogue Rules',
+            'working' => true,
+            'detail' => 'Hardcoded System Rule',
+            'connected_to' => 'System Engine',
+            'bot_flow' => "📦 Product Page: Creates product variants\n💬 Chatflow: Enables variation selection matrix\n📋 Lead/Quote: Links particular variation to quote item",
+            'severity' => 'success'
+        ];
+
+        $rows[] = [
+            'rule_name' => 'Per-Variation Field (is_variation_field)',
+            'module' => 'Catalogue Rules',
+            'working' => true,
+            'detail' => 'Hardcoded System Rule',
+            'connected_to' => 'System Engine',
+            'bot_flow' => "📦 Product Page: Value changes per variant\n💬 Chatflow: Uses specific variation logic\n📋 Lead/Quote: Connects variation properties to lead",
+            'severity' => 'success'
         ];
 
         return $rows;

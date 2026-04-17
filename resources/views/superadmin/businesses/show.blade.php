@@ -905,7 +905,7 @@ function escHtml(s) {
     if (!s) return '';
     const d = document.createElement('div');
     d.textContent = s;
-    return d.innerHTML;
+    return d.innerHTML.replace(/\n/g, '<br>');
 }
 
 // Load configurations on page load
