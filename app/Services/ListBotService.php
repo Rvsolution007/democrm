@@ -342,7 +342,7 @@ class ListBotService
             $choice = trim(strtolower($trimmedText));
             if (in_array($choice, ['1', 'yes', 'haan', 'ha', 'y'])) {
                 // Restart fresh for new product selection
-                $this->resetForNewProduct($session);
+                $this->resetForNewProduct($session, $steps);
                 $session->save();
                 return $this->sendNextChatflowQuestion($session, $instanceName, $steps);
             } else {
@@ -1001,20 +1001,31 @@ class ListBotService
             $query->where('category_id', $answers['category_id']);
         }
 
-        // Apply column filters (case-insensitive + whitespace-normalized)
+        // Apply column filters (case-insensitive + whitespace-normalized + category fallback)
         foreach ($answers as $key => $val) {
             if (str_starts_with($key, 'column_filter_')) {
                 $colId = str_replace('column_filter_', '', $key);
                 $normalizedVal = $this->normalizeColumnValue($val);
                 $query->where(function ($q) use ($colId, $val, $normalizedVal) {
+                    // Match products that have the custom value
                     $q->whereHas('customValues', function ($subQ) use ($colId, $val, $normalizedVal) {
                         $subQ->where('column_id', $colId)
                             ->where(function ($innerQ) use ($val, $normalizedVal) {
-                                // Case-insensitive match (LOWER + TRIM + collapse spaces)
                                 $innerQ->whereRaw("LOWER(TRIM(REPLACE(value, '  ', ' '))) = ?", [$normalizedVal])
-                                    // Also match JSON arrays containing the value (case-insensitive)
                                     ->orWhereRaw("LOWER(value) LIKE ?", ['%"' . $normalizedVal . '"%']);
                             });
+                    })
+                    // Fallback: match products with NO custom value for this column
+                    // but whose category name matches the selected value
+                    ->orWhere(function ($fallbackQ) use ($colId, $normalizedVal) {
+                        $fallbackQ->whereDoesntHave('customValues', function ($subQ) use ($colId) {
+                            $subQ->where('column_id', $colId)
+                                 ->where('value', '!=', '')
+                                 ->whereNotNull('value');
+                        })
+                        ->whereHas('category', function ($catQ) use ($normalizedVal) {
+                            $catQ->whereRaw("LOWER(TRIM(name)) = ?", [$normalizedVal]);
+                        });
                     });
                 });
             }
@@ -1133,6 +1144,14 @@ class ListBotService
                         $availableValues[$normalized] = trim($v); // Keep first-seen display version
                     }
                 }
+            } elseif ($type === 'column' && $p->category && !empty($p->category->name)) {
+                // Fallback: product has NO custom value for this column
+                // Use category name so the product is never invisible
+                $catName = trim($p->category->name);
+                $normalized = $this->normalizeColumnValue($catName);
+                if (!isset($availableValues[$normalized])) {
+                    $availableValues[$normalized] = $catName;
+                }
             }
         }
 
@@ -1227,6 +1246,10 @@ class ListBotService
 
     private function handleSummaryStep(AiChatSession $session, string $instanceName): string
     {
+        // Guarantee that the latest collected answers (including auto-advanced steps) 
+        // are saved to the Quote and Lead records before finalizing.
+        $this->updateQuoteIfNeeded($session);
+
         $answers = $session->collected_answers ?? [];
         $msg = "📋 *Order Summary:*\n\n";
 
@@ -1320,6 +1343,28 @@ class ListBotService
         $session->save();
 
         return $msg;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // RESET FOR NEW PRODUCT (Add More)
+    // ═══════════════════════════════════════════════════════
+
+    private function resetForNewProduct(AiChatSession $session, $steps): void
+    {
+        $answers = $session->collected_answers ?? [];
+        $completed = $answers['_completed_products'] ?? [];
+        
+        $session->current_step_id = null;
+        $session->conversation_state = 'in_chatflow';
+        // Erase filters but keep completed products
+        $session->collected_answers = ['_completed_products' => $completed];
+        
+        // Find the first step again
+        $this->advanceChatflow($session, $steps);
+        
+        $this->traceNode($session->id, 'AddAnotherProduct', 'routing', 'success',
+            ['previous_completed' => count($completed)],
+            ['action' => 'reset_filters_keep_completed']);
     }
 
     // ═══════════════════════════════════════════════════════

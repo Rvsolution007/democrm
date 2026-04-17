@@ -1501,19 +1501,31 @@ class AIChatbotService
             $query->where('id', $answers['product_id']);
         }
         
-        // Apply existing filters before this one (case-insensitive)
+        // Apply existing filters before this one (case-insensitive + category fallback)
         foreach ($answers as $key => $val) {
             if (str_starts_with($key, 'column_filter_') && $key !== "column_filter_{$colId}") {
                 $extColId = str_replace('column_filter_', '', $key);
                 $normalizedVal = mb_strtolower(trim(preg_replace('/\s+/', ' ', $val)));
-                $query->whereHas('customValues', function($q) use ($extColId, $normalizedVal) {
-                    $q->where('column_id', $extColId)
-                      ->whereRaw("LOWER(TRIM(REPLACE(value, '  ', ' '))) = ?", [$normalizedVal]);
+                $query->where(function ($q) use ($extColId, $normalizedVal) {
+                    $q->whereHas('customValues', function($subQ) use ($extColId, $normalizedVal) {
+                        $subQ->where('column_id', $extColId)
+                          ->whereRaw("LOWER(TRIM(REPLACE(value, '  ', ' '))) = ?", [$normalizedVal]);
+                    })
+                    ->orWhere(function ($fallbackQ) use ($extColId, $normalizedVal) {
+                        $fallbackQ->whereDoesntHave('customValues', function ($subQ) use ($extColId) {
+                            $subQ->where('column_id', $extColId)
+                                 ->where('value', '!=', '')
+                                 ->whereNotNull('value');
+                        })
+                        ->whereHas('category', function ($catQ) use ($normalizedVal) {
+                            $catQ->whereRaw("LOWER(TRIM(name)) = ?", [$normalizedVal]);
+                        });
+                    });
                 });
             }
         }
         
-        $productSet = $query->with('customValues')->get();
+        $productSet = $query->with(['customValues', 'category'])->get();
 
         // 2. Extract distinct values for this column (normalized uniqueness)
         $availableValues = []; // normalized_key => display_value
@@ -1528,6 +1540,13 @@ class AIChatbotService
                     if (!isset($availableValues[$normalized])) {
                         $availableValues[$normalized] = trim($v);
                     }
+                }
+            } elseif ($p->category && !empty($p->category->name)) {
+                // Fallback: product has NO custom value, use category name
+                $catName = trim($p->category->name);
+                $normalized = mb_strtolower(trim(preg_replace('/\s+/', ' ', $catName)));
+                if (!isset($availableValues[$normalized])) {
+                    $availableValues[$normalized] = $catName;
                 }
             }
         }
