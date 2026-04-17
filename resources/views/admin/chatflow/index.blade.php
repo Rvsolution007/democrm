@@ -194,9 +194,9 @@
                         <div class="cf-type-card" data-type="ask_unique_column" onclick="cfSelectType('ask_unique_column')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:14px;transition:all 0.2s;position:relative;background:var(--card)">
                             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
                                 <span style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#0ea5e9,#0284c7);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">🏷️</span>
-                                <span style="font-weight:700;font-size:13px;color:var(--foreground)">Product Select</span>
+                                <span style="font-weight:700;font-size:13px;color:var(--foreground)">Unique Data Column</span>
                             </div>
-                            <p style="margin:0;font-size:11px;color:var(--muted-foreground);line-height:1.4">Individual products dikhayega ({{ $uniqueColumn ? $uniqueColumn->name : 'Model' }} list). User ek product choose karega.</p>
+                            <p style="margin:0;font-size:11px;color:var(--muted-foreground);line-height:1.4">Catalogue me jo column <b style="color:var(--primary)">🔑 Unique Identifier</b> flag enabled hai uske basis pe individual products list dikhayega. User specific product select karega.</p>
                         </div>
 
                         <div class="cf-type-card" data-type="ask_column" onclick="cfSelectType('ask_column')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:14px;transition:all 0.2s;position:relative;background:var(--card)">
