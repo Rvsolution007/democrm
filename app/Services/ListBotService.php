@@ -1569,7 +1569,8 @@ class ListBotService
                 $dbg[] = 'COMPANY: ' . ($company->name ?? $company->id);
 
                 $this->ensureClientIdNullable();
-                $dbg[] = 'ENSURE_NULLABLE: done';
+                $this->ensureQuoteNoCompanyUnique();
+                $dbg[] = 'ENSURE_SCHEMA: done';
 
                 // Retry loop for duplicate quote_no (unique constraint)
                 $quote = null;
@@ -1943,6 +1944,37 @@ class ListBotService
             Log::error('ListBot: Failed to fix client_id nullable', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
+            ]);
+        }
+
+        $checked = true;
+    }
+
+    /**
+     * Ensure quote_no is unique per company, not globally.
+     * Auto-fixes the database schema if the global unique index from original migration still exists.
+     */
+    private function ensureQuoteNoCompanyUnique(): void
+    {
+        static $checked = false;
+        if ($checked) return;
+
+        try {
+            $sm = \Illuminate\Support\Facades\Schema::getConnection()->getDoctrineSchemaManager();
+            $indexes = $sm->listTableIndexes('quotes');
+            
+            // Check if the old global unique index exists
+            if (array_key_exists('quotes_quote_no_unique', $indexes)) {
+                Log::warning('ListBot: Found global unique index quotes_quote_no_unique. Replacing with company_id scoped unique index.');
+                \Illuminate\Support\Facades\Schema::table('quotes', function (\Illuminate\Database\Schema\Blueprint $table) {
+                    $table->dropUnique('quotes_quote_no_unique');
+                    $table->unique(['company_id', 'quote_no'], 'company_quote_unique');
+                });
+                Log::info('ListBot: Successfully replaced quotes_quote_no_unique with company_quote_unique');
+            }
+        } catch (\Exception $e) {
+            Log::error('ListBot: Failed to fix quote_no unique index', [
+                'error' => $e->getMessage()
             ]);
         }
 
