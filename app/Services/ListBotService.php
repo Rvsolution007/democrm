@@ -1568,30 +1568,11 @@ class ListBotService
                     'status' => 'draft',
                 ];
 
-                // Try with client_id = null first (if migration was run, this works)
-                // If it fails due to NOT NULL constraint, retry with a fallback client
-                try {
-                    $quoteData['client_id'] = null;
-                    $quote = Quote::create($quoteData);
-                } catch (\Illuminate\Database\QueryException $qe) {
-                    // client_id NOT NULL constraint failed — migration not applied
-                    Log::warning('ListBot: client_id null failed, creating fallback client', [
-                        'error' => $qe->getMessage(),
-                    ]);
-                    
-                    // Create a minimal client from lead data for this quote
-                    $lead = $session->lead_id ? Lead::find($session->lead_id) : null;
-                    $client = \App\Models\Client::create([
-                        'company_id' => $this->companyId,
-                        'contact_name' => $lead->name ?? $session->phone_number,
-                        'phone' => $lead->phone ?? $session->phone_number,
-                        'business_name' => $lead->name ?? ('WhatsApp Lead ' . $session->phone_number),
-                        'status' => 'active',
-                    ]);
-                    $quoteData['client_id'] = $client->id;
-                    $quoteData['quote_no'] = Quote::generateQuoteNumber($company); // Regenerate to avoid unique collision
-                    $quote = Quote::create($quoteData);
-                }
+                // Ensure client_id is nullable (auto-fix if migration wasn't run)
+                $this->ensureClientIdNullable();
+
+                $quoteData['client_id'] = null;
+                $quote = Quote::create($quoteData);
 
                 // Create the QuoteItem
                 QuoteItem::create([
@@ -1815,6 +1796,34 @@ class ListBotService
             ->where('is_active', true)
             ->first();
         return $catCol ? $catCol->name : 'Category';
+    }
+
+    /**
+     * Ensure quotes.client_id is nullable.
+     * Auto-fixes the database schema if the migration wasn't manually applied.
+     * This allows quotes to be linked to leads without requiring a client.
+     */
+    private function ensureClientIdNullable(): void
+    {
+        static $checked = false;
+        if ($checked) return; // Only check once per request
+
+        try {
+            $column = \Illuminate\Support\Facades\Schema::getColumnType('quotes', 'client_id');
+            $isNullable = \Illuminate\Support\Facades\DB::selectOne(
+                "SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quotes' AND COLUMN_NAME = 'client_id'"
+            );
+
+            if ($isNullable && $isNullable->IS_NULLABLE === 'NO') {
+                Log::warning('ListBot: client_id is NOT NULL, auto-fixing schema');
+                \Illuminate\Support\Facades\DB::statement('ALTER TABLE quotes MODIFY client_id BIGINT UNSIGNED NULL');
+                Log::info('ListBot: client_id successfully made nullable');
+            }
+        } catch (\Exception $e) {
+            Log::warning('ListBot: Could not verify/fix client_id nullable', ['error' => $e->getMessage()]);
+        }
+
+        $checked = true;
     }
 
     /**
