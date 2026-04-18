@@ -447,7 +447,15 @@ class WhatsAppService
         array $sections,
         string $footer = ''
     ): array|false {
-        $text = "*{$title}*\n{$description}\n\n";
+        $text = "*{$title}*\n";
+        
+        $cleanDesc = trim(str_replace($title, '', $description));
+        if (!empty($cleanDesc)) {
+            $text .= "{$cleanDesc}\n\n";
+        } else {
+            $text .= "\n";
+        }
+
         $rowMap = []; // number => rowId mapping
         $num = 1;
 
@@ -459,8 +467,10 @@ class WhatsAppService
             foreach ($section['rows'] ?? [] as $row) {
                 $displayTitle = $row['fullTitle'] ?? $row['title'] ?? '';
                 $text .= "*{$num}.* {$displayTitle}";
-                if (!empty($row['description'])) {
-                    $text .= " — _{$row['description']}_";
+                
+                $rowDesc = trim($row['description'] ?? '');
+                if (!empty($rowDesc) && strtolower($rowDesc) !== 'select this product') {
+                    $text .= " — _{$rowDesc}_";
                 }
                 $text .= "\n";
 
@@ -473,11 +483,7 @@ class WhatsAppService
             $text .= "\n";
         }
 
-        $text .= "👆 _Reply with the number or type the name to select_";
-
-        if (!empty($footer)) {
-            $text .= "\n\n_{$footer}_";
-        }
+        $text .= "👆 _Reply with the number or name_";
 
         $sent = $this->sendText($instanceName, $phone, $text);
 
