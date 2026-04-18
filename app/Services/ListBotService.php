@@ -1483,6 +1483,7 @@ class ListBotService
                     'discount' => 0,
                     'gst_total' => 0,
                     'grand_total' => $product->sale_price ?? 0,
+                    'client_id' => null,
                     'status' => 'draft',
                 ]);
                 QuoteItem::create([
@@ -1495,6 +1496,8 @@ class ListBotService
                     'rate' => $product->sale_price ?? 0,
                     'unit' => $product->unit ?? 'nos',
                     'unit_price' => $product->sale_price ?? 0,
+                    'discount' => 0,
+                    'purchase_amount' => 0,
                     'gst_percent' => $product->gst_percent ?? 0,
                     'sort_order' => 1,
                 ]);
@@ -1521,6 +1524,8 @@ class ListBotService
                         'rate' => $product->sale_price ?? 0,
                         'unit' => $product->unit ?? 'nos',
                         'unit_price' => $product->sale_price ?? 0,
+                        'discount' => 0,
+                        'purchase_amount' => 0,
                         'gst_percent' => $product->gst_percent ?? 0,
                         'sort_order' => $maxSort + 1,
                     ]);
