@@ -1568,29 +1568,52 @@ class ListBotService
                 }
                 $dbg[] = 'COMPANY: ' . ($company->name ?? $company->id);
 
-                $quoteNo = Quote::generateQuoteNumber($company);
-                $dbg[] = 'QUOTE_NO: ' . $quoteNo;
-
-                $quoteData = [
-                    'company_id' => $this->companyId,
-                    'lead_id' => $session->lead_id,
-                    'created_by_user_id' => $this->userId,
-                    'quote_no' => $quoteNo,
-                    'date' => now(),
-                    'valid_till' => now()->addDays(30),
-                    'subtotal' => $product->sale_price ?? 0,
-                    'discount' => 0,
-                    'gst_total' => 0,
-                    'grand_total' => $product->sale_price ?? 0,
-                    'status' => 'draft',
-                ];
-
                 $this->ensureClientIdNullable();
                 $dbg[] = 'ENSURE_NULLABLE: done';
 
-                $quoteData['client_id'] = null;
-                $quote = Quote::create($quoteData);
-                $dbg[] = 'QUOTE_CREATE: OK id=' . $quote->id;
+                // Retry loop for duplicate quote_no (unique constraint)
+                $quote = null;
+                $maxRetries = 5;
+                for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+                    try {
+                        $quoteNo = $this->generateSafeQuoteNumber($company);
+                        $dbg[] = "QUOTE_NO(attempt=$attempt): $quoteNo";
+
+                        $quote = Quote::create([
+                            'company_id' => $this->companyId,
+                            'lead_id' => $session->lead_id,
+                            'created_by_user_id' => $this->userId,
+                            'quote_no' => $quoteNo,
+                            'date' => now(),
+                            'valid_till' => now()->addDays(30),
+                            'subtotal' => $product->sale_price ?? 0,
+                            'discount' => 0,
+                            'gst_total' => 0,
+                            'grand_total' => $product->sale_price ?? 0,
+                            'status' => 'draft',
+                            'client_id' => null,
+                        ]);
+                        $dbg[] = 'QUOTE_CREATE: OK id=' . $quote->id;
+                        break; // Success — exit retry loop
+                    } catch (\Illuminate\Database\QueryException $qe) {
+                        if ($qe->errorInfo[1] == 1062) {
+                            // Duplicate entry — retry with new number
+                            $dbg[] = "QUOTE_DUP(attempt=$attempt): " . $qe->getMessage();
+                            if ($attempt >= $maxRetries) {
+                                throw $qe; // Give up after max retries
+                            }
+                            usleep(100000); // 100ms wait before retry
+                            continue;
+                        }
+                        throw $qe; // Non-duplicate error — rethrow
+                    }
+                }
+
+                if (!$quote) {
+                    $dbg[] = 'QUOTE_CREATE: FAILED after retries';
+                    Log::error('ListBot: QUOTE_DEBUG_FAIL', ['steps' => $dbg]);
+                    return;
+                }
 
                 $qi = QuoteItem::create([
                     'quote_id' => $quote->id,
@@ -1664,6 +1687,56 @@ class ListBotService
                 'trace' => $e->getTraceAsString(),
             ]);
         }
+    }
+
+    /**
+     * Generate a safe quote number using raw DB MAX to avoid duplicate issues.
+     */
+    private function generateSafeQuoteNumber(\App\Models\Company $company): string
+    {
+        $now = now();
+
+        // Determine financial year (April to March)
+        if ($now->month >= 4) {
+            $fyStart = $now->year;
+            $fyEnd = $now->year + 1;
+        } else {
+            $fyStart = $now->year - 1;
+            $fyEnd = $now->year;
+        }
+
+        // Format FY based on company settings
+        switch ($company->quote_fy_format) {
+            case 'YYYY-YY':
+                $fy = $fyStart . '-' . substr($fyEnd, -2);
+                break;
+            case 'YYYY':
+                $fy = (string) $fyStart;
+                break;
+            default: // YY-YY
+                $fy = substr($fyStart, -2) . '-' . substr($fyEnd, -2);
+        }
+
+        $prefix = $company->quote_prefix ?? 'Q';
+        $pattern = $prefix . '-' . $fy . '-';
+
+        // Use raw SQL to extract numeric MAX — more reliable than string ordering
+        $maxSeq = \Illuminate\Support\Facades\DB::table('quotes')
+            ->where('company_id', $company->id)
+            ->where('quote_no', 'like', $pattern . '%')
+            ->selectRaw("MAX(CAST(SUBSTRING(quote_no, ?) AS UNSIGNED)) as max_seq", [strlen($pattern) + 1])
+            ->value('max_seq');
+
+        $sequence = ($maxSeq ?? 0) + 1;
+
+        Log::info('ListBot: generateSafeQuoteNumber', [
+            'pattern' => $pattern,
+            'max_seq' => $maxSeq,
+            'new_seq' => $sequence,
+            'quote_no' => sprintf('%s%06d', $pattern, $sequence),
+        ]);
+
+        return sprintf('%s%06d', $pattern, $sequence);
     }
 
     /**
