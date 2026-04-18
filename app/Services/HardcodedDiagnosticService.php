@@ -153,6 +153,16 @@ class HardcodedDiagnosticService
             'severity' => 'success'
         ];
 
+        $rows[] = [
+            'rule_name' => 'Smart Multi-Product Queue',
+            'module' => 'Bot List Flow',
+            'working' => true,
+            'detail' => '✅ NLP Array Queue logic active',
+            'connected_to' => 'ListBotService::routeMessage()',
+            'bot_flow' => 'User selects multiple separated products → split & queue unhandled items → process first match → auto-load queued items after summary.',
+            'severity' => 'success'
+        ];
+
         return $rows;
     }
 

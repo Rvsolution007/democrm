@@ -290,42 +290,84 @@ class ListBotService
         if (isset($answers['_text_menu_rowMap'])) {
             $rowMap = $answers['_text_menu_rowMap'];
 
-            // Exact number match
+            $matchedParsedList = [];
+
+            // 1. Try matching the exact entire string (protects names with "and", e.g. "Wax & Water")
+            $fullStringMatched = false;
             if (ctype_digit($trimmedText) && isset($rowMap[$trimmedText])) {
                 $entry = $rowMap[$trimmedText];
                 $rowId = is_array($entry) ? ($entry['rowId'] ?? '') : $entry;
                 $parsed = WhatsAppService::parseRowId($rowId);
                 if ($parsed) {
+                    $matchedParsedList[] = $parsed;
+                    $fullStringMatched = true;
                     $this->traceNode($session->id, 'TextFallbackMatch', 'routing', 'success',
                         ['input' => $trimmedText, 'matched_number' => $trimmedText, 'rowId' => $rowId],
                         ['type' => $parsed['type'], 'id' => $parsed['id'] ?? null]);
                     Log::info('ListBot: Number mapped to rowId', ['number' => $trimmedText, 'rowId' => $rowId]);
-                    unset($answers['_text_menu_rowMap']);
-                    $session->collected_answers = $answers;
-                    $session->save();
-                    return $this->handleListSelection($session, $instanceName, $parsed, $steps);
+                }
+            } else {
+                $fuzzyMatch = $this->fuzzyMatchFromRowMap($trimmedText, $rowMap);
+                if ($fuzzyMatch && $fuzzyMatch['score'] > 85) { // Very confident match for full string
+                    $rowId = $fuzzyMatch['rowId'];
+                    $parsed = WhatsAppService::parseRowId($rowId);
+                    if ($parsed) {
+                        $matchedParsedList[] = $parsed;
+                        $fullStringMatched = true;
+                        $this->traceNode($session->id, 'FuzzyTextMatch', 'routing', 'success',
+                            ['input' => $trimmedText, 'matched_title' => $fuzzyMatch['title'], 'score' => $fuzzyMatch['score']],
+                            ['type' => $parsed['type'], 'id' => $parsed['id'] ?? null]);
+                        Log::info('ListBot: Fuzzy text matched full string', [
+                            'input' => $trimmedText, 'matched' => $fuzzyMatch['title'], 'score' => $fuzzyMatch['score']
+                        ]);
+                    }
                 }
             }
 
-            // Fuzzy text matching on option titles
-            $fuzzyMatch = $this->fuzzyMatchFromRowMap($trimmedText, $rowMap);
-            if ($fuzzyMatch) {
-                $rowId = $fuzzyMatch['rowId'];
-                $parsed = WhatsAppService::parseRowId($rowId);
-                if ($parsed) {
-                    $this->traceNode($session->id, 'FuzzyTextMatch', 'routing', 'success',
-                        ['input' => $trimmedText, 'matched_title' => $fuzzyMatch['title'], 'score' => $fuzzyMatch['score']],
-                        ['type' => $parsed['type'], 'id' => $parsed['id'] ?? null]);
-                    Log::info('ListBot: Fuzzy text matched', [
-                        'input' => $trimmedText,
-                        'matched' => $fuzzyMatch['title'],
-                        'score' => $fuzzyMatch['score'],
-                    ]);
-                    unset($answers['_text_menu_rowMap']);
-                    $session->collected_answers = $answers;
-                    $session->save();
-                    return $this->handleListSelection($session, $instanceName, $parsed, $steps);
+            // 2. If full string wasn't strongly matched, try splitting by delimiters
+            if (!$fullStringMatched) {
+                // Split by common delimiters including 'and', '&', comma, newline, and Hindi 'aur'
+                $parts = preg_split('/(\band\b|\baur\b|&|,|\n)/i', $trimmedText);
+                
+                foreach ($parts as $part) {
+                    $part = trim($part);
+                    if (empty($part)) continue;
+                    
+                    if (ctype_digit($part) && isset($rowMap[$part])) {
+                        $entry = $rowMap[$part];
+                        $rowId = is_array($entry) ? ($entry['rowId'] ?? '') : $entry;
+                        $parsed = WhatsAppService::parseRowId($rowId);
+                        if ($parsed) $matchedParsedList[] = $parsed;
+                        continue;
+                    }
+
+                    $fuzzyMatch = $this->fuzzyMatchFromRowMap($part, $rowMap);
+                    if ($fuzzyMatch) {
+                        $rowId = $fuzzyMatch['rowId'];
+                        $parsed = WhatsAppService::parseRowId($rowId);
+                        if ($parsed) $matchedParsedList[] = $parsed;
+                    }
                 }
+            }
+
+            // 3. Process the matches
+            if (count($matchedParsedList) > 0) {
+                unset($answers['_text_menu_rowMap']);
+                
+                // If more than 1 item matched, queue the rest!
+                if (count($matchedParsedList) > 1) {
+                    $queue = $answers['_multi_product_queue'] ?? [];
+                    $additionalItems = array_slice($matchedParsedList, 1);
+                    $queue = array_merge($queue, $additionalItems);
+                    $answers['_multi_product_queue'] = $queue;
+                    Log::info('ListBot: Queued multiple selections', ['count' => count($additionalItems)]);
+                }
+
+                $session->collected_answers = $answers;
+                $session->save();
+                
+                // Process the first match immediately
+                return $this->handleListSelection($session, $instanceName, $matchedParsedList[0], $steps);
             }
 
             // Invalid input — hint
@@ -1330,6 +1372,23 @@ class ListBotService
         ];
         $session->setAnswer('_completed_products', $completed);
 
+        // Check if there are products remaining in the multi_product_queue
+        $queue = $session->getAnswer('_multi_product_queue') ?? [];
+        if (!empty($queue)) {
+            $nextParsed = array_shift($queue);
+            $session->setAnswer('_multi_product_queue', $queue);
+            $session->save();
+
+            $waitMsg = "⏳ _Processing next product into your order..._";
+            $this->whatsApp->sendText($instanceName, $session->phone_number, $waitMsg);
+
+            $this->resetForNewProduct($session, $steps);
+            $session->save();
+
+            // Directly process the queued selection
+            return $this->handleListSelection($session, $instanceName, $nextParsed, $steps);
+        }
+
         $addMoreMsg = "━━━━━━━━━━━━━━━\n";
         $addMoreMsg .= "🛒 *Kya aap aur product add karna chahte hain?*\n\n";
         $addMoreMsg .= "1️⃣ ✅ Haan, aur product add karo\n";
@@ -1357,7 +1416,7 @@ class ListBotService
 
         foreach ($answers as $k => $v) {
             if (in_array($k, $personalKeys)) $newAnswers[$k] = $v;
-            if ($k === '_completed_products') $newAnswers[$k] = $v;
+            if ($k === '_completed_products' || $k === '_multi_product_queue') $newAnswers[$k] = $v;
         }
 
         $session->current_step_id = null;
@@ -1469,8 +1528,9 @@ class ListBotService
                 }
             }
 
-            // Create Quote if not exists
-            if (!$session->quote_id) {
+            // Create Quote if not exists or if it was deleted/trashed
+            $existingQuote = $session->quote_id ? Quote::find($session->quote_id) : null;
+            if (!$existingQuote) {
                 $company = \App\Models\Company::find($this->companyId);
                 $quote = Quote::create([
                     'company_id' => $this->companyId,
@@ -1529,8 +1589,7 @@ class ListBotService
                         'gst_percent' => $product->gst_percent ?? 0,
                         'sort_order' => $maxSort + 1,
                     ]);
-                    $quote = Quote::find($session->quote_id);
-                    $quote?->recalculateTotals();
+                    $existingQuote?->recalculateTotals();
 
                     $this->traceNode($session->id, 'QuoteItemAdded', 'database', 'success',
                         ['product_id' => $product->id, 'product_name' => $this->getProductDisplayName($product), 'quote_id' => $session->quote_id],
