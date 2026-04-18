@@ -1528,7 +1528,11 @@ class ListBotService
      */
     private function attachProductToLead(AiChatSession $session, Product $product): void
     {
+        $dbg = [];
+
         try {
+            $dbg[] = 'START: sid=' . $session->id . ', pid=' . $product->id;
+
             // Step 1: Attach product to lead
             if ($session->lead_id) {
                 $lead = Lead::find($session->lead_id);
@@ -1539,26 +1543,39 @@ class ListBotService
                             'price' => $product->sale_price,
                             'description' => \Illuminate\Support\Str::limit($product->getDynamicDescription($session->collected_answers ?? [], true), 250)
                         ]);
+                        $dbg[] = 'LEAD_ATTACH: OK';
+                    } else {
+                        $dbg[] = 'LEAD_ATTACH: already exists';
                     }
                     $lead->update(['product_name' => $this->getProductDisplayName($product)]);
+                } else {
+                    $dbg[] = 'LEAD: not found lid=' . $session->lead_id;
                 }
+            } else {
+                $dbg[] = 'LEAD: no lead_id';
             }
 
             // Step 2: Create or update Quote
             $existingQuote = $session->quote_id ? Quote::find($session->quote_id) : null;
+            $dbg[] = 'QUOTE_CHECK: ' . ($existingQuote ? 'exists id=' . $existingQuote->id : 'will create');
+
             if (!$existingQuote) {
                 $company = \App\Models\Company::find($this->companyId);
                 if (!$company) {
-                    Log::error('ListBot: Company not found for quote creation', ['company_id' => $this->companyId]);
+                    $dbg[] = 'COMPANY: NOT FOUND cid=' . $this->companyId;
+                    Log::error('ListBot: QUOTE_DEBUG', ['steps' => $dbg]);
                     return;
                 }
+                $dbg[] = 'COMPANY: ' . ($company->name ?? $company->id);
 
-                // Build quote data — exclude client_id entirely so DB default handles it
+                $quoteNo = Quote::generateQuoteNumber($company);
+                $dbg[] = 'QUOTE_NO: ' . $quoteNo;
+
                 $quoteData = [
                     'company_id' => $this->companyId,
                     'lead_id' => $session->lead_id,
                     'created_by_user_id' => $this->userId,
-                    'quote_no' => Quote::generateQuoteNumber($company),
+                    'quote_no' => $quoteNo,
                     'date' => now(),
                     'valid_till' => now()->addDays(30),
                     'subtotal' => $product->sale_price ?? 0,
@@ -1568,14 +1585,14 @@ class ListBotService
                     'status' => 'draft',
                 ];
 
-                // Ensure client_id is nullable (auto-fix if migration wasn't run)
                 $this->ensureClientIdNullable();
+                $dbg[] = 'ENSURE_NULLABLE: done';
 
                 $quoteData['client_id'] = null;
                 $quote = Quote::create($quoteData);
+                $dbg[] = 'QUOTE_CREATE: OK id=' . $quote->id;
 
-                // Create the QuoteItem
-                QuoteItem::create([
+                $qi = QuoteItem::create([
                     'quote_id' => $quote->id,
                     'product_id' => $product->id,
                     'product_name' => $this->getProductDisplayName($product),
@@ -1590,14 +1607,16 @@ class ListBotService
                     'gst_percent' => $product->gst_percent ?? 0,
                     'sort_order' => 1,
                 ]);
+                $dbg[] = 'QUOTE_ITEM: OK id=' . $qi->id;
+
                 $session->quote_id = $quote->id;
                 $session->save();
+                $dbg[] = 'SESSION_SAVE: quote_id=' . $quote->id;
 
                 $this->traceNode($session->id, 'QuoteCreated', 'database', 'success',
                     ['product_id' => $product->id, 'product_name' => $this->getProductDisplayName($product)],
                     ['quote_id' => $quote->id, 'quote_no' => $quote->quote_no, 'grand_total' => $product->sale_price]);
             } else {
-                // Add to existing quote
                 $existingItem = QuoteItem::where('quote_id', $existingQuote->id)
                     ->where('product_id', $product->id)
                     ->first();
@@ -1619,19 +1638,29 @@ class ListBotService
                         'sort_order' => $maxSort + 1,
                     ]);
                     $existingQuote->recalculateTotals();
+                    $dbg[] = 'QUOTE_ITEM_ADD: OK';
 
                     $this->traceNode($session->id, 'QuoteItemAdded', 'database', 'success',
                         ['product_id' => $product->id, 'product_name' => $this->getProductDisplayName($product), 'quote_id' => $existingQuote->id],
                         ['sort_order' => $maxSort + 1, 'new_total' => $existingQuote->grand_total]);
+                } else {
+                    $dbg[] = 'QUOTE_ITEM: already exists';
                 }
             }
+
+            $dbg[] = 'DONE: SUCCESS';
+            Log::info('ListBot: QUOTE_DEBUG_OK', ['steps' => $dbg]);
+
         } catch (\Exception $e) {
-            Log::error('ListBot: Error attaching product to quote', [
+            $dbg[] = 'FAIL: ' . $e->getFile() . ':' . $e->getLine() . ' => ' . $e->getMessage();
+            Log::error('ListBot: QUOTE_DEBUG_FAIL', ['steps' => $dbg]);
+            Log::error('ListBot: Quote error detail', [
                 'session_id' => $session->id,
                 'product_id' => $product->id,
                 'lead_id' => $session->lead_id,
                 'quote_id' => $session->quote_id,
                 'error' => $e->getMessage(),
+                'file' => $e->getFile() . ':' . $e->getLine(),
                 'trace' => $e->getTraceAsString(),
             ]);
         }
