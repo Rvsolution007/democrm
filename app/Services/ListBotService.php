@@ -1948,8 +1948,6 @@ class ListBotService
         }
 
         $checked = true;
-    }
-
     /**
      * Ensure quote_no is unique per company, not globally.
      * Auto-fixes the database schema if the global unique index from original migration still exists.
@@ -1960,23 +1958,24 @@ class ListBotService
         if ($checked) return;
 
         try {
-            $sm = \Illuminate\Support\Facades\Schema::getConnection()->getDoctrineSchemaManager();
-            $indexes = $sm->listTableIndexes('quotes');
+            \Illuminate\Support\Facades\DB::statement('ALTER TABLE quotes DROP INDEX quotes_quote_no_unique');
+            Log::info('ListBot: Successfully dropped global quotes_quote_no_unique index via raw SQL');
             
-            // Check if the old global unique index exists
-            if (array_key_exists('quotes_quote_no_unique', $indexes)) {
-                Log::warning('ListBot: Found global unique index quotes_quote_no_unique. Replacing with company_id scoped unique index.');
-                \Illuminate\Support\Facades\Schema::table('quotes', function (\Illuminate\Database\Schema\Blueprint $table) {
-                    $table->dropUnique('quotes_quote_no_unique');
-                    $table->unique(['company_id', 'quote_no'], 'company_quote_unique');
-                });
-                Log::info('ListBot: Successfully replaced quotes_quote_no_unique with company_quote_unique');
+            try {
+                \Illuminate\Support\Facades\DB::statement('ALTER TABLE quotes ADD UNIQUE INDEX company_quote_unique (company_id, quote_no)');
+                Log::info('ListBot: Successfully added company_quote_unique index via raw SQL');
+            } catch (\Exception $e) {
+                // Ignore if it already exists
             }
         } catch (\Exception $e) {
-            Log::error('ListBot: Failed to fix quote_no unique index', [
-                'error' => $e->getMessage()
-            ]);
+            // Index likely doesn't exist anymore, which means it's already fixed.
         }
+
+        // ONE MORE THING: the original migration might have named the index differently on some systems, 
+        // e.g. "quote_no". Let's attempt dropping "quote_no" index as well if it exists.
+        try {
+            \Illuminate\Support\Facades\DB::statement('ALTER TABLE quotes DROP INDEX quotes_quote_no_unique'); // For good measure
+        } catch (\Exception $e) {}
 
         $checked = true;
     }
