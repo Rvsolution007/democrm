@@ -1376,16 +1376,31 @@ class ListBotService
         $queue = $session->getAnswer('_multi_product_queue') ?? [];
         if (!empty($queue)) {
             $nextParsed = array_shift($queue);
-            $session->setAnswer('_multi_product_queue', $queue);
-            $session->save();
 
             $waitMsg = "⏳ _Processing next product into your order..._";
             $this->whatsApp->sendText($instanceName, $session->phone_number, $waitMsg);
 
-            $this->resetForNewProduct($session, $steps);
+            // Full reset: clear ALL product/category data, keep only personal + queue
+            $preserveAnswers = [];
+            foreach (['name', 'email', 'city', 'state', 'phone', 'address'] as $pk) {
+                if (isset($answers[$pk])) $preserveAnswers[$pk] = $answers[$pk];
+            }
+            $preserveAnswers['_completed_products'] = $completed;
+            $preserveAnswers['_multi_product_queue'] = $queue;
+
+            $session->current_step_id = null;
+            $session->conversation_state = 'in_chatflow';
+            $session->collected_answers = $preserveAnswers;
             $session->save();
 
-            // Directly process the queued selection
+            Log::info('ListBot: Processing queued product', [
+                'queue_remaining' => count($queue),
+                'next_parsed' => $nextParsed,
+            ]);
+
+            // Directly process the queued selection — handleListSelection will
+            // call handleCategorySelection/handleProductSelection which internally
+            // calls advanceChatflow and sendNextChatflowQuestion
             return $this->handleListSelection($session, $instanceName, $nextParsed, $steps);
         }
 
@@ -1411,7 +1426,7 @@ class ListBotService
     private function resetForNewProduct(AiChatSession $session, $steps): void
     {
         $answers = $session->collected_answers ?? [];
-        $personalKeys = ['name', 'email', 'city', 'state', 'phone', 'address', 'category_id', 'category_ids'];
+        $personalKeys = ['name', 'email', 'city', 'state', 'phone', 'address'];
         $newAnswers = [];
 
         foreach ($answers as $k => $v) {
