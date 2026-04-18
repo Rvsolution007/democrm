@@ -1352,18 +1352,23 @@ class ListBotService
     private function resetForNewProduct(AiChatSession $session, $steps): void
     {
         $answers = $session->collected_answers ?? [];
-        $completed = $answers['_completed_products'] ?? [];
-        
+        $personalKeys = ['name', 'email', 'city', 'state', 'phone', 'address', 'category_id', 'category_ids'];
+        $newAnswers = [];
+
+        foreach ($answers as $k => $v) {
+            if (in_array($k, $personalKeys)) $newAnswers[$k] = $v;
+            if ($k === '_completed_products') $newAnswers[$k] = $v;
+        }
+
         $session->current_step_id = null;
         $session->conversation_state = 'in_chatflow';
-        // Erase filters but keep completed products
-        $session->collected_answers = ['_completed_products' => $completed];
+        $session->collected_answers = $newAnswers;
         
         // Find the first step again
         $this->advanceChatflow($session, $steps);
         
         $this->traceNode($session->id, 'AddAnotherProduct', 'routing', 'success',
-            ['previous_completed' => count($completed)],
+            ['previous_completed' => count($newAnswers['_completed_products'] ?? [])],
             ['action' => 'reset_filters_keep_completed']);
     }
 
@@ -1442,24 +1447,7 @@ class ListBotService
         }
     }
 
-    /**
-     * Reset session for a new product selection (keep personal info + category).
-     */
-    private function resetForNewProduct(AiChatSession $session): void
-    {
-        $answers = $session->collected_answers ?? [];
-        $personalKeys = ['name', 'email', 'city', 'state', 'phone', 'address'];
-        $newAnswers = [];
 
-        foreach ($answers as $k => $v) {
-            if (in_array($k, $personalKeys)) $newAnswers[$k] = $v;
-            if ($k === '_completed_products') $newAnswers[$k] = $v;
-        }
-
-        $session->collected_answers = $newAnswers;
-        $session->current_step_id = null;
-        $session->conversation_state = 'in_chatflow';
-    }
 
     /**
      * Attach product to lead and create/update quote.
