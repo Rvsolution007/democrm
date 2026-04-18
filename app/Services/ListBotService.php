@@ -1809,18 +1809,39 @@ class ListBotService
         if ($checked) return; // Only check once per request
 
         try {
-            $column = \Illuminate\Support\Facades\Schema::getColumnType('quotes', 'client_id');
             $isNullable = \Illuminate\Support\Facades\DB::selectOne(
                 "SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quotes' AND COLUMN_NAME = 'client_id'"
             );
 
             if ($isNullable && $isNullable->IS_NULLABLE === 'NO') {
-                Log::warning('ListBot: client_id is NOT NULL, auto-fixing schema');
+                Log::warning('ListBot: client_id is NOT NULL, auto-fixing schema (dropping FK → modify → re-add FK)');
+                
+                // Step 1: Drop foreign key constraint
+                try {
+                    \Illuminate\Support\Facades\DB::statement('ALTER TABLE quotes DROP FOREIGN KEY quotes_client_id_foreign');
+                } catch (\Exception $fkErr) {
+                    // FK name might be different, try finding it
+                    $fks = \Illuminate\Support\Facades\DB::select(
+                        "SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quotes' AND COLUMN_NAME = 'client_id' AND REFERENCED_TABLE_NAME IS NOT NULL"
+                    );
+                    foreach ($fks as $fk) {
+                        \Illuminate\Support\Facades\DB::statement("ALTER TABLE quotes DROP FOREIGN KEY {$fk->CONSTRAINT_NAME}");
+                    }
+                }
+
+                // Step 2: Make column nullable
                 \Illuminate\Support\Facades\DB::statement('ALTER TABLE quotes MODIFY client_id BIGINT UNSIGNED NULL');
-                Log::info('ListBot: client_id successfully made nullable');
+
+                // Step 3: Re-add foreign key
+                \Illuminate\Support\Facades\DB::statement('ALTER TABLE quotes ADD CONSTRAINT quotes_client_id_foreign FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE');
+
+                Log::info('ListBot: client_id successfully made nullable with FK preserved');
             }
         } catch (\Exception $e) {
-            Log::warning('ListBot: Could not verify/fix client_id nullable', ['error' => $e->getMessage()]);
+            Log::error('ListBot: Failed to fix client_id nullable', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
         }
 
         $checked = true;
