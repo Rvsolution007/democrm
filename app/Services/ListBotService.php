@@ -1948,6 +1948,8 @@ class ListBotService
         }
 
         $checked = true;
+    }
+
     /**
      * Ensure quote_no is unique per company, not globally.
      * Auto-fixes the database schema if the global unique index from original migration still exists.
