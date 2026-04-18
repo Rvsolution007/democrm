@@ -1514,6 +1514,7 @@ class ListBotService
     private function attachProductToLead(AiChatSession $session, Product $product): void
     {
         try {
+            // Step 1: Attach product to lead
             if ($session->lead_id) {
                 $lead = Lead::find($session->lead_id);
                 if ($lead) {
@@ -1528,11 +1529,17 @@ class ListBotService
                 }
             }
 
-            // Create Quote if not exists or if it was deleted/trashed
+            // Step 2: Create or update Quote
             $existingQuote = $session->quote_id ? Quote::find($session->quote_id) : null;
             if (!$existingQuote) {
                 $company = \App\Models\Company::find($this->companyId);
-                $quote = Quote::create([
+                if (!$company) {
+                    Log::error('ListBot: Company not found for quote creation', ['company_id' => $this->companyId]);
+                    return;
+                }
+
+                // Build quote data — exclude client_id entirely so DB default handles it
+                $quoteData = [
                     'company_id' => $this->companyId,
                     'lead_id' => $session->lead_id,
                     'created_by_user_id' => $this->userId,
@@ -1543,9 +1550,35 @@ class ListBotService
                     'discount' => 0,
                     'gst_total' => 0,
                     'grand_total' => $product->sale_price ?? 0,
-                    'client_id' => null,
                     'status' => 'draft',
-                ]);
+                ];
+
+                // Try with client_id = null first (if migration was run, this works)
+                // If it fails due to NOT NULL constraint, retry with a fallback client
+                try {
+                    $quoteData['client_id'] = null;
+                    $quote = Quote::create($quoteData);
+                } catch (\Illuminate\Database\QueryException $qe) {
+                    // client_id NOT NULL constraint failed — migration not applied
+                    Log::warning('ListBot: client_id null failed, creating fallback client', [
+                        'error' => $qe->getMessage(),
+                    ]);
+                    
+                    // Create a minimal client from lead data for this quote
+                    $lead = $session->lead_id ? Lead::find($session->lead_id) : null;
+                    $client = \App\Models\Client::create([
+                        'company_id' => $this->companyId,
+                        'contact_name' => $lead->name ?? $session->phone_number,
+                        'phone' => $lead->phone ?? $session->phone_number,
+                        'business_name' => $lead->name ?? ('WhatsApp Lead ' . $session->phone_number),
+                        'status' => 'active',
+                    ]);
+                    $quoteData['client_id'] = $client->id;
+                    $quoteData['quote_no'] = Quote::generateQuoteNumber($company); // Regenerate to avoid unique collision
+                    $quote = Quote::create($quoteData);
+                }
+
+                // Create the QuoteItem
                 QuoteItem::create([
                     'quote_id' => $quote->id,
                     'product_id' => $product->id,
@@ -1569,13 +1602,13 @@ class ListBotService
                     ['quote_id' => $quote->id, 'quote_no' => $quote->quote_no, 'grand_total' => $product->sale_price]);
             } else {
                 // Add to existing quote
-                $existingItem = QuoteItem::where('quote_id', $session->quote_id)
+                $existingItem = QuoteItem::where('quote_id', $existingQuote->id)
                     ->where('product_id', $product->id)
                     ->first();
                 if (!$existingItem) {
-                    $maxSort = QuoteItem::where('quote_id', $session->quote_id)->max('sort_order') ?? 0;
+                    $maxSort = QuoteItem::where('quote_id', $existingQuote->id)->max('sort_order') ?? 0;
                     QuoteItem::create([
-                        'quote_id' => $session->quote_id,
+                        'quote_id' => $existingQuote->id,
                         'product_id' => $product->id,
                         'product_name' => $this->getProductDisplayName($product),
                         'description' => \Illuminate\Support\Str::limit($product->getDynamicDescription($session->collected_answers ?? [], true), 250),
@@ -1589,17 +1622,21 @@ class ListBotService
                         'gst_percent' => $product->gst_percent ?? 0,
                         'sort_order' => $maxSort + 1,
                     ]);
-                    $existingQuote?->recalculateTotals();
+                    $existingQuote->recalculateTotals();
 
                     $this->traceNode($session->id, 'QuoteItemAdded', 'database', 'success',
-                        ['product_id' => $product->id, 'product_name' => $this->getProductDisplayName($product), 'quote_id' => $session->quote_id],
-                        ['sort_order' => $maxSort + 1, 'new_total' => $quote?->grand_total]);
+                        ['product_id' => $product->id, 'product_name' => $this->getProductDisplayName($product), 'quote_id' => $existingQuote->id],
+                        ['sort_order' => $maxSort + 1, 'new_total' => $existingQuote->grand_total]);
                 }
             }
         } catch (\Exception $e) {
-            Log::error('ListBot: Error attaching product', [
+            Log::error('ListBot: Error attaching product to quote', [
                 'session_id' => $session->id,
+                'product_id' => $product->id,
+                'lead_id' => $session->lead_id,
+                'quote_id' => $session->quote_id,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
