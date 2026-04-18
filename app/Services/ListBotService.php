@@ -1389,7 +1389,7 @@ class ListBotService
             return $this->handleListSelection($session, $instanceName, $nextParsed, $steps);
         }
 
-        $addMoreMsg = "━━━━━━━━━━━━━━━\n";
+        $addMoreMsg = "";
         $addMoreMsg .= "🛒 *Kya aap aur product add karna chahte hain?*\n\n";
         $addMoreMsg .= "1️⃣ ✅ Haan, aur product add karo\n";
         $addMoreMsg .= "2️⃣ ❌ Nahi, order complete karo";
@@ -1770,7 +1770,7 @@ class ListBotService
      */
     private function resetFooter(): string
     {
-        return "\n\n━━━━━━━━━━━━━━━\n↩️ Type *reset* to start over";
+        return "\n\n↩️ Type *reset* to start over";
     }
 
     /**
